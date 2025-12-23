@@ -246,3 +246,52 @@ services:
       KAFKA_CLUSTERS_0_KAFKACONNECT_0_ADDRESS: http://kafka-connect:8083
     ports:
       - "8084:8080"
+
+  # ============ Hive Metastore + Trino (SQL on S3) ============
+  hive-metastore-db-init:
+    image: postgres:16-alpine
+    container_name: hive-metastore-db-init
+    entrypoint: /bin/sh
+    command:
+      - -c
+      - |
+        until PGPASSWORD=postgres psql -h postgres -U postgres -c '\q'; do
+          echo "Waiting for postgres..."
+          sleep 2
+        done
+        PGPASSWORD=postgres psql -h postgres -U postgres -c "CREATE DATABASE metastore;" || true
+    depends_on:
+      - postgres
+    restart: "no"
+
+  hive-metastore:
+    image: apache/hive:4.0.0
+    container_name: hive-metastore
+    restart: unless-stopped
+    depends_on:
+      - hive-metastore-db-init
+    environment:
+      SERVICE_NAME: metastore
+      DB_DRIVER: postgres
+      SERVICE_OPTS: >-
+        -Djavax.jdo.option.ConnectionDriverName=org.postgresql.Driver
+        -Djavax.jdo.option.ConnectionURL=jdbc:postgresql://postgres:5432/metastore
+        -Djavax.jdo.option.ConnectionUserName=postgres
+        -Djavax.jdo.option.ConnectionPassword=postgres
+    ports:
+      - "9083:9083"
+    volumes:
+      - ./hive/conf:/opt/hive/conf
+
+  trino:
+    image: trinodb/trino:435
+    container_name: trino
+    restart: unless-stopped
+    depends_on:
+      - hive-metastore
+      - minio
+    ports:
+      - "8085:8080"
+    volumes:
+      - ./trino/etc:/etc/trino
+      - ./trino/catalog:/etc/trino/catalog
