@@ -105,3 +105,66 @@ services:
     restart: unless-stopped
     depends_on:
       - airflow-init
+
+  # ============ MinIO (S3-compatible storage) ============
+  minio:
+    image: minio/minio:latest
+    container_name: minio
+    restart: unless-stopped
+    environment:
+      MINIO_ROOT_USER: minio
+      MINIO_ROOT_PASSWORD: minio123
+    command: server /data --console-address ":9001"
+    ports:
+      - "9000:9000"
+      - "9001:9001"
+    volumes:
+      - ./minio-data:/data
+
+  minio-init:
+    image: minio/mc:latest
+    container_name: minio-init
+    depends_on:
+      - minio
+    entrypoint: /bin/sh
+    command:
+      - -c
+      - |
+        sleep 5
+        mc alias set myminio http://minio:9000 minio minio123
+        mc mb myminio/datalake --ignore-existing
+        mc mb myminio/raw --ignore-existing
+        mc mb myminio/processed --ignore-existing
+    restart: "no"
+
+  # ============ Spark ============
+  spark-master:
+    image: apache/spark:3.5.0
+    container_name: spark-master
+    restart: unless-stopped
+    environment:
+      SPARK_MASTER_HOST: spark-master
+      AWS_ACCESS_KEY_ID: minio
+      AWS_SECRET_ACCESS_KEY: minio123
+    command: /opt/spark/bin/spark-class org.apache.spark.deploy.master.Master
+    ports:
+      - "7077:7077"
+      - "8081:8080"
+    volumes:
+      - ./spark/jars:/opt/spark/jars/extra
+
+  spark-worker:
+    image: apache/spark:3.5.0
+    container_name: spark-worker
+    restart: unless-stopped
+    environment:
+      SPARK_MASTER: spark://spark-master:7077
+      SPARK_WORKER_CORES: 2
+      SPARK_WORKER_MEMORY: 2g
+      AWS_ACCESS_KEY_ID: minio
+      AWS_SECRET_ACCESS_KEY: minio123
+    command: /opt/spark/bin/spark-class org.apache.spark.deploy.worker.Worker spark://spark-master:7077
+    depends_on:
+      - spark-master
+    volumes:
+      - ./spark/jars:/opt/spark/jars/extra
