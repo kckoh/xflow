@@ -211,3 +211,4 @@ mongo-data/
 neo4j-data/
 postgres-data/
 airflow/logs/
+minio-data/
