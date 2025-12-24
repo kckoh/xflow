@@ -27,3 +27,8 @@ Access:
 - MinIO Console: http://localhost:9001
 minio/minio123
 - Spark UI: http://localhost:8081
+
+
+hive 설정
+
+hive 폴더 안에 lib 폴더 생성 후 postgresql-42.6.0.jar  만들기
