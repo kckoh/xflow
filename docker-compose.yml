@@ -282,6 +282,7 @@ services:
       - "9083:9083"
     volumes:
       - ./hive/conf:/opt/hive/conf
+      - ./hive/lib/postgresql-42.6.0.jar:/opt/hive/lib/postgresql-42.6.0.jar
 
   trino:
     image: trinodb/trino:435
