@@ -10,6 +10,10 @@
 
 ---
 
+### scripts 사용법
+
+`setup_sample_data.py` 실행 -> `create_hive_tables.py` 실행 -> `create_metadata_production.py` 실행
+
 ### 1. tables.parquet (테이블 메타데이터)
 
 **필수 필드**:
