@@ -12,7 +12,7 @@ class UserLogin(BaseModel):
 
 
 class UserResponse(BaseModel):
-    id: int
+    id: str  # MongoDB ObjectId is string
     email: str
 
     class Config:
