@@ -9,7 +9,11 @@ alembic upgrade head
 docker compose exec postgres psql -U postgres -d mydb -c "\d users"
 psql -U postgres -d mydb
 
+# Start fastapi backend
+docker compose up backend
 
+background로 돌리기
+docker compose up -d backend
 
 # Start postgres first, then airflow
 docker compose up -d postgres
