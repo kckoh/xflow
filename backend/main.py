@@ -1,9 +1,28 @@
+from contextlib import asynccontextmanager
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from routers import auth, users
+from database import init_db, close_db
 
-# Create FastAPI app
-app = FastAPI(title="Jungle Data Structures API", version="1.0.0")
+
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    """
+    Lifespan context manager for startup and shutdown events.
+    """
+    # Startup: Initialize MongoDB connection
+    await init_db()
+    yield
+    # Shutdown: Close MongoDB connection
+    await close_db()
+
+
+# Create FastAPI app with lifespan
+app = FastAPI(
+    title="Jungle Data Structures API",
+    version="1.0.0",
+    lifespan=lifespan
+)
 
 # Configure CORS
 app.add_middleware(
@@ -22,4 +41,4 @@ app.include_router(users.router, prefix="/users", tags=["users"])
 # Root route - Test database connection
 @app.get("/")
 def read_root():
-    return {"message": "Connected to FastAPI + PostgreSQL"}
+    return {"message": "Connected to FastAPI + MongoDB"}
