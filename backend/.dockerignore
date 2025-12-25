@@ -1,0 +1,10 @@
+__pycache__
+*.pyc
+*.pyo
+.Python
+*.so
+*.egg-info
+.venv
+venv
+.git
+alembic/versions/__pycache__

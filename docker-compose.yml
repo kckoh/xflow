@@ -63,6 +63,23 @@ services:
     volumes:
       - ./mongo-data:/data/db
 
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: xflow-backend
+    restart: unless-stopped
+    ports:
+      - "8000:8000"
+    volumes:
+      - ./backend:/app
+    environment:
+      MONGODB_URL: mongodb://mongo:mongo@mongodb:27017
+      MONGODB_DATABASE: mydb
+      CORS_ORIGINS: http://localhost:5173,http://localhost:3000
+    depends_on:
+      - mongodb
+
   airflow-db-init:
     image: postgres:16-alpine
     container_name: airflow-db-init

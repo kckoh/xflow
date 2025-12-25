@@ -1,10 +1,11 @@
+import os
 from beanie import init_beanie
 from motor.motor_asyncio import AsyncIOMotorClient
 from models import User
 
-# MongoDB connection URL
-MONGODB_URL = "mongodb://mongo:mongo@localhost:27017"
-DATABASE_NAME = "mydb"
+# MongoDB connection from environment variables
+MONGODB_URL = os.getenv("MONGODB_URL", "mongodb://mongo:mongo@localhost:27017")
+DATABASE_NAME = os.getenv("MONGODB_DATABASE", "mydb")
 
 # Global MongoDB client
 mongodb_client = None
