@@ -1,3 +1,15 @@
+### download_jars.sh 사용법
+
+- 실행: `./scripts/download_jars.sh`
+- 이 스크립트는 "다운로드만" 합니다 (컨테이너에 자동 설치되지 않음)
+- 다운로드 파일: hadoop-aws, aws-java-sdk-bundle JAR
+- 저장 위치: `trino/jars/`, `hive/lib/`
+- 컨테이너 반영:
+  - 1. 볼륨 마운트가 연결돼 있으면 재시작
+  - 2. 또는 `docker cp`로 직접 복사 (스크립트 출력의 예시 명령 참고)
+
+---
+
 ### 1. tables.parquet (테이블 메타데이터)
 
 **필수 필드**:
