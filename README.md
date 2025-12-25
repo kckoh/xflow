@@ -41,3 +41,7 @@ docker compose exec -T postgres psql -U postgres -d mydb < init-fake-data.sql
 
 Row 수 확인
 docker compose exec -T postgres psql -U postgres -d mydb -c "SELECT n_live_tup as row_count FROM pg_stat_user_tables WHERE schemaname = 'public' ORDER BY n_live_tup DESC;"
+
+# users table issue
+drop the current user table and use alembic tool to migrate
+apply init fake data
