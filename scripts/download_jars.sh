@@ -1,4 +1,3 @@
-#!/bin/bash
 # Trino/Hive용 JAR 파일 다운로드 스크립트
 #
 # 사용법: ./scripts/download_jars.sh
@@ -11,7 +10,7 @@ echo "Trino/Hive JAR 파일 다운로드"
 cd "$(dirname "$0")/.."
 
 # 디렉토리 생성
-echo "📁 디렉토리 생성 중..."
+echo "디렉토리 생성 중..."
 mkdir -p trino/jars
 mkdir -p hive/lib
 
@@ -29,7 +28,7 @@ curl -L -o trino/jars/aws-java-sdk-bundle-1.12.262.jar \
   https://repo1.maven.org/maven2/com/amazonaws/aws-java-sdk-bundle/1.12.262/aws-java-sdk-bundle-1.12.262.jar
 
 echo ""
-echo "📋 Hive lib에 복사 중..."
+echo "Hive lib에 복사 중..."
 cp trino/jars/hadoop-aws-3.3.4.jar hive/lib/
 cp trino/jars/aws-java-sdk-bundle-1.12.262.jar hive/lib/
 
