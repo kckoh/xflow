@@ -212,6 +212,7 @@ neo4j-data/
 postgres-data/
 airflow/logs/
 minio-data/
+*.jar
 
 #frontend
 frontend/node_modules/
