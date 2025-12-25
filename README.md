@@ -1,10 +1,11 @@
 # react-fastapi
+# fastapi orm migration
 alembic revision --autogenerate -m ""
 
-# 3. Apply migration
+3. Apply migration
 alembic upgrade head
 
-# 4. Verify
+4. Verify
 docker compose exec postgres psql -U postgres -d mydb -c "\d users"
 psql -U postgres -d mydb
 
@@ -32,3 +33,11 @@ minio/minio123
 hive 설정
 
 hive 폴더 안에 lib 폴더 생성 후 postgresql-42.6.0.jar  만들기
+
+
+# fake data 추가
+
+docker compose exec -T postgres psql -U postgres -d mydb < init-fake-data.sql
+
+Row 수 확인
+docker compose exec -T postgres psql -U postgres -d mydb -c "SELECT n_live_tup as row_count FROM pg_stat_user_tables WHERE schemaname = 'public' ORDER BY n_live_tup DESC;"
