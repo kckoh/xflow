@@ -230,11 +230,25 @@ s3://jungle-xflow/metadata/
 ### 1. 의존성 설치
 
 ```bash
-cd /Users/chun/xflow/scripts
+cd /Users/chun/xflow
 pip install -r requirements.txt
 ```
 
-### 2. Docker 서비스 시작
+### 2. 필수 JAR 파일 다운로드
+
+**Trino/Hive가 MinIO(S3)에 접근하려면 JAR 파일이 필요합니다.**
+
+```bash
+./scripts/download_jars.sh
+```
+
+다운로드되는 파일:
+- `hadoop-aws-3.3.4.jar` (940KB)
+- `aws-java-sdk-bundle-1.12.262.jar` (268MB)
+
+**참고**: JAR 파일은 크기가 커서 GitHub에 포함되지 않습니다. 로컬에서 다운로드해야 합니다.
+
+### 3. Docker 서비스 시작
 
 ```bash
 cd /Users/chun/xflow
@@ -243,19 +257,20 @@ docker compose up -d minio postgres hive-metastore trino
 
 **중요**: Trino와 Hive Metastore가 완전히 시작될 때까지 기다리세요 (약 1~2분)
 
-### 3. 샘플 데이터 업로드
+### 4. 샘플 데이터 업로드
 
 ```bash
+cd scripts
 python setup_sample_data.py
 ```
 
-### 4. Hive 테이블 생성
+### 5. Hive 테이블 생성
 
 ```bash
 python create_hive_tables.py
 ```
 
-### 5. 메타데이터 생성
+### 6. 메타데이터 생성
 
 ```bash
 python create_metadata_production.py
