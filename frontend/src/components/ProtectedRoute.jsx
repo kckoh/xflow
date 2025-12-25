@@ -1,14 +1,14 @@
 import { Navigate, Outlet } from "react-router-dom";
 import { useAuth } from "../context/AuthContext";
 
-function ProtectedRoute() {
+function ProtectedRoute({ children }) {
   const { sessionId } = useAuth();
 
   if (!sessionId) {
-    return <Navigate to="/" replace />;
+    return <Navigate to="/login" replace />;
   }
 
-  return <Outlet />;
+  return children ? children : <Outlet />;
 }
 
 export default ProtectedRoute;

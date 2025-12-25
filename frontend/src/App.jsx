@@ -2,107 +2,90 @@ import {
   BrowserRouter,
   Routes,
   Route,
-  Link,
-  useLocation,
+  Navigate,
 } from "react-router-dom";
 import Home from "./pages/home";
 import SignUp from "./pages/signup";
+import Login from "./pages/login";
 
 import ProtectedRoute from "./components/ProtectedRoute";
-import { useAuth } from "./context/AuthContext";
+import MainLayout from "./components/layout/MainLayout";
 
-function NavBar() {
-  const { logout, sessionId } = useAuth();
-  const location = useLocation();
-
-  const handleLogout = async () => {
-    try {
-      await fetch("http://localhost:8000/api/logout", {
-        method: "POST",
-        headers: {
-          "X-Session-ID": sessionId,
-        },
-      });
-    } catch (error) {
-      console.error("Logout error:", error);
-    } finally {
-      logout();
-    }
-  };
-
-  const isActive = (path) => location.pathname === path;
-
-  return (
-    <nav className="bg-gradient-to-r from-blue-600 to-purple-600 shadow-lg">
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-        <div className="flex justify-between items-center h-16">
-          {/* Logo/Brand */}
-          <Link to="/" className="flex items-center">
-            <span className="text-white text-2xl font-bold hover:text-gray-200 transition">
-              XFlow
-            </span>
-          </Link>
-
-          {/* Navigation Links */}
-          <div className="flex items-center space-x-4">
-            <Link
-              to="/"
-              className={`px-4 py-2 rounded-md text-sm font-medium transition ${
-                isActive("/")
-                  ? "bg-white text-blue-600"
-                  : "text-white hover:bg-blue-700"
-              }`}
-            >
-              Home
-            </Link>
-
-            {!sessionId && (
-              <Link
-                to="/signup"
-                className={`px-4 py-2 rounded-md text-sm font-medium transition ${
-                  isActive("/signup")
-                    ? "bg-white text-blue-600"
-                    : "text-white hover:bg-blue-700"
-                }`}
-              >
-                Sign Up
-              </Link>
-            )}
-
-            {sessionId && (
-              <>
-                <button
-                  onClick={handleLogout}
-                  className="px-4 py-2 rounded-md text-sm font-medium bg-red-500 text-white hover:bg-red-600 transition"
-                >
-                  Logout
-                </button>
-              </>
-            )}
-          </div>
-        </div>
-      </div>
-    </nav>
-  );
-}
+// Placeholder components for new routes
+const CatalogPage = () => <div className="p-4 bg-white rounded-lg shadow">Catalog Page Content</div>;
+const LineagePage = () => <div className="p-4 bg-white rounded-lg shadow">Lineage Page Content</div>;
+const SettingsPage = () => <div className="p-4 bg-white rounded-lg shadow">Settings Page Content</div>;
 
 function App() {
   return (
     <BrowserRouter>
-      <div className="min-h-screen bg-gray-50">
-        <NavBar />
+      <Routes>
+        {/* Public Routes */}
+        <Route path="/login" element={<Login />} />
+        <Route path="/signup" element={<SignUp />} />
 
-        <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-          <Routes>
-            {/* Public routes */}
-            <Route path="/" element={<Home />} />
-            <Route path="/signup" element={<SignUp />} />
+        {/* Protected Routes Application Shell */}
+        <Route element={<ProtectedRoute />}>
+          <Route element={<MainLayout><div /></MainLayout>}>
+            {/* Wrapping specific routes in MainLayout is usually better, 
+                  but here we want MainLayout to persist. 
+                  Below technique renders MainLayout as a wrapper for nested routes. 
+              */}
+          </Route>
 
-            {/* Protected routes - all require authentication */}
-            <Route element={<ProtectedRoute />}></Route>
-          </Routes>
-        </main>
-      </div>
+          {/* 
+             Better approach: 
+             Create a Layout wrapper route or use MainLayout inside individual pages?
+             Let's use a Layout Route approach for authenticated pages.
+           */}
+        </Route>
+
+        {/* Re-structuring for clarity: */}
+        <Route
+          path="/"
+          element={
+            <ProtectedRoute>
+              <MainLayout>
+                <Home />
+              </MainLayout>
+            </ProtectedRoute>
+          }
+        />
+
+        <Route
+          path="/catalog"
+          element={
+            <ProtectedRoute>
+              <MainLayout>
+                <CatalogPage />
+              </MainLayout>
+            </ProtectedRoute>
+          }
+        />
+
+        <Route
+          path="/lineage"
+          element={
+            <ProtectedRoute>
+              <MainLayout>
+                <LineagePage />
+              </MainLayout>
+            </ProtectedRoute>
+          }
+        />
+
+        <Route
+          path="/settings"
+          element={
+            <ProtectedRoute>
+              <MainLayout>
+                <SettingsPage />
+              </MainLayout>
+            </ProtectedRoute>
+          }
+        />
+
+      </Routes>
     </BrowserRouter>
   );
 }
