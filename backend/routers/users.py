@@ -1,21 +1,23 @@
-from database import get_db
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, HTTPException
 from models import User
 from schemas.user import UserResponse
-from sqlalchemy.orm import Session
 
 router = APIRouter()
 
 
 @router.get("/", response_model=list[UserResponse])
-def get_users(db: Session = Depends(get_db)):
-    users = db.query(User).all()
+async def get_users():
+    """Get all users"""
+    users = []
+    async for user in User.find():
+        users.append(user)
     return users
 
 
 @router.get("/{user_id}", response_model=UserResponse)
-def get_user(user_id: int, db: Session = Depends(get_db)):
-    user = db.query(User).filter(User.id == user_id).first()
+async def get_user(user_id: str):  # Changed from int to str
+    """Get a single user by ID"""
+    user = await User.get(user_id)
     if not user:
         raise HTTPException(status_code=404, detail="User not found")
     return user

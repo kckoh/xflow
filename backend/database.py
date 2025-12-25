@@ -1,23 +1,39 @@
-from sqlalchemy import create_engine
-from sqlalchemy.ext.declarative import declarative_base
-from sqlalchemy.orm import sessionmaker
+from beanie import init_beanie
+from motor.motor_asyncio import AsyncIOMotorClient
+from models import User
 
-# PostgreSQL connection URL
-DATABASE_URL = "postgresql://postgres:postgres@localhost:5433/mydb"
+# MongoDB connection URL
+MONGODB_URL = "mongodb://mongo:mongo@localhost:27017"
+DATABASE_NAME = "mydb"
 
-# Create engine (establishes connection to database)
-engine = create_engine(DATABASE_URL)
+# Global MongoDB client
+mongodb_client = None
 
-# Create SessionLocal class (factory for database sessions)
-SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
 
-# Base class for all database models
-Base = declarative_base()
+async def init_db():
+    """
+    Initialize MongoDB connection and Beanie ODM.
+    Call this on application startup.
+    """
+    global mongodb_client
 
-# Dependency function - provides database session to routes
-def get_db():
-    db = SessionLocal()
-    try:
-        yield db  # Give the session to the route
-    finally:
-        db.close()  # Always close when done
+    # Create Motor client
+    mongodb_client = AsyncIOMotorClient(MONGODB_URL)
+
+    # Initialize Beanie with the User model
+    await init_beanie(
+        database=mongodb_client[DATABASE_NAME],
+        document_models=[User]
+    )
+    print(f"✅ Connected to MongoDB at {MONGODB_URL}")
+
+
+async def close_db():
+    """
+    Close MongoDB connection.
+    Call this on application shutdown.
+    """
+    global mongodb_client
+    if mongodb_client:
+        mongodb_client.close()
+        print("Closed MongoDB connection")
