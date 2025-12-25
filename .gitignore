@@ -212,3 +212,6 @@ neo4j-data/
 postgres-data/
 airflow/logs/
 minio-data/
+
+#frontend
+frontend/node_modules/

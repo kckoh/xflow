@@ -1,24 +1,17 @@
 -- ============================================
 -- XFlow Fake Data Generator
 -- Total: ~1GB
+-- NOTE: Run 'alembic upgrade head' first to create tables
 -- ============================================
 
 -- 1. Users (500K rows) ~60MB
-CREATE TABLE IF NOT EXISTS users (
-    id SERIAL PRIMARY KEY,
-    name VARCHAR(100),
-    email VARCHAR(100),
-    age INT,
-    country VARCHAR(50),
-    created_at TIMESTAMP DEFAULT NOW()
-);
+-- Alembic이 테이블을 이미 생성했으므로 CREATE TABLE 제거
 
-INSERT INTO users (name, email, age, country, created_at)
+INSERT INTO users (email, password, created_at, updated_at)
 SELECT
-    'User_' || i,
     'user_' || i || '@test.com',
-    18 + (random() * 60)::int,
-    (ARRAY['USA', 'Korea', 'Japan', 'UK', 'Germany'])[1 + (random() * 4)::int],
+    'password123',  -- 모든 유저 동일한 비밀번호 (테스트용)
+    NOW() - (random() * interval '365 days'),
     NOW() - (random() * interval '365 days')
 FROM generate_series(1, 500000) AS i;
 
