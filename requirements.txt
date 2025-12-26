@@ -27,6 +27,7 @@ psycopg2==2.9.11
 psycopg2-binary==2.9.10
 pydantic==2.12.5
 pydantic_core==2.41.5
+pydantic-settings>=2.0.0
 Pygments==2.19.2
 pymongo==4.9.2
 python-dotenv==1.2.1
@@ -49,3 +50,4 @@ uvicorn==0.34.0
 uvloop==0.22.1
 watchfiles==1.1.1
 websockets==15.0.1
+watchdog>=3.0.0

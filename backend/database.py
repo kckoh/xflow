@@ -1,40 +1,33 @@
-import os
-from beanie import init_beanie
 from motor.motor_asyncio import AsyncIOMotorClient
-from models import User
+from backend.config import settings
 
-# MongoDB connection from environment variables
-MONGODB_URL = os.getenv("MONGODB_URL", "mongodb://mongo:mongo@localhost:27017")
-DATABASE_NAME = os.getenv("MONGODB_DATABASE", "mydb")
-
-# Global MongoDB client
-mongodb_client = None
+# MongoDB connection
+mongodb_client: AsyncIOMotorClient = None
+database = None
 
 
-async def init_db():
-    """
-    Initialize MongoDB connection and Beanie ODM.
-    Call this on application startup.
-    """
+async def connect_to_mongodb():
+    """Connect to MongoDB on startup"""
+    global mongodb_client, database
+
+    # Build MongoDB connection URL
+    mongodb_url = f"mongodb://{settings.mongodb_user}:{settings.mongodb_password}@{settings.mongodb_host}:{settings.mongodb_port}"
+
+    mongodb_client = AsyncIOMotorClient(mongodb_url)
+    database = mongodb_client[settings.mongodb_db]
+
+    print(f"✅ Connected to MongoDB: {settings.mongodb_db}")
+
+
+async def close_mongodb_connection():
+    """Close MongoDB connection on shutdown"""
     global mongodb_client
 
-    # Create Motor client
-    mongodb_client = AsyncIOMotorClient(MONGODB_URL)
-
-    # Initialize Beanie with the User model
-    await init_beanie(
-        database=mongodb_client[DATABASE_NAME],
-        document_models=[User]
-    )
-    print(f"✅ Connected to MongoDB at {MONGODB_URL}")
-
-
-async def close_db():
-    """
-    Close MongoDB connection.
-    Call this on application shutdown.
-    """
-    global mongodb_client
     if mongodb_client:
         mongodb_client.close()
-        print("Closed MongoDB connection")
+        print("❌ Closed MongoDB connection")
+
+
+def get_database():
+    """Get MongoDB database instance"""
+    return database
