@@ -5,8 +5,6 @@ from schemas.catalog import CatalogItem
 
 router = APIRouter()
 
-def get_db():
-    return database.mongodb_client[database.DATABASE_NAME]
 
 @router.get("", response_model=List[CatalogItem])
 async def get_catalog(
@@ -17,7 +15,7 @@ async def get_catalog(
     """
     Fetch list of datasets (tables) with optional filtering.
     """
-    db = get_db()
+    db = database.mongodb_client[database.DATABASE_NAME]
     
     # Build Search/Filter Query
     query = {}
