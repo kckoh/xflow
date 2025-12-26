@@ -56,8 +56,8 @@ services:
     container_name: mongodb
     restart: unless-stopped
     environment:
-      MONGO_INITDB_ROOT_USERNAME: mongo
-      MONGO_INITDB_ROOT_PASSWORD: mongo
+      MONGO_INITDB_ROOT_USERNAME: ${MONGO_INITDB_ROOT_USERNAME}
+      MONGO_INITDB_ROOT_PASSWORD: ${MONGO_INITDB_ROOT_PASSWORD}
     ports:
       - "27017:27017"
     volumes:
@@ -77,7 +77,7 @@ services:
       MONGODB_HOST: mongodb
       MONGODB_PORT: 27017
       MONGODB_USER: mongo
-      MONGODB_PASSWORD: mongo
+      MONGODB_PASSWORD: ${MONGODB_PASSWORD}
       MONGODB_DB: xflow
       # MinIO (use Docker service name, not localhost!)
       MINIO_ENDPOINT: minio:9000
