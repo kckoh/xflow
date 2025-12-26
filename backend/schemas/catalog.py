@@ -12,6 +12,7 @@ class CatalogItem(BaseModel):
     platform: Optional[str] = None # e.g. 'MySQL', 'Kafka'
     owner: str # Display name of the owner
     updated_at: Optional[datetime] = None
+    created_at: Optional[datetime] = None
     tags: List[str] = []
     
     class Config:

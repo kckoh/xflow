@@ -17,8 +17,6 @@ async def get_catalog(
     """
     Fetch list of datasets (tables) with optional filtering.
     """
-
-    
     db = get_db()
     
     # Build Search/Filter Query
@@ -52,6 +50,7 @@ async def get_catalog(
             "type": 1,
             "platform": 1,
             "updated_at": 1,
+            "created_at": 1,
             "tags": 1,
             "owner": {"$ifNull": ["$owner_info.name", "Unknown"]} # 주인이 없으면 'Unknown'
         }},
