@@ -1,11 +1,9 @@
 import { useNavigate, useLocation } from "react-router-dom";
 import {
-    Home,
     Database,
     GitMerge,
     Settings,
     Search,
-    Bell,
     User,
     LogOut,
     List,
@@ -27,7 +25,7 @@ export function Sidebar({ isCollapsed, onToggle }) {
                 { name: "ETL Pipelines", path: "/", icon: List },
             ]
         },
-          {
+        {
             title: "DATA CATALOG",
             items: [
                 { name: "Data Catalog", path: "/catalog", icon: Database },
@@ -178,13 +176,9 @@ export function Topbar({ isCollapsed }) {
 
             {/* Right Actions */}
             <div className="flex items-center space-x-4">
-                <button className="p-2 text-gray-400 hover:text-gray-500 relative">
-                    <Bell className="h-5 w-5" />
-                    <span className="absolute top-1.5 right-1.5 w-2 h-2 bg-red-500 rounded-full border border-white"></span>
-                </button>
                 <div className="flex items-center space-x-3 pl-4 border-l border-gray-200">
                     <div className="h-8 w-8 rounded-full bg-gradient-to-tr from-blue-500 to-purple-500 flex items-center justify-center text-white font-medium text-xs">
-                        HS
+                        User
                     </div>
                     <div className="hidden md:block">
                         <p className="text-sm font-medium text-gray-700">Username</p>
