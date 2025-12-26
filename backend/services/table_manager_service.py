@@ -18,7 +18,7 @@ class TableManagerService:
         self.minio = minio_service
         self.trino = trino_service
 
-    def _save_processing_history(
+    async def _save_processing_history(
         self,
         object_path: str,
         table_name: str,
@@ -43,13 +43,13 @@ class TableManagerService:
                 error_message=error_message
             )
 
-            # Insert into MongoDB
-            db.file_processing_history.insert_one(history.dict(by_alias=True, exclude_unset=True))
+            # Insert into MongoDB (async)
+            await db.file_processing_history.insert_one(history.dict(by_alias=True, exclude_unset=True))
             logger.info(f"Saved processing history for {object_path}")
         except Exception as e:
             logger.error(f"Error saving processing history: {e}")
 
-    def process_parquet_file(self, object_path: str) -> Dict:
+    async def process_parquet_file(self, object_path: str) -> Dict:
         """
         Main entry point: Process a Parquet file uploaded to MinIO
 
@@ -126,7 +126,7 @@ class TableManagerService:
                 ddl_statement = None  # No DDL for partition sync
 
             # Save to database
-            self._save_processing_history(
+            await self._save_processing_history(
                 object_path=object_path,
                 table_name=table_name,
                 ddl_statement=ddl_statement,
@@ -152,7 +152,7 @@ class TableManagerService:
 
             # Save error to database
             if table_name:
-                self._save_processing_history(
+                await self._save_processing_history(
                     object_path=object_path,
                     table_name=table_name,
                     ddl_statement=ddl_statement,

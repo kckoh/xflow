@@ -44,7 +44,7 @@ class RebuildTableRequest(BaseModel):
 
 class ProcessingHistoryResponse(BaseModel):
     """Processing history response"""
-    id: int
+    id: Optional[str]
     object_path: str
     table_name: str
     ddl_statement: str
@@ -53,7 +53,7 @@ class ProcessingHistoryResponse(BaseModel):
     num_rows: Optional[int]
     status: str
     error_message: Optional[str]
-    created_at: str
+    created_at: Optional[str]
 
     class Config:
         from_attributes = True
@@ -114,7 +114,7 @@ async def minio_webhook(event: dict):
             logger.info(f"Processing file from event: {object_key}")
 
             # Process the file
-            result = table_manager.process_parquet_file(object_key)
+            result = await table_manager.process_parquet_file(object_key)
             results.append(result)
 
         return {
@@ -141,7 +141,7 @@ async def process_file(request: ProcessFileRequest):
     """
     try:
         logger.info(f"Manual processing requested for: {request.object_path}")
-        result = table_manager.process_parquet_file(request.object_path)
+        result = await table_manager.process_parquet_file(request.object_path)
         return result
     except Exception as e:
         logger.error(f"Error processing file: {e}", exc_info=True)
@@ -219,9 +219,9 @@ async def get_processing_history(
         if status:
             query_filter["status"] = status
 
-        # Query MongoDB
+        # Query MongoDB (async)
         history_cursor = db.file_processing_history.find(query_filter).sort("created_at", -1).limit(limit)
-        history = list(history_cursor)
+        history = await history_cursor.to_list(length=limit)
 
         # Convert to response model
         return [
@@ -268,7 +268,7 @@ async def get_created_tables():
         ]
 
         tables_cursor = db.file_processing_history.aggregate(pipeline)
-        tables = list(tables_cursor)
+        tables = await tables_cursor.to_list(length=None)
 
         return [
             {

@@ -2,17 +2,16 @@ import uuid
 
 from backend.database import get_db
 from backend.dependencies import sessions
-from fastapi import APIRouter, Depends, Header, HTTPException, status
 from backend.models import User
 from backend.schemas.user import UserCreate, UserLogin
-from sqlalchemy.orm import Session
+from fastapi import APIRouter, Depends, Header, HTTPException, status
 
 router = APIRouter()
 
 
 @router.post("/signup", status_code=status.HTTP_201_CREATED)
-def signup(user: UserCreate, db: Session = Depends(get_db)):
-    existing_user = db.query(User).filter(User.email == user.email).first()
+async def signup(user: UserCreate, db=Depends(get_db)):
+    existing_user = await db.users.find_one({"email": user.email})
     if existing_user:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST, detail="Email already registered"
@@ -22,24 +21,22 @@ def signup(user: UserCreate, db: Session = Depends(get_db)):
     new_user = User(email=user.email, password=user.password)
 
     # Add to database
-    db.add(new_user)
-    db.commit()
-    db.refresh(new_user)  # Get the ID that was auto-generated
+    insert_result = await db.users.insert_one(
+        new_user.model_dump(by_alias=True, exclude_unset=True)
+    )
 
     # return status code
     return {
-        "id": new_user.id,
+        "id": str(insert_result.inserted_id),
         "email": new_user.email,
         "message": "User created successfully",
     }
 
 
 @router.post("/login")
-def login(user: UserLogin, db: Session = Depends(get_db)):
-    db_user = (
-        db.query(User)
-        .filter(User.email == user.email, User.password == user.password)
-        .first()
+async def login(user: UserLogin, db=Depends(get_db)):
+    db_user = await db.users.find_one(
+        {"email": user.email, "password": user.password}
     )
 
     if not db_user:
@@ -49,7 +46,10 @@ def login(user: UserLogin, db: Session = Depends(get_db)):
         )
 
     session_id = str(uuid.uuid4())
-    sessions[session_id] = {"user_id": db_user.id, "email": db_user.email}
+    sessions[session_id] = {
+        "user_id": str(db_user["_id"]),
+        "email": db_user["email"],
+    }
     return {"session_id": session_id}
 
 

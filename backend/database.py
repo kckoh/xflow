@@ -11,7 +11,15 @@ async def connect_to_mongodb():
     global mongodb_client, database
 
     # Build MongoDB connection URL
-    mongodb_url = f"mongodb://{settings.mongodb_user}:{settings.mongodb_password}@{settings.mongodb_host}:{settings.mongodb_port}"
+    if settings.mongodb_user and settings.mongodb_password:
+        mongodb_url = (
+            f"mongodb://{settings.mongodb_user}:{settings.mongodb_password}"
+            f"@{settings.mongodb_host}:{settings.mongodb_port}"
+        )
+        if settings.mongodb_auth_source:
+            mongodb_url = f"{mongodb_url}/?authSource={settings.mongodb_auth_source}"
+    else:
+        mongodb_url = f"mongodb://{settings.mongodb_host}:{settings.mongodb_port}"
 
     mongodb_client = AsyncIOMotorClient(mongodb_url)
     database = mongodb_client[settings.mongodb_db]
@@ -31,3 +39,8 @@ async def close_mongodb_connection():
 def get_database():
     """Get MongoDB database instance"""
     return database
+
+
+def get_db():
+    """FastAPI dependency alias for MongoDB database instance"""
+    return get_database()

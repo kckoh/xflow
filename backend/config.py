@@ -25,7 +25,7 @@ class Settings(BaseSettings):
         env_file = f".env.{env}"
         if os.path.exists(env_file):
             # Override model_config to use environment-specific file
-            self.model_config = SettingsConfigDict(
+            type(self).model_config = SettingsConfigDict(
                 env_file=env_file,
                 env_file_encoding="utf-8",
                 case_sensitive=False,
@@ -62,6 +62,7 @@ class Settings(BaseSettings):
     mongodb_user: str = ""  # Set via environment variable or .env.local
     mongodb_password: str = ""  # Set via environment variable or .env.local
     mongodb_db: str = "xflow"  # Default database
+    mongodb_auth_source: str = ""  # Optional authSource (e.g., admin)
 
     # Trino Configuration
     trino_host: str = "localhost"

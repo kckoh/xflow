@@ -62,6 +62,8 @@ echo ""
 
 # Set up event notification for the bucket
 echo "📢 Setting up bucket event notifications..."
+echo "   Clearing existing bucket notifications to avoid overlapping filters..."
+mc event remove $MINIO_ALIAS/$BUCKET_NAME --force || true
 mc event add $MINIO_ALIAS/$BUCKET_NAME \
     arn:minio:sqs::1:webhook \
     --event put \
