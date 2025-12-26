@@ -7,17 +7,18 @@ import {
 import Home from "./pages/home";
 import SignUp from "./pages/signup";
 import Login from "./pages/login";
+import CatalogPage from "./pages/catalog/CatalogPage";
 
 import ProtectedRoute from "./components/ProtectedRoute";
 import MainLayout from "./components/layout/MainLayout";
 
-import CatalogPage from "./pages/catalog/CatalogPage";
 
 // Placeholder components for new routes
 const ETLPage = () => <div className="p-4 bg-white rounded-lg shadow">ETL Page Content</div>;
 const LineagePage = () => <div className="p-4 bg-white rounded-lg shadow">Lineage Page Content</div>;
 const GlossaryPage = () => <div className="p-4 bg-white rounded-lg shadow">Glossary Page Content</div>;
 const QueryPage = () => <div className="p-4 bg-white rounded-lg shadow">Query Page Content</div>;
+const SettingsPage = () => <div className="p-4 bg-white rounded-lg shadow">Settings Page Content</div>;
 
 function App() {
   return (
@@ -98,6 +99,19 @@ function App() {
             </ProtectedRoute>
           }
         />
+
+        <Route
+          path="/settings"
+          element={
+            <ProtectedRoute>
+              <MainLayout>
+                <SettingsPage />
+              </MainLayout>
+            </ProtectedRoute>
+          }
+        />
+
+
       </Routes>
     </BrowserRouter>
   );
