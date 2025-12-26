@@ -8,6 +8,7 @@ import Home from "./pages/home";
 import SignUp from "./pages/signup";
 import Login from "./pages/login";
 import CatalogPage from "./pages/catalog/CatalogPage";
+import DatasetDetailPage from "./pages/catalog/DatasetDetailPage";
 
 import ProtectedRoute from "./components/ProtectedRoute";
 import MainLayout from "./components/layout/MainLayout";
@@ -66,6 +67,18 @@ function App() {
             </ProtectedRoute>
           }
         />
+
+        <Route
+          path="/catalog/:id"
+          element={
+            <ProtectedRoute>
+              <MainLayout>
+                <DatasetDetailPage />
+              </MainLayout>
+            </ProtectedRoute>
+          }
+        />
+
 
         <Route
           path="/lineage"

@@ -3,7 +3,7 @@ from trino.auth import BasicAuthentication
 from typing import List, Dict, Optional, Any
 import logging
 
-from backend.config import settings
+from config import settings
 
 logger = logging.getLogger(__name__)
 

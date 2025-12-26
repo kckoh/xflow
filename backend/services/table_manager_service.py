@@ -2,11 +2,11 @@ from typing import Dict, List, Optional
 import logging
 from datetime import datetime
 
-from backend.services.minio_service import minio_service
-from backend.services.trino_service import trino_service
-from backend.config import settings
-from backend.database import get_database
-from backend.models import FileProcessingHistory
+from services.minio_service import minio_service
+from services.trino_service import trino_service
+from config import settings
+from database import get_database
+from models import FileProcessingHistory
 
 logger = logging.getLogger(__name__)
 

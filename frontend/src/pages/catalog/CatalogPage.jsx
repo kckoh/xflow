@@ -6,14 +6,17 @@ import {
     Database,
     Clock,
     ChevronRight,
-    Table as TableIcon
+    Table as TableIcon,
+    ChevronDown,
+    ListFilter
 } from "lucide-react";
+
 //TODO: Replace with actual data
 const recentTables = [
-    { id: "sales_transactions", name: "sales_transactions", type: "table", project: "Sales DB", updated: "2 hours ago" },
+    { id: "sales_transactions", name: "판매거래량", type: "table", project: "Sales DB", updated: "2 hours ago" },
 ];
 const allTables = [
-    { id: "sales_transactions", name: "sales_transactions", type: "Table", owner: "Data Eng", rows: "1.2B", size: "450 GB", tags: ["bronze", "raw"] },
+    { id: "sales_transactions", name: "판매거래량", type: "Table", owner: "Data Eng", rows: "1.2B", size: "450 GB", tags: ["bronze", "raw"] },
 ];
 
 export default function CatalogPage() {
@@ -69,26 +72,41 @@ export default function CatalogPage() {
             {/* 2. All Data Tables (Bottom Section with Search/Filter) */}
             <section className="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden">
                 {/* Toolbar */}
-                <div className="p-5 border-b border-gray-100 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-                    <h2 className="text-lg font-semibold text-gray-800 flex items-center">
-                        <Database className="w-5 h-5 mr-2 text-gray-500" />
-                        All Data Tables
-                    </h2>
+                <div className="p-5 border-b border-gray-100 flex flex-col md:flex-row md:items-center justify-between gap-4">
 
+                    {/* Left: Filters */}
+                    <div className="flex items-center gap-4 overflow-x-auto pb-2 md:pb-0 hide-scrollbar">
+                        {/* Title mostly for semantics, but we can make it smaller or remove if filters take space. Keeping it standard. */}
+                        {/* Alternatively, filters replace the title or sit below it. Let's put filters on the left as requested. */}
+                        <div className="flex items-center gap-2 mr-2">
+                            <Database className="w-5 h-5 text-gray-500" />
+                            <span className="font-semibold text-gray-800 whitespace-nowrap">All Data Tables</span>
+                        </div>
+                        <div className="h-6 w-px bg-gray-200 mx-2 hidden md:block"></div>
+                        {/* Filter Dropdowns */}
+                        <FilterDropdown label="Owner" />
+                        <FilterDropdown label="Type" />
+                        <FilterDropdown label="Platform" />
+                        <FilterDropdown label="Last Modified" />
+                    </div>
+                    {/* Right: Search & Sort */}
                     <div className="flex items-center space-x-3">
                         <div className="relative">
                             <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
                             <input
                                 type="text"
-                                placeholder="Search assets..."
+                                placeholder="Search..."
                                 value={searchTerm}
                                 onChange={(e) => setSearchTerm(e.target.value)}
-                                className="pl-9 pr-4 py-2 border border-gray-200 rounded-lg text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none w-64"
+                                className="pl-9 pr-4 py-1.5 border border-gray-200 rounded-lg text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none w-48 sm:w-64"
                             />
                         </div>
-                        <button className="flex items-center px-3 py-2 border border-gray-200 rounded-lg text-sm text-gray-600 hover:bg-gray-50">
-                            <Filter className="w-4 h-4 mr-2" />
-                            Filter
+
+                        <div className="h-8 w-px bg-gray-200 mx-1"></div>
+
+                        <button className="flex items-center gap-2 px-3 py-1.5 text-sm font-medium text-gray-600 hover:bg-gray-50 rounded-lg transition-colors">
+                            <span>Sort by</span>
+                            <ListFilter className="w-4 h-4" />
                         </button>
                     </div>
                 </div>
@@ -155,5 +173,14 @@ export default function CatalogPage() {
                 </div>
             </section>
         </div>
+    );
+}
+
+function FilterDropdown({ label }) {
+    return (
+        <button className="flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium text-gray-600 bg-white border border-gray-200 rounded-lg hover:bg-gray-50 hover:border-gray-300 transition-all whitespace-nowrap">
+            {label}
+            <ChevronDown className="w-3.5 h-3.5 text-gray-400" />
+        </button>
     );
 }

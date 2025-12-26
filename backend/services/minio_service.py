@@ -6,7 +6,7 @@ from typing import Dict, Optional, List
 import logging
 import re
 
-from backend.config import settings
+from config import settings
 
 logger = logging.getLogger(__name__)
 

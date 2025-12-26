@@ -1,7 +1,7 @@
 from bson import ObjectId
 from fastapi import Depends, Header, HTTPException, status
-from backend.database import get_db
-from backend.models import User
+from database import get_db
+from models import User
 
 # Move sessions here so it's accessible everywhere
 sessions = {}

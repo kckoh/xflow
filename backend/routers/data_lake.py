@@ -4,9 +4,9 @@ from pydantic import BaseModel
 from urllib.parse import unquote
 import logging
 
-from backend.database import get_database
-from backend.models import FileProcessingHistory
-from backend.services.table_manager_service import table_manager
+from database import get_database
+from models import FileProcessingHistory
+from services.table_manager_service import table_manager
 
 logger = logging.getLogger(__name__)
 

@@ -1,5 +1,5 @@
 from motor.motor_asyncio import AsyncIOMotorClient
-from backend.config import settings
+from config import settings
 
 # MongoDB connection
 mongodb_client: AsyncIOMotorClient = None
