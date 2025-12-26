@@ -1,9 +1,4 @@
-import {
-  BrowserRouter,
-  Routes,
-  Route,
-  Navigate,
-} from "react-router-dom";
+import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
 import Home from "./pages/home";
 import SignUp from "./pages/signup";
 import Login from "./pages/login";
@@ -12,14 +7,23 @@ import DatasetDetailPage from "./pages/catalog/DatasetDetailPage";
 
 import ProtectedRoute from "./components/ProtectedRoute";
 import MainLayout from "./components/layout/MainLayout";
-
+import ETLJobPage from "./pages/etl/etl_job";
+import ETLPage from "./pages/etl/etl_main";
 
 // Placeholder components for new routes
-const ETLPage = () => <div className="p-4 bg-white rounded-lg shadow">ETL Page Content</div>;
-const LineagePage = () => <div className="p-4 bg-white rounded-lg shadow">Lineage Page Content</div>;
-const GlossaryPage = () => <div className="p-4 bg-white rounded-lg shadow">Glossary Page Content</div>;
-const QueryPage = () => <div className="p-4 bg-white rounded-lg shadow">Query Page Content</div>;
-const SettingsPage = () => <div className="p-4 bg-white rounded-lg shadow">Settings Page Content</div>;
+// const ETLPage = () => <div className="p-4 bg-white rounded-lg shadow">ETL Page Content</div>;
+const LineagePage = () => (
+  <div className="p-4 bg-white rounded-lg shadow">Lineage Page Content</div>
+);
+const GlossaryPage = () => (
+  <div className="p-4 bg-white rounded-lg shadow">Glossary Page Content</div>
+);
+const QueryPage = () => (
+  <div className="p-4 bg-white rounded-lg shadow">Query Page Content</div>
+);
+const SettingsPage = () => (
+  <div className="p-4 bg-white rounded-lg shadow">Settings Page Content</div>
+);
 
 function App() {
   return (
@@ -31,15 +35,21 @@ function App() {
 
         {/* Protected Routes Application Shell */}
         <Route element={<ProtectedRoute />}>
-          <Route element={<MainLayout><div /></MainLayout>}>
-            {/* Wrapping specific routes in MainLayout is usually better, 
-                  but here we want MainLayout to persist. 
-                  Below technique renders MainLayout as a wrapper for nested routes. 
+          <Route
+            element={
+              <MainLayout>
+                <div />
+              </MainLayout>
+            }
+          >
+            {/* Wrapping specific routes in MainLayout is usually better,
+                  but here we want MainLayout to persist.
+                  Below technique renders MainLayout as a wrapper for nested routes.
               */}
           </Route>
 
-          {/* 
-             Better approach: 
+          {/*
+             Better approach:
              Create a Layout wrapper route or use MainLayout inside individual pages?
              Let's use a Layout Route approach for authenticated pages.
            */}
@@ -124,7 +134,16 @@ function App() {
           }
         />
 
-
+        <Route
+          path="/etl/visual"
+          element={
+            <ProtectedRoute>
+              <MainLayout>
+                <ETLJobPage />
+              </MainLayout>
+            </ProtectedRoute>
+          }
+        />
       </Routes>
     </BrowserRouter>
   );
