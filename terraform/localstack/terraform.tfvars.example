@@ -1,0 +1,4 @@
+# Database Credentials
+# Copy this file to terraform.tfvars and fill in your actual values
+rds_password       = "your_secure_rds_password_here"
+documentdb_password = "your_secure_documentdb_password_here"
