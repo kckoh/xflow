@@ -1,31 +1,57 @@
 from datetime import datetime
-
-from backend.database import Base
-from sqlalchemy import Column, DateTime, ForeignKey, Integer, String, Text
-from sqlalchemy.dialects.postgresql import JSONB
-from sqlalchemy.orm import relationship
+from typing import Optional, Dict
+from pydantic import BaseModel, Field
+from bson import ObjectId
 
 
-class User(Base):
-    __tablename__ = "users"
+class PyObjectId(ObjectId):
+    """Custom ObjectId type for Pydantic"""
 
-    id = Column(Integer, primary_key=True, index=True)
-    email = Column(String, unique=True, index=True)
-    password = Column(String, nullable=False)
-    created_at = Column(DateTime, default=datetime.utcnow)
-    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+    @classmethod
+    def __get_validators__(cls):
+        yield cls.validate
+
+    @classmethod
+    def validate(cls, v):
+        if not ObjectId.is_valid(v):
+            raise ValueError("Invalid ObjectId")
+        return ObjectId(v)
+
+    @classmethod
+    def __modify_schema__(cls, field_schema):
+        field_schema.update(type="string")
 
 
-class FileProcessingHistory(Base):
-    __tablename__ = "file_processing_history"
+class User(BaseModel):
+    """User model for MongoDB"""
 
-    id = Column(Integer, primary_key=True, index=True)
-    object_path = Column(String, nullable=False, index=True)
-    table_name = Column(String, nullable=False, index=True)
-    ddl_statement = Column(Text, nullable=False)
-    partition_values = Column(JSONB, nullable=True)
-    num_columns = Column(Integer, nullable=True)
-    num_rows = Column(Integer, nullable=True)
-    status = Column(String, nullable=False, index=True)  # 'success' or 'failed'
-    error_message = Column(Text, nullable=True)
-    created_at = Column(DateTime, default=datetime.utcnow, index=True)
+    id: Optional[PyObjectId] = Field(default_factory=PyObjectId, alias="_id")
+    email: str = Field(..., index=True)
+    password: str
+    created_at: datetime = Field(default_factory=datetime.utcnow)
+    updated_at: datetime = Field(default_factory=datetime.utcnow)
+
+    class Config:
+        populate_by_name = True
+        arbitrary_types_allowed = True
+        json_encoders = {ObjectId: str}
+
+
+class FileProcessingHistory(BaseModel):
+    """File processing history model for MongoDB"""
+
+    id: Optional[PyObjectId] = Field(default_factory=PyObjectId, alias="_id")
+    object_path: str = Field(..., index=True)
+    table_name: str = Field(..., index=True)
+    ddl_statement: str
+    partition_values: Optional[Dict] = None
+    num_columns: Optional[int] = None
+    num_rows: Optional[int] = None
+    status: str = Field(..., index=True)  # 'success' or 'failed'
+    error_message: Optional[str] = None
+    created_at: datetime = Field(default_factory=datetime.utcnow, index=True)
+
+    class Config:
+        populate_by_name = True
+        arbitrary_types_allowed = True
+        json_encoders = {ObjectId: str}

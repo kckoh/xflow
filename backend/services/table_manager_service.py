@@ -5,7 +5,7 @@ from datetime import datetime
 from backend.services.minio_service import minio_service
 from backend.services.trino_service import trino_service
 from backend.config import settings
-from backend.database import SessionLocal
+from backend.database import get_database
 from backend.models import FileProcessingHistory
 
 logger = logging.getLogger(__name__)
@@ -29,9 +29,9 @@ class TableManagerService:
         status: str,
         error_message: Optional[str] = None
     ):
-        """Save processing history to database"""
-        db = SessionLocal()
+        """Save processing history to MongoDB"""
         try:
+            db = get_database()
             history = FileProcessingHistory(
                 object_path=object_path,
                 table_name=table_name,
@@ -42,14 +42,12 @@ class TableManagerService:
                 status=status,
                 error_message=error_message
             )
-            db.add(history)
-            db.commit()
+
+            # Insert into MongoDB
+            db.file_processing_history.insert_one(history.dict(by_alias=True, exclude_unset=True))
             logger.info(f"Saved processing history for {object_path}")
         except Exception as e:
             logger.error(f"Error saving processing history: {e}")
-            db.rollback()
-        finally:
-            db.close()
 
     def process_parquet_file(self, object_path: str) -> Dict:
         """

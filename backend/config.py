@@ -53,6 +53,13 @@ class Settings(BaseSettings):
     minio_secure: bool = False  # Use HTTPS
     minio_bucket: str = "datalake"  # Default bucket for parquet files
 
+    # MongoDB Configuration
+    mongodb_host: str = "localhost"
+    mongodb_port: int = 27017
+    mongodb_user: str = "mongo"
+    mongodb_password: str = "mongo"
+    mongodb_db: str = "xflow"  # Default database
+
     # Trino Configuration
     trino_host: str = "localhost"
     trino_port: int = 8085

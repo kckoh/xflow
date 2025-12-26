@@ -1,23 +1,33 @@
-from sqlalchemy import create_engine
-from sqlalchemy.ext.declarative import declarative_base
-from sqlalchemy.orm import sessionmaker
+from motor.motor_asyncio import AsyncIOMotorClient
+from backend.config import settings
 
-# PostgreSQL connection URL
-DATABASE_URL = "postgresql://postgres:postgres@localhost:5433/mydb"
+# MongoDB connection
+mongodb_client: AsyncIOMotorClient = None
+database = None
 
-# Create engine (establishes connection to database)
-engine = create_engine(DATABASE_URL)
 
-# Create SessionLocal class (factory for database sessions)
-SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
+async def connect_to_mongodb():
+    """Connect to MongoDB on startup"""
+    global mongodb_client, database
 
-# Base class for all database models
-Base = declarative_base()
+    # Build MongoDB connection URL
+    mongodb_url = f"mongodb://{settings.mongodb_user}:{settings.mongodb_password}@{settings.mongodb_host}:{settings.mongodb_port}"
 
-# Dependency function - provides database session to routes
-def get_db():
-    db = SessionLocal()
-    try:
-        yield db  # Give the session to the route
-    finally:
-        db.close()  # Always close when done
+    mongodb_client = AsyncIOMotorClient(mongodb_url)
+    database = mongodb_client[settings.mongodb_db]
+
+    print(f"✅ Connected to MongoDB: {settings.mongodb_db}")
+
+
+async def close_mongodb_connection():
+    """Close MongoDB connection on shutdown"""
+    global mongodb_client
+
+    if mongodb_client:
+        mongodb_client.close()
+        print("❌ Closed MongoDB connection")
+
+
+def get_database():
+    """Get MongoDB database instance"""
+    return database

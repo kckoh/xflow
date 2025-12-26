@@ -1,11 +1,10 @@
 from fastapi import APIRouter, HTTPException, Depends
-from sqlalchemy.orm import Session
 from typing import List, Optional
 from pydantic import BaseModel
 from urllib.parse import unquote
 import logging
 
-from backend.database import get_db
+from backend.database import get_database
 from backend.models import FileProcessingHistory
 from backend.services.table_manager_service import table_manager
 
@@ -197,8 +196,7 @@ async def rebuild_table(request: RebuildTableRequest):
 async def get_processing_history(
     limit: int = 100,
     table_name: Optional[str] = None,
-    status: Optional[str] = None,
-    db: Session = Depends(get_db)
+    status: Optional[str] = None
 ):
     """
     Get processing history
@@ -207,35 +205,37 @@ async def get_processing_history(
         limit: Maximum number of records to return (default: 100)
         table_name: Filter by table name (optional)
         status: Filter by status - 'success' or 'failed' (optional)
-        db: Database session
 
     Returns:
         List of processing history records
     """
     try:
-        query = db.query(FileProcessingHistory)
+        db = get_database()
 
+        # Build filter query
+        query_filter = {}
         if table_name:
-            query = query.filter(FileProcessingHistory.table_name == table_name)
-
+            query_filter["table_name"] = table_name
         if status:
-            query = query.filter(FileProcessingHistory.status == status)
+            query_filter["status"] = status
 
-        history = query.order_by(FileProcessingHistory.created_at.desc()).limit(limit).all()
+        # Query MongoDB
+        history_cursor = db.file_processing_history.find(query_filter).sort("created_at", -1).limit(limit)
+        history = list(history_cursor)
 
         # Convert to response model
         return [
             ProcessingHistoryResponse(
-                id=h.id,
-                object_path=h.object_path,
-                table_name=h.table_name,
-                ddl_statement=h.ddl_statement,
-                partition_values=h.partition_values,
-                num_columns=h.num_columns,
-                num_rows=h.num_rows,
-                status=h.status,
-                error_message=h.error_message,
-                created_at=h.created_at.isoformat() if h.created_at else None
+                id=str(h["_id"]),
+                object_path=h["object_path"],
+                table_name=h["table_name"],
+                ddl_statement=h["ddl_statement"],
+                partition_values=h.get("partition_values"),
+                num_columns=h.get("num_columns"),
+                num_rows=h.get("num_rows"),
+                status=h["status"],
+                error_message=h.get("error_message"),
+                created_at=h["created_at"].isoformat() if h.get("created_at") else None
             )
             for h in history
         ]
@@ -246,7 +246,7 @@ async def get_processing_history(
 
 
 @router.get("/tables")
-async def get_created_tables(db: Session = Depends(get_db)):
+async def get_created_tables():
     """
     Get list of tables that were automatically created
 
@@ -254,28 +254,29 @@ async def get_created_tables(db: Session = Depends(get_db)):
         List of unique table names with their creation info
     """
     try:
-        # Get distinct table names with their first creation record
-        from sqlalchemy import func
+        db = get_database()
 
-        subquery = db.query(
-            FileProcessingHistory.table_name,
-            func.min(FileProcessingHistory.id).label('min_id')
-        ).filter(
-            FileProcessingHistory.status == 'success'
-        ).group_by(FileProcessingHistory.table_name).subquery()
+        # Get distinct table names with their first creation record using aggregation
+        pipeline = [
+            {"$match": {"status": "success"}},
+            {"$sort": {"created_at": 1}},
+            {"$group": {
+                "_id": "$table_name",
+                "first_record": {"$first": "$$ROOT"}
+            }},
+            {"$replaceRoot": {"newRoot": "$first_record"}}
+        ]
 
-        tables = db.query(FileProcessingHistory).join(
-            subquery,
-            (FileProcessingHistory.id == subquery.c.min_id)
-        ).all()
+        tables_cursor = db.file_processing_history.aggregate(pipeline)
+        tables = list(tables_cursor)
 
         return [
             {
-                "table_name": t.table_name,
-                "created_at": t.created_at.isoformat() if t.created_at else None,
-                "ddl_statement": t.ddl_statement,
-                "num_columns": t.num_columns,
-                "partition_values": t.partition_values
+                "table_name": t["table_name"],
+                "created_at": t["created_at"].isoformat() if t.get("created_at") else None,
+                "ddl_statement": t["ddl_statement"],
+                "num_columns": t.get("num_columns"),
+                "partition_values": t.get("partition_values")
             }
             for t in tables
         ]
