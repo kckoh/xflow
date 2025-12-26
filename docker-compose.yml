@@ -330,7 +330,7 @@ services:
     ports:
       - "4566:4566" # LocalStack Gateway - only expose 4566, not 443
     environment:
-      - SERVICES=s3,dynamodb,sqs,sns,lambda,apigateway
+      - SERVICES=s3,ec2,dynamodb,sqs,sns,lambda,apigateway,iam,cloudformation,rds,glue,athena,docdb
       - DEBUG=0
       - DOCKER_HOST=unix:///var/run/docker.sock
       - DISABLE_EVENTS=1
