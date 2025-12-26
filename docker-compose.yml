@@ -73,11 +73,36 @@ services:
     volumes:
       - ./backend:/app
     environment:
-      MONGODB_URL: mongodb://mongo:mongo@mongodb:27017
-      MONGODB_DATABASE: mydb
+      # MongoDB
+      MONGODB_HOST: mongodb
+      MONGODB_PORT: 27017
+      MONGODB_USER: mongo
+      MONGODB_PASSWORD: mongo
+      MONGODB_DB: xflow
+      # MinIO (use Docker service name, not localhost!)
+      MINIO_ENDPOINT: minio:9000
+      MINIO_ACCESS_KEY: minio
+      MINIO_SECRET_KEY: minio123
+      MINIO_SECURE: "false"
+      MINIO_BUCKET: datalake
+      # Trino
+      TRINO_HOST: trino
+      TRINO_PORT: 8080
+      TRINO_USER: trino
+      TRINO_CATALOG: hive
+      TRINO_SCHEMA: default
+      # Neo4j
+      NEO4J_URI: bolt://neo4j:7687
+      NEO4J_USER: neo4j
+      NEO4J_PASSWORD: password
+      # App
+      APP_NAME: XFlow
+      DEBUG: "true"
       CORS_ORIGINS: http://localhost:5173,http://localhost:3000
     depends_on:
       - mongodb
+      - minio
+      - trino
   airflow-db-init:
     image: postgres:16-alpine
     container_name: airflow-db-init
@@ -333,9 +358,13 @@ services:
       - ./hive/conf:/opt/hive/conf
       - ./hive/lib:/opt/hive/lib/extra
       - ./hive/lib/postgresql-42.6.0.jar:/opt/hive/lib/postgresql-42.6.0.jar
+      - ./hive/lib/hadoop-aws-3.3.4.jar:/opt/hive/lib/hadoop-aws-3.3.4.jar
+      - ./hive/lib/aws-java-sdk-bundle-1.12.262.jar:/opt/hive/lib/aws-java-sdk-bundle-1.12.262.jar
 
   trino:
-    image: trinodb/trino:435
+    build:
+      context: ./trino
+      dockerfile: Dockerfile
     container_name: trino
     restart: unless-stopped
     depends_on:

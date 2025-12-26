@@ -1,7 +1,9 @@
 from trino.dbapi import connect
 from trino.auth import BasicAuthentication
+from trino.exceptions import TrinoQueryError
 from typing import List, Dict, Optional, Any
 import logging
+import time
 
 from config import settings
 
@@ -18,6 +20,34 @@ class TrinoService:
         self.user = settings.trino_user
         self.catalog = settings.trino_catalog
         self.schema = settings.trino_schema
+        self.max_retries = 5
+        self.retry_delay = 2  # seconds
+
+    def _is_retryable_error(self, error: Exception) -> bool:
+        """
+        Check if an error is retryable (e.g., Trino still starting up)
+
+        Args:
+            error: Exception to check
+
+        Returns:
+            True if error is retryable
+        """
+        error_str = str(error)
+
+        if isinstance(error, TrinoQueryError):
+            # Retry if Trino is still starting up
+            if "SERVER_STARTING_UP" in error_str:
+                return True
+            # Retry on connection errors
+            if "INTERNAL_ERROR" in error_str:
+                return True
+
+        # Retry on Hive Metastore connection errors (during startup)
+        if "HIVE_METASTORE_ERROR" in error_str and "Failed connecting to Hive metastore" in error_str:
+            return True
+
+        return False
 
     def _get_connection(self):
         """Create Trino connection"""
@@ -31,7 +61,7 @@ class TrinoService:
 
     def execute_query(self, query: str) -> List[tuple]:
         """
-        Execute a query and return results
+        Execute a query and return results with retry logic
 
         Args:
             query: SQL query to execute
@@ -39,22 +69,43 @@ class TrinoService:
         Returns:
             List of result tuples
         """
-        try:
-            conn = self._get_connection()
-            cursor = conn.cursor()
-            cursor.execute(query)
-            results = cursor.fetchall()
-            cursor.close()
-            conn.close()
-            logger.info(f"Executed query: {query[:100]}...")
-            return results
-        except Exception as e:
-            logger.error(f"Error executing query: {e}\nQuery: {query}")
-            raise
+        last_error = None
+
+        for attempt in range(self.max_retries):
+            try:
+                conn = self._get_connection()
+                cursor = conn.cursor()
+                cursor.execute(query)
+                results = cursor.fetchall()
+                cursor.close()
+                conn.close()
+                logger.info(f"Executed query: {query[:100]}...")
+                return results
+            except Exception as e:
+                last_error = e
+
+                # Check if error is retryable
+                if self._is_retryable_error(e) and attempt < self.max_retries - 1:
+                    wait_time = self.retry_delay * (attempt + 1)
+                    logger.warning(
+                        f"Trino not ready (attempt {attempt + 1}/{self.max_retries}). "
+                        f"Retrying in {wait_time}s... Error: {e}"
+                    )
+                    time.sleep(wait_time)
+                    continue
+                else:
+                    # Not retryable or max retries reached
+                    logger.error(f"Error executing query: {e}\nQuery: {query}")
+                    raise
+
+        # This should not be reached, but just in case
+        if last_error:
+            raise last_error
+        return []
 
     def execute_ddl(self, ddl: str) -> bool:
         """
-        Execute DDL statement (CREATE TABLE, ALTER TABLE, etc.)
+        Execute DDL statement (CREATE TABLE, ALTER TABLE, etc.) with retry logic
 
         Args:
             ddl: DDL statement to execute
@@ -62,17 +113,38 @@ class TrinoService:
         Returns:
             True if successful
         """
-        try:
-            conn = self._get_connection()
-            cursor = conn.cursor()
-            cursor.execute(ddl)
-            cursor.close()
-            conn.close()
-            logger.info(f"Executed DDL: {ddl[:100]}...")
-            return True
-        except Exception as e:
-            logger.error(f"Error executing DDL: {e}\nDDL: {ddl}")
-            raise
+        last_error = None
+
+        for attempt in range(self.max_retries):
+            try:
+                conn = self._get_connection()
+                cursor = conn.cursor()
+                cursor.execute(ddl)
+                cursor.close()
+                conn.close()
+                logger.info(f"Executed DDL: {ddl[:100]}...")
+                return True
+            except Exception as e:
+                last_error = e
+
+                # Check if error is retryable
+                if self._is_retryable_error(e) and attempt < self.max_retries - 1:
+                    wait_time = self.retry_delay * (attempt + 1)
+                    logger.warning(
+                        f"Trino not ready (attempt {attempt + 1}/{self.max_retries}). "
+                        f"Retrying in {wait_time}s... Error: {e}"
+                    )
+                    time.sleep(wait_time)
+                    continue
+                else:
+                    # Not retryable or max retries reached
+                    logger.error(f"Error executing DDL: {e}\nDDL: {ddl}")
+                    raise
+
+        # This should not be reached, but just in case
+        if last_error:
+            raise last_error
+        return False
 
     def table_exists(self, table_name: str, schema: Optional[str] = None) -> bool:
         """
