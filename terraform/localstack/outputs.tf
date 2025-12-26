@@ -58,21 +58,6 @@ output "s3_processed_data_bucket" {
   value       = aws_s3_bucket.processed_data.bucket
 }
 
-output "documentdb_endpoint" {
-  description = "DocumentDB cluster endpoint"
-  value       = aws_docdb_cluster.main.endpoint
-}
-
-output "documentdb_reader_endpoint" {
-  description = "DocumentDB cluster reader endpoint"
-  value       = aws_docdb_cluster.main.reader_endpoint
-}
-
-output "documentdb_port" {
-  description = "DocumentDB port"
-  value       = aws_docdb_cluster.main.port
-}
-
 output "glue_database_name" {
   description = "Glue catalog database name"
   value       = aws_glue_catalog_database.main.name

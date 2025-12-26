@@ -77,14 +77,3 @@ variable "rds_database_name" {
   default     = "xflowdb"
 }
 
-variable "documentdb_username" {
-  description = "DocumentDB master username"
-  type        = string
-  default     = "admin"
-}
-
-variable "documentdb_password" {
-  description = "DocumentDB master password"
-  type        = string
-  sensitive   = true
-}

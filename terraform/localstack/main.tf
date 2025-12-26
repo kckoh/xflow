@@ -26,7 +26,6 @@ provider "aws" {
     apigateway     = var.localstack_endpoint
     iam            = var.localstack_endpoint
     rds            = var.localstack_endpoint
-    docdb          = var.localstack_endpoint
     cloudformation = var.localstack_endpoint
     sts            = var.localstack_endpoint
     glue           = var.localstack_endpoint
