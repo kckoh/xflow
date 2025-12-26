@@ -33,17 +33,6 @@ export default function DatasetHeader({ dataset }) {
                         </div>
                     </div>
                 </div>
-
-                {/* Actions */}
-                <div className="flex items-center gap-3">
-                    <button className="flex items-center gap-2 px-4 py-2 text-sm font-medium text-purple-700 bg-purple-50 border border-purple-200 rounded-lg hover:bg-purple-100 transition-colors">
-                        <ExternalLink className="w-4 h-4" />
-                        View in {dataset.platform}
-                    </button>
-                    <button className="p-2 text-gray-400 hover:text-gray-700 hover:bg-gray-50 rounded-lg">
-                        <MoreVertical className="w-5 h-5" />
-                    </button>
-                </div>
             </div>
         </div>
     );
