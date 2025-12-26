@@ -35,8 +35,9 @@ class Settings(BaseSettings):
         super().__init__(**kwargs)
 
     # PostgreSQL Configuration
+    # For local dev: see docker-compose.yml for credentials
     postgres_user: str = "postgres"
-    postgres_password: str = "postgres"
+    postgres_password: str = ""  # Set via environment variable or .env.local
     postgres_host: str = "localhost"
     postgres_port: int = 5433
     postgres_db: str = "mydb"
@@ -47,17 +48,19 @@ class Settings(BaseSettings):
         return f"postgresql://{self.postgres_user}:{self.postgres_password}@{self.postgres_host}:{self.postgres_port}/{self.postgres_db}"
 
     # MinIO Configuration (S3-compatible storage)
+    # For local dev: see docker-compose.yml for credentials
     minio_endpoint: str = "localhost:9000"
-    minio_access_key: str = "minio"
-    minio_secret_key: str = "minio123"
+    minio_access_key: str = ""  # Set via environment variable or .env.local
+    minio_secret_key: str = ""  # Set via environment variable or .env.local
     minio_secure: bool = False  # Use HTTPS
     minio_bucket: str = "datalake"  # Default bucket for parquet files
 
     # MongoDB Configuration
+    # For local dev: see docker-compose.yml for credentials
     mongodb_host: str = "localhost"
     mongodb_port: int = 27017
-    mongodb_user: str = "mongo"
-    mongodb_password: str = "mongo"
+    mongodb_user: str = ""  # Set via environment variable or .env.local
+    mongodb_password: str = ""  # Set via environment variable or .env.local
     mongodb_db: str = "xflow"  # Default database
 
     # Trino Configuration
@@ -73,9 +76,10 @@ class Settings(BaseSettings):
         return f"trino://{self.trino_user}@{self.trino_host}:{self.trino_port}/{self.trino_catalog}/{self.trino_schema}"
 
     # Neo4j Configuration
+    # For local dev: see docker-compose.yml for credentials
     neo4j_uri: str = "bolt://localhost:7687"
     neo4j_user: str = "neo4j"
-    neo4j_password: str = "password"
+    neo4j_password: str = ""  # Set via environment variable or .env.local
 
     # Application Settings
     app_name: str = "XFlow"
