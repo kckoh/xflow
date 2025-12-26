@@ -40,7 +40,7 @@ app.add_middleware(
 # Include routers
 app.include_router(auth.router, prefix="/api", tags=["auth"])
 app.include_router(users.router, prefix="/users", tags=["users"])
-app.include_router(catalog.router, prefix="/api/v1/catalog", tags=["catalog"])
+app.include_router(catalog.router, prefix="/api/catalog", tags=["catalog"])
 
 
 # Root route - Test database connection

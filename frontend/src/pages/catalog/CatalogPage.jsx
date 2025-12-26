@@ -23,7 +23,7 @@ export default function CatalogPage() {
         const fetchCatalog = async () => {
             try {
                 // Fetch catalog data from the API
-                const response = await fetch("http://localhost:8000/api/v1/catalog");
+                const response = await fetch("http://localhost:8000/api/catalog");
                 if (!response.ok) {
                     throw new Error("Failed to fetch catalog data");
                 }
