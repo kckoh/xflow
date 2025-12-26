@@ -128,24 +128,59 @@ terraform.tfvars     # 실제 비밀번호 (절대 커밋 금지)
 
 ## 커스터마이징
 
-`variables.tf` 파일을 수정하거나 `terraform.tfvars` 파일을 생성하여 값을 변경할 수 있습니다:
+`terraform.tfvars` 파일에서 값을 변경할 수 있습니다:
 
 ```hcl
 # terraform.tfvars
-vpc_cidr           = "10.1.0.0/16"
-public_subnet_cidr = "10.1.1.0/24"
+vpc_cidr            = "10.1.0.0/16"
+public_subnet_cidr  = "10.1.1.0/24"
 private_subnet_cidr = "10.1.2.0/24"
-project_name       = "my-project"
+project_name        = "my-project"
+environment         = "development"
+
+# 필수: 데이터베이스 비밀번호
+rds_password        = "your_secure_password"
+documentdb_password = "your_secure_password"
 ```
 
 ## Outputs 확인
 
 ```bash
 terraform output
+
+# 특정 output만 확인
+terraform output rds_endpoint
+terraform output documentdb_endpoint
 ```
+
+## 보안 주의사항
+
+⚠️ **중요**: 절대 `terraform.tfvars` 파일을 Git에 커밋하지 마세요!
+
+- `terraform.tfvars`는 실제 비밀번호를 포함하므로 `.gitignore`에 포함되어 있습니다
+- 팀원과 공유할 때는 `terraform.tfvars.example` 파일을 사용하세요
+- 비밀번호는 안전한 방법으로 공유하세요 (1Password, Vault 등)
 
 ## 팁
 
-- LocalStack은 무료 버전에서 일부 기능만 지원합니다
-- Pro 버전을 사용 중이라면 더 많은 AWS 서비스를 사용할 수 있습니다
+- LocalStack Pro 버전을 사용하면 더 많은 AWS 서비스를 사용할 수 있습니다
+- DocumentDB는 LocalStack에서 완전히 지원되지 않을 수 있습니다 (로컬 개발은 MongoDB 사용 권장)
 - 실제 AWS와 동일한 Terraform 코드를 사용할 수 있습니다 (provider endpoint만 변경)
+- Region은 ap-northeast-2 (서울) 기준으로 설정되어 있습니다
+
+## 문제 해결
+
+### terraform plan 실행 시 비밀번호 에러
+```bash
+Error: No value for required variable
+```
+→ `terraform.tfvars` 파일을 생성하고 비밀번호를 입력했는지 확인하세요
+
+### LocalStack 연결 실패
+```bash
+Error: error configuring Terraform AWS Provider
+```
+→ LocalStack이 실행 중인지 확인하세요: `docker compose ps localstack`
+
+### DocumentDB 서비스 비활성화 에러
+→ LocalStack에서 DocumentDB는 제한적으로 지원됩니다. 로컬 개발은 MongoDB를 사용하세요.
