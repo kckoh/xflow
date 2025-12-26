@@ -323,3 +323,24 @@ services:
     volumes:
       - ./trino/etc:/etc/trino
       - ./trino/catalog:/etc/trino/catalog
+
+  localstack:
+    image: localstack/localstack-pro
+    container_name: localstack-main
+    ports:
+      - "4566:4566" # LocalStack Gateway - only expose 4566, not 443
+    environment:
+      - SERVICES=s3,dynamodb,sqs,sns,lambda,apigateway
+      - DEBUG=0
+      - DOCKER_HOST=unix:///var/run/docker.sock
+      - DISABLE_EVENTS=1
+      - GATEWAY_LISTEN=0.0.0.0:4566
+      - LOCALSTACK_AUTH_TOKEN=${LOCALSTACK_AUTH_TOKEN}
+    env_file:
+      - .env
+    volumes:
+      - "/var/run/docker.sock:/var/run/docker.sock"
+      - "localstack-data:/var/lib/localstack"
+
+volumes:
+  localstack-data:
