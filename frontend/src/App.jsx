@@ -11,10 +11,13 @@ import Login from "./pages/login";
 import ProtectedRoute from "./components/ProtectedRoute";
 import MainLayout from "./components/layout/MainLayout";
 
+import CatalogPage from "./pages/catalog/CatalogPage";
+
 // Placeholder components for new routes
-const CatalogPage = () => <div className="p-4 bg-white rounded-lg shadow">Catalog Page Content</div>;
+const ETLPage = () => <div className="p-4 bg-white rounded-lg shadow">ETL Page Content</div>;
 const LineagePage = () => <div className="p-4 bg-white rounded-lg shadow">Lineage Page Content</div>;
-const SettingsPage = () => <div className="p-4 bg-white rounded-lg shadow">Settings Page Content</div>;
+const GlossaryPage = () => <div className="p-4 bg-white rounded-lg shadow">Glossary Page Content</div>;
+const QueryPage = () => <div className="p-4 bg-white rounded-lg shadow">Query Page Content</div>;
 
 function App() {
   return (
@@ -46,7 +49,7 @@ function App() {
           element={
             <ProtectedRoute>
               <MainLayout>
-                <Home />
+                <ETLPage />
               </MainLayout>
             </ProtectedRoute>
           }
@@ -75,16 +78,26 @@ function App() {
         />
 
         <Route
-          path="/settings"
+          path="/glossary"
           element={
             <ProtectedRoute>
               <MainLayout>
-                <SettingsPage />
+                <GlossaryPage />
               </MainLayout>
             </ProtectedRoute>
           }
         />
 
+        <Route
+          path="/query"
+          element={
+            <ProtectedRoute>
+              <MainLayout>
+                <QueryPage />
+              </MainLayout>
+            </ProtectedRoute>
+          }
+        />
       </Routes>
     </BrowserRouter>
   );

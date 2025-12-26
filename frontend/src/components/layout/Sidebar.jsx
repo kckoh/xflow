@@ -7,12 +7,15 @@ import {
     Search,
     Bell,
     User,
-    LogOut
+    LogOut,
+    List,
+    ChevronLeft,
+    ChevronRight
 } from "lucide-react";
 import { useAuth } from "../../context/AuthContext";
 import clsx from "clsx";
 
-export function Sidebar() {
+export function Sidebar({ isCollapsed, onToggle }) {
     const navigate = useNavigate();
     const location = useLocation();
     const { logout } = useAuth();
@@ -21,20 +24,20 @@ export function Sidebar() {
         {
             title: "DATA INTEGRATION",
             items: [
-                { name: "ETL Pipelines", path: "/", icon: Home },
+                { name: "ETL Pipelines", path: "/", icon: List },
             ]
         },
-        {
+          {
             title: "DATA CATALOG",
             items: [
                 { name: "Data Catalog", path: "/catalog", icon: Database },
-                { name: "Business Glossary", path: "/business-glossary", icon: GitMerge },
+                { name: "Business Glossary", path: "/glossary", icon: GitMerge },
             ]
         },
         {
             title: "ANALYSIS",
             items: [
-                { name: "Query", path: "/settings", icon: Settings },
+                { name: "Query", path: "/query", icon: Search },
             ]
         }
     ];
@@ -45,24 +48,53 @@ export function Sidebar() {
     };
 
     return (
-        <div className="w-64 h-screen bg-slate-900 text-white flex flex-col shadow-xl fixed left-0 top-0 z-20">
-            {/* Brand */}
-            <div className="h-16 flex items-center px-6 border-b border-slate-800 bg-slate-950">
-                <div className="w-8 h-8 bg-blue-600 rounded-lg flex items-center justify-center mr-3 shadow-lg shadow-blue-500/30">
-                    <GitMerge className="text-white w-5 h-5" />
+        <div className={clsx(
+            "h-screen bg-white border-r border-gray-200 text-gray-700 flex flex-col fixed left-0 top-0 z-20 transition-all duration-300 ease-in-out",
+            isCollapsed ? "w-20" : "w-64"
+        )}>
+            {/* Brand & Toggle */}
+            <div className="h-16 flex items-center justify-between px-4 border-b border-gray-200">
+                <div className={clsx("flex items-center", isCollapsed && "justify-center w-full")}>
+                    <div className="w-8 h-8 bg-blue-600 rounded-lg flex items-center justify-center shadow-sm shrink-0">
+                        <GitMerge className="text-white w-5 h-5" />
+                    </div>
+                    {!isCollapsed && (
+                        <span className="ml-3 text-xl font-bold bg-clip-text text-transparent bg-gradient-to-r from-blue-600 to-indigo-600 truncate">
+                            XFlow
+                        </span>
+                    )}
                 </div>
-                <span className="text-xl font-bold bg-clip-text text-transparent bg-gradient-to-r from-blue-400 to-indigo-400">
-                    XFlow
-                </span>
+                {!isCollapsed && (
+                    <button
+                        onClick={onToggle}
+                        className="p-1.5 rounded-lg hover:bg-gray-100 text-gray-500 transition-colors"
+                    >
+                        <ChevronLeft className="w-5 h-5" />
+                    </button>
+                )}
             </div>
 
             {/* Navigation */}
-            <nav className="flex-1 py-6 px-4 space-y-8 overflow-y-auto">
+            <nav className="flex-1 py-6 px-3 space-y-6 overflow-y-auto overflow-x-hidden">
+                {/* Collapsed State Header: Minimal toggle when collapsed */}
+                {isCollapsed && (
+                    <div className="flex justify-center mb-6">
+                        <button
+                            onClick={onToggle}
+                            className="p-1.5 rounded-lg hover:bg-gray-100 text-gray-500 transition-colors"
+                        >
+                            <ChevronRight className="w-5 h-5" />
+                        </button>
+                    </div>
+                )}
+
                 {navSections.map((section, idx) => (
                     <div key={idx}>
-                        <h3 className="px-3 text-xs font-semibold text-slate-500 uppercase tracking-wider mb-2">
-                            {section.title}
-                        </h3>
+                        {!isCollapsed && (
+                            <h3 className="px-3 text-xs font-semibold text-gray-500 uppercase tracking-wider mb-2 truncate">
+                                {section.title}
+                            </h3>
+                        )}
                         <div className="space-y-1">
                             {section.items.map((item) => {
                                 const isActive = location.pathname === item.path;
@@ -70,20 +102,23 @@ export function Sidebar() {
                                     <button
                                         key={item.path}
                                         onClick={() => navigate(item.path)}
+                                        title={isCollapsed ? item.name : ""}
                                         className={clsx(
-                                            "w-full flex items-center px-3 py-2 text-sm font-medium rounded-md transition-all duration-200 group",
+                                            "w-full flex items-center p-2 text-sm font-medium rounded-md transition-all duration-200 group",
+                                            isCollapsed ? "justify-center" : "px-3",
                                             isActive
-                                                ? "bg-blue-600 text-white shadow-md shadow-blue-900/20"
-                                                : "text-slate-400 hover:bg-slate-800 hover:text-white"
+                                                ? "bg-blue-50 text-blue-600"
+                                                : "text-gray-600 hover:bg-gray-50 hover:text-gray-900"
                                         )}
                                     >
                                         <item.icon
                                             className={clsx(
-                                                "w-5 h-5 mr-3 transition-colors",
-                                                isActive ? "text-white" : "text-slate-500 group-hover:text-white"
+                                                "w-5 h-5 transition-colors shrink-0",
+                                                !isCollapsed && "mr-3",
+                                                isActive ? "text-blue-600" : "text-gray-400 group-hover:text-gray-600"
                                             )}
                                         />
-                                        {item.name}
+                                        {!isCollapsed && <span className="truncate">{item.name}</span>}
                                     </button>
                                 );
                             })}
@@ -93,22 +128,40 @@ export function Sidebar() {
             </nav>
 
             {/* User & Logout */}
-            <div className="p-4 border-t border-slate-800 bg-slate-950">
+            <div className="p-4 border-t border-gray-200 space-y-1">
+                <button
+                    onClick={() => navigate("/settings")}
+                    title={isCollapsed ? "Settings" : ""}
+                    className={clsx(
+                        "flex items-center text-sm font-medium text-gray-500 hover:text-gray-900 transition-colors w-full p-2 rounded-md hover:bg-gray-50",
+                        isCollapsed ? "justify-center" : "px-3"
+                    )}
+                >
+                    <Settings className={clsx("w-4 h-4 shrink-0", !isCollapsed && "mr-2")} />
+                    {!isCollapsed && "Settings"}
+                </button>
                 <button
                     onClick={handleLogout}
-                    className="flex items-center text-sm font-medium text-slate-400 hover:text-red-400 transition-colors w-full px-3 py-2 rounded-md hover:bg-slate-900"
+                    title={isCollapsed ? "Sign out" : ""}
+                    className={clsx(
+                        "flex items-center text-sm font-medium text-gray-500 hover:text-red-600 transition-colors w-full p-2 rounded-md hover:bg-red-50",
+                        isCollapsed ? "justify-center" : "px-3"
+                    )}
                 >
-                    <LogOut className="w-4 h-4 mr-2" />
-                    Sign out
+                    <LogOut className={clsx("w-4 h-4 shrink-0", !isCollapsed && "mr-2")} />
+                    {!isCollapsed && "Sign out"}
                 </button>
             </div>
         </div>
     );
 }
 
-export function Topbar() {
+export function Topbar({ isCollapsed }) {
     return (
-        <div className="h-16 bg-white border-b border-gray-200 flex items-center justify-between px-6 fixed top-0 left-64 right-0 z-10">
+        <div className={clsx(
+            "h-16 bg-white border-b border-gray-200 flex items-center justify-between px-6 fixed top-0 right-0 z-10 transition-all duration-300 ease-in-out",
+            isCollapsed ? "left-20" : "left-64"
+        )}>
             {/* Search */}
             <div className="flex-1 max-w-xl">
                 <div className="relative">
@@ -117,7 +170,7 @@ export function Topbar() {
                     </div>
                     <input
                         type="text"
-                        placeholder="Search assets, tables, or pipelines..."
+                        placeholder="Search assets, tables..."
                         className="block w-full pl-10 pr-3 py-2 border border-gray-200 rounded-lg leading-5 bg-gray-50 placeholder-gray-400 focus:outline-none focus:bg-white focus:ring-1 focus:ring-blue-500 focus:border-blue-500 sm:text-sm transition-colors"
                     />
                 </div>
@@ -134,8 +187,8 @@ export function Topbar() {
                         HS
                     </div>
                     <div className="hidden md:block">
-                        <p className="text-sm font-medium text-gray-700">Hong Soon-kyu</p>
-                        <p className="text-xs text-gray-500">Data Engineer</p>
+                        <p className="text-sm font-medium text-gray-700">Username</p>
+                        <p className="text-xs text-gray-500">Role</p>
                     </div>
                 </div>
             </div>

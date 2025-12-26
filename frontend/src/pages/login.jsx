@@ -46,10 +46,7 @@ function Login() {
         }
     };
 
-    const handleDevBypass = () => {
-        login("dev-session-" + Date.now());
-        navigate("/");
-    };
+
 
     return (
         <div className="min-h-screen flex items-center justify-center bg-gray-50">
@@ -123,26 +120,6 @@ function Login() {
                             {isSubmitting ? "Signing in..." : "Sign In"}
                         </button>
                     </form>
-
-                    {/*///////// temp login bypass ////////////////////*/}
-
-                    {/* Dev Bypass */}
-                    <div className="relative my-6">
-                        <div className="absolute inset-0 flex items-center">
-                            <div className="w-full border-t border-gray-200"></div>
-                        </div>
-                        <div className="relative flex justify-center text-sm">
-                            <span className="px-2 bg-white text-gray-500">Developer Options</span>
-                        </div>
-                    </div>
-                    <button
-                        type="button"
-                        onClick={handleDevBypass}
-                        className="w-full py-3 px-4 rounded-lg font-medium bg-gray-800 hover:bg-gray-900 text-white transition flex items-center justify-center"
-                    >
-                        🚀 Dev Pass (Skip Login)
-                    </button>
-                    {/* /////////////////////////////////////////////// */}
 
                     {/* Sign Up Link */}
                     <div className="mt-6 text-center">
