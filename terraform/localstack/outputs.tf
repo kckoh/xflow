@@ -72,3 +72,8 @@ output "documentdb_port" {
   description = "DocumentDB port"
   value       = aws_docdb_cluster.main.port
 }
+
+output "glue_database_name" {
+  description = "Glue catalog database name"
+  value       = aws_glue_catalog_database.main.name
+}
