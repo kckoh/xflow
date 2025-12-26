@@ -31,8 +31,7 @@ cp terraform.tfvars.example terraform.tfvars
 
 ```hcl
 # Database Credentials
-rds_password        = "your_secure_rds_password"
-documentdb_password = "your_secure_documentdb_password"
+rds_password = "your_secure_rds_password"
 ```
 
 **주의**: `terraform.tfvars` 파일은 .gitignore에 포함되어 있으므로 Git에 커밋되지 않습니다. 비밀번호를 안전하게 관리하세요.
@@ -70,8 +69,8 @@ aws rds describe-db-instances --endpoint-url=http://localhost:4566
 # S3 버킷 확인
 aws s3 ls --endpoint-url=http://localhost:4566
 
-# DocumentDB 확인 (LocalStack Pro만 지원)
-aws docdb describe-db-clusters --endpoint-url=http://localhost:4566
+# Glue 데이터베이스 확인
+aws glue get-databases --endpoint-url=http://localhost:4566
 ```
 
 ### 6. 리소스 삭제
@@ -88,8 +87,8 @@ terraform/localstack/
 ├── variables.tf     # 변수 정의
 ├── vpc.tf           # VPC, Subnet, IGW, Security Group
 ├── rds.tf           # RDS PostgreSQL
-├── documentdb.tf    # DocumentDB Cluster
 ├── s3.tf            # S3 Buckets
+├── glue.tf          # Glue Catalog Database
 ├── outputs.tf       # Output 값
 ├── terraform.tfvars.example  # 환경 변수 예제 (Git 커밋 가능)
 └── README.md        # 이 파일
@@ -115,10 +114,10 @@ terraform.tfvars     # 실제 비밀번호 (절대 커밋 금지)
   - Private Subnet에 배치
   - 다중 AZ 서브넷 그룹
 
-- **DocumentDB Cluster** (db.t3.medium)
-  - MongoDB 호환 문서 데이터베이스
-  - Private Subnet에 배치
-  - **참고**: LocalStack에서는 DocumentDB가 완전히 지원되지 않을 수 있음
+### 데이터 카탈로그
+- **Glue Catalog Database**
+  - 데이터 레이크 메타데이터 관리
+  - Athena와 연동 가능
 
 ### 스토리지
 - **S3 Buckets**
@@ -136,11 +135,10 @@ vpc_cidr            = "10.1.0.0/16"
 public_subnet_cidr  = "10.1.1.0/24"
 private_subnet_cidr = "10.1.2.0/24"
 project_name        = "my-project"
-environment         = "development"
+environment  = "development"
 
 # 필수: 데이터베이스 비밀번호
-rds_password        = "your_secure_password"
-documentdb_password = "your_secure_password"
+rds_password = "your_secure_password"
 ```
 
 ## Outputs 확인
@@ -150,7 +148,7 @@ terraform output
 
 # 특정 output만 확인
 terraform output rds_endpoint
-terraform output documentdb_endpoint
+terraform output glue_database_name
 ```
 
 ## 보안 주의사항
@@ -164,7 +162,7 @@ terraform output documentdb_endpoint
 ## 팁
 
 - LocalStack Pro 버전을 사용하면 더 많은 AWS 서비스를 사용할 수 있습니다
-- DocumentDB는 LocalStack에서 완전히 지원되지 않을 수 있습니다 (로컬 개발은 MongoDB 사용 권장)
+- 문서 데이터베이스가 필요한 경우 Docker의 MongoDB를 사용하세요 (포트 27017)
 - 실제 AWS와 동일한 Terraform 코드를 사용할 수 있습니다 (provider endpoint만 변경)
 - Region은 ap-northeast-2 (서울) 기준으로 설정되어 있습니다
 
@@ -181,6 +179,3 @@ Error: No value for required variable
 Error: error configuring Terraform AWS Provider
 ```
 → LocalStack이 실행 중인지 확인하세요: `docker compose ps localstack`
-
-### DocumentDB 서비스 비활성화 에러
-→ LocalStack에서 DocumentDB는 제한적으로 지원됩니다. 로컬 개발은 MongoDB를 사용하세요.
