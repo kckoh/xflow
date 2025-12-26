@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import {
     Search,
@@ -10,22 +10,37 @@ import {
     ChevronDown,
     ListFilter
 } from "lucide-react";
-
-//TODO: Replace with actual data
-const recentTables = [
-    { id: "sales_transactions", name: "판매거래량", type: "table", project: "Sales DB", updated: "2 hours ago" },
-];
-const allTables = [
-    { id: "sales_transactions", name: "판매거래량", type: "Table", owner: "Data Eng", rows: "1.2B", size: "450 GB", tags: ["bronze", "raw"] },
-];
-
 export default function CatalogPage() {
     const navigate = useNavigate();
     const [searchTerm, setSearchTerm] = useState("");
+    // Catalog Data
+    const [allTables, setAllTables] = useState([]);
+    const [loading, setLoading] = useState(true);
+    const [error, setError] = useState(null);
+    // TODO: Recently Used Tables 임의로 구현
+    const recentTables = allTables.slice(0, 4);
+    useEffect(() => {
+        const fetchCatalog = async () => {
+            try {
+                // Fetch catalog data from the API
+                const response = await fetch("http://localhost:8000/api/v1/catalog");
+                if (!response.ok) {
+                    throw new Error("Failed to fetch catalog data");
+                }
+                const data = await response.json();
+                setAllTables(data);
+            } catch (err) {
+                console.error("Error fetching catalog:", err);
+                setError(err.message);
+            } finally {
+                setLoading(false);
+            }
+        };
+        fetchCatalog();
+    }, []);
     const filteredTables = allTables.filter((table) =>
         table.name.toLowerCase().includes(searchTerm.toLowerCase())
     );
-
     return (
         <div className="space-y-8">
             {/* Header */}
@@ -33,14 +48,12 @@ export default function CatalogPage() {
                 <h1 className="text-2xl font-bold text-gray-900">Data Catalog</h1>
                 <p className="text-gray-500 mt-1">Discover, manage, and govern your data assets.</p>
             </div>
-
-            {/* 1. Recently Used (Top Section) */}
+            {/*Recently Used Tables*/}
             <section>
                 <div className="flex items-center mb-4">
                     <Clock className="w-5 h-5 text-gray-400 mr-2" />
                     <h2 className="text-lg font-semibold text-gray-800">Recently Used Data Tables</h2>
                 </div>
-
                 {recentTables.length > 0 ? (
                     <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-4">
                         {recentTables.map((item) => (
@@ -68,12 +81,10 @@ export default function CatalogPage() {
                     </div>
                 )}
             </section>
-
-            {/* 2. All Data Tables (Bottom Section with Search/Filter) */}
+            {/* All Data Tables */}
             <section className="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden">
                 {/* Toolbar */}
                 <div className="p-5 border-b border-gray-100 flex flex-col md:flex-row md:items-center justify-between gap-4">
-
                     {/* Left: Filters */}
                     <div className="flex items-center gap-4 overflow-x-auto pb-2 md:pb-0 hide-scrollbar">
                         {/* Title mostly for semantics, but we can make it smaller or remove if filters take space. Keeping it standard. */}
@@ -101,17 +112,14 @@ export default function CatalogPage() {
                                 className="pl-9 pr-4 py-1.5 border border-gray-200 rounded-lg text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none w-48 sm:w-64"
                             />
                         </div>
-
                         <div className="h-8 w-px bg-gray-200 mx-1"></div>
-
                         <button className="flex items-center gap-2 px-3 py-1.5 text-sm font-medium text-gray-600 hover:bg-gray-50 rounded-lg transition-colors">
                             <span>Sort by</span>
                             <ListFilter className="w-4 h-4" />
                         </button>
                     </div>
                 </div>
-
-                {/* Table List */}
+                {/* all Table Header */}
                 <div className="overflow-x-auto">
                     <table className="w-full text-left border-collapse">
                         <thead>
@@ -125,8 +133,24 @@ export default function CatalogPage() {
                                 <th className="px-6 py-4 font-medium">Action</th>
                             </tr>
                         </thead>
+                        {/* loading */}
                         <tbody className="divide-y divide-gray-100">
-                            {filteredTables.map((table) => (
+                            {loading && (
+                                <tr>
+                                    <td colSpan="7" className="px-6 py-8 text-center text-gray-500">
+                                        Loading catalog data...
+                                    </td>
+                                </tr>
+                            )}
+                            {error && (
+                                <tr>
+                                    <td colSpan="7" className="px-6 py-8 text-center text-red-500">
+                                        Error: {error}
+                                    </td>
+                                </tr>
+                            )}
+                            {/* allTables */}
+                            {!loading && !error && filteredTables.map((table) => (
                                 <tr
                                     key={table.id}
                                     onClick={() => navigate(`/catalog/${table.id}`)}
@@ -164,7 +188,6 @@ export default function CatalogPage() {
                             ))}
                         </tbody>
                     </table>
-
                     {filteredTables.length === 0 && (
                         <div className="p-8 text-center text-gray-500">
                             {allTables.length === 0 ? "No data available." : `No tables found matching "${searchTerm}"`}
@@ -175,7 +198,6 @@ export default function CatalogPage() {
         </div>
     );
 }
-
 function FilterDropdown({ label }) {
     return (
         <button className="flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium text-gray-600 bg-white border border-gray-200 rounded-lg hover:bg-gray-50 hover:border-gray-300 transition-all whitespace-nowrap">
