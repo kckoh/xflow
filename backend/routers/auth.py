@@ -1,10 +1,10 @@
 import uuid
 
-from database import get_db
-from dependencies import sessions
+from backend.database import get_db
+from backend.dependencies import sessions
 from fastapi import APIRouter, Depends, Header, HTTPException, status
-from models import User
-from schemas.user import UserCreate, UserLogin
+from backend.models import User
+from backend.schemas.user import UserCreate, UserLogin
 from sqlalchemy.orm import Session
 
 router = APIRouter()

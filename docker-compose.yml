@@ -140,11 +140,36 @@ services:
     command:
       - -c
       - |
+        echo "Waiting for MinIO to be ready"
         sleep 5
+
+        echo "Setting up MinIO alias"
         mc alias set myminio http://minio:9000 minio minio123
+
+        echo "Creating buckets"
         mc mb myminio/datalake --ignore-existing
         mc mb myminio/raw --ignore-existing
         mc mb myminio/processed --ignore-existing
+
+        echo "Configuring webhook notification"
+        mc admin config set myminio notify_webhook:1 \
+          endpoint="http://host.docker.internal:8000/api/data-lake/webhook/minio" \
+          queue_limit="10" \
+          comment="FastAPI Data Lake Webhook"
+
+        echo "Webhook configured! MinIO will restart to apply changes"
+        echo "Setting up bucket event notifications"
+        # Wait a bit for MinIO to be ready after config change
+        sleep 3
+
+        mc event add myminio/datalake \
+          arn:minio:sqs::1:webhook \
+          --event put \
+          --suffix .parquet
+
+        echo "MinIO initialization complete!"
+        echo "Note: MinIO needs to be restarted for webhook config to take effect"
+        echo "Run: docker restart minio"
     restart: "no"
 
   # ============ Spark ============

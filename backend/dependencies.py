@@ -1,7 +1,7 @@
 from fastapi import HTTPException, Header
 from sqlalchemy.orm import Session
-from database import get_db
-from models import User
+from backend.database import get_db
+from backend.models import User
 from fastapi import Depends
 
 # Move sessions here so it's accessible everywhere
