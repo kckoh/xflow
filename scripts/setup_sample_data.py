@@ -9,9 +9,9 @@ def create_s3_client():
     """LocalStack S3 클라이언트 생성"""
     return boto3.client(
         's3',
-        endpoint_url='http://localhost:4566',  # LocalStack endpoint
-        aws_access_key_id='test',              # Terraform variables.tf의 기본값
-        aws_secret_access_key='test',          # Terraform variables.tf의 기본값
+        endpoint_url='http://localhost:4566',
+        aws_access_key_id='test',
+        aws_secret_access_key='test',
         region_name='ap-northeast-2'
     )
 
@@ -63,7 +63,7 @@ def create_sample_datasets():
     }
 
 def upload_to_s3(s3_client, bucket_name, datasets):
-    """LocalStack S3에 Parquet 파일 업로드 (파티셔닝 적용)"""
+    """LocalStack S3에 Parquet 파일 업로드 (PLAIN 인코딩 사용)"""
 
     # 버킷 존재 확인 및 생성
     try:
@@ -79,17 +79,24 @@ def upload_to_s3(s3_client, bucket_name, datasets):
         except Exception as e:
             print(f"버킷 생성 중 오류: {e}")
 
+    # Parquet 쓰기 옵션 (PLAIN 인코딩 사용)
+    write_options = {
+        'compression': 'snappy',
+        'use_dictionary': False,  # 딕셔너리 인코딩 비활성화
+        'version': '2.6'
+    }
+
     # user_events - event_date로 파티셔닝
     print("user_events 업로드 중 (파티셔닝: event_date)")
     df = datasets['user_events']
-    df['event_date'] = df['timestamp'].dt.date
+    df['event_date'] = df['timestamp'].dt.date.astype(str)
 
     for date, group in df.groupby('event_date'):
         partition_df = group.drop('event_date', axis=1)
-
         table = pa.Table.from_pandas(partition_df)
+        
         buf = io.BytesIO()
-        pq.write_table(table, buf)
+        pq.write_table(table, buf, **write_options)
         buf.seek(0)
 
         object_key = f"user_events/event_date={date}/data.parquet"
@@ -99,36 +106,37 @@ def upload_to_s3(s3_client, bucket_name, datasets):
             Body=buf.getvalue(),
             ContentType='application/octet-stream'
         )
-        print(f"  ✓ {object_key} ({len(partition_df)}행)")
+        print(f"{object_key} ({len(partition_df)}행)")
 
     # transactions - transaction_date로 파티셔닝
-    print("transactions 업로드 중 (파티셔닝: transaction_date)")
+    print("transactions 업로드 중 (파티셔닝: trans_date)")
     df = datasets['transactions']
-    df['trans_date'] = df['transaction_date'].dt.date
+    df['trans_date'] = df['transaction_date'].dt.date.astype(str)
 
     for date, group in df.groupby('trans_date'):
         partition_df = group.drop('trans_date', axis=1)
-
         table = pa.Table.from_pandas(partition_df)
+        
         buf = io.BytesIO()
-        pq.write_table(table, buf)
+        pq.write_table(table, buf, **write_options)
         buf.seek(0)
 
-        object_key = f"transactions/transaction_date={date}/data.parquet"
+        object_key = f"transactions/trans_date={date}/data.parquet"
         s3_client.put_object(
             Bucket=bucket_name,
             Key=object_key,
             Body=buf.getvalue(),
             ContentType='application/octet-stream'
         )
-        print(f"{object_key} ({len(partition_df)}행)")
+        print(f"  ✓ {object_key} ({len(partition_df)}행)")
 
-    # products - 파티셔닝 없음 (작은 마스터 테이블)
+    # products - 파티셔닝 없음
     print("products 업로드 중 (파티셔닝 없음)")
     df = datasets['products']
     table = pa.Table.from_pandas(df)
+    
     buf = io.BytesIO()
-    pq.write_table(table, buf)
+    pq.write_table(table, buf, **write_options)
     buf.seek(0)
 
     object_key = "products/data.parquet"
@@ -143,9 +151,7 @@ def upload_to_s3(s3_client, bucket_name, datasets):
 def main():
     s3_client = create_s3_client()
     datasets = create_sample_datasets()
-
-    # Terraform에서 생성한 버킷 이름 사용
-    bucket_name = "xflow-raw-data"  # terraform/localstack/s3.tf 참조
+    bucket_name = "xflow-raw-data"
 
     upload_to_s3(s3_client, bucket_name, datasets)
 
