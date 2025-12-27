@@ -34,4 +34,13 @@ export const rdbSourceApi = {
         if (!response.ok) throw new Error('Failed to fetch columns');
         return response.json();
     },
+
+    // DELETE /api/rdb-sources/{id}
+    async deleteSource(sourceId) {
+        const response = await fetch(`${API_BASE_URL}/api/rdb-sources/${sourceId}`, {
+            method: 'DELETE',
+        });
+        if (!response.ok) throw new Error('Failed to delete source');
+        return response.ok;
+    },
 };
