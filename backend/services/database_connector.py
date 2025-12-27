@@ -32,7 +32,7 @@ class DatabaseConnector:
         else:
             raise NotImplementedError(f"Database type {self.db_type} not supported yet")
 
-    def get_table_schema(self, table_name: str) -> List[Dict[str, str]]:
+    def get_columns(self, table_name: str) -> List[Dict[str, str]]:
         """Get schema (columns) of a specific table"""
         if self.db_type in ["postgres", "postgresql"]:
             return self._get_postgres_columns(table_name)

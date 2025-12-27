@@ -79,7 +79,7 @@ async def get_table_columns(source_id: str, table_name: str):
             password=source.password,
         )
         
-        columns = connector.get_table_schema(table_name)
+        columns = connector.get_columns(table_name)
         
         return [
             RDBColumnInfo(
