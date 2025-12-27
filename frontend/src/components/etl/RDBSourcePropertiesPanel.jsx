@@ -9,6 +9,7 @@ export default function RDBSourcePropertiesPanel({ node, onClose, onUpdate }) {
     const [tables, setTables] = useState([]);
     const [selectedTable, setSelectedTable] = useState('');
     const [loading, setLoading] = useState(false);
+    const [isSourcesLoading, setIsSourcesLoading] = useState(false);
     const [showCreateModal, setShowCreateModal] = useState(false);
 
     useEffect(() => {
@@ -23,10 +24,13 @@ export default function RDBSourcePropertiesPanel({ node, onClose, onUpdate }) {
 
     const loadSources = async () => {
         try {
+            setIsSourcesLoading(true);
             const data = await rdbSourceApi.fetchSources();
             setSources(data);
         } catch (err) {
             console.error('Failed to load sources:', err);
+        } finally {
+            setIsSourcesLoading(false);
         }
     };
 
@@ -101,22 +105,30 @@ export default function RDBSourcePropertiesPanel({ node, onClose, onUpdate }) {
                     <p className="text-xs text-gray-500 mb-2">
                         Choose the RDB connection for your data source.
                     </p>
-                    <select
-                        className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-                        value={selectedSource?.id || ''}
-                        onChange={(e) => {
-                            const source = sources.find((s) => s.id === e.target.value);
-                            setSelectedSource(source);
-                            setSelectedTable('');
-                        }}
-                    >
-                        <option value="">Choose one connection</option>
-                        {sources.map((source) => (
-                            <option key={source.id} value={source.id}>
-                                {source.name} ({source.type})
-                            </option>
-                        ))}
-                    </select>
+                    <div className="relative">
+                        <select
+                            className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white"
+                            value={selectedSource?.id || ''}
+                            onChange={(e) => {
+                                const source = sources.find((s) => s.id === e.target.value);
+                                setSelectedSource(source);
+                                setSelectedTable('');
+                            }}
+                            disabled={isSourcesLoading}
+                        >
+                            <option value="">{isSourcesLoading ? 'Loading connections...' : 'Choose one connection'}</option>
+                            {sources.map((source) => (
+                                <option key={source.id} value={source.id}>
+                                    {source.name} ({source.type})
+                                </option>
+                            ))}
+                        </select>
+                        {isSourcesLoading && (
+                            <div className="absolute right-3 top-2">
+                                <span className="animate-spin h-5 w-5 text-gray-400 border-2 border-current border-t-transparent rounded-full block"></span>
+                            </div>
+                        )}
+                    </div>
 
                     <button
                         onClick={() => setShowCreateModal(true)}
