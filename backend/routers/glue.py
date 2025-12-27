@@ -94,6 +94,7 @@ async def get_table_schema(database_name: str, table_name: str):
             for col in storage_desc.get("Columns", [])
         ]
 
+        # TODO 나중에 조정
         partition_keys = [
             PartitionKey(
                 name=pk["Name"],
