@@ -1,5 +1,5 @@
 import psycopg2
-from typing import List
+from typing import List, Dict, Any
 
 
 class DatabaseConnector:
@@ -13,6 +13,16 @@ class DatabaseConnector:
         self.user = user
         self.password = password
 
+    def _get_postgres_connection(self):
+        """Get PostgreSQL connection"""
+        return psycopg2.connect(
+            host=self.host,
+            port=self.port,
+            database=self.database,
+            user=self.user,
+            password=self.password
+        )
+
     def get_tables(self) -> List[str]:
         """Get list of tables from the database"""
         if self.db_type in ["postgres", "postgresql"]:
@@ -22,7 +32,12 @@ class DatabaseConnector:
         else:
             raise NotImplementedError(f"Database type {self.db_type} not supported yet")
 
-
+    def get_columns(self, table_name: str) -> List[Dict[str, Any]]:
+        """Get columns for a specific table"""
+        if self.db_type in ["postgres", "postgresql"]:
+            return self._get_postgres_columns(table_name)
+        else:
+            raise NotImplementedError(f"Database type {self.db_type} not supported yet")
 
     def _get_postgres_tables(self) -> List[str]:
         try:
@@ -51,6 +66,35 @@ class DatabaseConnector:
             return tables
         except Exception as e:
             raise Exception(f"Failed to connect to PostgreSQL: {str(e)}")
+
+    def _get_postgres_columns(self, table_name: str) -> List[Dict[str, Any]]:
+        """Get columns for a PostgreSQL table"""
+        try:
+            conn = self._get_postgres_connection()
+            cursor = conn.cursor()
+            
+            cursor.execute("""
+                SELECT column_name, data_type, is_nullable
+                FROM information_schema.columns
+                WHERE table_schema = 'public' AND table_name = %s
+                ORDER BY ordinal_position
+            """, (table_name,))
+            
+            columns = [
+                {
+                    'name': row[0],
+                    'type': row[1],
+                    'nullable': row[2] == 'YES'
+                }
+                for row in cursor.fetchall()
+            ]
+            
+            cursor.close()
+            conn.close()
+            
+            return columns
+        except Exception as e:
+            raise Exception(f"Failed to get columns: {str(e)}")
 
     def _get_mysql_tables(self) -> List[str]:
         """Get list of tables from MySQL/MariaDB (placeholder for future implementation)"""
