@@ -58,20 +58,37 @@ const SchemaNode = ({ id, data }) => {
     const columns = data.columns || [];
     const sourcePlatform = data.platform || "PostgreSQL";
 
+    // Style logic:
+    // Selected Node (Right Panel) -> Purple Strong Border
+    // Main Target Node (Page Owner) -> Yellow Border (Background check)
+    // Normal -> Slate Border
+
+    let borderClass = "border-slate-200";
+    let ringClass = "";
+
+    if (data.isSelected) {
+        borderClass = "border-purple-500";
+        ringClass = "ring-4 ring-purple-100";
+    } else if (data.isCurrent) {
+        borderClass = "border-yellow-400";
+        // Only show ring if not selected (selected takes precedence for ring usually, or mix)
+        ringClass = "ring-2 ring-yellow-100";
+    }
+
     return (
         <div className="relative group font-sans w-[280px]">
             {/* Main Container */}
             <div className={`
                 bg-white rounded-xl shadow-md overflow-hidden transition-all duration-200
-                border-2 ${data.isCurrent ? 'border-yellow-400 ring-2 ring-yellow-100' : 'border-slate-200'}
+                border-2 ${borderClass} ${ringClass}
             `}>
 
-                {/* 1. Black Header (Source Info Only + Handles Area) */}
+                {/* Black Header (Source Info Only + Handles Area) */}
                 <div
-                    className="bg-slate-900 text-white h-[40px] px-3 flex justify-between items-center relative"
+                    className="bg-blue-800 text-white h-[40px] px-3 flex justify-between items-center relative"
                 >
                     {/* Source Info Badge */}
-                    <span className="text-[11px] font-bold text-slate-300 uppercase tracking-widest bg-white/10 px-2 py-0.5 rounded">
+                    <span className="text-[11px] font-bold text-slate-300 uppercase tracking-widest bg-white/10 px-2 py-1 rounded">
                         {sourcePlatform}
                     </span>
 
@@ -80,7 +97,7 @@ const SchemaNode = ({ id, data }) => {
                      */}
                 </div>
 
-                {/* 2. Title Row (White Background) + Toggle Arrow */}
+                {/* Title Row (White Background) + Toggle Arrow */}
                 <div
                     className="bg-white px-3 py-3 border-b border-slate-100 flex justify-between items-center cursor-pointer hover:bg-slate-50 transition-colors"
                     onClick={() => setExpanded(!expanded)}
@@ -98,7 +115,7 @@ const SchemaNode = ({ id, data }) => {
                     </span>
                 </div>
 
-                {/* 3. Body / Columns */}
+                {/* Body / Columns */}
                 {expanded && (
                     <div className="p-0 bg-white min-h-[100px] max-h-[300px] overflow-y-auto custom-scrollbar">
                         {columns.length > 0 ? (
@@ -127,9 +144,16 @@ const SchemaNode = ({ id, data }) => {
                         TARGET DATASET
                     </div>
                 )}
+
+                {/* Selected Indicator */}
+                {data.isSelected && !data.isCurrent && (
+                    <div className="bg-purple-50 text-purple-700 text-[10px] font-bold text-center py-1.5 border-t border-purple-100">
+                        SELECTED
+                    </div>
+                )}
             </div>
 
-            {/* 4. Handles - Visually Inside Black Header */}
+            {/* Handles - Visually Inside Black Header */}
             {/* Header height is 40px. Center is top: 20px. 
                 We place them slightly inset to look "inside".
             */}
@@ -195,13 +219,13 @@ const getLayoutedElements = (nodes, edges, direction = 'LR') => {
 
 // -----------------------------------------------------------------------------
 // Inner Main Component
-// -----------------------------------------------------------------------------
-function LineageFlow({ datasetId, onStreamAnalysis }) {
+function LineageFlow({ datasetId, selectedId, onStreamAnalysis, onNodeSelect }) {
     const [nodes, setNodes, onNodesChange] = useNodesState([]);
     const [edges, setEdges, onEdgesChange] = useEdgesState([]);
     const { fitView } = useReactFlow();
 
-    // Helper: Find impacted nodes (Upstream/Downstream)
+    // ... (existing code for calculateImpact) ...
+
     const calculateImpact = useCallback((currentDatasetId, currentNodes, currentEdges) => {
         if (!currentDatasetId || currentNodes.length === 0) return;
 
@@ -280,10 +304,15 @@ function LineageFlow({ datasetId, onStreamAnalysis }) {
             if (!response.ok) return;
             const data = await response.json();
 
-            // Inject onExpand handler to new nodes
+            // Inject onExpand handler to new nodes + Update Selection State
             const enrichedNewNodes = (data.nodes || []).map(n => ({
                 ...n,
-                data: { ...n.data, onExpand: handleExpandWithState, isCurrent: n.data.mongoId === datasetId }
+                data: {
+                    ...n.data,
+                    onExpand: handleExpandWithState,
+                    isCurrent: n.data.mongoId === datasetId,
+                    isSelected: n.data.mongoId === selectedId // Check selection
+                }
             }));
 
             const { nodes: mergedNodes, edges: mergedEdges } = mergeGraphData(
@@ -305,7 +334,7 @@ function LineageFlow({ datasetId, onStreamAnalysis }) {
         } catch (err) {
             console.error(err);
         }
-    }, [mergeGraphData, setNodes, setEdges, datasetId, calculateImpact]);
+    }, [mergeGraphData, setNodes, setEdges, datasetId, calculateImpact, selectedId]); // Added selectedId dependency
 
     const handleExpandWithState = useCallback((id, dir) => {
         triggerExpand(id);
@@ -320,6 +349,19 @@ function LineageFlow({ datasetId, onStreamAnalysis }) {
             setExpandTarget(null); // Reset
         }
     }, [expandTarget, nodes, edges, fetchAndMerge]);
+
+    // Effect to update nodes when selectedId changes (without fetching if possible, but simplest is to map existing nodes)
+    useEffect(() => {
+        setNodes((nds) =>
+            nds.map((node) => ({
+                ...node,
+                data: {
+                    ...node.data,
+                    isSelected: node.data.mongoId === selectedId
+                },
+            }))
+        );
+    }, [selectedId, setNodes]);
 
     const onConnect = useCallback(
         (params) => setEdges((eds) => addEdge(params, eds)),
@@ -338,11 +380,15 @@ function LineageFlow({ datasetId, onStreamAnalysis }) {
 
                     const enrichedNewNodes = (data.nodes || []).map(n => ({
                         ...n,
-                        data: { ...n.data, onExpand: handleExpandWithState, isCurrent: n.data.mongoId === datasetId }
+                        data: {
+                            ...n.data,
+                            onExpand: handleExpandWithState,
+                            isCurrent: n.data.mongoId === datasetId,
+                            isSelected: n.data.mongoId === selectedId // Initial check
+                        }
                     }));
 
                     const { nodes: layoutedNodes, edges: layoutedEdges } = getLayoutedElements(enrichedNewNodes, data.edges || []);
-                    console.log("Lineage Loaded:", layoutedNodes);
                     setNodes(layoutedNodes);
                     setEdges(layoutedEdges);
 
@@ -358,7 +404,16 @@ function LineageFlow({ datasetId, onStreamAnalysis }) {
             };
             initialLoad();
         }
-    }, [datasetId, handleExpandWithState, setNodes, setEdges, calculateImpact, fitView]);
+    }, [datasetId, handleExpandWithState, setNodes, setEdges, calculateImpact, fitView]); // Remove selectedId from here to avoid reload, let the separate effect handle highlight update
+
+    // Node Click Handler
+    const handleNodeClick = useCallback((event, node) => {
+        if (onNodeSelect && node.data && node.data.mongoId) {
+            // REMOVED CHECK: if(node.data.mongoId !== datasetId)
+            // Allow clicking any node including current
+            onNodeSelect(node.data.mongoId);
+        }
+    }, [onNodeSelect]);
 
     // Manual Fit View handler
     const handleFitView = () => {
@@ -372,6 +427,7 @@ function LineageFlow({ datasetId, onStreamAnalysis }) {
             onNodesChange={onNodesChange}
             onEdgesChange={onEdgesChange}
             onConnect={onConnect}
+            onNodeClick={handleNodeClick}
             nodeTypes={nodeTypes}
             fitView
             proOptions={{ hideAttribution: true }}
@@ -396,12 +452,16 @@ function LineageFlow({ datasetId, onStreamAnalysis }) {
 
 // -----------------------------------------------------------------------------
 // Main Component (Wrapper)
-// -----------------------------------------------------------------------------
-export default function DatasetLineage({ datasetId, onStreamAnalysis }) {
+export default function DatasetLineage({ datasetId, selectedId, onStreamAnalysis, onNodeSelect }) {
     return (
         <div className="w-full h-[600px] bg-slate-50 rounded-lg border border-slate-200 overflow-hidden relative">
             <ReactFlowProvider>
-                <LineageFlow datasetId={datasetId} onStreamAnalysis={onStreamAnalysis} />
+                <LineageFlow
+                    datasetId={datasetId}
+                    selectedId={selectedId}
+                    onStreamAnalysis={onStreamAnalysis}
+                    onNodeSelect={onNodeSelect}
+                />
             </ReactFlowProvider>
         </div>
     );
