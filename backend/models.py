@@ -1,5 +1,5 @@
 from datetime import datetime
-from typing import Optional
+from typing import Optional, List
 from beanie import Document
 from pydantic import Field
 
@@ -54,3 +54,21 @@ class RDBSource(Document):
 
     class Settings:
         name = "rdb_sources"
+
+
+class Transform(Document):
+    """
+    Transform document for storing ETL transformation configurations.
+    Stores select fields and transformation logic.
+    """
+    name: str = "Select Fields"  # Transform name (default, can be updated)
+    source_id: str  # RDBSource ID reference
+    source_table: str  # Source table name
+    transform_type: str  # Transform type (e.g., "select-fields")
+    selected_columns: List[str]  # Selected column names
+    
+    created_at: datetime = Field(default_factory=datetime.utcnow)
+    updated_at: datetime = Field(default_factory=datetime.utcnow)
+
+    class Settings:
+        name = "transforms"
