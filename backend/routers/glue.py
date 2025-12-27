@@ -126,6 +126,7 @@ async def sync_s3_data():
     """
     S3 데이터 동기화
     개별 테이블 Glue Crawler를 실행하여 S3의 새로운 데이터를 Glue Catalog에 반영
+    (버킷 루트를 크롤하는 크롤러는 제외하고, 개별 테이블/폴더를 크롤하는 크롤러만 실행)
     """
     try:
         glue = get_aws_client('glue')
@@ -134,19 +135,7 @@ async def sync_s3_data():
         response = glue.list_crawlers()
         all_crawler_names = response.get('CrawlerNames', [])
 
-        # 전체 버킷 크롤러 제외 (개별 테이블 크롤러만 실행)
-        excluded_crawlers = [
-            'xflow-raw-data-crawler',
-            'xflow-processed-data-crawler',
-            'xflow-data-lake-crawler'
-        ]
-
-        crawler_names = [
-            name for name in all_crawler_names
-            if name not in excluded_crawlers
-        ]
-
-        if not crawler_names:
+        if not all_crawler_names:
             return SyncS3Response(
                 message="No crawlers found in the system",
                 crawlers_started=[],
@@ -155,12 +144,37 @@ async def sync_s3_data():
 
         crawlers_started = []
 
-        # 각 크롤러 상태 확인 및 실행
-        for crawler_name in crawler_names:
+        # 각 크롤러 검사 및 실행
+        for crawler_name in all_crawler_names:
             try:
-                # 크롤러 상태 확인
+                # 크롤러 정보 조회
                 crawler_info = glue.get_crawler(Name=crawler_name)
                 crawler_state = crawler_info["Crawler"]["State"]
+
+                # S3 타겟 경로 확인
+                s3_targets = crawler_info["Crawler"].get("Targets", {}).get("S3Targets", [])
+
+                if not s3_targets:
+                    continue
+
+                # 개별 테이블 크롤러인지 확인 (버킷 루트가 아닌 경우만)
+                is_table_crawler = False
+                for target in s3_targets:
+                    path = target.get("Path", "").rstrip('/')
+
+                    # S3 경로 파싱: s3://bucket/table/ 형태인지 확인
+                    # 예: s3://xflow-raw-data/products/ → ['s3:', '', 'xflow-raw-data', 'products']
+                    parts = [p for p in path.split('/') if p]
+
+                    # parts 길이가 3 이상이면 개별 테이블 크롤러
+                    # parts 길이가 2면 버킷 루트 크롤러 (s3://bucket/)
+                    if len(parts) >= 3:
+                        is_table_crawler = True
+                        break
+
+                # 버킷 루트 크롤러는 건너뛰기
+                if not is_table_crawler:
+                    continue
 
                 # READY 상태일 때만 시작
                 if crawler_state == "READY":
