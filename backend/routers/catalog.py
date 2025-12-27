@@ -1,59 +1,139 @@
-from fastapi import APIRouter, HTTPException, Query
+from fastapi import APIRouter, HTTPException, Query, Body
 from typing import List, Optional
+from bson import ObjectId
 import database
-from schemas.catalog import CatalogItem
+from schemas.catalog import CatalogItem, DatasetDetail, DatasetUpdate
 
 router = APIRouter()
 
 
-@router.get("", response_model=List[CatalogItem])
+@router.get("")
 async def get_catalog(
-    type: Optional[str] = Query(None, description="Filter by dataset type"),
+    type: Optional[str] = Query(None, description="Filter by layer (e.g. RAW, MART)"),
     platform: Optional[str] = Query(None, description="Filter by platform"),
-    search: Optional[str] = Query(None, description="Search by name")
+    search: Optional[str] = Query(None, description="Search by name or description")
 ):
     """
-    Fetch list of datasets (tables) with optional filtering.
+    Fetch list of datasets with optional filtering.
     """
     db = database.mongodb_client[database.DATABASE_NAME]
     
     # Build Search/Filter Query
     query = {}
     if type:
-        query["type"] = type
+        query["properties.layer"] = type.upper() # Mock data stores layer in properties
     if platform:
         query["platform"] = platform
     if search:
-        query["name"] = {"$regex": search, "$options": "i"} # 대소문자 구분 없이 검색
+        # Basic MongoDB Text/Regex Search
+        query["$or"] = [
+            {"name": {"$regex": search, "$options": "i"}},
+            {"description": {"$regex": search, "$options": "i"}}
+        ]
 
-    # Aggregation Pipeline
-    pipeline = [
-        {"$match": query}, # 조건에 맞는 것만 필터링
+    cursor = db.datasets.find(query).limit(100)
+    items = []
+    async for doc in cursor:
+        # Map properties.layer to top-level layer field for response
+        doc["id"] = str(doc["_id"])
+        del doc["_id"] # Remove ObjectId to make it JSON serializable
         
-        # Join 'users' collection
-        {"$lookup": {
-            "from": "users",
-            "localField": "owner_id",
-            "foreignField": "_id",
-            "as": "owner_info"
-        }},
+        if "properties" in doc and "layer" in doc["properties"]:
+            doc["layer"] = doc["properties"]["layer"]
+            
+        # Map schema -> columns if needed for list view (though usually not needed for list)
+        if "schema" in doc:
+             doc["columns"] = doc["schema"]
+             
+        items.append(doc)
         
-        # Unwind 배열을 단일 객체로 풀기
-        {"$unwind": {"path": "$owner_info", "preserveNullAndEmptyArrays": True}},
-        
-        # Projection 필요한 필드만 선택
-        {"$project": {
-            "_id": {"$toString": "$_id"}, # ObjectId -> String 변환
-            "name": 1,
-            "type": 1,
-            "platform": 1,
-            "updated_at": 1,
-            "created_at": 1,
-            "tags": 1,
-            "owner": {"$ifNull": ["$owner_info.name", "Unknown"]} # 주인이 없으면 'Unknown'
-        }},
-        
-        {"$sort": {"updated_at": -1}} # 최신순 정렬
-    ]
-    items = await db.tables.aggregate(pipeline).to_list(length=100)
     return items
+
+
+@router.get("/{id}")
+async def get_dataset_detail(id: str):
+    """
+    Fetch full details of a dataset.
+    """
+    db = database.mongodb_client[database.DATABASE_NAME]
+    
+    try:
+        obj_id = ObjectId(id)
+    except:
+        raise HTTPException(status_code=400, detail="Invalid ID format")
+
+    doc = await db.datasets.find_one({"_id": obj_id})
+    if not doc:
+        raise HTTPException(status_code=404, detail="Dataset not found")
+        
+    doc["id"] = str(doc["_id"])
+    del doc["_id"] # Remove ObjectId
+    
+    if "properties" in doc and "layer" in doc["properties"]:
+        doc["layer"] = doc["properties"]["layer"]
+        
+    # 'schema' field in DB maps to 'columns' for frontend
+    if "schema" in doc:
+        doc["columns"] = doc["schema"]
+        # del doc["schema"] # Optional: remove original key or keep it
+        
+    return doc
+
+
+@router.patch("/{id}")
+async def update_dataset(id: str, update_data: DatasetUpdate):
+    """
+    Update business metadata (Description, Owner, Tags).
+    """
+    db = database.mongodb_client[database.DATABASE_NAME]
+    
+    try:
+        obj_id = ObjectId(id)
+    except:
+        raise HTTPException(status_code=400, detail="Invalid ID format")
+
+    # Filter out None values
+    update_dict = {k: v for k, v in update_data.dict().items() if v is not None}
+    
+    if not update_dict:
+        raise HTTPException(status_code=400, detail="No valid fields to update")
+
+    result = await db.datasets.update_one(
+        {"_id": obj_id},
+        {"$set": update_dict}
+    )
+    
+    if result.matched_count == 0:
+        raise HTTPException(status_code=404, detail="Dataset not found")
+        
+    # Return updated document
+    doc = await db.datasets.find_one({"_id": obj_id})
+    doc["id"] = str(doc["_id"])
+    del doc["_id"]
+    
+    if "properties" in doc and "layer" in doc["properties"]:
+        doc["layer"] = doc["properties"]["layer"]
+        
+    if "schema" in doc:
+        doc["columns"] = doc["schema"]
+        
+    return doc
+
+
+@router.get("/{id}/lineage")
+async def get_dataset_lineage(id: str):
+    """
+    Fetch lineage graph for a dataset.
+    """
+    from services import lineage_service
+    
+    # Verify ID format
+    try:
+        ObjectId(id)
+    except:
+        raise HTTPException(status_code=400, detail="Invalid ID format")
+
+    # lineage_service.get_lineage is already compatible with Neo4j logic
+    # using 'mongo_id' property on nodes which matches our setup
+    result = await lineage_service.get_lineage(id)
+    return result
