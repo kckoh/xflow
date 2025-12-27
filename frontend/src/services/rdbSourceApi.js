@@ -3,11 +3,7 @@ const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8000
 export const rdbSourceApi = {
     // GET /api/rdb-sources/
     async fetchSources() {
-        const response = await fetch(`${API_BASE_URL}/api/rdb-sources/`, {
-            headers: {
-                'Authorization': `Bearer ${localStorage.getItem('token')}`,
-            },
-        });
+        const response = await fetch(`${API_BASE_URL}/api/rdb-sources/`);
         if (!response.ok) throw new Error('Failed to fetch sources');
         return response.json();
     },
@@ -18,7 +14,6 @@ export const rdbSourceApi = {
             method: 'POST',
             headers: {
                 'Content-Type': 'application/json',
-                'Authorization': `Bearer ${localStorage.getItem('token')}`,
             },
             body: JSON.stringify(data),
         });
@@ -28,11 +23,7 @@ export const rdbSourceApi = {
 
     // GET /api/rdb-sources/{id}/tables
     async fetchSourceTables(sourceId) {
-        const response = await fetch(`${API_BASE_URL}/api/rdb-sources/${sourceId}/tables`, {
-            headers: {
-                'Authorization': `Bearer ${localStorage.getItem('token')}`,
-            },
-        });
+        const response = await fetch(`${API_BASE_URL}/api/rdb-sources/${sourceId}/tables`);
         if (!response.ok) throw new Error('Failed to fetch tables');
         return response.json();
     },
