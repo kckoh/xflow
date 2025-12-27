@@ -72,3 +72,16 @@ async def list_rdb_sources():
     ]
 
 
+@router.delete("/{source_id}", status_code=status.HTTP_204_NO_CONTENT)
+async def delete_rdb_source(source_id: str):
+    """Delete an RDB source by ID"""
+    try:
+        source = await RDBSource.get(PydanticObjectId(source_id))
+    except Exception:
+        raise HTTPException(status_code=404, detail="Source not found")
+    
+    if not source:
+        raise HTTPException(status_code=404, detail="Source not found")
+    
+    await source.delete()
+    return None
