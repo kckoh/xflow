@@ -84,39 +84,13 @@ async def get_dataset_detail(id: str):
 async def update_dataset(id: str, update_data: DatasetUpdate):
     """
     Update business metadata (Description, Owner, Tags).
+    Uses catalog_service for Dual-Write (MongoDB + Neo4j) and rollback.
     """
-    db = database.mongodb_client[database.DATABASE_NAME]
+    from services import catalog_service
     
-    try:
-        obj_id = ObjectId(id)
-    except:
-        raise HTTPException(status_code=400, detail="Invalid ID format")
-
-    # Filter out None values
-    update_dict = {k: v for k, v in update_data.dict().items() if v is not None}
+    # Delegate to service
+    doc = await catalog_service.update_dataset_metadata(id, update_data)
     
-    if not update_dict:
-        raise HTTPException(status_code=400, detail="No valid fields to update")
-
-    result = await db.datasets.update_one(
-        {"_id": obj_id},
-        {"$set": update_dict}
-    )
-    
-    if result.matched_count == 0:
-        raise HTTPException(status_code=404, detail="Dataset not found")
-        
-    # Return updated document
-    doc = await db.datasets.find_one({"_id": obj_id})
-    doc["id"] = str(doc["_id"])
-    del doc["_id"]
-    
-    if "properties" in doc and "layer" in doc["properties"]:
-        doc["layer"] = doc["properties"]["layer"]
-        
-    if "schema" in doc:
-        doc["columns"] = doc["schema"]
-        
     return doc
 
 
@@ -137,3 +111,28 @@ async def get_dataset_lineage(id: str):
     # using 'mongo_id' property on nodes which matches our setup
     result = await lineage_service.get_lineage(id)
     return result
+
+
+# Request Schema for Lineage
+# Note: Ideally this moves to schemas/catalog.py, but defined here for colocation during dev
+from pydantic import BaseModel
+
+class LineageCreate(BaseModel):
+    target_id: str
+    type: str = "DOWNSTREAM"
+
+@router.post("/{id}/lineage")
+async def create_lineage(id: str, lineage_data: LineageCreate):
+    """
+    Create a lineage relationship: {id} -> {target_id}
+    """
+    from services import catalog_service
+    return await catalog_service.add_lineage(id, lineage_data.target_id, lineage_data.type)
+
+@router.delete("/{id}/lineage/{target_id}")
+async def delete_lineage(id: str, target_id: str):
+    """
+    Remove a lineage relationship: {id} -> {target_id}
+    """
+    from services import catalog_service
+    return await catalog_service.remove_lineage(id, target_id)

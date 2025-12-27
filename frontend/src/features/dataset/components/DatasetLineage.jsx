@@ -1,21 +1,26 @@
+// Force Rebuild
 import {
-    ReactFlow,
-    addEdge,
-    Background,
-    Controls,
-    Handle,
-    Position,
     useNodesState,
     useEdgesState,
-    useHandleConnections,
+    useNodeConnections,
     useReactFlow,
     ReactFlowProvider,
-    MiniMap
+    ReactFlow,
+    MiniMap,
+    Controls,
+    Background,
+    BaseEdge,
+    addEdge,
+    getBezierPath,
+    EdgeLabelRenderer,
+    Handle,
+    Position
 } from '@xyflow/react';
 import '@xyflow/react/dist/style.css';
 import dagre from 'dagre';
-import { ChevronDown, ChevronRight, Database, Table as TableIcon, PlusCircle } from 'lucide-react';
-import { useCallback, useEffect, useState } from 'react';
+import { ChevronDown, ChevronRight, Database, Table as TableIcon, PlusCircle, Trash2 } from 'lucide-react';
+import React, { useCallback, useEffect, useState, useMemo } from 'react';
+import { createPortal } from 'react-dom';
 
 const nodeWidth = 280;
 const nodeHeight = 280;
@@ -25,7 +30,7 @@ const nodeHeight = 280;
 // -----------------------------------------------------------------------------
 // Custom Handle Component for Dynamic Coloring
 const CustomHandle = (props) => {
-    const connections = useHandleConnections({
+    const connections = useNodeConnections({ // Updated hook
         type: props.type,
     });
     const isConnected = connections.length > 0;
@@ -53,16 +58,97 @@ const CustomHandle = (props) => {
     );
 };
 
+// -----------------------------------------------------------------------------
+// Custom Edge: DeletionEdge (Explicit Interaction Layer)
+// -----------------------------------------------------------------------------
+const DeletionEdge = ({
+    id,
+    sourceX,
+    sourceY,
+    targetX,
+    targetY,
+    sourcePosition,
+    targetPosition,
+    style = {},
+    markerEnd,
+    data
+}) => {
+    const [edgePath, labelX, labelY] = getBezierPath({
+        sourceX,
+        sourceY,
+        sourcePosition,
+        targetX,
+        targetY,
+        targetPosition,
+    });
+
+    const [isHovered, setIsHovered] = useState(false);
+    const { setEdges } = useReactFlow(); // To delete itself if needed, or trigger events
+
+    // Dynamic Style for Hover
+    const edgeStyle = {
+        ...style,
+        stroke: isHovered ? '#ef4444' : (style.stroke || '#b1b1b7'), // Red-500 on hover, else standard gray
+        strokeWidth: isHovered ? 3 : 2,
+        transition: 'stroke 0.2s, stroke-width 0.2s',
+        cursor: 'pointer' // Ensure pointer cursor
+    };
+
+    // Use global onEdgeClick if available?
+    // We can simulate it by finding the ReactFlow context, but better to just let data.onDelete handle it if we passed it.
+    // OR we trigger the click on an invisible element that bubbles up?
+    // ReactFlow edges bubble click events by default.
+    // The issue was hit area.
+
+    return (
+        <>
+            {/* Base Visible Path */}
+            <BaseEdge path={edgePath} markerEnd={markerEnd} style={edgeStyle} />
+
+            {/* Invisible Interaction Path (Thick) */}
+            <path
+                d={edgePath}
+                fill="none"
+                strokeOpacity={0}
+                strokeWidth={25} // Very thick click area
+                className="react-flow__edge-interaction"
+                style={{ cursor: 'pointer', pointerEvents: 'all' }}
+                onMouseEnter={() => setIsHovered(true)}
+                onMouseLeave={() => setIsHovered(false)}
+            />
+
+            {/* Scissor Icon on Hover */}
+            {isHovered && (
+                <EdgeLabelRenderer>
+                    <div
+                        style={{
+                            position: 'absolute',
+                            transform: `translate(-50%, -50%) translate(${labelX}px,${labelY}px)`,
+                            pointerEvents: 'none',
+                            zIndex: 1000
+                        }}
+                    >
+                        <div className="bg-white rounded-full p-1 shadow-md border border-red-200">
+                            <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#ef4444" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                                <circle cx="6" cy="6" r="3" /><circle cx="6" cy="18" r="3" />
+                                <line x1="20" y1="4" x2="8.12" y2="15.88" />
+                                <line x1="14.47" y1="14.48" x2="20" y2="20" />
+                                <line x1="8.12" y1="8.12" x2="12" y2="12" />
+                            </svg>
+                        </div>
+                    </div>
+                </EdgeLabelRenderer>
+            )}
+        </>
+    );
+};
+
 const SchemaNode = ({ id, data }) => {
     const [expanded, setExpanded] = useState(false);
     const columns = data.columns || [];
     const sourcePlatform = data.platform || "PostgreSQL";
 
-    // Style logic:
-    // Selected Node (Right Panel) -> Purple Strong Border
-    // Main Target Node (Page Owner) -> Yellow Border (Background check)
-    // Normal -> Slate Border
-
+    // Style logic...
     let borderClass = "border-slate-200";
     let ringClass = "";
 
@@ -71,7 +157,6 @@ const SchemaNode = ({ id, data }) => {
         ringClass = "ring-4 ring-purple-100";
     } else if (data.isCurrent) {
         borderClass = "border-yellow-400";
-        // Only show ring if not selected (selected takes precedence for ring usually, or mix)
         ringClass = "ring-2 ring-yellow-100";
     }
 
@@ -83,21 +168,16 @@ const SchemaNode = ({ id, data }) => {
                 border-2 ${borderClass} ${ringClass}
             `}>
 
-                {/* Black Header (Source Info Only + Handles Area) */}
-                <div
-                    className="bg-blue-800 text-white h-[40px] px-3 flex justify-between items-center relative"
-                >
-                    {/* Source Info Badge */}
+                {/* Black Header */}
+                <div className="bg-blue-800 text-white h-[40px] px-3 flex justify-between items-center relative">
                     <span className="text-[11px] font-bold text-slate-300 uppercase tracking-widest bg-white/10 px-2 py-1 rounded">
                         {sourcePlatform}
                     </span>
-
-                    {/* Handles are positioned absolutely relative to this Container or Parent? 
-                        Let's keep them absolute to Parent but align visually here.
-                     */}
                 </div>
 
-                {/* Title Row (White Background) + Toggle Arrow */}
+                {/* REMOVED INCORRECT PORTAL FROM HERE */}
+
+                {/* Title Row */}
                 <div
                     className="bg-white px-3 py-3 border-b border-slate-100 flex justify-between items-center cursor-pointer hover:bg-slate-50 transition-colors"
                     onClick={() => setExpanded(!expanded)}
@@ -108,8 +188,6 @@ const SchemaNode = ({ id, data }) => {
                             {data.label}
                         </span>
                     </div>
-
-                    {/* Toggle Arrow Moved Here */}
                     <span className="text-slate-400 ml-1 flex-shrink-0">
                         {expanded ? <ChevronDown size={16} /> : <ChevronRight size={16} />}
                     </span>
@@ -133,19 +211,15 @@ const SchemaNode = ({ id, data }) => {
                                 <span className="text-xs">No Schema Info</span>
                             </div>
                         )}
-
-
                     </div>
                 )}
 
-                {/* Footer (Always Visible) */}
+                {/* Footer */}
                 {data.isCurrent && (
                     <div className="bg-yellow-50 text-yellow-700 text-[10px] font-bold text-center py-1.5 border-t border-yellow-100">
                         TARGET DATASET
                     </div>
                 )}
-
-                {/* Selected Indicator */}
                 {data.isSelected && !data.isCurrent && (
                     <div className="bg-purple-50 text-purple-700 text-[10px] font-bold text-center py-1.5 border-t border-purple-100">
                         SELECTED
@@ -153,34 +227,39 @@ const SchemaNode = ({ id, data }) => {
                 )}
             </div>
 
-            {/* Handles - Visually Inside Black Header */}
-            {/* Header height is 40px. Center is top: 20px. 
-                We place them slightly inset to look "inside".
-            */}
-
-            {/* Input Pin (Left) */}
+            {/* Input Pin */}
             <CustomHandle
                 id="target"
                 type="target"
                 position={Position.Left}
-                style={{ top: '20px', left: '12px' }} // Inset further
+                style={{ top: '20px', left: '12px' }}
             />
 
-            {/* Output Pin (Right) */}
+            {/* Output Pin */}
             <CustomHandle
                 id="source"
                 type="source"
                 position={Position.Right}
-                style={{ top: '20px', right: '12px' }} // Inset further
+                style={{ top: '20px', right: '12px' }}
             />
         </div>
     );
 };
 
+// ... (NodeTypes and getLayoutedElements remain unchanged) ...
+// (I will retain them implicitly or if I must replace the whole file to ensure correctness, I will. But 'LineageFlow' is where I need to ADD the portal)
+
+// To keep the operation clean, I will replace the TOP half (Imports to SchemaNode end) to fix deprecation and remove portal.
+// Then I will do a second operation to ADD portal to LineageFlow.
+
 const nodeTypes = {
     custom: SchemaNode,
     Table: SchemaNode,
     Topic: SchemaNode
+};
+
+const edgeTypes = {
+    deletion: DeletionEdge
 };
 
 // -----------------------------------------------------------------------------
@@ -216,6 +295,8 @@ const getLayoutedElements = (nodes, edges, direction = 'LR') => {
 
     return { nodes: layoutedNodes, edges };
 };
+
+
 
 // -----------------------------------------------------------------------------
 // Inner Main Component
@@ -288,7 +369,13 @@ function LineageFlow({ datasetId, selectedId, onStreamAnalysis, onNodeSelect }) 
         });
 
         newEdges.forEach(e => {
-            if (!edgeMap.has(e.id)) edgeMap.set(e.id, e);
+            // Force edges to be 'deletion' type
+            const edgeWithStyle = {
+                ...e,
+                type: 'deletion',
+                animated: true
+            };
+            if (!edgeMap.has(e.id)) edgeMap.set(e.id, edgeWithStyle);
         });
 
         return {
@@ -363,10 +450,95 @@ function LineageFlow({ datasetId, selectedId, onStreamAnalysis, onNodeSelect }) 
         );
     }, [selectedId, setNodes]);
 
+    // Handle Connection (Create Lineage)
     const onConnect = useCallback(
-        (params) => setEdges((eds) => addEdge(params, eds)),
-        [setEdges],
+        async (params) => {
+            const { source, target } = params;
+            // Find mongoIds from nodes
+            const sourceNode = nodes.find(n => n.id === source);
+            const targetNode = nodes.find(n => n.id === target);
+
+            if (!sourceNode || !targetNode) return;
+
+            const sourceMongoId = sourceNode.data.mongoId;
+            const targetMongoId = targetNode.data.mongoId;
+
+            console.log(`Connecting ${sourceMongoId} -> ${targetMongoId}`);
+
+            try {
+                const response = await fetch(`http://localhost:8000/api/catalog/${sourceMongoId}/lineage`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ target_id: targetMongoId, type: 'DOWNSTREAM' })
+                });
+
+                if (response.ok) {
+                    setEdges((eds) => addEdge({ ...params, animated: true, type: 'deletion' }, eds));
+                } else {
+                    console.error("Failed to create lineage");
+                    alert("Failed to connect datasets.");
+                }
+            } catch (error) {
+                console.error("Connection Error:", error);
+                alert("Connection failed.");
+            }
+        },
+        [nodes, setEdges],
     );
+
+    // Context Menu State
+    const [edgeMenu, setEdgeMenu] = useState(null); // { x, y, edgeId, sourceMongoId, targetMongoId, sourceLabel, targetLabel }
+
+    // Close menu on click anywhere else
+    useEffect(() => {
+        const handleClick = () => setEdgeMenu(null);
+        window.addEventListener('click', handleClick);
+        return () => window.removeEventListener('click', handleClick);
+    }, []);
+
+    // Handle Edge Click (Open Context Menu)
+    const onEdgeClick = useCallback((event, edge) => {
+        console.log("Edge clicked:", edge.id); // Debug Log
+        event.stopPropagation(); // Prevent closing immediately
+
+        // Find connected nodes to get details
+        const sourceNode = nodes.find(n => n.id === edge.source);
+        const targetNode = nodes.find(n => n.id === edge.target);
+
+        if (!sourceNode || !targetNode) return;
+
+        setEdgeMenu({
+            x: event.clientX,
+            y: event.clientY,
+            edgeId: edge.id,
+            sourceMongoId: sourceNode.data.mongoId,
+            targetMongoId: targetNode.data.mongoId,
+            sourceLabel: sourceNode.data.label,
+            targetLabel: targetNode.data.label
+        });
+    }, [nodes]);
+
+    // Perform Deletion
+    const handleDeleteEdge = async () => {
+        if (!edgeMenu) return;
+
+        try {
+            const response = await fetch(`http://localhost:8000/api/catalog/${edgeMenu.sourceMongoId}/lineage/${edgeMenu.targetMongoId}`, {
+                method: 'DELETE'
+            });
+
+            if (response.ok) {
+                setEdges((eds) => eds.filter((e) => e.id !== edgeMenu.edgeId));
+                setEdgeMenu(null);
+            } else {
+                console.error("Failed to delete lineage");
+                alert("Failed to disconnect datasets.");
+            }
+        } catch (error) {
+            console.error("Deletion Error:", error);
+            alert("Deletion failed.");
+        }
+    };
 
     // Initial load effect
     useEffect(() => {
@@ -421,32 +593,87 @@ function LineageFlow({ datasetId, selectedId, onStreamAnalysis, onNodeSelect }) 
     };
 
     return (
-        <ReactFlow
-            nodes={nodes}
-            edges={edges}
-            onNodesChange={onNodesChange}
-            onEdgesChange={onEdgesChange}
-            onConnect={onConnect}
-            onNodeClick={handleNodeClick}
-            nodeTypes={nodeTypes}
-            fitView
-            proOptions={{ hideAttribution: true }}
-            minZoom={0.1}
-            maxZoom={2.0}
-            defaultEdgeOptions={{ type: 'default', animated: true }}
-        >
-            <Background color="#cbd5e1" gap={20} size={1} />
-            <Controls>
-                <button onClick={handleFitView} style={{ padding: '5px', fontWeight: 'bold' }}>Fit</button>
-            </Controls>
-            <MiniMap
-                nodeStrokeColor="#7b61ff"
-                nodeColor="#e2e8f0"
-                maskColor="rgba(241, 245, 249, 0.7)"
-                style={{ height: 120, width: 160 }}
-                className="!bg-white !border !border-slate-200 !rounded-lg !shadow-sm !bottom-4 !right-4"
-            />
-        </ReactFlow>
+        <>
+            <div style={{ width: '100%', height: '100%' }}>
+                <ReactFlow
+                    nodes={nodes}
+                    edges={edges}
+                    onNodesChange={onNodesChange}
+                    onEdgesChange={onEdgesChange}
+                    onConnect={onConnect}
+                    onNodeClick={handleNodeClick}
+                    onEdgeClick={onEdgeClick}
+                    nodeTypes={nodeTypes}
+                    edgeTypes={edgeTypes}
+                    fitView
+                    edgesFocusable={true}
+                    proOptions={{ hideAttribution: true }}
+                    minZoom={0.1}
+                    maxZoom={2.0}
+                    defaultEdgeOptions={{
+                        type: 'deletion',
+                        animated: true,
+                        style: { strokeWidth: 2 }
+                    }}
+                >
+                    <Background color="#cbd5e1" gap={20} size={1} />
+
+                    {/* Controls: Hide default FitView, keep custom button */}
+                    <Controls showFitView={false}>
+                        <button
+                            onClick={handleFitView}
+                            className="react-flow__controls-button"
+                            style={{ fontWeight: 'bold', width: 'auto', padding: '0 4px' }}
+                            title="Fit View"
+                        >
+                            Fit
+                        </button>
+                    </Controls>
+
+                    <MiniMap
+                        nodeStrokeColor="#7b61ff"
+                        nodeColor="#e2e8f0"
+                        maskColor="rgba(241, 245, 249, 0.7)"
+                        style={{ height: 120, width: 160 }}
+                        className="!bg-white !border !border-slate-200 !rounded-lg !shadow-sm !bottom-4 !right-4"
+                    />
+                </ReactFlow>
+            </div>
+
+            {/* Context Menu for Deletion - Rendered in Portal */}
+            {edgeMenu && createPortal(
+                <div
+                    className="fixed bg-white rounded-md shadow-xl border border-gray-200 w-40 py-1"
+                    style={{
+                        top: edgeMenu.y,
+                        left: edgeMenu.x,
+                        zIndex: 99999
+                    }}
+                    onClick={(e) => e.stopPropagation()}
+                >
+                    <div className="px-3 py-1.5 border-b border-gray-100 text-[10px] font-bold text-gray-400 uppercase tracking-wider">
+                        Lineage Actions
+                    </div>
+
+                    <button
+                        onClick={handleDeleteEdge}
+                        className="w-full text-left flex items-center gap-2 px-3 py-2 text-red-600 hover:bg-red-50 text-sm transition-colors cursor-pointer"
+                    >
+                        <Trash2 size={14} />
+                        Disconnect
+                    </button>
+
+                    <button
+                        onClick={() => setEdgeMenu(null)}
+                        className="w-full text-left px-3 py-2 text-gray-600 hover:bg-gray-50 text-sm transition-colors cursor-pointer"
+                    >
+                        Cancel
+                    </button>
+                </div>,
+                document.body
+            )}
+
+        </>
     );
 }
 
