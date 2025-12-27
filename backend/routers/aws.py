@@ -8,7 +8,7 @@ from fastapi import APIRouter, HTTPException, Query
 import boto3
 from botocore.exceptions import ClientError
 
-router = APIRouter(prefix="/api/aws", tags=["aws"])
+router = APIRouter()
 
 # 환경 설정
 AWS_ENDPOINT = os.getenv('AWS_ENDPOINT', 'http://localhost:4566')  # LocalStack

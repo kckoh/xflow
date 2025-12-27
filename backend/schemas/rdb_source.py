@@ -2,10 +2,10 @@ from typing import Optional
 from pydantic import BaseModel
 
 
-class SourceCreate(BaseModel):
+class RDBSourceCreate(BaseModel):
     name: str
     description: Optional[str] = None
-    type: str  # rdb / nosql / log / api
+    type: str  # postgres / mysql / mariadb / oracle
     host: str
     port: int
     database_name: str
@@ -14,7 +14,7 @@ class SourceCreate(BaseModel):
     cloud_config: dict = {}
 
 
-class SourceUpdate(BaseModel):
+class RDBSourceUpdate(BaseModel):
     name: Optional[str] = None
     description: Optional[str] = None
     host: Optional[str] = None
@@ -25,7 +25,7 @@ class SourceUpdate(BaseModel):
     password: Optional[str] = None
 
 
-class SourceResponse(BaseModel):
+class RDBSourceResponse(BaseModel):
     id: str
     name: str
     description: Optional[str] = None

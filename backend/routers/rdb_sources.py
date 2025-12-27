@@ -2,24 +2,24 @@ from datetime import datetime
 
 from beanie import PydanticObjectId
 from fastapi import APIRouter, HTTPException, status
-from models import Source
-from schemas.source import SourceCreate, SourceResponse
+from models import RDBSource
+from schemas.rdb_source import RDBSourceCreate, RDBSourceResponse
 
 router = APIRouter()
 
 
-@router.post("/", response_model=SourceResponse, status_code=status.HTTP_201_CREATED)
-async def create_source(source: SourceCreate):
+@router.post("/", response_model=RDBSourceResponse, status_code=status.HTTP_201_CREATED)
+async def create_rdb_source(source: RDBSourceCreate):
     # Check if source name exists
-    existing_source = await Source.find_one(Source.name == source.name)
+    existing_source = await RDBSource.find_one(RDBSource.name == source.name)
     if existing_source:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail="Source name already exists"
         )
 
-    # Create new source
-    new_source = Source(
+    # Create new RDB source
+    new_source = RDBSource(
         name=source.name,
         description=source.description,
         type=source.type,
@@ -37,7 +37,7 @@ async def create_source(source: SourceCreate):
     # Save to database
     await new_source.insert()
 
-    return SourceResponse(
+    return RDBSourceResponse(
         id=str(new_source.id),
         name=new_source.name,
         description=new_source.description,
@@ -51,12 +51,12 @@ async def create_source(source: SourceCreate):
     )
 
 
-@router.get("/", response_model=list[SourceResponse])
-async def list_sources():
-    """Get all sources"""
-    sources = await Source.find_all().to_list()
+@router.get("/", response_model=list[RDBSourceResponse])
+async def list_rdb_sources():
+    """Get all RDB sources"""
+    sources = await RDBSource.find_all().to_list()
     return [
-        SourceResponse(
+        RDBSourceResponse(
             id=str(source.id),
             name=source.name,
             description=source.description,
@@ -73,10 +73,10 @@ async def list_sources():
 
 
 @router.get("/{source_id}/tables")
-async def get_source_tables(source_id: str):
-    """Get tables from a source"""
+async def get_rdb_source_tables(source_id: str):
+    """Get tables from an RDB source"""
     try:
-        source = await Source.get(PydanticObjectId(source_id))
+        source = await RDBSource.get(PydanticObjectId(source_id))
     except Exception:
         raise HTTPException(status_code=404, detail="Source not found")
 

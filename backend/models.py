@@ -21,15 +21,16 @@ class User(Document):
         ]
 
 
-class Source(Document):
+class RDBSource(Document):
     """
-    Source document for storing database connection info.
-    Supports both LocalStack and AWS deployment configurations.
+    RDB Source document for storing relational database connection info.
+    Supports PostgreSQL, MySQL, MariaDB, etc.
+    For AWS/LocalStack deployment configurations.
     """
     # Basic connection info
-    name: str = Field(..., index=True)
+    name: str
     description: Optional[str] = None
-    type: str  # rdb / nosql / log / api
+    type: str  # postgres / mysql / mariadb / oracle
     host: str
     port: int
     database_name: str
@@ -52,5 +53,4 @@ class Source(Document):
     updated_at: datetime = Field(default_factory=datetime.utcnow)
 
     class Settings:
-        name = "sources"
-        indexes = ["name"]
+        name = "rdb_sources"

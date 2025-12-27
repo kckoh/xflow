@@ -15,8 +15,10 @@ class DatabaseConnector:
 
     def get_tables(self) -> List[str]:
         """Get list of tables from the database"""
-        if self.db_type == "rdb":
+        if self.db_type in ["postgres", "postgresql"]:
             return self._get_postgres_tables()
+        elif self.db_type in ["mysql", "mariadb"]:
+            return self._get_mysql_tables()
         else:
             raise NotImplementedError(f"Database type {self.db_type} not supported yet")
 
@@ -50,4 +52,6 @@ class DatabaseConnector:
         except Exception as e:
             raise Exception(f"Failed to connect to PostgreSQL: {str(e)}")
 
-
+    def _get_mysql_tables(self) -> List[str]:
+        """Get list of tables from MySQL/MariaDB (placeholder for future implementation)"""
+        raise NotImplementedError("MySQL/MariaDB support coming soon")
