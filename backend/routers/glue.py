@@ -13,7 +13,8 @@ from schemas.glue import (
     PartitionKey,
     TableListItem,
     TableListResponse,
-    TableSchema
+    TableSchema,
+    SyncS3Response
 )
 
 router = APIRouter()
@@ -115,6 +116,76 @@ async def get_table_schema(database_name: str, table_name: str):
             output_format=storage_desc.get("OutputFormat", ""),
             columns=columns,
             partition_keys=partition_keys
+        )
+    except ClientError as e:
+        raise HTTPException(status_code=500, detail=f"Glue API Error: {str(e)}")
+
+
+@router.post("/sync-s3", response_model=SyncS3Response)
+async def sync_s3_data():
+    """
+    S3 데이터 동기화
+    개별 테이블 Glue Crawler를 실행하여 S3의 새로운 데이터를 Glue Catalog에 반영
+    """
+    try:
+        glue = get_aws_client('glue')
+
+        # 모든 크롤러 조회
+        response = glue.list_crawlers()
+        all_crawler_names = response.get('CrawlerNames', [])
+
+        # 전체 버킷 크롤러 제외 (개별 테이블 크롤러만 실행)
+        excluded_crawlers = [
+            'xflow-raw-data-crawler',
+            'xflow-processed-data-crawler',
+            'xflow-data-lake-crawler'
+        ]
+
+        crawler_names = [
+            name for name in all_crawler_names
+            if name not in excluded_crawlers
+        ]
+
+        if not crawler_names:
+            return SyncS3Response(
+                message="No crawlers found in the system",
+                crawlers_started=[],
+                total_crawlers=0
+            )
+
+        crawlers_started = []
+
+        # 각 크롤러 상태 확인 및 실행
+        for crawler_name in crawler_names:
+            try:
+                # 크롤러 상태 확인
+                crawler_info = glue.get_crawler(Name=crawler_name)
+                crawler_state = crawler_info["Crawler"]["State"]
+
+                # READY 상태일 때만 시작
+                if crawler_state == "READY":
+                    glue.start_crawler(Name=crawler_name)
+                    crawlers_started.append(crawler_name)
+                elif crawler_state == "RUNNING":
+                    # 이미 실행 중인 경우
+                    crawlers_started.append(f"{crawler_name} (already running)")
+            except ClientError as e:
+                # 크롤러 접근 오류는 무시하고 계속 진행
+                error_code = e.response.get('Error', {}).get('Code', '')
+                if error_code != 'EntityNotFoundException':
+                    print(f"Warning: Error checking crawler {crawler_name}: {str(e)}")
+
+        if not crawlers_started:
+            return SyncS3Response(
+                message="No crawlers were started. All crawlers may be currently running.",
+                crawlers_started=[],
+                total_crawlers=0
+            )
+
+        return SyncS3Response(
+            message=f"Successfully started {len(crawlers_started)} crawler(s). New tables will appear shortly.",
+            crawlers_started=crawlers_started,
+            total_crawlers=len(crawlers_started)
         )
     except ClientError as e:
         raise HTTPException(status_code=500, detail=f"Glue API Error: {str(e)}")
