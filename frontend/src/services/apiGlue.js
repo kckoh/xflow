@@ -55,4 +55,23 @@ export const apiGlue = {
 
     return response.json();
   },
+
+  /**
+   * S3 데이터 동기화 (Glue Crawler 실행)
+   * @returns {Promise<{message: string, crawlers_started: Array, total_crawlers: number}>}
+   */
+  async syncS3() {
+    const response = await fetch(`${API_BASE_URL}/api/glue/sync-s3`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+      },
+    });
+
+    if (!response.ok) {
+      throw new Error("Failed to sync S3 data");
+    }
+
+    return response.json();
+  },
 };
