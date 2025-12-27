@@ -1,5 +1,5 @@
 from datetime import datetime
-from typing import Optional
+from typing import Optional, List
 from beanie import Document
 from pydantic import Field
 
@@ -54,3 +54,20 @@ class RDBSource(Document):
 
     class Settings:
         name = "rdb_sources"
+
+
+class Transform(Document):
+    """
+    Transform document for storing ETL transformation configurations.
+    Supports multiple transform types: select-fields, filter, join, etc.
+    Note: source_id and source_table are managed by Pipeline, not Transform.
+    """
+    name: str  # Transform name
+    transform_type: str  # Transform type: "select-fields", "filter", "join", etc.
+    config: dict = Field(default_factory=dict)  # Type-specific configuration
+    
+    created_at: datetime = Field(default_factory=datetime.utcnow)
+    updated_at: datetime = Field(default_factory=datetime.utcnow)
+
+    class Settings:
+        name = "transforms"
