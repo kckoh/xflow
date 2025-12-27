@@ -165,3 +165,93 @@ resource "aws_glue_crawler" "data_lake" {
     DataType    = "datalake"
   }
 }
+
+# Products 테이블용 크롤러
+resource "aws_glue_crawler" "products" {
+  name          = "xflow-products-crawler"
+  role          = aws_iam_role.glue_crawler.arn
+  database_name = aws_glue_catalog_database.main.name
+  description   = "Crawler for products data"
+
+  s3_target {
+    path = "s3://${aws_s3_bucket.raw_data.bucket}/products/"
+  }
+
+  schema_change_policy {
+    delete_behavior = "LOG"
+    update_behavior = "UPDATE_IN_DATABASE"
+  }
+
+  configuration = jsonencode({
+    Version = 1.0
+    CrawlerOutput = {
+      Partitions = { AddOrUpdateBehavior = "InheritFromTable" }
+    }
+  })
+
+  tags = {
+    Name        = "xflow-products-crawler"
+    Environment = var.environment
+    DataType    = "products"
+  }
+}
+
+# User Events 테이블용 크롤러
+resource "aws_glue_crawler" "user_events" {
+  name          = "xflow-user-events-crawler"
+  role          = aws_iam_role.glue_crawler.arn
+  database_name = aws_glue_catalog_database.main.name
+  description   = "Crawler for user events data"
+
+  s3_target {
+    path = "s3://${aws_s3_bucket.raw_data.bucket}/user_events/"
+  }
+
+  schema_change_policy {
+    delete_behavior = "LOG"
+    update_behavior = "UPDATE_IN_DATABASE"
+  }
+
+  configuration = jsonencode({
+    Version = 1.0
+    CrawlerOutput = {
+      Partitions = { AddOrUpdateBehavior = "InheritFromTable" }
+    }
+  })
+
+  tags = {
+    Name        = "xflow-user-events-crawler"
+    Environment = var.environment
+    DataType    = "user_events"
+  }
+}
+
+# Transactions 테이블용 크롤러
+resource "aws_glue_crawler" "transactions" {
+  name          = "xflow-transactions-crawler"
+  role          = aws_iam_role.glue_crawler.arn
+  database_name = aws_glue_catalog_database.main.name
+  description   = "Crawler for transactions data"
+
+  s3_target {
+    path = "s3://${aws_s3_bucket.raw_data.bucket}/transactions/"
+  }
+
+  schema_change_policy {
+    delete_behavior = "LOG"
+    update_behavior = "UPDATE_IN_DATABASE"
+  }
+
+  configuration = jsonencode({
+    Version = 1.0
+    CrawlerOutput = {
+      Partitions = { AddOrUpdateBehavior = "InheritFromTable" }
+    }
+  })
+
+  tags = {
+    Name        = "xflow-transactions-crawler"
+    Environment = var.environment
+    DataType    = "transactions"
+  }
+}
