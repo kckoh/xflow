@@ -2,7 +2,7 @@ import os
 from contextlib import asynccontextmanager
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
-from routers import auth, users, rdb_sources, aws, catalog, transforms
+from routers import auth, users, rdb_sources, aws, catalog, rdb_tables
 from database import init_db, close_db
 
 
@@ -43,7 +43,7 @@ app.include_router(users.router, prefix="/users", tags=["users"])
 app.include_router(rdb_sources.router, prefix="/api/rdb-sources", tags=["rdb-sources"])
 app.include_router(aws.router, prefix="/api/aws", tags=["aws"])
 app.include_router(catalog.router, prefix="/api/catalog", tags=["catalog"])
-app.include_router(transforms.router, prefix="/api", tags=["transforms"])
+app.include_router(rdb_tables.router, prefix="/api/rdb-tables", tags=["rdb-tables"])
 
 
 # Root route - Test database connection
