@@ -2,7 +2,7 @@ import os
 from contextlib import asynccontextmanager
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
-from routers import auth, users, sources, aws
+from routers import auth, users, sources, aws, catalog
 from database import init_db, close_db
 
 
@@ -42,6 +42,7 @@ app.include_router(auth.router, prefix="/api", tags=["auth"])
 app.include_router(users.router, prefix="/users", tags=["users"])
 app.include_router(sources.router, prefix="/api/sources", tags=["sources"])
 app.include_router(aws.router)  # Already has /api/aws prefix
+app.include_router(catalog.router, prefix="/api/catalog", tags=["catalog"])
 
 
 # Root route - Test database connection
