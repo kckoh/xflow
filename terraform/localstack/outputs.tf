@@ -62,3 +62,28 @@ output "glue_database_name" {
   description = "Glue catalog database name"
   value       = aws_glue_catalog_database.main.name
 }
+
+output "glue_crawler_raw_data" {
+  description = "Glue crawler name for raw data"
+  value       = aws_glue_crawler.raw_data.name
+}
+
+output "glue_crawler_processed_data" {
+  description = "Glue crawler name for processed data"
+  value       = aws_glue_crawler.processed_data.name
+}
+
+output "glue_crawler_data_lake" {
+  description = "Glue crawler name for data lake"
+  value       = aws_glue_crawler.data_lake.name
+}
+
+output "athena_workgroup_name" {
+  description = "Athena workgroup name"
+  value       = aws_athena_workgroup.main.name
+}
+
+output "athena_results_bucket" {
+  description = "S3 bucket for Athena query results"
+  value       = aws_s3_bucket.athena_results.bucket
+}
