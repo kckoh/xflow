@@ -2,7 +2,7 @@ import { useState } from "react";
 import { Play, Loader2, CheckCircle, XCircle, Clock } from "lucide-react";
 import { apiAthena } from "../../../services/apiAthena";
 
-export default function QueryEditor({ selectedTable, selectedDatabase }) {
+export default function QueryEditor({ selectedTable }) {
     const [query, setQuery] = useState("");
     const [executing, setExecuting] = useState(false);
     const [queryStatus, setQueryStatus] = useState(null);
@@ -59,9 +59,9 @@ export default function QueryEditor({ selectedTable, selectedDatabase }) {
             {/* Header */}
             <div className="p-4 border-b border-gray-200">
                 <h2 className="font-semibold text-gray-900">Query Editor</h2>
-                {selectedTable && selectedDatabase && (
+                {selectedTable && (
                     <p className="text-xs text-gray-500 mt-1">
-                        {selectedDatabase.name}.{selectedTable.name}
+                        xflow_db.{selectedTable.name}
                     </p>
                 )}
             </div>
