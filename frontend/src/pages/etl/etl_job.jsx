@@ -13,6 +13,7 @@ import "@xyflow/react/dist/style.css";
 import { ArrowLeft, Save, Play, Plus } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import RDBSourcePropertiesPanel from "../../components/etl/RDBSourcePropertiesPanel";
+import TransformPropertiesPanel from "../../components/etl/TransformPropertiesPanel";
 
 const initialNodes = [];
 
@@ -35,6 +36,7 @@ export default function ETLJobPage() {
       { id: "mongodb", label: "MongoDB", icon: "🍃" },
     ],
     transform: [
+      { id: "select-fields", label: "Select Fields", icon: "✅" },
       { id: "filter", label: "Filter", icon: "🔍" },
       { id: "map", label: "Map", icon: "🗺️" },
       { id: "join", label: "Join", icon: "🔗" },
@@ -45,8 +47,25 @@ export default function ETLJobPage() {
   };
 
   const onConnect = useCallback(
-    (params) => setEdges((eds) => addEdge(params, eds)),
-    [setEdges],
+    (params) => {
+      setEdges((eds) => addEdge(params, eds));
+
+      // Source → Transform 연결 시 schema 자동 복사
+      const sourceNode = nodes.find(n => n.id === params.source);
+      const targetNode = nodes.find(n => n.id === params.target);
+
+      // Source 노드의 schema를 Transform 노드로 복사
+      if (sourceNode?.data?.schema && targetNode?.type === "default") {
+        setNodes((nds) =>
+          nds.map((n) =>
+            n.id === params.target
+              ? { ...n, data: { ...n.data, schema: sourceNode.data.schema } }
+              : n
+          )
+        );
+      }
+    },
+    [setEdges, nodes, setNodes]
   );
 
   const handleSave = () => {
@@ -69,7 +88,11 @@ export default function ETLJobPage() {
     const newNode = {
       id: `${nodes.length + 1}`,
       type: typeMap[category],
-      data: { label: nodeOption.label },
+      data: {
+        label: nodeOption.label,
+        // Transform 타입 저장 (확장성 고려)
+        transformType: category === "transform" ? nodeOption.id : undefined
+      },
       position: {
         x: Math.random() * 400 + 100,
         y: Math.random() * 400 + 100,
@@ -241,8 +264,8 @@ export default function ETLJobPage() {
                 <Background variant={BackgroundVariant.Dots} gap={12} size={1} />
               </ReactFlow>
 
-              {/* Bottom Panel (Output Schema) - Only show for DB Source nodes */}
-              {selectedNode && selectedNode.type === "input" && (
+              {/* Bottom Panel (Output Schema) - Show for Source and Transform nodes */}
+              {selectedNode && (selectedNode.type === "input" || selectedNode.type === "default") && (
                 <div className="h-64 border-t border-gray-200 bg-white flex flex-col transition-all duration-300 ease-in-out">
                   <div className="flex items-center px-4 py-2 border-b border-gray-200 bg-gray-50">
                     <span className="text-sm font-semibold text-gray-700">Output schema</span>
@@ -277,7 +300,9 @@ export default function ETLJobPage() {
                           ) : (
                             <tr>
                               <td colSpan="2" className="px-6 py-8 text-center text-sm text-gray-500 italic">
-                                No schema available. Select a table in the Properties panel to load schema.
+                                {selectedNode.type === "input"
+                                  ? "No schema available. Select a table in the Properties panel to load schema."
+                                  : "No schema available. Configure the transform in the Properties panel."}
                               </td>
                             </tr>
                           )}
@@ -289,7 +314,7 @@ export default function ETLJobPage() {
               )}
             </div>
 
-            {/* Properties Panel */}
+            {/* Properties Panel - Source */}
             {selectedNode && selectedNode.type === "input" && (
               <RDBSourcePropertiesPanel
                 node={selectedNode}
@@ -297,6 +322,30 @@ export default function ETLJobPage() {
                 onUpdate={(data) => {
                   console.log("Source updated:", data);
                   // Update node data with schema
+                  setNodes((nds) =>
+                    nds.map((n) =>
+                      n.id === selectedNode.id
+                        ? { ...n, data: { ...n.data, ...data } }
+                        : n
+                    )
+                  );
+                  // Update selectedNode to reflect changes in bottom panel
+                  setSelectedNode((prev) => ({
+                    ...prev,
+                    data: { ...prev.data, ...data }
+                  }));
+                }}
+              />
+            )}
+
+            {/* Properties Panel - Transform (확장성 고려) */}
+            {selectedNode && selectedNode.type === "default" && selectedNode.data?.transformType && (
+              <TransformPropertiesPanel
+                node={selectedNode}
+                onClose={() => setSelectedNode(null)}
+                onUpdate={(data) => {
+                  console.log("Transform updated:", data);
+                  // Update node data
                   setNodes((nds) =>
                     nds.map((n) =>
                       n.id === selectedNode.id
