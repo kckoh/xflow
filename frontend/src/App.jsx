@@ -9,6 +9,8 @@ import ProtectedRoute from "./components/ProtectedRoute";
 import MainLayout from "./components/layout/MainLayout";
 import ETLJobPage from "./pages/etl/etl_job";
 import ETLPage from "./pages/etl/etl_main";
+import RDBSourceListPage from "./pages/sources/RDBSourceListPage";
+import RDBSourceCreatePage from "./pages/sources/RDBSourceCreatePage";
 
 // Placeholder components for new routes
 // const ETLPage = () => <div className="p-4 bg-white rounded-lg shadow">ETL Page Content</div>;
@@ -140,6 +142,28 @@ function App() {
             <ProtectedRoute>
               <MainLayout>
                 <ETLJobPage />
+              </MainLayout>
+            </ProtectedRoute>
+          }
+        />
+
+        <Route
+          path="/sources"
+          element={
+            <ProtectedRoute>
+              <MainLayout>
+                <RDBSourceListPage />
+              </MainLayout>
+            </ProtectedRoute>
+          }
+        />
+
+        <Route
+          path="/sources/new"
+          element={
+            <ProtectedRoute>
+              <MainLayout>
+                <RDBSourceCreatePage />
               </MainLayout>
             </ProtectedRoute>
           }
