@@ -2,10 +2,11 @@
 AWS Athena Query API
 S3 데이터 레이크에 대한 SQL 쿼리 실행 및 결과 조회
 """
-from fastapi import APIRouter, HTTPException, Query
+from fastapi import APIRouter, HTTPException
 from botocore.exceptions import ClientError
 from utils.aws_client import get_aws_client
 from schemas.athena import (
+    QueryRequest,
     QueryExecutionResponse,
     QueryStatusResponse,
     QueryResultsResponse
@@ -15,7 +16,7 @@ router = APIRouter()
 
 
 @router.post("/query", response_model=QueryExecutionResponse)
-async def execute_query(query: str = Query(..., description="SQL query to execute")):
+async def execute_query(request: QueryRequest):
     """
     Athena 쿼리 실행
     쿼리 에디터에서 SQL 실행 시 사용
@@ -24,7 +25,7 @@ async def execute_query(query: str = Query(..., description="SQL query to execut
         athena = get_aws_client('athena')
 
         response = athena.start_query_execution(
-            QueryString=query,
+            QueryString=request.query,
             WorkGroup='xflow-workgroup',
             QueryExecutionContext={'Database': 'xflow_db'},
             ResultConfiguration={'OutputLocation': 's3://xflow-athena-results/'}
@@ -32,7 +33,7 @@ async def execute_query(query: str = Query(..., description="SQL query to execut
 
         return QueryExecutionResponse(
             query_execution_id=response["QueryExecutionId"],
-            query=query
+            query=request.query
         )
     except ClientError as e:
         raise HTTPException(status_code=500, detail=f"Athena API Error: {str(e)}")
