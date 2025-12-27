@@ -16,7 +16,7 @@ router = APIRouter()
 
 # ============ Table Listing API ============
 
-@router.get("/rdb-sources/{source_id}/tables", response_model=RDBTableListResponse)
+@router.get("/{source_id}/tables", response_model=RDBTableListResponse)
 async def get_rdb_source_tables(source_id: str):
     """Get tables from an RDB source"""
     try:

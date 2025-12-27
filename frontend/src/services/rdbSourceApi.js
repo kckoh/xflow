@@ -23,7 +23,7 @@ export const rdbSourceApi = {
 
     // GET /api/rdb-sources/{id}/tables
     async fetchSourceTables(sourceId) {
-        const response = await fetch(`${API_BASE_URL}/api/rdb-sources/${sourceId}/tables`);
+        const response = await fetch(`${API_BASE_URL}/api/rdb-tables/${sourceId}/tables`);
         if (!response.ok) throw new Error('Failed to fetch tables');
         return response.json();
     },
