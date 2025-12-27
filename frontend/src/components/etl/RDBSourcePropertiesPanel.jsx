@@ -198,7 +198,7 @@ export default function RDBSourcePropertiesPanel({ node, onClose, onUpdate }) {
 
             {/* Create Connection Modal */}
             {showCreateModal && (
-                <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-6">
+                <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-[1100] p-6">
                     <div className="bg-white rounded-lg shadow-xl w-full max-w-4xl max-h-[90vh] overflow-y-auto">
                         <div className="px-6 py-4 border-b border-gray-200 flex items-center justify-between sticky top-0 bg-white z-10">
                             <h3 className="text-lg font-bold text-gray-900">Create connection</h3>
