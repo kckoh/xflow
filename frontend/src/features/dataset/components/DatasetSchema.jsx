@@ -1,14 +1,6 @@
 import { Search, ArrowUpDown, AlignLeft, Hash } from "lucide-react";
 
-const mockColumns = [
-    { id: 1, name: "id", type: "Number", description: "Primary Key", stats: "High Cardinality" },
-    { id: 2, name: "name", type: "String", description: "Name field", stats: "100% Unique" },
-    { id: 3, name: "timestamp", type: "Number", description: "Event time", stats: "Uniform Dist." },
-    { id: 4, name: "amount", type: "Number", description: "Transaction value", stats: " skewed" },
-    { id: 5, name: "status", type: "String", description: "Order status (pending, completed)", stats: "5 distinct values" },
-];
-
-export default function DatasetSchema() {
+export default function DatasetSchema({ columns = [] }) {
     return (
         <div className="p-6 bg-white rounded-lg min-h-[500px]">
             {/* Toolbar */}
@@ -23,7 +15,7 @@ export default function DatasetSchema() {
                 </div>
 
                 <div className="text-sm text-gray-500">
-                    Showing 5 columns
+                    Showing {columns.length} columns
                 </div>
             </div>
 
@@ -39,31 +31,39 @@ export default function DatasetSchema() {
                         </tr>
                     </thead>
                     <tbody className="divide-y divide-gray-100 bg-white">
-                        {mockColumns.map((col) => (
-                            <tr key={col.id} className="hover:bg-gray-50 transition-colors">
-                                <td className="px-6 py-4">
-                                    <span className="font-medium text-gray-900">{col.name}</span>
-                                </td>
-                                <td className="px-6 py-4">
-                                    <span className="inline-flex items-center gap-1.5 px-2 py-1 rounded-md bg-gray-100 text-gray-600 text-xs font-medium border border-gray-200">
-                                        {col.type === "String" ? <AlignLeft className="w-3 h-3" /> : <Hash className="w-3 h-3" />}
-                                        {col.type}
-                                    </span>
-                                </td>
-                                <td className="px-6 py-4 text-sm text-gray-500">
-                                    {col.description}
-                                </td>
-                                <td className="px-6 py-4 text-right">
-                                    {/* Mock Mini Histogram/Stats Icon */}
-                                    <div className="flex justify-end gap-1 opacity-50">
-                                        <div className="w-1 h-3 bg-blue-400 rounded-sm"></div>
-                                        <div className="w-1 h-2 bg-blue-400 rounded-sm"></div>
-                                        <div className="w-1 h-4 bg-blue-400 rounded-sm"></div>
-                                        <div className="w-1 h-2 bg-blue-400 rounded-sm"></div>
-                                    </div>
+                        {columns.length > 0 ? (
+                            columns.map((col, idx) => (
+                                <tr key={col._id || idx} className="hover:bg-gray-50 transition-colors">
+                                    <td className="px-6 py-4">
+                                        <span className="font-medium text-gray-900">{col.column_name || col.name}</span>
+                                    </td>
+                                    <td className="px-6 py-4">
+                                        <span className="inline-flex items-center gap-1.5 px-2 py-1 rounded-md bg-gray-100 text-gray-600 text-xs font-medium border border-gray-200">
+                                            {(col.data_type === "String" || col.type === "String") ? <AlignLeft className="w-3 h-3" /> : <Hash className="w-3 h-3" />}
+                                            {col.data_type || col.type}
+                                        </span>
+                                    </td>
+                                    <td className="px-6 py-4 text-sm text-gray-500">
+                                        {col.description || "-"}
+                                    </td>
+                                    <td className="px-6 py-4 text-right">
+                                        {/* Mock Mini Histogram/Stats Icon */}
+                                        <div className="flex justify-end gap-1 opacity-50">
+                                            <div className="w-1 h-3 bg-blue-400 rounded-sm"></div>
+                                            <div className="w-1 h-2 bg-blue-400 rounded-sm"></div>
+                                            <div className="w-1 h-4 bg-blue-400 rounded-sm"></div>
+                                            <div className="w-1 h-2 bg-blue-400 rounded-sm"></div>
+                                        </div>
+                                    </td>
+                                </tr>
+                            ))
+                        ) : (
+                            <tr>
+                                <td colSpan="4" className="px-6 py-10 text-center text-gray-500">
+                                    No columns found.
                                 </td>
                             </tr>
-                        ))}
+                        )}
                     </tbody>
                 </table>
             </div>

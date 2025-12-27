@@ -157,7 +157,7 @@ export function Sidebar({ isCollapsed, onToggle }) {
 export function Topbar({ isCollapsed }) {
     return (
         <div className={clsx(
-            "h-16 bg-white border-b border-gray-200 flex items-center justify-between px-6 fixed top-0 right-0 z-10 transition-all duration-300 ease-in-out",
+            "h-16 bg-white border-b border-gray-200 flex items-center justify-between px-6 fixed top-0 right-0 z-[1000] transition-all duration-300 ease-in-out",
             isCollapsed ? "left-20" : "left-64"
         )}>
             {/* Search */}
