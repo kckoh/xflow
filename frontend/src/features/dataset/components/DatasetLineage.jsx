@@ -9,112 +9,146 @@ import {
     useEdgesState,
     useHandleConnections,
     useReactFlow,
-    ReactFlowProvider
+    ReactFlowProvider,
+    MiniMap
 } from '@xyflow/react';
 import '@xyflow/react/dist/style.css';
 import dagre from 'dagre';
 import { ChevronDown, ChevronRight, Database, Table as TableIcon, PlusCircle } from 'lucide-react';
-import { useCallback, useEffect, useState } from 'react'; // Added useState and useCallback
+import { useCallback, useEffect, useState } from 'react';
 
 const nodeWidth = 280;
-const nodeHeight = 50;
+const nodeHeight = 280;
 
 // -----------------------------------------------------------------------------
-// Custom Node: SchemaNode with Expansion Buttons
+// Custom Node: SchemaNode (Handles fixed to Header area)
 // -----------------------------------------------------------------------------
-const SchemaNode = ({ id, data }) => {
-    const [expanded, setExpanded] = useState(false);
-
-    // Connections count to determine if we need to show (+)
-    const targetConnections = useHandleConnections({ type: 'target', id: 'target' });
-    const sourceConnections = useHandleConnections({ type: 'source', id: 'source' });
-
-    const inDegree = data.inDegree || 0;
-    const outDegree = data.outDegree || 0;
-
-    // Show (+) if actual connections < total degree
-    // Note: We use a small threshold or exact match. 
-    const showExpandLeft = inDegree > targetConnections.length;
-    const showExpandRight = outDegree > sourceConnections.length;
-
-    const columns = data.columns || [];
+// Custom Handle Component for Dynamic Coloring
+const CustomHandle = (props) => {
+    const connections = useHandleConnections({
+        type: props.type,
+    });
+    const isConnected = connections.length > 0;
 
     return (
-        <div className="relative group">
-            {/* Expansion Button: Left (Upstream) */}
-            {showExpandLeft && (
-                <button
-                    className="absolute -left-6 top-1/2 -translate-y-1/2 text-purple-500 hover:text-purple-700 bg-white rounded-full p-0.5 shadow-sm z-10"
-                    onClick={(e) => {
-                        e.stopPropagation();
-                        if (data.onExpand) data.onExpand(id, 'upstream');
-                    }}
-                    title="Load more upstream"
-                >
-                    <PlusCircle size={20} fill="#f3e8ff" />
-                </button>
-            )}
+        <Handle
+            {...props}
+            className="!w-0 !h-0 !border-0"
+            style={{
+                ...props.style,
+                zIndex: 10
+            }}
+        >
+            {/* Visual Pin inside: Triangle */}
+            {/* If Input (Left): Points Right. If Output (Right): Points Right. */}
+            {/* User wants "white inside header". When connected -> different color. */}
+            <div className={`w-0 h-0 
+                border-t-[6px] border-t-transparent
+                ${props.type === 'target' ? 'border-l-[8px]' : 'border-l-[8px]'} 
+                ${isConnected ? 'border-l-orange-500' : 'border-l-white'}
+                border-b-[6px] border-b-transparent
+                filter drop-shadow-md transition-colors duration-300
+            `}></div>
+        </Handle>
+    );
+};
 
-            <div className={`bg-white border-2 ${data.isCurrent ? 'border-purple-500 ring-2 ring-purple-100' : 'border-slate-200'} rounded-lg shadow-sm w-[280px] overflow-hidden transition-all duration-200 hover:border-purple-400 font-sans`}>
-                {/* Header */}
+const SchemaNode = ({ id, data }) => {
+    const [expanded, setExpanded] = useState(false);
+    const columns = data.columns || [];
+    const sourcePlatform = data.platform || "PostgreSQL";
+
+    return (
+        <div className="relative group font-sans w-[280px]">
+            {/* Main Container */}
+            <div className={`
+                bg-white rounded-xl shadow-md overflow-hidden transition-all duration-200
+                border-2 ${data.isCurrent ? 'border-yellow-400 ring-2 ring-yellow-100' : 'border-slate-200'}
+            `}>
+
+                {/* 1. Black Header (Source Info Only + Handles Area) */}
                 <div
-                    className="bg-slate-50 p-3 flex items-center justify-between cursor-pointer hover:bg-slate-100"
+                    className="bg-slate-900 text-white h-[40px] px-3 flex justify-between items-center relative"
+                >
+                    {/* Source Info Badge */}
+                    <span className="text-[11px] font-bold text-slate-300 uppercase tracking-widest bg-white/10 px-2 py-0.5 rounded">
+                        {sourcePlatform}
+                    </span>
+
+                    {/* Handles are positioned absolutely relative to this Container or Parent? 
+                        Let's keep them absolute to Parent but align visually here.
+                     */}
+                </div>
+
+                {/* 2. Title Row (White Background) + Toggle Arrow */}
+                <div
+                    className="bg-white px-3 py-3 border-b border-slate-100 flex justify-between items-center cursor-pointer hover:bg-slate-50 transition-colors"
                     onClick={() => setExpanded(!expanded)}
                 >
                     <div className="flex items-center gap-2 overflow-hidden">
-                        <div className={`p-1.5 rounded-md ${data.type === 'Topic' ? 'bg-orange-100 text-orange-600' : 'bg-blue-100 text-blue-600'}`}>
-                            {data.type === 'Topic' ? <Database size={14} /> : <TableIcon size={14} />}
-                        </div>
-                        <div className="flex flex-col overflow-hidden">
-                            <span className="font-semibold text-slate-700 text-sm truncate" title={data.label}>
-                                {data.label}
-                            </span>
-                            {/* Metadata badges could go here */}
-                        </div>
+                        {data.type === 'Topic' ? <Database size={18} className="text-orange-600" /> : <TableIcon size={18} className="text-blue-600" />}
+                        <span className="font-bold text-sm truncate text-slate-900">
+                            {data.label}
+                        </span>
                     </div>
-                    <button className="text-slate-400 hover:text-slate-600">
+
+                    {/* Toggle Arrow Moved Here */}
+                    <span className="text-slate-400 ml-1 flex-shrink-0">
                         {expanded ? <ChevronDown size={16} /> : <ChevronRight size={16} />}
-                    </button>
+                    </span>
                 </div>
 
-                {/* Column List */}
+                {/* 3. Body / Columns */}
                 {expanded && (
-                    <div className="border-t border-slate-100 bg-white p-2 max-h-[200px] overflow-y-auto">
+                    <div className="p-0 bg-white min-h-[100px] max-h-[300px] overflow-y-auto custom-scrollbar">
                         {columns.length > 0 ? (
-                            <div className="flex flex-col gap-1">
+                            <div className="flex flex-col">
                                 {columns.map((col, idx) => (
-                                    <div key={idx} className="flex items-center text-xs text-slate-600 px-2 py-1.5 hover:bg-slate-50 rounded">
-                                        <div className="w-1.5 h-1.5 rounded-full bg-slate-400 mr-2"></div>
-                                        <span className="truncate">{col}</span>
+                                    <div key={idx} className="flex items-center text-sm text-slate-700 px-4 py-2 hover:bg-slate-50 border-b border-slate-50 last:border-0 transition-colors">
+                                        <div className={`w-2 h-2 rounded-full mr-3 ${['int', 'bigint', 'double', 'float'].some(t => col.toLowerCase().includes(t)) ? 'bg-blue-400' : 'bg-slate-300'}`}></div>
+                                        <span className="truncate font-medium flex-1">{col}</span>
+                                        <span className="text-[10px] text-slate-400 uppercase">String</span>
                                     </div>
                                 ))}
                             </div>
                         ) : (
-                            <div className="text-xs text-slate-400 italic p-2 text-center">
-                                No columns metadata
+                            <div className="h-20 flex flex-col items-center justify-center text-slate-400 italic space-y-2">
+                                <span className="text-xs">No Schema Info</span>
                             </div>
                         )}
+
+
+                    </div>
+                )}
+
+                {/* Footer (Always Visible) */}
+                {data.isCurrent && (
+                    <div className="bg-yellow-50 text-yellow-700 text-[10px] font-bold text-center py-1.5 border-t border-yellow-100">
+                        TARGET DATASET
                     </div>
                 )}
             </div>
 
-            {/* Expansion Button: Right (Downstream) */}
-            {showExpandRight && (
-                <button
-                    className="absolute -right-6 top-1/2 -translate-y-1/2 text-purple-500 hover:text-purple-700 bg-white rounded-full p-0.5 shadow-sm z-10"
-                    onClick={(e) => {
-                        e.stopPropagation();
-                        if (data.onExpand) data.onExpand(id, 'downstream');
-                    }}
-                    title="Load more downstream"
-                >
-                    <PlusCircle size={20} fill="#f3e8ff" />
-                </button>
-            )}
+            {/* 4. Handles - Visually Inside Black Header */}
+            {/* Header height is 40px. Center is top: 20px. 
+                We place them slightly inset to look "inside".
+            */}
 
-            {/* Handles: Named 'target' and 'source' for useHandleConnections to work properly */}
-            <Handle id="target" type="target" position={Position.Left} className="w-3 h-3 bg-purple-500 border-2 border-white rounded-full !-left-1.5" />
-            <Handle id="source" type="source" position={Position.Right} className="w-3 h-3 bg-purple-500 border-2 border-white rounded-full !-right-1.5" />
+            {/* Input Pin (Left) */}
+            <CustomHandle
+                id="target"
+                type="target"
+                position={Position.Left}
+                style={{ top: '20px', left: '12px' }} // Inset further
+            />
+
+            {/* Output Pin (Right) */}
+            <CustomHandle
+                id="source"
+                type="source"
+                position={Position.Right}
+                style={{ top: '20px', right: '12px' }} // Inset further
+            />
         </div>
     );
 };
@@ -134,7 +168,6 @@ const getLayoutedElements = (nodes, edges, direction = 'LR') => {
     dagreGraph.setGraph({ rankdir: direction });
 
     nodes.forEach((node) => {
-        // Dynamic height if expanded? For now fixed layout size
         dagreGraph.setNode(node.id, { width: nodeWidth, height: nodeHeight });
     });
 
@@ -161,13 +194,60 @@ const getLayoutedElements = (nodes, edges, direction = 'LR') => {
 };
 
 // -----------------------------------------------------------------------------
-// Inner Main Component (Uses ReactFlow Context)
+// Inner Main Component
 // -----------------------------------------------------------------------------
-function LineageFlow({ datasetId }) {
+function LineageFlow({ datasetId, onStreamAnalysis }) {
     const [nodes, setNodes, onNodesChange] = useNodesState([]);
     const [edges, setEdges, onEdgesChange] = useEdgesState([]);
-    // useReactFlow MUST be used inside ReactFlowProvider
     const { fitView } = useReactFlow();
+
+    // Helper: Find impacted nodes (Upstream/Downstream)
+    const calculateImpact = useCallback((currentDatasetId, currentNodes, currentEdges) => {
+        if (!currentDatasetId || currentNodes.length === 0) return;
+
+        const nodeMap = new Map(currentNodes.map(n => [n.id, n]));
+
+        // Find the react-flow ID for the mongoId (datasetId)
+        const rootNode = currentNodes.find(n => n.data.mongoId === currentDatasetId);
+        if (!rootNode) return;
+
+        const findConnected = (startNodeId, direction) => {
+            const visited = new Set();
+            const queue = [startNodeId];
+            const result = [];
+
+            while (queue.length > 0) {
+                const currId = queue.shift();
+                if (visited.has(currId)) continue;
+                visited.add(currId);
+
+                if (currId !== startNodeId) {
+                    const node = nodeMap.get(currId);
+                    if (node) result.push(node.data); // Return node data (label, type, etc.)
+                }
+
+                // Find neighbors
+                const connectedEdges = currentEdges.filter(e =>
+                    direction === 'upstream' ? e.target === currId : e.source === currId
+                );
+
+                connectedEdges.forEach(e => {
+                    const nextId = direction === 'upstream' ? e.source : e.target;
+                    if (!visited.has(nextId)) queue.push(nextId);
+                });
+            }
+            return result;
+        };
+
+        const upstream = findConnected(rootNode.id, 'upstream');
+        const downstream = findConnected(rootNode.id, 'downstream');
+
+        if (onStreamAnalysis) {
+            onStreamAnalysis({ upstream, downstream });
+        }
+
+    }, [onStreamAnalysis]);
+
 
     // Helper to merge new data with existing graph
     const mergeGraphData = useCallback((existingNodes, existingEdges, newNodes, newEdges) => {
@@ -178,10 +258,8 @@ function LineageFlow({ datasetId }) {
             if (!nodeMap.has(n.id)) {
                 nodeMap.set(n.id, n);
             } else {
-                // Update existing node data if needed (e.g. degrees might change?)
-                // Usually we keep existing state (expand/collapse) -> merge carefully
                 const existing = nodeMap.get(n.id);
-                nodeMap.set(n.id, { ...n, data: { ...n.data, ...existing.data } }); // preserve local state if any?
+                nodeMap.set(n.id, { ...n, data: { ...n.data, ...existing.data } });
             }
         });
 
@@ -221,33 +299,21 @@ function LineageFlow({ datasetId }) {
             setNodes(layoutedNodes);
             setEdges(layoutedEdges);
 
-            // fitView({ duration: 800 }); // Optional: Re-center
+            // Recalculate impact when graph updates (e.g. expanding)
+            calculateImpact(datasetId, layoutedNodes, layoutedEdges);
+
         } catch (err) {
             console.error(err);
         }
-    }, [mergeGraphData, setNodes, setEdges, datasetId]); // datasetId dependency for isCurrent check logic usage if needed
+    }, [mergeGraphData, setNodes, setEdges, datasetId, calculateImpact]);
 
-    // "Real" handleExpand that uses current state
     const handleExpandWithState = useCallback((id, dir) => {
-        // We need current state. Since this is a callback passed to nodes, 
-        // using state directly from closure might be stale if not careful.
-        // But here we rely on 'setNodes' functional update pattern for safety?
-        // Actually, fetching requires the state to merge.
-        // A simple trick: pass 'setNodes' a function, getting 'prevNodes', doing the fetch logic inside there is anti-pattern (async).
-        // Solution: Use a Ref to store nodes/edges or just re-fetch everything? No.
-
-        // For simplicity in this version, we will assume 'nodes' and 'edges' from the component scope are fresh enough
-        // because we will update the node data (callback) on every render?
-        // No, that causes infinite loop if not memoized relative to state.
-
-        // Let's use the 'trigger' effect pattern.
         triggerExpand(id);
     }, []);
 
     const [expandTarget, setExpandTarget] = useState(null);
     const triggerExpand = (id) => setExpandTarget(id);
 
-    // Effect to handle expansion when triggered
     useEffect(() => {
         if (expandTarget) {
             fetchAndMerge(expandTarget, nodes, edges);
@@ -265,8 +331,6 @@ function LineageFlow({ datasetId }) {
         if (datasetId) {
             const initialLoad = async () => {
                 setNodes([]); setEdges([]);
-                // Initial fetch is just like an expand on the target dataset
-                // But we need to call it directly to avoid dependency checks on empty nodes
                 try {
                     const response = await fetch(`http://localhost:8000/api/catalog/${datasetId}/lineage`);
                     if (!response.ok) return;
@@ -278,13 +342,28 @@ function LineageFlow({ datasetId }) {
                     }));
 
                     const { nodes: layoutedNodes, edges: layoutedEdges } = getLayoutedElements(enrichedNewNodes, data.edges || []);
+                    console.log("Lineage Loaded:", layoutedNodes);
                     setNodes(layoutedNodes);
                     setEdges(layoutedEdges);
-                } catch (e) { console.error(e); }
+
+                    // Initial Impact Calculation
+                    calculateImpact(datasetId, layoutedNodes, layoutedEdges);
+
+                    // Force Fit View
+                    setTimeout(() => {
+                        window.requestAnimationFrame(() => fitView({ padding: 0.2 }));
+                    }, 100);
+
+                } catch (e) { console.error("Lineage Load Error:", e); }
             };
             initialLoad();
         }
-    }, [datasetId, handleExpandWithState, setNodes, setEdges]); // Run only when datasetId changes
+    }, [datasetId, handleExpandWithState, setNodes, setEdges, calculateImpact, fitView]);
+
+    // Manual Fit View handler
+    const handleFitView = () => {
+        fitView({ padding: 0.2, duration: 800 });
+    };
 
     return (
         <ReactFlow
@@ -296,11 +375,21 @@ function LineageFlow({ datasetId }) {
             nodeTypes={nodeTypes}
             fitView
             proOptions={{ hideAttribution: true }}
-            minZoom={0.5}
-            maxZoom={1.5}
+            minZoom={0.1}
+            maxZoom={2.0}
+            defaultEdgeOptions={{ type: 'default', animated: true }}
         >
-            <Background color="#e2e8f0" gap={16} />
-            <Controls />
+            <Background color="#cbd5e1" gap={20} size={1} />
+            <Controls>
+                <button onClick={handleFitView} style={{ padding: '5px', fontWeight: 'bold' }}>Fit</button>
+            </Controls>
+            <MiniMap
+                nodeStrokeColor="#7b61ff"
+                nodeColor="#e2e8f0"
+                maskColor="rgba(241, 245, 249, 0.7)"
+                style={{ height: 120, width: 160 }}
+                className="!bg-white !border !border-slate-200 !rounded-lg !shadow-sm !bottom-4 !right-4"
+            />
         </ReactFlow>
     );
 }
@@ -308,11 +397,11 @@ function LineageFlow({ datasetId }) {
 // -----------------------------------------------------------------------------
 // Main Component (Wrapper)
 // -----------------------------------------------------------------------------
-export default function DatasetLineage({ datasetId }) {
+export default function DatasetLineage({ datasetId, onStreamAnalysis }) {
     return (
-        <div className="w-full h-[600px] bg-slate-50 rounded-lg border border-slate-200 overflow-hidden">
+        <div className="w-full h-[600px] bg-slate-50 rounded-lg border border-slate-200 overflow-hidden relative">
             <ReactFlowProvider>
-                <LineageFlow datasetId={datasetId} />
+                <LineageFlow datasetId={datasetId} onStreamAnalysis={onStreamAnalysis} />
             </ReactFlowProvider>
         </div>
     );
