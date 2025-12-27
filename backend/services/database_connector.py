@@ -32,10 +32,12 @@ class DatabaseConnector:
         else:
             raise NotImplementedError(f"Database type {self.db_type} not supported yet")
 
-    def get_columns(self, table_name: str) -> List[Dict[str, Any]]:
-        """Get columns for a specific table"""
+    def get_table_schema(self, table_name: str) -> List[Dict[str, str]]:
+        """Get schema (columns) of a specific table"""
         if self.db_type in ["postgres", "postgresql"]:
-            return self._get_postgres_columns(table_name)
+            return self._get_postgres_schema(table_name)
+        elif self.db_type in ["mysql", "mariadb"]:
+            return self._get_mysql_schema(table_name)
         else:
             raise NotImplementedError(f"Database type {self.db_type} not supported yet")
 
@@ -88,8 +90,12 @@ class DatabaseConnector:
             
             return columns
         except Exception as e:
-            raise Exception(f"Failed to get columns: {str(e)}")
+            raise Exception(f"Failed to fetch schema for {table_name}: {str(e)}")
 
     def _get_mysql_tables(self) -> List[str]:
         """Get list of tables from MySQL/MariaDB (placeholder for future implementation)"""
+        raise NotImplementedError("MySQL/MariaDB support coming soon")
+
+    def _get_mysql_schema(self, table_name: str) -> List[Dict[str, str]]:
+        """Get schema from MySQL/MariaDB (placeholder)"""
         raise NotImplementedError("MySQL/MariaDB support coming soon")
