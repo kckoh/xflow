@@ -9,14 +9,14 @@ from beanie import PydanticObjectId
 
 from models import RDBSource
 from services.database_connector import DatabaseConnector
-from schemas.rdb_transform import ColumnInfo
+from schemas.rdb_transform import RDBColumnInfo
 
 router = APIRouter()
 
 
 # ============ Column Listing API ============
 
-@router.get("/rdb-sources/{source_id}/tables/{table_name}/columns", response_model=List[ColumnInfo])
+@router.get("/rdb-sources/{source_id}/tables/{table_name}/columns", response_model=List[RDBColumnInfo])
 async def get_table_columns(source_id: str, table_name: str):
     """
     Get columns for a specific table in an RDB source
@@ -43,7 +43,7 @@ async def get_table_columns(source_id: str, table_name: str):
         columns = connector.get_columns(table_name)
         
         return [
-            ColumnInfo(
+            RDBColumnInfo(
                 name=col['name'],
                 type=col['type'],
                 nullable=col.get('nullable', True)
@@ -52,3 +52,4 @@ async def get_table_columns(source_id: str, table_name: str):
         ]
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Failed to get columns: {str(e)}")
+
