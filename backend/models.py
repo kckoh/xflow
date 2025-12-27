@@ -28,7 +28,7 @@ class RDBSource(Document):
     For AWS/LocalStack deployment configurations.
     """
     # Basic connection info
-    name: str
+    name: str # 별명
     description: Optional[str] = None
     type: str  # postgres / mysql / mariadb / oracle
     host: str
