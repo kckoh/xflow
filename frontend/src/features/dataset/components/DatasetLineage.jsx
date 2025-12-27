@@ -1,63 +1,87 @@
-import { useCallback } from 'react';
+import { useCallback, useEffect } from 'react';
 import { ReactFlow, Controls, Background, useNodesState, useEdgesState, addEdge } from '@xyflow/react';
 import '@xyflow/react/dist/style.css';
+import dagre from 'dagre';
 import SchemaNode from './SchemaNode';
 
 const nodeTypes = {
     schemaNode: SchemaNode,
 };
 
-const initialNodes = [
-    {
-        id: '1',
-        position: { x: 0, y: 50 },
-        type: 'schemaNode',
-        data: {
-            label: 'Source (MySQL)',
-            schema: [
-                { name: 'id', type: 'Integer' },
-                { name: 'user_id', type: 'Integer' },
-                { name: 'raw_data', type: 'String' }
-            ]
-        },
-    },
-    {
-        id: '2',
-        position: { x: 300, y: 50 },
-        type: 'schemaNode',
-        data: {
-            label: 'ETL Job (Spark)',
-            schema: [
-                { name: 'input_id', type: 'Integer' },
-                { name: 'transform_logic', type: 'String' }
-            ]
-        },
-    },
-    {
-        id: '3',
-        position: { x: 600, y: 50 },
-        type: 'schemaNode',
-        data: {
-            label: 'Target Table',
-            schema: [
-                { name: 'id', type: 'Integer' },
-                { name: 'name', type: 'String' },
-                { name: 'timestamp', type: 'Date' },
-                { name: 'amount', type: 'Float' },
-                { name: 'status', type: 'String' }
-            ]
-        },
-    },
-];
+const getLayoutedElements = (nodes, edges, direction = 'LR') => {
+    const dagreGraph = new dagre.graphlib.Graph();
+    dagreGraph.setDefaultEdgeLabel(() => ({}));
 
-const initialEdges = [
-    { id: 'e1-2', source: '1', target: '2', animated: true, style: { strokeWidth: 2, stroke: '#94a3b8' } },
-    { id: 'e2-3', source: '2', target: '3', animated: true, style: { strokeWidth: 2, stroke: '#94a3b8' } },
-];
+    const isHorizontal = direction === 'LR';
+    dagreGraph.setGraph({ rankdir: direction });
 
-export default function DatasetLineage() {
-    const [nodes, setNodes, onNodesChange] = useNodesState(initialNodes);
-    const [edges, setEdges, onEdgesChange] = useEdgesState(initialEdges);
+    nodes.forEach((node) => {
+        dagreGraph.setNode(node.id, { width: 150, height: 50 });
+    });
+
+    edges.forEach((edge) => {
+        dagreGraph.setEdge(edge.source, edge.target);
+    });
+
+    dagre.layout(dagreGraph);
+
+    return {
+        nodes: nodes.map((node) => {
+            const nodeWithPosition = dagreGraph.node(node.id);
+            return {
+                ...node,
+                targetPosition: isHorizontal ? 'left' : 'top',
+                sourcePosition: isHorizontal ? 'right' : 'bottom',
+                // We are shifting the dagre node position (anchor=center center) to the top left
+                // so it matches the React Flow node anchor point (top left).
+                position: {
+                    x: nodeWithPosition.x - 150 / 2,
+                    y: nodeWithPosition.y - 50 / 2,
+                },
+            };
+        }),
+        edges,
+    };
+};
+
+export default function DatasetLineage({ datasetId }) {
+    const [nodes, setNodes, onNodesChange] = useNodesState([]);
+    const [edges, setEdges, onEdgesChange] = useEdgesState([]);
+
+    useEffect(() => {
+        const fetchLineage = async () => {
+            if (!datasetId) return;
+
+            try {
+                const token = localStorage.getItem("token");
+                const response = await fetch(`http://localhost:8000/api/catalog/${datasetId}/lineage`, {
+                    headers: {
+                        "Authorization": `Bearer ${token}`
+                    }
+                });
+
+                if (!response.ok) {
+                    console.error("Failed to fetch lineage");
+                    return;
+                }
+
+                const data = await response.json();
+
+                // Use dagre to layout the nodes
+                const { nodes: layoutedNodes, edges: layoutedEdges } = getLayoutedElements(
+                    data.nodes || [],
+                    data.edges || []
+                );
+
+                setNodes(layoutedNodes);
+                setEdges(layoutedEdges);
+            } catch (err) {
+                console.error(err);
+            }
+        };
+
+        fetchLineage();
+    }, [datasetId, setNodes, setEdges]);
 
     const onConnect = useCallback(
         (params) => setEdges((eds) => addEdge(params, eds)),

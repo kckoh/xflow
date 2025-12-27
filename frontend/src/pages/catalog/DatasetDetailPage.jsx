@@ -101,7 +101,7 @@ export default function DatasetDetailPage() {
                 <div className="flex-1 overflow-y-auto p-6 bg-gray-50">
                     {/* Pass columns to DatasetSchema */}
                     {activeTab === "columns" && <DatasetSchema columns={dataset.columns || []} />}
-                    {activeTab === "lineage" && <DatasetLineage datasetId={dataset._id} />}
+                    {activeTab === "lineage" && <DatasetLineage datasetId={dataset.id} />}
                     {activeTab !== "columns" && activeTab !== "lineage" && (
                         <div className="flex items-center justify-center h-64 text-gray-400 bg-white rounded-lg border border-gray-200 border-dashed">
                             Content for {activeTab} is not implemented yet.
