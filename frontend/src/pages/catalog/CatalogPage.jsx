@@ -10,6 +10,9 @@ import {
     ChevronDown,
     ListFilter
 } from "lucide-react";
+// ... imports ...
+import DatasetDrawer from "../../features/dataset/components/DatasetDrawer";
+
 export default function CatalogPage() {
     const navigate = useNavigate();
     const [searchTerm, setSearchTerm] = useState("");
@@ -17,8 +20,10 @@ export default function CatalogPage() {
     const [allTables, setAllTables] = useState([]);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState(null);
+
     // TODO: Recently Used Tables 임의로 구현
     const recentTables = allTables.slice(0, 4);
+
     useEffect(() => {
         const fetchCatalog = async () => {
             try {
@@ -38,16 +43,19 @@ export default function CatalogPage() {
         };
         fetchCatalog();
     }, []);
+
     const filteredTables = allTables.filter((table) =>
         table.name.toLowerCase().includes(searchTerm.toLowerCase())
     );
+
     return (
-        <div className="space-y-8">
+        <div className="space-y-8 relative">
             {/* Header */}
             <div>
                 <h1 className="text-2xl font-bold text-gray-900">Data Catalog</h1>
                 <p className="text-gray-500 mt-1">Discover, manage, and govern your data assets.</p>
             </div>
+
             {/*Recently Used Tables*/}
             <section>
                 <div className="flex items-center mb-4">
@@ -66,11 +74,14 @@ export default function CatalogPage() {
                                     <div className="bg-blue-50 p-2 rounded-lg group-hover:bg-blue-100 transition">
                                         <TableIcon className="w-5 h-5 text-blue-600" />
                                     </div>
-                                    <span className="text-xs text-gray-400">{item.updated}</span>
+                                    <span className="text-xs text-gray-400">{new Date(item.created_at).toLocaleDateString()}</span>
                                 </div>
                                 <div className="mt-3">
                                     <h3 className="font-medium text-gray-900 truncate">{item.name}</h3>
-                                    <p className="text-xs text-gray-500 mt-1">{item.project}</p>
+                                    <p className="text-xs text-gray-500 mt-1 flex items-center gap-1">
+                                        <span className="w-2 h-2 rounded-full bg-green-400 inline-block"></span>
+                                        {item.layer || "RAW"}
+                                    </p>
                                 </div>
                             </button>
                         ))}
@@ -81,25 +92,24 @@ export default function CatalogPage() {
                     </div>
                 )}
             </section>
+
             {/* All Data Tables */}
             <section className="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden">
                 {/* Toolbar */}
                 <div className="p-5 border-b border-gray-100 flex flex-col md:flex-row md:items-center justify-between gap-4">
                     {/* Left: Filters */}
                     <div className="flex items-center gap-4 overflow-x-auto pb-2 md:pb-0 hide-scrollbar">
-                        {/* Title mostly for semantics, but we can make it smaller or remove if filters take space. Keeping it standard. */}
-                        {/* Alternatively, filters replace the title or sit below it. Let's put filters on the left as requested. */}
                         <div className="flex items-center gap-2 mr-2">
                             <Database className="w-5 h-5 text-gray-500" />
                             <span className="font-semibold text-gray-800 whitespace-nowrap">All Data Tables</span>
                         </div>
                         <div className="h-6 w-px bg-gray-200 mx-2 hidden md:block"></div>
-                        {/* Filter Dropdowns */}
                         <FilterDropdown label="Owner" />
-                        <FilterDropdown label="Type" />
+                        <FilterDropdown label="Layer" />
                         <FilterDropdown label="Platform" />
                         <FilterDropdown label="Last Modified" />
                     </div>
+
                     {/* Right: Search & Sort */}
                     <div className="flex items-center space-x-3">
                         <div className="relative">
@@ -119,37 +129,35 @@ export default function CatalogPage() {
                         </button>
                     </div>
                 </div>
+
                 {/* all Table Header */}
                 <div className="overflow-x-auto">
                     <table className="w-full text-left border-collapse">
                         <thead>
                             <tr className="bg-gray-50 border-b border-gray-100 text-xs text-gray-500 uppercase tracking-wider">
                                 <th className="px-6 py-4 font-medium">Name</th>
-                                <th className="px-6 py-4 font-medium">Type</th>
+                                <th className="px-6 py-4 font-medium">Layer</th>
                                 <th className="px-6 py-4 font-medium">Owner</th>
-                                <th className="px-6 py-4 font-medium">Rows</th>
-                                <th className="px-6 py-4 font-medium">Size</th>
+                                <th className="px-6 py-4 font-medium">Platform</th>
                                 <th className="px-6 py-4 font-medium">Tags</th>
-                                <th className="px-6 py-4 font-medium">Action</th>
+                                <th className="px-6 py-4 font-medium text-right">Action</th>
                             </tr>
                         </thead>
-                        {/* loading */}
                         <tbody className="divide-y divide-gray-100">
                             {loading && (
                                 <tr>
-                                    <td colSpan="7" className="px-6 py-8 text-center text-gray-500">
+                                    <td colSpan="6" className="px-6 py-8 text-center text-gray-500">
                                         Loading catalog data...
                                     </td>
                                 </tr>
                             )}
                             {error && (
                                 <tr>
-                                    <td colSpan="7" className="px-6 py-8 text-center text-red-500">
+                                    <td colSpan="6" className="px-6 py-8 text-center text-red-500">
                                         Error: {error}
                                     </td>
                                 </tr>
                             )}
-                            {/* allTables */}
                             {!loading && !error && filteredTables.map((table) => (
                                 <tr
                                     key={table.id}
@@ -165,24 +173,35 @@ export default function CatalogPage() {
                                         </div>
                                     </td>
                                     <td className="px-6 py-4 text-sm text-gray-500">
-                                        <span className="px-2 py-1 rounded-full text-xs font-medium bg-gray-100 text-gray-600">
-                                            {table.type}
+                                        <span className={`px-2 py-1 rounded-full text-xs font-medium ${table.layer === 'RAW' ? 'bg-gray-100 text-gray-600' :
+                                            table.layer === 'MART' ? 'bg-green-100 text-green-700' :
+                                                'bg-blue-50 text-blue-700'
+                                            }`}>
+                                            {table.layer || "-"}
                                         </span>
                                     </td>
-                                    <td className="px-6 py-4 text-sm text-gray-600">{table.owner}</td>
-                                    <td className="px-6 py-4 text-sm text-gray-600">{table.rows}</td>
-                                    <td className="px-6 py-4 text-sm text-gray-600">{table.size}</td>
+                                    <td className="px-6 py-4 text-sm text-gray-600">
+                                        {table.owner !== "Unknown" ? (
+                                            <div className="flex items-center gap-2">
+                                                <div className="w-5 h-5 rounded-full bg-indigo-100 text-indigo-600 flex items-center justify-center text-[10px] font-bold">
+                                                    {table.owner[0].toUpperCase()}
+                                                </div>
+                                                {table.owner}
+                                            </div>
+                                        ) : <span className="text-gray-400">No owner</span>}
+                                    </td>
+                                    <td className="px-6 py-4 text-sm text-gray-600 font-mono uppercase text-xs">{table.platform}</td>
                                     <td className="px-6 py-4">
-                                        <div className="flex gap-1">
-                                            {table.tags.map(tag => (
-                                                <span key={tag} className="px-2 py-0.5 rounded text-xs bg-blue-50 text-blue-600 border border-blue-100">
+                                        <div className="flex gap-1 flex-wrap">
+                                            {table.tags && table.tags.map(tag => (
+                                                <span key={tag} className="px-2 py-0.5 rounded text-xs bg-gray-50 text-gray-600 border border-gray-200">
                                                     {tag}
                                                 </span>
                                             ))}
                                         </div>
                                     </td>
-                                    <td className="px-6 py-4 text-gray-400">
-                                        <ChevronRight className="w-5 h-5 group-hover:text-blue-500 transition-transform group-hover:translate-x-1" />
+                                    <td className="px-6 py-4 text-gray-400 text-right">
+                                        <ChevronRight className="w-5 h-5 inline-block group-hover:text-blue-500 transition-transform group-hover:translate-x-1" />
                                     </td>
                                 </tr>
                             ))}
