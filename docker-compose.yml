@@ -77,6 +77,7 @@ services:
       MONGODB_URL: mongodb://mongo:mongo@mongodb:27017
       MONGODB_DATABASE: mydb
       CORS_ORIGINS: http://localhost:5173,http://localhost:3000
+      AWS_ENDPOINT: http://localstack-main:4566
     depends_on:
       - mongodb
 
@@ -330,7 +331,7 @@ services:
     ports:
       - "4566:4566" # LocalStack Gateway - only expose 4566, not 443
     environment:
-      - SERVICES=s3,dynamodb,sqs,sns,lambda,apigateway
+      - SERVICES=ec2,s3,rds,dynamodb,sqs,sns,lambda,apigateway
       - DEBUG=0
       - DOCKER_HOST=unix:///var/run/docker.sock
       - DISABLE_EVENTS=1
