@@ -78,6 +78,7 @@ services:
       MONGODB_DATABASE: mydb
       CORS_ORIGINS: http://localhost:5173,http://localhost:3000
       AWS_ENDPOINT: http://localstack-main:4566
+      AWS_REGION: ap-northeast-2
     depends_on:
       - mongodb
 

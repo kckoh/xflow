@@ -28,6 +28,7 @@ async def create_source(source: SourceCreate):
         database_name=source.database_name,
         user_name=source.user_name,
         password=source.password,
+        cloud_config=source.cloud_config,
         status="disconnected",
         created_at=datetime.utcnow(),
         updated_at=datetime.utcnow(),
@@ -46,6 +47,7 @@ async def create_source(source: SourceCreate):
         database_name=new_source.database_name,
         user_name=new_source.user_name,
         status=new_source.status,
+        cloud_config=new_source.cloud_config,
     )
 
 
@@ -64,6 +66,7 @@ async def list_sources():
             database_name=source.database_name,
             user_name=source.user_name,
             status=source.status,
+            cloud_config=source.cloud_config,
         )
         for source in sources
     ]
