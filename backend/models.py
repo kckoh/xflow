@@ -59,13 +59,12 @@ class RDBSource(Document):
 class Transform(Document):
     """
     Transform document for storing ETL transformation configurations.
-    Stores select fields and transformation logic.
+    Supports multiple transform types: select-fields, filter, join, etc.
+    Note: source_id and source_table are managed by Pipeline, not Transform.
     """
-    name: str = "Select Fields"  # Transform name (default, can be updated)
-    source_id: str  # RDBSource ID reference
-    source_table: str  # Source table name
-    transform_type: str  # Transform type (e.g., "select-fields")
-    selected_columns: List[str]  # Selected column names
+    name: str  # Transform name
+    transform_type: str  # Transform type: "select-fields", "filter", "join", etc.
+    config: dict = Field(default_factory=dict)  # Type-specific configuration
     
     created_at: datetime = Field(default_factory=datetime.utcnow)
     updated_at: datetime = Field(default_factory=datetime.utcnow)

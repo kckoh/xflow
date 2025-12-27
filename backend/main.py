@@ -2,7 +2,8 @@ import os
 from contextlib import asynccontextmanager
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
-from routers import auth, users, rdb_sources, aws, catalog, rdb_tables, glue, athena, transforms
+from routers import auth, users, rdb_sources, aws, catalog, rdb_tables, glue, athena
+from routers.transforms import select_fields # 추후 type 추가 예정 (예: join ...)
 from database import init_db, close_db
 
 
@@ -46,7 +47,8 @@ app.include_router(catalog.router, prefix="/api/catalog", tags=["catalog"])
 app.include_router(rdb_tables.router, prefix="/api/rdb-tables", tags=["rdb-tables"])
 app.include_router(glue.router, prefix="/api/glue", tags=["glue"])
 app.include_router(athena.router, prefix="/api/athena", tags=["athena"])
-app.include_router(transforms.router, prefix="/api/rdb-transform", tags=["rdb-transform"])
+
+app.include_router(select_fields.router, prefix="/api/rdb-transform/select-fields", tags=["select-fields"])
 
 
 
