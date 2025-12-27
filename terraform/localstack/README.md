@@ -5,11 +5,13 @@
 ## 사전 요구사항
 
 1. Terraform 설치
+
 ```bash
 brew install terraform
 ```
 
 2. LocalStack 실행 중
+
 ```bash
 docker compose up localstack -d
 ```
@@ -71,6 +73,9 @@ aws s3 ls --endpoint-url=http://localhost:4566
 
 # Glue 데이터베이스 확인
 aws glue get-databases --endpoint-url=http://localhost:4566
+
+# Athena 확인
+aws --endpoint-url=http://localhost:4566 athena get-work-group --work-group primary
 ```
 
 ### 6. 리소스 삭제
@@ -100,6 +105,7 @@ terraform.tfvars     # 실제 비밀번호 (절대 커밋 금지)
 ## 생성되는 리소스
 
 ### 네트워크
+
 - VPC (10.0.0.0/16)
 - Public Subnet (10.0.1.0/24) - ap-northeast-2a
 - Private Subnet 1 (10.0.2.0/24) - ap-northeast-2a
@@ -109,17 +115,20 @@ terraform.tfvars     # 실제 비밀번호 (절대 커밋 금지)
 - Security Group (모든 트래픽 허용 - 개발 환경)
 
 ### 데이터베이스
+
 - **RDS PostgreSQL** (db.t3.micro)
   - Engine: PostgreSQL 14.7
   - Private Subnet에 배치
   - 다중 AZ 서브넷 그룹
 
 ### 데이터 카탈로그
+
 - **Glue Catalog Database**
   - 데이터 레이크 메타데이터 관리
   - Athena와 연동 가능
 
 ### 스토리지
+
 - **S3 Buckets**
   - xflow-data-lake: 데이터 레이크 메인 버킷 (버저닝 활성화)
   - xflow-raw-data: 원본 데이터 저장
@@ -169,13 +178,17 @@ terraform output glue_database_name
 ## 문제 해결
 
 ### terraform plan 실행 시 비밀번호 에러
+
 ```bash
 Error: No value for required variable
 ```
+
 → `terraform.tfvars` 파일을 생성하고 비밀번호를 입력했는지 확인하세요
 
 ### LocalStack 연결 실패
+
 ```bash
 Error: error configuring Terraform AWS Provider
 ```
+
 → LocalStack이 실행 중인지 확인하세요: `docker compose ps localstack`
