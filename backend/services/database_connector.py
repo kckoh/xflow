@@ -35,7 +35,7 @@ class DatabaseConnector:
     def get_table_schema(self, table_name: str) -> List[Dict[str, str]]:
         """Get schema (columns) of a specific table"""
         if self.db_type in ["postgres", "postgresql"]:
-            return self._get_postgres_schema(table_name)
+            return self._get_postgres_columns(table_name)
         elif self.db_type in ["mysql", "mariadb"]:
             return self._get_mysql_schema(table_name)
         else:
