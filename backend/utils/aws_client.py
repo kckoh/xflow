@@ -16,10 +16,8 @@ AWS_SECRET_ACCESS_KEY = os.getenv('AWS_SECRET_ACCESS_KEY', 'test')
 def get_aws_client(service: str):
     """
     AWS 클라이언트 생성 (LocalStack/AWS 자동 전환)
-
     Args:
         service: AWS 서비스 이름 (예: 'glue', 'athena', 's3', 'ec2')
-
     Returns:
         boto3 client
     """
