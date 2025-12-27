@@ -6,6 +6,11 @@ from typing import List, Optional
 from pydantic import BaseModel, Field
 
 
+class QueryRequest(BaseModel):
+    """Athena 쿼리 실행 요청"""
+    query: str = Field(..., description="SQL query to execute")
+
+
 class QueryExecutionResponse(BaseModel):
     """Athena 쿼리 실행 응답"""
     query_execution_id: str = Field(..., description="쿼리 실행 ID")
