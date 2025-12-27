@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { X, Plus } from 'lucide-react';
+import { X, Plus, Trash2 } from 'lucide-react';
 import { rdbSourceApi } from '../../services/rdbSourceApi';
 import RDBSourceForm from '../sources/RDBSourceForm';
 
@@ -46,13 +46,27 @@ export default function RDBSourcePropertiesPanel({ node, onClose, onUpdate }) {
         }
     };
 
-    const handleSave = () => {
+    const handleSave = async () => {
         if (selectedSource && selectedTable) {
-            onUpdate({
-                sourceId: selectedSource.id,
-                sourceName: selectedSource.name,
-                tableName: selectedTable,
-            });
+            try {
+                // Fetch column schema from API
+                const columns = await rdbSourceApi.fetchTableColumns(selectedSource.id, selectedTable);
+                onUpdate({
+                    sourceId: selectedSource.id,
+                    sourceName: selectedSource.name,
+                    tableName: selectedTable,
+                    schema: columns.map(col => ({ key: col.name, type: col.type }))
+                });
+            } catch (err) {
+                console.error('Failed to fetch schema:', err);
+                // Still update even if schema fetch fails
+                onUpdate({
+                    sourceId: selectedSource.id,
+                    sourceName: selectedSource.name,
+                    tableName: selectedTable,
+                    schema: []
+                });
+            }
         }
     };
 
@@ -113,6 +127,7 @@ export default function RDBSourcePropertiesPanel({ node, onClose, onUpdate }) {
                                 const source = sources.find((s) => s.id === e.target.value);
                                 setSelectedSource(source);
                                 setSelectedTable('');
+                                setTables([]); // 커넥션 변경 시 테이블 목록 초기화
                             }}
                             disabled={isSourcesLoading}
                         >
@@ -137,6 +152,31 @@ export default function RDBSourcePropertiesPanel({ node, onClose, onUpdate }) {
                         <Plus className="w-4 h-4" />
                         Create a connection
                     </button>
+
+                    {/* Delete Connection Button */}
+                    {selectedSource && (
+                        <button
+                            onClick={async () => {
+                                if (window.confirm(`Are you sure you want to delete "${selectedSource.name}"?`)) {
+                                    try {
+                                        await rdbSourceApi.deleteSource(selectedSource.id);
+                                        // 삭제된 커넥션을 sources 배열에서 직접 제거
+                                        setSources((prev) => prev.filter((s) => s.id !== selectedSource.id));
+                                        setSelectedSource(null);
+                                        setSelectedTable('');
+                                        setTables([]);
+                                    } catch (err) {
+                                        console.error('Failed to delete connection:', err);
+                                        alert('Failed to delete connection');
+                                    }
+                                }
+                            }}
+                            className="mt-2 w-full px-3 py-2 border border-red-300 text-red-600 rounded-md hover:bg-red-50 transition-colors flex items-center justify-center gap-2"
+                        >
+                            <Trash2 className="w-4 h-4" />
+                            Delete connection
+                        </button>
+                    )}
                 </div>
 
                 {/* Table */}
@@ -192,33 +232,35 @@ export default function RDBSourcePropertiesPanel({ node, onClose, onUpdate }) {
                     disabled={!selectedSource || !selectedTable}
                     className="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed"
                 >
-                    Apply
+                    Preview Schema
                 </button>
             </div>
 
             {/* Create Connection Modal */}
-            {showCreateModal && (
-                <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-6">
-                    <div className="bg-white rounded-lg shadow-xl w-full max-w-4xl max-h-[90vh] overflow-y-auto">
-                        <div className="px-6 py-4 border-b border-gray-200 flex items-center justify-between sticky top-0 bg-white z-10">
-                            <h3 className="text-lg font-bold text-gray-900">Create connection</h3>
-                            <button
-                                onClick={() => setShowCreateModal(false)}
-                                className="p-1 hover:bg-gray-100 rounded transition-colors"
-                            >
-                                <X className="w-6 h-6 text-gray-500" />
-                            </button>
-                        </div>
+            {
+                showCreateModal && (
+                    <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-[1100] p-6">
+                        <div className="bg-white rounded-lg shadow-xl w-full max-w-4xl max-h-[90vh] overflow-y-auto">
+                            <div className="px-6 py-4 border-b border-gray-200 flex items-center justify-between sticky top-0 bg-white z-10">
+                                <h3 className="text-lg font-bold text-gray-900">Create connection</h3>
+                                <button
+                                    onClick={() => setShowCreateModal(false)}
+                                    className="p-1 hover:bg-gray-100 rounded transition-colors"
+                                >
+                                    <X className="w-6 h-6 text-gray-500" />
+                                </button>
+                            </div>
 
-                        <div className="p-6">
-                            <RDBSourceForm
-                                onSuccess={handleCreateSuccess}
-                                onCancel={() => setShowCreateModal(false)}
-                            />
+                            <div className="p-6">
+                                <RDBSourceForm
+                                    onSuccess={handleCreateSuccess}
+                                    onCancel={() => setShowCreateModal(false)}
+                                />
+                            </div>
                         </div>
                     </div>
-                </div>
-            )}
-        </div>
+                )
+            }
+        </div >
     );
 }

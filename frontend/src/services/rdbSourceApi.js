@@ -21,10 +21,26 @@ export const rdbSourceApi = {
         return response.json();
     },
 
-    // GET /api/rdb-sources/{id}/tables
+    // GET /api/rdb-tables/{id}/tables
     async fetchSourceTables(sourceId) {
-        const response = await fetch(`${API_BASE_URL}/api/rdb-sources/${sourceId}/tables`);
+        const response = await fetch(`${API_BASE_URL}/api/rdb-tables/${sourceId}/tables`);
         if (!response.ok) throw new Error('Failed to fetch tables');
         return response.json();
+    },
+
+    // GET /api/rdb-tables/rdb-sources/{id}/tables/{tableName}/columns
+    async fetchTableColumns(sourceId, tableName) {
+        const response = await fetch(`${API_BASE_URL}/api/rdb-tables/rdb-sources/${sourceId}/tables/${tableName}/columns`);
+        if (!response.ok) throw new Error('Failed to fetch columns');
+        return response.json();
+    },
+
+    // DELETE /api/rdb-sources/{id}
+    async deleteSource(sourceId) {
+        const response = await fetch(`${API_BASE_URL}/api/rdb-sources/${sourceId}`, {
+            method: 'DELETE',
+        });
+        if (!response.ok) throw new Error('Failed to delete source');
+        return response.ok;
     },
 };
