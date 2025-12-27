@@ -41,13 +41,7 @@ class DatabaseConnector:
 
     def _get_postgres_tables(self) -> List[str]:
         try:
-            conn = psycopg2.connect(
-                host=self.host,
-                port=self.port,
-                database=self.database,
-                user=self.user,
-                password=self.password
-            )
+            conn = self._get_postgres_connection()
             cursor = conn.cursor()
             
             # Get all tables from public schema
