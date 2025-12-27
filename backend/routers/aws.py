@@ -2,34 +2,12 @@
 AWS 리소스 조회 API
 VPC, Subnet, Security Group 등을 조회하여 Source 생성 시 사용
 """
-import os
 from typing import List, Optional
 from fastapi import APIRouter, HTTPException, Query
-import boto3
 from botocore.exceptions import ClientError
+from utils.aws_client import get_aws_client
 
 router = APIRouter()
-
-# 환경 설정
-AWS_ENDPOINT = os.getenv('AWS_ENDPOINT', 'http://localhost:4566')  # LocalStack
-AWS_REGION = os.getenv('AWS_REGION', 'us-east-1')
-AWS_ACCESS_KEY_ID = os.getenv('AWS_ACCESS_KEY_ID', 'test')
-AWS_SECRET_ACCESS_KEY = os.getenv('AWS_SECRET_ACCESS_KEY', 'test')
-
-
-def get_aws_client(service: str):
-    """AWS 클라이언트 생성 (LocalStack/AWS 자동 전환)"""
-    kwargs = {
-        'region_name': AWS_REGION,
-        'aws_access_key_id': AWS_ACCESS_KEY_ID,
-        'aws_secret_access_key': AWS_SECRET_ACCESS_KEY
-    }
-    
-    # LocalStack 사용 시에만 endpoint_url 설정
-    if AWS_ENDPOINT and AWS_ENDPOINT != 'None':
-        kwargs['endpoint_url'] = AWS_ENDPOINT
-    
-    return boto3.client(service, **kwargs)
 
 
 @router.get("/vpcs")
