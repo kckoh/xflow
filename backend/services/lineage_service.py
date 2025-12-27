@@ -14,6 +14,7 @@ def get_lineage(dataset_id: str) -> Dict[str, List[Dict[str, Any]]]:
 
     # Simplified Cypher query for basic Table-to-Table lineage
     # Fix: Use direct collects to handle isolated nodes (no relationships) correctly
+    # Update: Returns Map Projection with degree info
     query = """
     MATCH (t:Table {mongo_id: $id})
     
@@ -23,10 +24,22 @@ def get_lineage(dataset_id: str) -> Dict[str, List[Dict[str, Any]]]:
     // Downstream
     OPTIONAL MATCH (t)-[r_down:FLOWS_TO]->(downstream:Table)
     
-    // Return all distinct nodes and relationships
-    // collect(node) ignores nulls, so if upstream/downstream are null, they won't be in the list
-    RETURN collect(DISTINCT t) + collect(DISTINCT upstream) + collect(DISTINCT downstream) as nodes,
-           collect(DISTINCT r_up) + collect(DISTINCT r_down) as rels
+    WITH collect(DISTINCT t) + collect(DISTINCT upstream) + collect(DISTINCT downstream) as nodeList,
+           collect(DISTINCT r_up) + collect(DISTINCT r_down) as relList
+    
+    UNWIND nodeList as n
+    // Calculate degrees using subqueries (or size of pattern match)
+    WITH n, relList, 
+         COUNT { (n)<-[:FLOWS_TO]-() } as inD, 
+         COUNT { (n)-[:FLOWS_TO]->() } as outD
+         
+    RETURN collect({
+        elementId: elementId(n),
+        labels: labels(n),
+        properties: properties(n),
+        inDegree: inD,
+        outDegree: outD
+    }) as nodes, relList as rels
     """
     
     with driver.session() as session:
@@ -35,15 +48,8 @@ def get_lineage(dataset_id: str) -> Dict[str, List[Dict[str, Any]]]:
         
         # Safe default if query returns nothing
         if not record:
-            # If no paths found, at least return the node itself if it exists
-            # (Separate check to avoid complexity, or just return empty)
-            # Let's try to fetch just the single node if paths are empty
-            with driver.session() as session2:
-                 single_res = session2.run("MATCH (t:Table {mongo_id: $id}) RETURN t", id=dataset_id).single()
-                 if single_res:
-                     record = {"nodes": [single_res["t"]], "rels": []}
-                 else:
-                     return {"nodes": [], "edges": []}
+            # Fallback checks (omitted for brevity, main query handles isolated nodes)
+             return {"nodes": [], "edges": []}
 
         # Check for None (Neo4j driver might return None for empty collections in some versions)
         neo4j_nodes = record.get("nodes") or []
@@ -52,26 +58,28 @@ def get_lineage(dataset_id: str) -> Dict[str, List[Dict[str, Any]]]:
         nodes = []
         edges = []
         
-        for node in neo4j_nodes:
-            # Extract basic props
-            props = dict(node)
-            # Safe ID access
-            str_id = node.element_id if hasattr(node, "element_id") else str(node.id) 
-            
-            # Determine type/label
-            labels = list(node.labels)
+        for node_data in neo4j_nodes:
+            # node_data is a Dict due to Map Projection in Cypher
+            props = node_data["properties"]
+            str_id = node_data["elementId"]
+            labels = node_data["labels"]
             node_type = labels[0] if labels else "Table"
+            
+            in_degree = node_data["inDegree"]
+            out_degree = node_data["outDegree"]
             
             react_node = {
                 "id": str_id, 
-                "type": "custom", # or 'default' if no custom node
+                "type": "custom", 
                 "data": { 
                     "label": props.get("name", "Unnamed"),
                     "type": node_type,
                     "mongoId": props.get("mongo_id"),
+                    "inDegree": in_degree,
+                    "outDegree": out_degree,
                     **props
                 },
-                "position": {"x": 0, "y": 0} # Layout happens in frontend
+                "position": {"x": 0, "y": 0} 
             }
             nodes.append(react_node)
             
