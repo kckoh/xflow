@@ -2,37 +2,31 @@ from typing import List, Optional, Dict, Any
 from pydantic import BaseModel, Field
 from datetime import datetime
 
-class CatalogItem(BaseModel):
+class ColumnItem(BaseModel):
     """
-    Summary of a dataset for the list view (Catalog Page).
+    Detailed schema information for a column.
     """
-    id: str = Field(..., alias="_id")
-    name: str # Table name
-    type: str # e.g. 'Table', 'Topic'
-    platform: Optional[str] = None # e.g. 'MySQL', 'Kafka'
-    owner: str # Display name of the owner
-    updated_at: Optional[datetime] = None
-    created_at: Optional[datetime] = None
-    tags: List[str] = []
+    name: str 
+    type: str # e.g. INT, STRING
     description: Optional[str] = None
+    is_partition: bool = False
     
     class Config:
         populate_by_name = True
 
-class ColumnItem(BaseModel):
+class CatalogItem(BaseModel):
     """
-    Detailed schema information for a column.
-    Sources from MongoDB 'columns' collection.
+    Summary of a dataset for the list view (Catalog Page).
     """
-    name: str = Field(..., alias="column_name")
-    type: str = Field(..., alias="data_type")
-    description: Optional[str] = None
-    is_pii: bool = False
+    id: str = Field(...)
+    name: str # Table name
+    urn: str
+    platform: str = "hive"
+    layer: Optional[str] = None # Derived from properties.layer
+    owner: Optional[str] = "Unknown"
     tags: List[str] = []
-    
-    # Optional stats or extended metadata
-    nullable: Optional[bool] = None
-    is_primary_key: Optional[bool] = None
+    description: Optional[str] = None
+    properties: Dict[str, Any] = {}
     
     class Config:
         populate_by_name = True
@@ -40,11 +34,20 @@ class ColumnItem(BaseModel):
 class DatasetDetail(CatalogItem):
     """
     Full details of a dataset, including schema.
-    Combines 'tables' and 'columns' collections from MongoDB.
     """
-    columns: List[ColumnItem] = []
+    schema_: List[ColumnItem] = Field(default=[]) 
     
-    # Additional metadata fields that might be in the detail view
-    row_count: Optional[int] = None
-    size_bytes: Optional[int] = None
-    documentation_url: Optional[List[str]] = None
+    # We can alias 'columns' to 'schema' if we want frontend to see 'columns'
+    # For now, let's expose 'schema' as 'schema' in JSON or 'columns'
+    columns: List[ColumnItem] = Field(default=[]) 
+
+    class Config:
+        populate_by_name = True
+
+class DatasetUpdate(BaseModel):
+    """
+    Editable detailed metadata.
+    """
+    description: Optional[str] = None
+    owner: Optional[str] = None
+    tags: Optional[List[str]] = None
