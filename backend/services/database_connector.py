@@ -13,6 +13,16 @@ class DatabaseConnector:
         self.user = user
         self.password = password
 
+    def _get_postgres_connection(self):
+        """Get PostgreSQL connection"""
+        return psycopg2.connect(
+            host=self.host,
+            port=self.port,
+            database=self.database,
+            user=self.user,
+            password=self.password
+        )
+
     def get_tables(self) -> List[str]:
         """Get list of tables from the database"""
         if self.db_type in ["postgres", "postgresql"]:
@@ -33,13 +43,7 @@ class DatabaseConnector:
 
     def _get_postgres_tables(self) -> List[str]:
         try:
-            conn = psycopg2.connect(
-                host=self.host,
-                port=self.port,
-                database=self.database,
-                user=self.user,
-                password=self.password
-            )
+            conn = self._get_postgres_connection()
             cursor = conn.cursor()
             
             # Get all tables from public schema
@@ -59,32 +63,27 @@ class DatabaseConnector:
         except Exception as e:
             raise Exception(f"Failed to connect to PostgreSQL: {str(e)}")
 
-    def _get_postgres_schema(self, table_name: str) -> List[Dict[str, str]]:
+    def _get_postgres_columns(self, table_name: str) -> List[Dict[str, Any]]:
+        """Get columns for a PostgreSQL table"""
         try:
-            conn = psycopg2.connect(
-                host=self.host,
-                port=self.port,
-                database=self.database,
-                user=self.user,
-                password=self.password
-            )
+            conn = self._get_postgres_connection()
             cursor = conn.cursor()
             
-            # Get columns for the specific table
-            # Handle potential schema prefix (e.g., 'public.users')
-            if '.' in table_name:
-                schema, table = table_name.split('.', 1)
-            else:
-                schema, table = 'public', table_name
-
             cursor.execute("""
-                SELECT column_name, data_type
+                SELECT column_name, data_type, is_nullable
                 FROM information_schema.columns
-                WHERE table_name = %s AND table_schema = %s
+                WHERE table_schema = 'public' AND table_name = %s
                 ORDER BY ordinal_position
-            """, (table, schema))
+            """, (table_name,))
             
-            columns = [{"name": row[0], "type": row[1]} for row in cursor.fetchall()]
+            columns = [
+                {
+                    'name': row[0],
+                    'type': row[1],
+                    'nullable': row[2] == 'YES'
+                }
+                for row in cursor.fetchall()
+            ]
             
             cursor.close()
             conn.close()
