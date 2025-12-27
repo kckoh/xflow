@@ -1,7 +1,8 @@
 from typing import List, Dict, Any
+from bson import ObjectId
 import database
 
-def get_lineage(dataset_id: str) -> Dict[str, List[Dict[str, Any]]]:
+async def get_lineage(dataset_id: str) -> Dict[str, List[Dict[str, Any]]]:
     """
     Fetch lineage data from Neo4j for a specific dataset (Table).
     Returns nodes and edges formatted for React Flow.
@@ -97,4 +98,32 @@ def get_lineage(dataset_id: str) -> Dict[str, List[Dict[str, Any]]]:
             }
             edges.append(react_edge)
             
+
+        # --- Enrichment: Fetch Schema from MongoDB ---
+        mongo_ids = [n["data"]["mongoId"] for n in nodes if n["data"].get("mongoId")]
+        
+        if mongo_ids and database.mongodb_client:
+            try:
+                db = database.mongodb_client[database.DATABASE_NAME]
+                
+                # Convert strings to ObjectIds
+                obj_ids = [ObjectId(mid) for mid in mongo_ids if mid and ObjectId.is_valid(mid)]
+                
+                # Fetch only necessary fields
+                cursor = db.datasets.find({"_id": {"$in": obj_ids}}, {"_id": 1, "schema": 1})
+                mongo_docs = await cursor.to_list(length=len(obj_ids))
+                
+                # Create map: str(id) -> schema
+                schema_map = {str(doc["_id"]): doc.get("schema", []) for doc in mongo_docs}
+                
+                # Update nodes
+                for node in nodes:
+                    mid = node["data"].get("mongoId")
+                    if mid in schema_map:
+                        node["data"]["columns"] = [col["name"] for col in schema_map[mid]]
+                        # Also keep raw schema if needed by UI
+                        node["data"]["rawSchema"] = schema_map[mid]
+            except Exception as e:
+                print(f"⚠️ Error enriching lineage with MongoDB data: {e}")
+
         return {"nodes": nodes, "edges": edges}
