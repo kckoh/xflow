@@ -338,6 +338,7 @@ services:
       - DISABLE_EVENTS=1
       - GATEWAY_LISTEN=0.0.0.0:4566
       - LOCALSTACK_AUTH_TOKEN=${LOCALSTACK_AUTH_TOKEN}
+      - RDS_POSTGRES_DOCKER=1
     env_file:
       - .env
     volumes:
