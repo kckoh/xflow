@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { Play, Loader2, CheckCircle, XCircle, Clock } from "lucide-react";
+import { apiAthena } from "../../../services/apiAthena";
 
 export default function QueryEditor({ selectedTable, selectedDatabase }) {
     const [query, setQuery] = useState("");
@@ -20,53 +21,15 @@ export default function QueryEditor({ selectedTable, selectedDatabase }) {
         setQueryStatus("QUEUED");
 
         try {
-            // 1. Execute query
-            const executeResponse = await fetch(
-                `http://localhost:8000/api/athena/query?query=${encodeURIComponent(query)}`,
-                { method: "POST" }
+            // 쿼리 실행 및 결과 대기 (상태 콜백 포함)
+            const resultsData = await apiAthena.executeAndWaitForResults(
+                query,
+                60, // 최대 60초 대기
+                (status) => setQueryStatus(status) // 상태 변경 시 업데이트
             );
 
-            if (!executeResponse.ok) {
-                throw new Error("Failed to execute query");
-            }
-
-            const { query_execution_id } = await executeResponse.json();
-
-            // 2. Poll for query status
-            let status = "QUEUED";
-            while (status === "QUEUED" || status === "RUNNING") {
-                await new Promise((resolve) => setTimeout(resolve, 1000)); // Wait 1 second
-
-                const statusResponse = await fetch(
-                    `http://localhost:8000/api/athena/${query_execution_id}/status`
-                );
-
-                if (!statusResponse.ok) {
-                    throw new Error("Failed to get query status");
-                }
-
-                const statusData = await statusResponse.json();
-                status = statusData.state;
-                setQueryStatus(status);
-
-                if (status === "FAILED" || status === "CANCELLED") {
-                    throw new Error(`Query ${status.toLowerCase()}: ${statusData.state_change_reason}`);
-                }
-            }
-
-            // 3. Get results if succeeded
-            if (status === "SUCCEEDED") {
-                const resultsResponse = await fetch(
-                    `http://localhost:8000/api/athena/${query_execution_id}/results`
-                );
-
-                if (!resultsResponse.ok) {
-                    throw new Error("Failed to get query results");
-                }
-
-                const resultsData = await resultsResponse.json();
-                setResults(resultsData);
-            }
+            setResults(resultsData);
+            setQueryStatus("SUCCEEDED");
         } catch (err) {
             console.error("Query execution error:", err);
             setError(err.message);

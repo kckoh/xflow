@@ -1,5 +1,6 @@
 import { useState, useEffect } from "react";
 import { Database, ChevronRight } from "lucide-react";
+import { apiGlue } from "../../../services/apiGlue";
 
 export default function DatabaseSidebar({ selectedDatabase, onSelectDatabase }) {
     const [databases, setDatabases] = useState([]);
@@ -9,11 +10,7 @@ export default function DatabaseSidebar({ selectedDatabase, onSelectDatabase }) 
     useEffect(() => {
         const fetchDatabases = async () => {
             try {
-                const response = await fetch("http://localhost:8000/api/glue/databases");
-                if (!response.ok) {
-                    throw new Error("Failed to fetch databases");
-                }
-                const data = await response.json();
+                const data = await apiGlue.getDatabases();
                 setDatabases(data.databases);
             } catch (err) {
                 console.error("Error fetching databases:", err);
