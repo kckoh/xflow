@@ -1,4 +1,4 @@
-from fastapi import APIRouter, HTTPException, Query, Body
+from fastapi import APIRouter, HTTPException, Query, Body, status
 from typing import List, Optional
 from bson import ObjectId
 import database
@@ -7,7 +7,7 @@ from services import catalog_service, lineage_service
 
 router = APIRouter()
 
-@router.post("")
+@router.post("", status_code=status.HTTP_201_CREATED)
 async def create_new_dataset(dataset_data: DatasetCreate):
     """
     Register a new dataset in the catalog.
@@ -177,7 +177,7 @@ async def get_dataset_lineage(id: str):
 
 
 
-@router.post("/{id}/lineage")
+@router.post("/{id}/lineage", status_code=status.HTTP_201_CREATED)
 async def create_lineage(id: str, lineage_data: LineageCreate):
     """
     Create a lineage relationship: {id} -> {target_id}
