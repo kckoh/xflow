@@ -30,5 +30,7 @@ provider "aws" {
     sts            = var.localstack_endpoint
     glue           = var.localstack_endpoint
     athena         = var.localstack_endpoint
+    opensearch     = var.localstack_endpoint
+    opensearchserverless = var.localstack_endpoint
   }
 }
