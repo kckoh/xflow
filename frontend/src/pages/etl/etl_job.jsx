@@ -372,8 +372,19 @@ export default function ETLJobPage() {
                 onClose={() => setSelectedNode(null)}
                 onUpdate={(data) => {
                   console.log("Source updated:", data);
-                  // TODO: Update node data
-                  setSelectedNode(null);
+                  // Update node data with schema
+                  setNodes((nds) =>
+                    nds.map((n) =>
+                      n.id === selectedNode.id
+                        ? { ...n, data: { ...n.data, ...data } }
+                        : n
+                    )
+                  );
+                  // Update selectedNode to reflect changes in bottom panel
+                  setSelectedNode((prev) => ({
+                    ...prev,
+                    data: { ...prev.data, ...data }
+                  }));
                 }}
               />
             )}
