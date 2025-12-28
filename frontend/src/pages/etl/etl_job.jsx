@@ -10,10 +10,12 @@ import {
   BackgroundVariant,
 } from "@xyflow/react";
 import "@xyflow/react/dist/style.css";
-import { ArrowLeft, Save, Play, Plus } from "lucide-react";
+import { ArrowLeft, Save, Play, Plus, Columns, Filter, ArrowRightLeft, GitMerge, BarChart3, ArrowUpDown } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import RDBSourcePropertiesPanel from "../../components/etl/RDBSourcePropertiesPanel";
+import TransformPropertiesPanel from "../../components/etl/TransformPropertiesPanel";
 import S3TargetPropertiesPanel from "../../components/etl/S3TargetPropertiesPanel";
+import { applyTransformToSchema } from "../../utils/schemaTransforms";
 
 const initialNodes = [];
 
@@ -36,18 +38,79 @@ export default function ETLJobPage() {
       { id: "mongodb", label: "MongoDB", icon: "🍃" },
     ],
     transform: [
-      { id: "filter", label: "Filter", icon: "🔍" },
-      { id: "map", label: "Map", icon: "🗺️" },
-      { id: "join", label: "Join", icon: "🔗" },
-      { id: "aggregate", label: "Aggregate", icon: "📊" },
-      { id: "sort", label: "Sort", icon: "🔢" },
+      { id: "select-fields", label: "Select Fields", icon: Columns },
+      { id: "filter", label: "Filter", icon: Filter },
+      { id: "map", label: "Map", icon: ArrowRightLeft },
+      { id: "join", label: "Join", icon: GitMerge },
+      { id: "aggregate", label: "Aggregate", icon: BarChart3 },
+      { id: "sort", label: "Sort", icon: ArrowUpDown },
     ],
     target: [{ id: "s3-target", label: "S3", icon: "📦" }],
   };
 
   const onConnect = useCallback(
-    (params) => setEdges((eds) => addEdge(params, eds)),
-    [setEdges],
+    (params) => {
+      setEdges((eds) => addEdge(params, eds));
+
+      // Schema propagation: use functional update to access latest state
+      setNodes((nds) => {
+        const sourceNode = nds.find(n => n.id === params.source);
+        const targetNode = nds.find(n => n.id === params.target);
+
+        if (!sourceNode?.data?.schema) return nds;
+
+        return nds.map((n) =>
+          n.id === params.target
+            ? {
+              ...n,
+              data: {
+                ...n.data,
+                inputSchema: sourceNode.data.schema,
+                // If transform has config, apply it; otherwise use input as output
+                schema: n.data.transformConfig
+                  ? applyTransformToSchema(
+                    sourceNode.data.schema,
+                    n.data.transformType,
+                    n.data.transformConfig
+                  )
+                  : sourceNode.data.schema
+              }
+            }
+            : n
+        );
+      });
+
+      // Update selectedNode to keep panel open (if either source or target is selected)
+      if (selectedNode) {
+        setNodes((nds) => {
+          const sourceNode = nds.find(n => n.id === params.source);
+
+          if (selectedNode.id === params.target && sourceNode?.data?.schema) {
+            // Target node is selected - update its data
+            setSelectedNode((prev) => ({
+              ...prev,
+              data: {
+                ...prev.data,
+                inputSchema: sourceNode.data.schema,
+                schema: prev.data.transformConfig
+                  ? applyTransformToSchema(
+                    sourceNode.data.schema,
+                    prev.data.transformType,
+                    prev.data.transformConfig
+                  )
+                  : sourceNode.data.schema
+              }
+            }));
+          } else if (selectedNode.id === params.source) {
+            // Source node is selected - keep panel open
+            setSelectedNode({ ...sourceNode });
+          }
+
+          return nds; // No changes, just reading state
+        });
+      }
+    },
+    [setNodes, setEdges, selectedNode]
   );
 
   const handleSave = () => {
@@ -70,7 +133,11 @@ export default function ETLJobPage() {
     const newNode = {
       id: `${nodes.length + 1}`,
       type: typeMap[category],
-      data: { label: nodeOption.label },
+      data: {
+        label: nodeOption.label,
+        // Transform 타입 저장 (확장성 고려)
+        transformType: category === "transform" ? nodeOption.id : undefined
+      },
       position: {
         x: Math.random() * 400 + 100,
         y: Math.random() * 400 + 100,
@@ -203,7 +270,11 @@ export default function ETLJobPage() {
                           onClick={() => addNode(activeTab, option)}
                           className="w-full px-4 py-3 text-left hover:bg-gray-100 rounded-md flex items-center gap-3 transition-colors"
                         >
-                          <span className="text-2xl">{option.icon}</span>
+                          {typeof option.icon === 'string' ? (
+                            <span className="text-2xl">{option.icon}</span>
+                          ) : (
+                            <option.icon className="w-5 h-5 text-gray-600" />
+                          )}
                           <span className="text-sm font-medium text-gray-700">
                             {option.label}
                           </span>
@@ -223,6 +294,8 @@ export default function ETLJobPage() {
                 onNodeClick={handleNodeClick}
                 onPaneClick={handlePaneClick}
                 fitView
+                nodesDraggable
+                nodesConnectable
                 className="bg-gray-50 flex-1"
               >
                 <Controls />
@@ -242,8 +315,8 @@ export default function ETLJobPage() {
                 <Background variant={BackgroundVariant.Dots} gap={12} size={1} />
               </ReactFlow>
 
-              {/* Bottom Panel (Output Schema) - Only show for DB Source nodes */}
-              {selectedNode && selectedNode.type === "input" && (
+              {/* Bottom Panel (Output Schema) - Show for Source and Transform nodes */}
+              {selectedNode && (selectedNode.type === "input" || selectedNode.type === "default") && (
                 <div className="h-64 border-t border-gray-200 bg-white flex flex-col transition-all duration-300 ease-in-out">
                   <div className="flex items-center px-4 py-2 border-b border-gray-200 bg-gray-50">
                     <span className="text-sm font-semibold text-gray-700">Output schema</span>
@@ -278,7 +351,9 @@ export default function ETLJobPage() {
                           ) : (
                             <tr>
                               <td colSpan="2" className="px-6 py-8 text-center text-sm text-gray-500 italic">
-                                No schema available. Select a table in the Properties panel to load schema.
+                                {selectedNode.type === "input"
+                                  ? "No schema available. Select a table in the Properties panel to load schema."
+                                  : "No schema available. Configure the transform in the Properties panel."}
                               </td>
                             </tr>
                           )}
@@ -290,7 +365,7 @@ export default function ETLJobPage() {
               )}
             </div>
 
-            {/* Properties Panel */}
+            {/* Properties Panel - Source */}
             {selectedNode && selectedNode.type === "input" && (
               <RDBSourcePropertiesPanel
                 node={selectedNode}
@@ -298,6 +373,30 @@ export default function ETLJobPage() {
                 onUpdate={(data) => {
                   console.log("Source updated:", data);
                   // Update node data with schema
+                  setNodes((nds) =>
+                    nds.map((n) =>
+                      n.id === selectedNode.id
+                        ? { ...n, data: { ...n.data, ...data } }
+                        : n
+                    )
+                  );
+                  // Update selectedNode to reflect changes in bottom panel
+                  setSelectedNode((prev) => ({
+                    ...prev,
+                    data: { ...prev.data, ...data }
+                  }));
+                }}
+              />
+            )}
+
+            {/* Properties Panel - Transform (확장성 고려) */}
+            {selectedNode && selectedNode.type === "default" && selectedNode.data?.transformType && (
+              <TransformPropertiesPanel
+                node={selectedNode}
+                onClose={() => setSelectedNode(null)}
+                onUpdate={(data) => {
+                  console.log("Transform updated:", data);
+                  // Update node data
                   setNodes((nds) =>
                     nds.map((n) =>
                       n.id === selectedNode.id
@@ -336,16 +435,16 @@ export default function ETLJobPage() {
                 }}
               />
             )}
-          </div>
+          </div >
 
           {/* Info Panel */}
-          <div className="bg-white border-t border-gray-200 px-6 py-3 text-sm text-gray-600">
+          < div className="bg-white border-t border-gray-200 px-6 py-3 text-sm text-gray-600" >
             <p>
               <span className="font-medium">Tip:</span> Drag nodes to reposition •
               Connect nodes by dragging from the edge handles • Use scroll to zoom •
               Right-click for more options
             </p>
-          </div>
+          </div >
         </>) : (
         <div className="flex-1 flex items-center justify-center bg-gray-50">
           <div className="text-center">
