@@ -14,6 +14,7 @@ import { ArrowLeft, Save, Play, Plus, Columns, Filter, ArrowRightLeft, GitMerge,
 import { useNavigate } from "react-router-dom";
 import RDBSourcePropertiesPanel from "../../components/etl/RDBSourcePropertiesPanel";
 import TransformPropertiesPanel from "../../components/etl/TransformPropertiesPanel";
+import S3TargetPropertiesPanel from "../../components/etl/S3TargetPropertiesPanel";
 import { applyTransformToSchema } from "../../utils/schemaTransforms";
 
 const initialNodes = [];
@@ -410,16 +411,39 @@ export default function ETLJobPage() {
                 }}
               />
             )}
-          </div>
+
+            {/* S3 Target Properties Panel */}
+            {selectedNode && selectedNode.type === "output" && (
+              <S3TargetPropertiesPanel
+                node={selectedNode}
+                nodes={nodes}
+                onClose={() => setSelectedNode(null)}
+                onUpdate={(data) => {
+                  console.log("S3 Target updated:", data);
+                  setNodes((nds) =>
+                    nds.map((n) =>
+                      n.id === selectedNode.id
+                        ? { ...n, data: { ...n.data, ...data } }
+                        : n
+                    )
+                  );
+                  setSelectedNode((prev) => ({
+                    ...prev,
+                    data: { ...prev.data, ...data }
+                  }));
+                }}
+              />
+            )}
+          </div >
 
           {/* Info Panel */}
-          <div className="bg-white border-t border-gray-200 px-6 py-3 text-sm text-gray-600">
+          < div className="bg-white border-t border-gray-200 px-6 py-3 text-sm text-gray-600" >
             <p>
               <span className="font-medium">Tip:</span> Drag nodes to reposition •
               Connect nodes by dragging from the edge handles • Use scroll to zoom •
               Right-click for more options
             </p>
-          </div>
+          </div >
         </>) : (
         <div className="flex-1 flex items-center justify-center bg-gray-50">
           <div className="text-center">
