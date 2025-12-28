@@ -218,3 +218,6 @@ hive/lib/
 #frontend
 frontend/node_modules/
 .claude/settings.local.json
+
+# Spark JARs (too large for GitHub)
+spark/jars/*.jar

@@ -33,6 +33,31 @@ Access:
 minio/minio123
 - Spark UI: http://localhost:8081
 
+## Spark JAR Dependencies
+
+Spark ETL jobs require the following JAR files. Download them before running Spark jobs:
+
+```bash
+# Create jars directory
+mkdir -p spark/jars
+
+# Download PostgreSQL JDBC driver
+curl -fsSLO --output-dir spark/jars https://jdbc.postgresql.org/download/postgresql-42.7.4.jar
+
+# Download AWS SDK for S3 (LocalStack)
+curl -fsSLO --output-dir spark/jars https://repo1.maven.org/maven2/org/apache/hadoop/hadoop-aws/3.3.4/hadoop-aws-3.3.4.jar
+curl -fsSLO --output-dir spark/jars https://repo1.maven.org/maven2/com/amazonaws/aws-java-sdk-bundle/1.12.262/aws-java-sdk-bundle-1.12.262.jar
+```
+
+### Run Spark ETL Job
+
+```bash
+docker exec spark-master /opt/spark/bin/spark-submit \
+  --master 'local[*]' \
+  --jars /opt/spark/jars/extra/postgresql-42.7.4.jar,/opt/spark/jars/extra/hadoop-aws-3.3.4.jar,/opt/spark/jars/extra/aws-java-sdk-bundle-1.12.262.jar \
+  /opt/spark/jobs/postgres_et.py
+```
+
 
 hive 설정
 
