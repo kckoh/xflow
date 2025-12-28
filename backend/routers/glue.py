@@ -13,7 +13,8 @@ from schemas.glue import (
     PartitionKey,
     TableListItem,
     TableListResponse,
-    TableSchema
+    TableSchema,
+    SyncS3Response
 )
 
 router = APIRouter()
@@ -115,6 +116,90 @@ async def get_table_schema(database_name: str, table_name: str):
             output_format=storage_desc.get("OutputFormat", ""),
             columns=columns,
             partition_keys=partition_keys
+        )
+    except ClientError as e:
+        raise HTTPException(status_code=500, detail=f"Glue API Error: {str(e)}")
+
+
+@router.post("/sync-s3", response_model=SyncS3Response)
+async def sync_s3_data():
+    """
+    S3 데이터 동기화
+    개별 테이블 Glue Crawler를 실행하여 S3의 새로운 데이터를 Glue Catalog에 반영
+    (버킷 루트를 크롤하는 크롤러는 제외하고, 개별 테이블/폴더를 크롤하는 크롤러만 실행)
+    """
+    try:
+        glue = get_aws_client('glue')
+
+        # 모든 크롤러 조회
+        response = glue.list_crawlers()
+        all_crawler_names = response.get('CrawlerNames', [])
+
+        if not all_crawler_names:
+            return SyncS3Response(
+                message="No crawlers found in the system",
+                crawlers_started=[],
+                total_crawlers=0
+            )
+
+        crawlers_started = []
+
+        # 각 크롤러 검사 및 실행
+        for crawler_name in all_crawler_names:
+            try:
+                # 크롤러 정보 조회
+                crawler_info = glue.get_crawler(Name=crawler_name)
+                crawler_state = crawler_info["Crawler"]["State"]
+
+                # S3 타겟 경로 확인
+                s3_targets = crawler_info["Crawler"].get("Targets", {}).get("S3Targets", [])
+
+                if not s3_targets:
+                    continue
+
+                # 개별 테이블 크롤러인지 확인 (버킷 루트가 아닌 경우만)
+                is_table_crawler = False
+                for target in s3_targets:
+                    path = target.get("Path", "").rstrip('/')
+
+                    # S3 경로 파싱: s3://bucket/table/ 형태인지 확인
+                    # 예: s3://xflow-raw-data/products/ → ['s3:', '', 'xflow-raw-data', 'products']
+                    parts = [p for p in path.split('/') if p]
+
+                    # parts 길이가 3 이상이면 개별 테이블 크롤러
+                    # parts 길이가 2면 버킷 루트 크롤러 (s3://bucket/)
+                    if len(parts) >= 3:
+                        is_table_crawler = True
+                        break
+
+                # 버킷 루트 크롤러는 건너뛰기
+                if not is_table_crawler:
+                    continue
+
+                # READY 상태일 때만 시작
+                if crawler_state == "READY":
+                    glue.start_crawler(Name=crawler_name)
+                    crawlers_started.append(crawler_name)
+                elif crawler_state == "RUNNING":
+                    # 이미 실행 중인 경우
+                    crawlers_started.append(f"{crawler_name} (already running)")
+            except ClientError as e:
+                # 크롤러 접근 오류는 무시하고 계속 진행
+                error_code = e.response.get('Error', {}).get('Code', '')
+                if error_code != 'EntityNotFoundException':
+                    print(f"Warning: Error checking crawler {crawler_name}: {str(e)}")
+
+        if not crawlers_started:
+            return SyncS3Response(
+                message="No crawlers were started. All crawlers may be currently running.",
+                crawlers_started=[],
+                total_crawlers=0
+            )
+
+        return SyncS3Response(
+            message=f"Successfully started {len(crawlers_started)} crawler(s). New tables will appear shortly.",
+            crawlers_started=crawlers_started,
+            total_crawlers=len(crawlers_started)
         )
     except ClientError as e:
         raise HTTPException(status_code=500, detail=f"Glue API Error: {str(e)}")
