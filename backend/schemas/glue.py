@@ -61,3 +61,10 @@ class TableSchema(BaseModel):
     output_format: str = Field(default="", description="출력 포맷")
     columns: List[TableColumn] = Field(..., description="컬럼 목록")
     partition_keys: List[PartitionKey] = Field(default_factory=list, description="파티션 키 목록")
+
+
+class SyncS3Response(BaseModel):
+    """S3 동기화 응답"""
+    message: str = Field(..., description="응답 메시지")
+    crawlers_started: List[str] = Field(..., description="시작된 크롤러 목록")
+    total_crawlers: int = Field(..., description="총 크롤러 개수")
