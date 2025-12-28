@@ -11,7 +11,6 @@
   "dependencies": {
     "@tailwindcss/vite": "^4.1.18",
     "@xyflow/react": "^12.10.0",
-    "axios": "^1.13.2",
     "clsx": "^2.1.1",
     "dagre": "^0.8.5",
     "lucide-react": "^0.562.0",

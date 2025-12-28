@@ -1,31 +1,23 @@
-import axios from 'axios';
-
-const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:8000/api';
+const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8000';
 
 export const transformApi = {
-    // Select Fields Transform
-    createSelectFields: async (data) => {
-        try {
-            const response = await axios.post(
-                `${API_URL}/rdb-transform/select-fields/`,
-                data
-            );
-            return response.data;
-        } catch (error) {
-            console.error('Error creating select fields transform:', error);
-            throw error;
-        }
+    // POST /api/rdb-transform/select-fields/
+    async createSelectFields(data) {
+        const response = await fetch(`${API_BASE_URL}/api/rdb-transform/select-fields/`, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+            },
+            body: JSON.stringify(data),
+        });
+        if (!response.ok) throw new Error('Failed to create select fields transform');
+        return response.json();
     },
 
-    getSelectFields: async (id) => {
-        try {
-            const response = await axios.get(
-                `${API_URL}/rdb-transform/select-fields/${id}`
-            );
-            return response.data;
-        } catch (error) {
-            console.error('Error fetching select fields transform:', error);
-            throw error;
-        }
+    // GET /api/rdb-transform/select-fields/{id}
+    async getSelectFields(id) {
+        const response = await fetch(`${API_BASE_URL}/api/rdb-transform/select-fields/${id}`);
+        if (!response.ok) throw new Error('Failed to fetch select fields transform');
+        return response.json();
     },
 };
