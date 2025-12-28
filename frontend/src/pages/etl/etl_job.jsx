@@ -52,15 +52,14 @@ export default function ETLJobPage() {
     (params) => {
       setEdges((eds) => addEdge(params, eds));
 
-      // Schema propagation: copy schema from source to target
-      const sourceNode = nodes.find(n => n.id === params.source);
-      const targetNode = nodes.find(n => n.id === params.target);
+      // Schema propagation: use functional update to access latest state
+      setNodes((nds) => {
+        const sourceNode = nds.find(n => n.id === params.source);
+        const targetNode = nds.find(n => n.id === params.target);
 
-      if (!sourceNode?.data?.schema) return;
+        if (!sourceNode?.data?.schema) return nds;
 
-      // Update target node's inputSchema and schema
-      setNodes((nds) =>
-        nds.map((n) =>
+        return nds.map((n) =>
           n.id === params.target
             ? {
               ...n,
@@ -78,38 +77,40 @@ export default function ETLJobPage() {
               }
             }
             : n
-        )
-      );
+        );
+      });
 
       // Update selectedNode to keep panel open (if either source or target is selected)
       if (selectedNode) {
-        if (selectedNode.id === params.target) {
-          // Target node is selected - update its data
-          setSelectedNode((prev) => ({
-            ...prev,
-            data: {
-              ...prev.data,
-              inputSchema: sourceNode.data.schema,
-              schema: prev.data.transformConfig
-                ? applyTransformToSchema(
-                  sourceNode.data.schema,
-                  prev.data.transformType,
-                  prev.data.transformConfig
-                )
-                : sourceNode.data.schema
-            }
-          }));
-        } else if (selectedNode.id === params.source) {
-          // Source node is selected - force re-render to keep panel open
-          // Find updated source node from nodes array
-          const updatedSourceNode = nodes.find(n => n.id === params.source);
-          if (updatedSourceNode) {
-            setSelectedNode({ ...updatedSourceNode });
+        setNodes((nds) => {
+          const sourceNode = nds.find(n => n.id === params.source);
+
+          if (selectedNode.id === params.target && sourceNode?.data?.schema) {
+            // Target node is selected - update its data
+            setSelectedNode((prev) => ({
+              ...prev,
+              data: {
+                ...prev.data,
+                inputSchema: sourceNode.data.schema,
+                schema: prev.data.transformConfig
+                  ? applyTransformToSchema(
+                    sourceNode.data.schema,
+                    prev.data.transformType,
+                    prev.data.transformConfig
+                  )
+                  : sourceNode.data.schema
+              }
+            }));
+          } else if (selectedNode.id === params.source) {
+            // Source node is selected - keep panel open
+            setSelectedNode({ ...sourceNode });
           }
-        }
+
+          return nds; // No changes, just reading state
+        });
       }
     },
-    [nodes, setNodes, setEdges, selectedNode]
+    [setNodes, setEdges, selectedNode]
   );
 
   const handleSave = () => {
