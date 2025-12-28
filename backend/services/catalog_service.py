@@ -1,16 +1,22 @@
 from typing import Dict, Any, Optional
 from bson import ObjectId
 from fastapi import HTTPException
-from datetime import datetime #이건 고민좀
+from datetime import datetime 
 import database
 from schemas.catalog import DatasetUpdate, DatasetCreate
+
+
+# Common DB Client
+db = database.mongodb_client[database.DATABASE_NAME]
+
+
 
 async def update_dataset_metadata(id: str, update_data: DatasetUpdate) -> Dict[str, Any]:
     """
     Update dataset metadata in both MongoDB and Neo4j (Dual-Write).
     Implements rollback for MongoDB if Neo4j update fails.
     """
-    db = database.mongodb_client[database.DATABASE_NAME]
+
     
     try:
         obj_id = ObjectId(id)
@@ -165,7 +171,7 @@ async def add_lineage(source_id: str, target_id: str, relationship_type: str = "
             # Only copy the CONNECTED column, not all columns
             # ---------------------------------------------------------
             try:
-                db = database.mongodb_client[database.DATABASE_NAME]
+
                 s_obj_id = ObjectId(source_id)
                 t_obj_id = ObjectId(target_id)
 
@@ -301,7 +307,7 @@ async def create_dataset(create_data: DatasetCreate) -> Dict[str, Any]:
     """
     Create a new dataset in MongoDB and Neo4j.
     """
-    db = database.mongodb_client[database.DATABASE_NAME]
+
     
     # Check if name exists (simple unique check)
     existing = await db.datasets.find_one({"name": create_data.name})
@@ -396,7 +402,7 @@ async def delete_dataset(id: str) -> Dict[str, Any]:
     """
     Delete a dataset from MongoDB and Neo4j.
     """
-    db = database.mongodb_client[database.DATABASE_NAME]
+
     try:
         obj_id = ObjectId(id)
     except:
