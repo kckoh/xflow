@@ -10,7 +10,7 @@ import {
   BackgroundVariant,
 } from "@xyflow/react";
 import "@xyflow/react/dist/style.css";
-import { ArrowLeft, Save, Play, Plus } from "lucide-react";
+import { ArrowLeft, Save, Play, Plus, Columns, Filter, ArrowRightLeft, GitMerge, BarChart3, ArrowUpDown } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import RDBSourcePropertiesPanel from "../../components/etl/RDBSourcePropertiesPanel";
 import TransformPropertiesPanel from "../../components/etl/TransformPropertiesPanel";
@@ -36,12 +36,12 @@ export default function ETLJobPage() {
       { id: "mongodb", label: "MongoDB", icon: "🍃" },
     ],
     transform: [
-      { id: "select-fields", label: "Select Fields", icon: "✅" },
-      { id: "filter", label: "Filter", icon: "🔍" },
-      { id: "map", label: "Map", icon: "🗺️" },
-      { id: "join", label: "Join", icon: "🔗" },
-      { id: "aggregate", label: "Aggregate", icon: "📊" },
-      { id: "sort", label: "Sort", icon: "🔢" },
+      { id: "select-fields", label: "Select Fields", icon: Columns },
+      { id: "filter", label: "Filter", icon: Filter },
+      { id: "map", label: "Map", icon: ArrowRightLeft },
+      { id: "join", label: "Join", icon: GitMerge },
+      { id: "aggregate", label: "Aggregate", icon: BarChart3 },
+      { id: "sort", label: "Sort", icon: ArrowUpDown },
     ],
     target: [{ id: "s3-target", label: "S3", icon: "📦" }],
   };
@@ -225,7 +225,11 @@ export default function ETLJobPage() {
                           onClick={() => addNode(activeTab, option)}
                           className="w-full px-4 py-3 text-left hover:bg-gray-100 rounded-md flex items-center gap-3 transition-colors"
                         >
-                          <span className="text-2xl">{option.icon}</span>
+                          {typeof option.icon === 'string' ? (
+                            <span className="text-2xl">{option.icon}</span>
+                          ) : (
+                            <option.icon className="w-5 h-5 text-gray-600" />
+                          )}
                           <span className="text-sm font-medium text-gray-700">
                             {option.label}
                           </span>
