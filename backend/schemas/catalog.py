@@ -54,3 +54,9 @@ class DatasetCreate(BaseModel):
     tags: List[str] = []
     schema: Optional[List[ColumnItem]] = Field(default=[]) 
     # No s3_path mandatory
+
+class LineageCreate(BaseModel):
+    target_id: str
+    type: str = "DOWNSTREAM"
+    source_col: Optional[str] = None
+    target_col: Optional[str] = None

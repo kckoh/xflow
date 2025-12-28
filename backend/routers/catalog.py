@@ -2,7 +2,7 @@ from fastapi import APIRouter, HTTPException, Query, Body
 from typing import List, Optional
 from bson import ObjectId
 import database
-from schemas.catalog import CatalogItem, DatasetDetail, DatasetUpdate, DatasetCreate
+from schemas.catalog import CatalogItem, DatasetDetail, DatasetUpdate, DatasetCreate, LineageCreate
 
 router = APIRouter()
 
@@ -173,15 +173,8 @@ async def get_dataset_lineage(id: str):
     return result
 
 
-# Request Schema for Lineage
-# Note: Ideally this moves to schemas/catalog.py, but defined here for colocation during dev
-from pydantic import BaseModel
 
-class LineageCreate(BaseModel):
-    target_id: str
-    type: str = "DOWNSTREAM"
-    source_col: Optional[str] = None
-    target_col: Optional[str] = None
+
 
 @router.post("/{id}/lineage")
 async def create_lineage(id: str, lineage_data: LineageCreate):
