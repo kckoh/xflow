@@ -1,6 +1,8 @@
 from datetime import datetime
-from airflow import DAG
+
 from airflow.operators.bash import BashOperator
+
+from airflow import DAG
 
 with DAG(
     dag_id="spark_test_dag",
@@ -14,6 +16,7 @@ with DAG(
             docker exec spark-master /opt/spark/bin/spark-submit \
                 --master spark://spark-master:7077 \
                 --name airflow-spark-test \
-                /opt/spark/jobs/test_spark.py
+                --jars /opt/spark/jars/extra/postgresql-42.7.4.jar,/opt/spark/jars/extra/hadoop-aws-3.3.4.jar,/opt/spark/jars/extra/aws-java-sdk-bundle-1.12.262.jar \
+                /opt/spark/jobs/postgres_etl.py
         """,
     )
