@@ -27,6 +27,15 @@ export default function RDBSourcePropertiesPanel({ node, onClose, onUpdate }) {
             setIsSourcesLoading(true);
             const data = await rdbSourceApi.fetchSources();
             setSources(data);
+
+            // Restore previous selection from node data
+            if (node?.data?.sourceId) {
+                const prevSource = data.find(s => s.id === node.data.sourceId);
+                if (prevSource) {
+                    setSelectedSource(prevSource);
+                    setSelectedTable(node.data.tableName || '');
+                }
+            }
         } catch (err) {
             console.error('Failed to load sources:', err);
         } finally {
@@ -128,6 +137,13 @@ export default function RDBSourcePropertiesPanel({ node, onClose, onUpdate }) {
                                 setSelectedSource(source);
                                 setSelectedTable('');
                                 setTables([]); // 커넥션 변경 시 테이블 목록 초기화
+                                // Auto-save connection selection (including clearing)
+                                onUpdate({
+                                    sourceId: source?.id || null,
+                                    sourceName: source?.name || null,
+                                    tableName: '',
+                                    schema: []
+                                });
                             }}
                             disabled={isSourcesLoading}
                         >
@@ -198,7 +214,19 @@ export default function RDBSourcePropertiesPanel({ node, onClose, onUpdate }) {
                         <div className="relative">
                             <select
                                 value={selectedTable}
-                                onChange={(e) => setSelectedTable(e.target.value)}
+                                onChange={(e) => {
+                                    const table = e.target.value;
+                                    setSelectedTable(table);
+                                    // Auto-save table selection
+                                    if (selectedSource && table) {
+                                        onUpdate({
+                                            sourceId: selectedSource.id,
+                                            sourceName: selectedSource.name,
+                                            tableName: table,
+                                            schema: node?.data?.schema || []
+                                        });
+                                    }
+                                }}
                                 className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-blue-500 focus:border-blue-500 bg-white"
                                 disabled={loading}
                             >
