@@ -13,6 +13,7 @@ import "@xyflow/react/dist/style.css";
 import { ArrowLeft, Save, Play, Plus } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import RDBSourcePropertiesPanel from "../../components/etl/RDBSourcePropertiesPanel";
+import S3TargetPropertiesPanel from "../../components/etl/S3TargetPropertiesPanel";
 
 const initialNodes = [];
 
@@ -305,6 +306,29 @@ export default function ETLJobPage() {
                     )
                   );
                   // Update selectedNode to reflect changes in bottom panel
+                  setSelectedNode((prev) => ({
+                    ...prev,
+                    data: { ...prev.data, ...data }
+                  }));
+                }}
+              />
+            )}
+
+            {/* S3 Target Properties Panel */}
+            {selectedNode && selectedNode.type === "output" && (
+              <S3TargetPropertiesPanel
+                node={selectedNode}
+                nodes={nodes}
+                onClose={() => setSelectedNode(null)}
+                onUpdate={(data) => {
+                  console.log("S3 Target updated:", data);
+                  setNodes((nds) =>
+                    nds.map((n) =>
+                      n.id === selectedNode.id
+                        ? { ...n, data: { ...n.data, ...data } }
+                        : n
+                    )
+                  );
                   setSelectedNode((prev) => ({
                     ...prev,
                     data: { ...prev.data, ...data }
