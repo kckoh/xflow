@@ -3,6 +3,7 @@ from typing import List, Optional
 from bson import ObjectId
 import database
 from schemas.catalog import CatalogItem, DatasetDetail, DatasetUpdate, DatasetCreate, LineageCreate
+from services import catalog_service, lineage_service
 
 router = APIRouter()
 
@@ -11,7 +12,7 @@ async def create_new_dataset(dataset_data: DatasetCreate):
     """
     Register a new dataset in the catalog.
     """
-    from services import catalog_service
+
     return await catalog_service.create_dataset(dataset_data)
 
 
@@ -138,7 +139,7 @@ async def update_dataset(id: str, update_data: DatasetUpdate):
     Update business metadata (Description, Owner, Tags).
     Uses catalog_service for Dual-Write (MongoDB + Neo4j) and rollback.
     """
-    from services import catalog_service
+
     
     # Delegate to service
     doc = await catalog_service.update_dataset_metadata(id, update_data)
@@ -150,7 +151,7 @@ async def delete_dataset(id: str):
     """
     Delete a dataset and its lineage.
     """
-    from services import catalog_service
+
     return await catalog_service.delete_dataset(id)
 
 
@@ -159,7 +160,7 @@ async def get_dataset_lineage(id: str):
     """
     Fetch lineage graph for a dataset.
     """
-    from services import lineage_service
+
     
     # Verify ID format
     try:
@@ -181,7 +182,7 @@ async def create_lineage(id: str, lineage_data: LineageCreate):
     """
     Create a lineage relationship: {id} -> {target_id}
     """
-    from services import catalog_service
+
     return await catalog_service.add_lineage(
         id, 
         lineage_data.target_id, 
@@ -203,7 +204,7 @@ async def delete_lineage(
     - For table-level: DELETE /catalog/{id}/lineage/{target_id}
     - For column-level: DELETE /catalog/{id}/lineage/{target_id}?source_col=col1&target_col=col2
     """
-    from services import catalog_service
+
     result = await catalog_service.remove_lineage(id, target_id, source_col, target_col)
     return result
 
