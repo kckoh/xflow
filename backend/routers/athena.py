@@ -26,7 +26,7 @@ async def execute_query(request: QueryRequest):
 
         response = athena.start_query_execution(
             QueryString=request.query,
-            WorkGroup='xflow-workgroup',
+            WorkGroup='primary',
             QueryExecutionContext={'Database': 'xflow_db'},
             ResultConfiguration={'OutputLocation': 's3://xflow-athena-results/'}
         )
