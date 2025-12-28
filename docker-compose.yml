@@ -1,5 +1,7 @@
 x-airflow-common: &airflow-common
-  image: apache/airflow:2.8.1
+  build:
+    context: ./airflow
+    dockerfile: Dockerfile
   environment: &airflow-common-env
     AIRFLOW__CORE__EXECUTOR: LocalExecutor
     AIRFLOW__DATABASE__SQL_ALCHEMY_CONN: postgresql+psycopg2://postgres:postgres@postgres:5432/airflow
@@ -7,10 +9,12 @@ x-airflow-common: &airflow-common
     AIRFLOW__CORE__DAGS_ARE_PAUSED_AT_CREATION: "true"
     AIRFLOW__CORE__LOAD_EXAMPLES: "false"
     AIRFLOW__WEBSERVER__EXPOSE_CONFIG: "true"
+    AIRFLOW__API__AUTH_BACKENDS: "airflow.api.auth.backend.basic_auth,airflow.api.auth.backend.session"
   volumes:
     - ./airflow/dags:/opt/airflow/dags
     - ./airflow/logs:/opt/airflow/logs
     - ./airflow/plugins:/opt/airflow/plugins
+    - /var/run/docker.sock:/var/run/docker.sock
   depends_on:
     - postgres
 
@@ -168,11 +172,12 @@ services:
 
   # ============ Spark ============
   spark-master:
-    image: apache/spark:3.5.0
+    image: apache/spark:3.5.7-python3
     container_name: spark-master
     restart: unless-stopped
     environment:
       SPARK_MASTER_HOST: spark-master
+      SPARK_NO_DAEMONIZE: "true"
       AWS_ACCESS_KEY_ID: minio
       AWS_SECRET_ACCESS_KEY: minio123
     command: /opt/spark/bin/spark-class org.apache.spark.deploy.master.Master
@@ -181,15 +186,17 @@ services:
       - "8081:8080"
     volumes:
       - ./spark/jars:/opt/spark/jars/extra
+      - ./spark/jobs:/opt/spark/jobs
 
   spark-worker:
-    image: apache/spark:3.5.0
+    image: apache/spark:3.5.7-python3
     container_name: spark-worker
     restart: unless-stopped
     environment:
       SPARK_MASTER: spark://spark-master:7077
       SPARK_WORKER_CORES: 2
       SPARK_WORKER_MEMORY: 2g
+      SPARK_NO_DAEMONIZE: "true"
       AWS_ACCESS_KEY_ID: minio
       AWS_SECRET_ACCESS_KEY: minio123
     command: /opt/spark/bin/spark-class org.apache.spark.deploy.worker.Worker spark://spark-master:7077
@@ -197,6 +204,7 @@ services:
       - spark-master
     volumes:
       - ./spark/jars:/opt/spark/jars/extra
+      - ./spark/jobs:/opt/spark/jobs
 
   # ============ Kafka + Debezium (CDC) ============
   zookeeper:
