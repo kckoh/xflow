@@ -14,6 +14,7 @@ import { ArrowLeft, Save, Play, Plus, Columns, Filter, ArrowRightLeft, GitMerge,
 import { useNavigate } from "react-router-dom";
 import RDBSourcePropertiesPanel from "../../components/etl/RDBSourcePropertiesPanel";
 import TransformPropertiesPanel from "../../components/etl/TransformPropertiesPanel";
+import { applyTransformToSchema } from "../../utils/schemaTransforms";
 
 const initialNodes = [];
 
@@ -50,22 +51,64 @@ export default function ETLJobPage() {
     (params) => {
       setEdges((eds) => addEdge(params, eds));
 
-      // Source → Transform 연결 시 schema 자동 복사
+      // Schema propagation: copy schema from source to target
       const sourceNode = nodes.find(n => n.id === params.source);
       const targetNode = nodes.find(n => n.id === params.target);
 
-      // Source 노드의 schema를 Transform 노드로 복사
-      if (sourceNode?.data?.schema && targetNode?.type === "default") {
-        setNodes((nds) =>
-          nds.map((n) =>
-            n.id === params.target
-              ? { ...n, data: { ...n.data, schema: sourceNode.data.schema } }
-              : n
-          )
-        );
+      if (!sourceNode?.data?.schema) return;
+
+      // Update target node's inputSchema and schema
+      setNodes((nds) =>
+        nds.map((n) =>
+          n.id === params.target
+            ? {
+              ...n,
+              data: {
+                ...n.data,
+                inputSchema: sourceNode.data.schema,
+                // If transform has config, apply it; otherwise use input as output
+                schema: n.data.transformConfig
+                  ? applyTransformToSchema(
+                    sourceNode.data.schema,
+                    n.data.transformType,
+                    n.data.transformConfig
+                  )
+                  : sourceNode.data.schema
+              }
+            }
+            : n
+        )
+      );
+
+      // Update selectedNode to keep panel open (if either source or target is selected)
+      if (selectedNode) {
+        if (selectedNode.id === params.target) {
+          // Target node is selected - update its data
+          setSelectedNode((prev) => ({
+            ...prev,
+            data: {
+              ...prev.data,
+              inputSchema: sourceNode.data.schema,
+              schema: prev.data.transformConfig
+                ? applyTransformToSchema(
+                  sourceNode.data.schema,
+                  prev.data.transformType,
+                  prev.data.transformConfig
+                )
+                : sourceNode.data.schema
+            }
+          }));
+        } else if (selectedNode.id === params.source) {
+          // Source node is selected - force re-render to keep panel open
+          // Find updated source node from nodes array
+          const updatedSourceNode = nodes.find(n => n.id === params.source);
+          if (updatedSourceNode) {
+            setSelectedNode({ ...updatedSourceNode });
+          }
+        }
       }
     },
-    [setEdges, nodes, setNodes]
+    [nodes, setNodes, setEdges, selectedNode]
   );
 
   const handleSave = () => {
@@ -249,6 +292,8 @@ export default function ETLJobPage() {
                 onNodeClick={handleNodeClick}
                 onPaneClick={handlePaneClick}
                 fitView
+                nodesDraggable
+                nodesConnectable
                 className="bg-gray-50 flex-1"
               >
                 <Controls />

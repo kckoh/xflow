@@ -1,5 +1,4 @@
 import { useState, useEffect } from 'react';
-import { transformApi } from '../../services/rdbTransformApi';
 
 export default function SelectFieldsConfig({ node, transformName, onUpdate, onClose }) {
     const [availableColumns, setAvailableColumns] = useState([]);
@@ -7,13 +6,13 @@ export default function SelectFieldsConfig({ node, transformName, onUpdate, onCl
     const [loading, setLoading] = useState(false);
 
     useEffect(() => {
-        // 노드의 schema(Source에서 복사된 컬럼 목록) 로드
-        if (node?.data?.schema) {
-            setAvailableColumns(node.data.schema.map(col => col.key));
+        // Load columns from inputSchema (propagated from previous node)
+        if (node?.data?.inputSchema) {
+            setAvailableColumns(node.data.inputSchema.map(col => col.key));
 
-            // 기존에 저장된 선택 컬럼이 있으면 복원
-            if (node.data.selectedColumns) {
-                setSelectedColumns(node.data.selectedColumns);
+            // Restore previously selected columns from transformConfig
+            if (node.data.transformConfig?.selectedColumns) {
+                setSelectedColumns(node.data.transformConfig.selectedColumns);
             }
         }
     }, [node]);
@@ -37,28 +36,19 @@ export default function SelectFieldsConfig({ node, transformName, onUpdate, onCl
     const handleSave = async () => {
         setLoading(true);
         try {
-            // API 호출: Transform 저장
-            const result = await transformApi.createSelectFields({
-                name: transformName,
-                selected_columns: selectedColumns
-            });
-
-            console.log('Transform saved:', result);
-
-            // Output schema 생성 (선택된 컬럼만)
-            const outputSchema = node.data.schema.filter(col =>
+            // Generate output schema (selected columns only)
+            const outputSchema = node.data.inputSchema.filter(col =>
                 selectedColumns.includes(col.key)
             );
 
-            // 노드 데이터 업데이트
+            // Update node data
             onUpdate({
-                transformId: result.id,
-                transformName: result.name,
-                selectedColumns: result.selected_columns,
-                schema: outputSchema, // Output Schema에 필터링된 컬럼만 표시
+                transformConfig: {
+                    selectedColumns: selectedColumns
+                },
+                schema: outputSchema,  // Output schema
             });
 
-            onClose();
         } catch (err) {
             console.error('Failed to save transform:', err);
             alert('Failed to save transform. Please try again.');
