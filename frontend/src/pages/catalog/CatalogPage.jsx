@@ -8,10 +8,12 @@ import {
     ChevronRight,
     Table as TableIcon,
     ChevronDown,
-    ListFilter
+    ListFilter,
+    Plus,
+    Trash2
 } from "lucide-react";
-// ... imports ...
 import DatasetDrawer from "../../features/dataset/components/DatasetDrawer";
+import DatasetCreateModal from "../../features/dataset/components/DatasetCreateModal";
 
 export default function CatalogPage() {
     const navigate = useNavigate();
@@ -20,29 +22,53 @@ export default function CatalogPage() {
     const [allTables, setAllTables] = useState([]);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState(null);
+    const [showCreateModal, setShowCreateModal] = useState(false);
 
     // TODO: Recently Used Tables 임의로 구현
     const recentTables = allTables.slice(0, 4);
 
-    useEffect(() => {
-        const fetchCatalog = async () => {
-            try {
-                // Fetch catalog data from the API
-                const response = await fetch("http://localhost:8000/api/catalog");
-                if (!response.ok) {
-                    throw new Error("Failed to fetch catalog data");
-                }
-                const data = await response.json();
-                setAllTables(data);
-            } catch (err) {
-                console.error("Error fetching catalog:", err);
-                setError(err.message);
-            } finally {
-                setLoading(false);
+    const fetchCatalog = async () => {
+        setLoading(true);
+        try {
+            // Fetch catalog data from the API
+            const response = await fetch("http://localhost:8000/api/catalog");
+            if (!response.ok) {
+                throw new Error("Failed to fetch catalog data");
             }
-        };
+            const data = await response.json();
+            setAllTables(data);
+        } catch (err) {
+            console.error("Error fetching catalog:", err);
+            setError(err.message);
+        } finally {
+            setLoading(false);
+        }
+    };
+
+    useEffect(() => {
         fetchCatalog();
     }, []);
+
+    const handleDelete = async (e, id) => {
+        e.stopPropagation(); // Prevent row click navigation
+
+        if (!confirm("Are you sure you want to delete this dataset?")) return;
+
+        try {
+            const response = await fetch(`http://localhost:8000/api/catalog/${id}`, {
+                method: 'DELETE'
+            });
+
+            if (response.ok) {
+                fetchCatalog(); // Refresh list
+            } else {
+                alert("Failed to delete dataset");
+            }
+        } catch (err) {
+            console.error("Error deleting dataset:", err);
+            alert("Error deleting dataset");
+        }
+    };
 
     const filteredTables = allTables.filter((table) =>
         table.name.toLowerCase().includes(searchTerm.toLowerCase())
@@ -51,10 +77,27 @@ export default function CatalogPage() {
     return (
         <div className="space-y-8 relative">
             {/* Header */}
-            <div>
-                <h1 className="text-2xl font-bold text-gray-900">Data Catalog</h1>
-                <p className="text-gray-500 mt-1">Discover, manage, and govern your data assets.</p>
+            <div className="flex justify-between items-start">
+                <div>
+                    <h1 className="text-2xl font-bold text-gray-900">Data Catalog</h1>
+                    <p className="text-gray-500 mt-1">Discover, manage, and govern your data assets.</p>
+                </div>
+                <button
+                    onClick={() => setShowCreateModal(true)}
+                    className="flex items-center gap-2 bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg font-medium shadow-sm transition-colors"
+                >
+                    <Plus size={18} />
+                    Create Dataset
+                </button>
             </div>
+
+            {showCreateModal && (
+                <DatasetCreateModal
+                    isOpen={showCreateModal}
+                    onClose={() => setShowCreateModal(false)}
+                    onCreated={fetchCatalog}
+                />
+            )}
 
             {/*Recently Used Tables*/}
             <section>
@@ -74,7 +117,7 @@ export default function CatalogPage() {
                                     <div className="bg-blue-50 p-2 rounded-lg group-hover:bg-blue-100 transition">
                                         <TableIcon className="w-5 h-5 text-blue-600" />
                                     </div>
-                                    <span className="text-xs text-gray-400">{new Date(item.created_at).toLocaleDateString()}</span>
+                                    <span className="text-xs text-gray-400">{new Date(item.created_at || Date.now()).toLocaleDateString()}</span>
                                 </div>
                                 <div className="mt-3">
                                     <h3 className="font-medium text-gray-900 truncate">{item.name}</h3>
@@ -201,7 +244,16 @@ export default function CatalogPage() {
                                         </div>
                                     </td>
                                     <td className="px-6 py-4 text-gray-400 text-right">
-                                        <ChevronRight className="w-5 h-5 inline-block group-hover:text-blue-500 transition-transform group-hover:translate-x-1" />
+                                        <div className="flex items-center justify-end gap-3">
+                                            <button
+                                                onClick={(e) => handleDelete(e, table.id)}
+                                                className="p-1 hover:bg-red-50 text-gray-400 hover:text-red-500 rounded-md transition-colors"
+                                                title="Delete Dataset"
+                                            >
+                                                <Trash2 size={16} />
+                                            </button>
+                                            <ChevronRight className="w-5 h-5 inline-block group-hover:text-blue-500 transition-transform group-hover:translate-x-1" />
+                                        </div>
                                     </td>
                                 </tr>
                             ))}
@@ -217,6 +269,7 @@ export default function CatalogPage() {
         </div>
     );
 }
+
 function FilterDropdown({ label }) {
     return (
         <button className="flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium text-gray-600 bg-white border border-gray-200 rounded-lg hover:bg-gray-50 hover:border-gray-300 transition-all whitespace-nowrap">
