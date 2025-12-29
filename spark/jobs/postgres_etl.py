@@ -7,6 +7,10 @@ spark = (
     .config("spark.hadoop.fs.s3a.secret.key", "test")
     .config("spark.hadoop.fs.s3a.path.style.access", "true")
     .config("spark.hadoop.fs.s3a.impl", "org.apache.hadoop.fs.s3a.S3AFileSystem")
+    # Memory optimization for S3 writes
+    .config("spark.hadoop.fs.s3a.fast.upload", "true")
+    .config("spark.hadoop.fs.s3a.fast.upload.buffer", "disk")
+    .config("spark.hadoop.fs.s3a.multipart.size", "5M")
     .getOrCreate()
 )
 
@@ -32,7 +36,7 @@ transformed.show(5)
 
 # Save to S3 as Parquet with Snappy compression
 output_path = "s3a://xflow-processed-data/products"
-transformed.write.mode("overwrite").option("compression", "snappy").parquet(output_path)
+transformed.coalesce(1).write.mode("overwrite").option("compression", "snappy").parquet(output_path)
 
 print(f"\n=== Saved to {output_path} ===")
 spark.stop()

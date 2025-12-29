@@ -14,7 +14,8 @@ with DAG(
         task_id="run_spark_job",
         bash_command="""
             docker exec spark-master /opt/spark/bin/spark-submit \
-                --master spark://spark-master:7077 \
+                --master 'local[*]' \
+                --driver-memory 2g \
                 --name airflow-spark-test \
                 --jars /opt/spark/jars/extra/postgresql-42.7.4.jar,/opt/spark/jars/extra/hadoop-aws-3.3.4.jar,/opt/spark/jars/extra/aws-java-sdk-bundle-1.12.262.jar \
                 /opt/spark/jobs/postgres_etl.py
