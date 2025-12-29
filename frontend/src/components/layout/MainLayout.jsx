@@ -2,7 +2,7 @@ import { useState } from "react";
 import { Sidebar, Topbar } from "./Sidebar";
 import clsx from "clsx";
 
-export default function MainLayout({ children }) {
+export default function MainLayout({ children, fullWidth = false }) {
     const [isCollapsed, setIsCollapsed] = useState(false);
 
     return (
@@ -15,14 +15,17 @@ export default function MainLayout({ children }) {
 
             {/* Main Content Wrapper */}
             <div className={clsx(
-                "flex-1 transition-all duration-300 ease-in-out",
+                "flex-1 transition-all duration-300 ease-in-out flex flex-col",
                 isCollapsed ? "ml-20" : "ml-64"
             )}>
                 {/* Fixed Topbar */}
                 <Topbar isCollapsed={isCollapsed} />
 
                 {/* Scrollable Content Area */}
-                <main className="mt-16 p-8 min-h-[calc(100vh-4rem)]">
+                <main className={clsx(
+                    "mt-16 flex-1",
+                    fullWidth ? "h-[calc(100vh-4rem)] overflow-hidden" : "p-8 min-h-[calc(100vh-4rem)]"
+                )}>
                     {children}
                 </main>
             </div>
