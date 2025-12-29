@@ -250,11 +250,107 @@ def run_glue_crawler(**context):
 
     print(f"✅ Table registered at: {s3_path}")
 
+    # Push to XCom for next task
+    context["ti"].xcom_push(key="glue_table", value={
+        "database": database_name,
+        "table": table_name,
+        "location": s3_path,
+        "columns": columns,
+    })
+
     return {
         "database": database_name,
         "table": table_name,
         "location": s3_path,
     }
+
+
+def save_schema_to_catalog(**context):
+    """Save table schema to MongoDB datasets collection for Data Catalog"""
+    import pymongo
+    from bson import ObjectId
+
+    # Get Glue table info from previous task
+    glue_table = context["ti"].xcom_pull(task_ids="run_glue_crawler", key="glue_table")
+    if not glue_table:
+        print("No Glue table info found, skipping schema save")
+        return
+
+    # Get job config
+    config = json.loads(context["ti"].xcom_pull(task_ids="fetch_job_config"))
+    job_id = context["dag_run"].conf.get("job_id")
+    job_name = config.get("name", "unknown")
+
+    mongo_url = Variable.get(
+        "MONGODB_URL", default_var="mongodb://mongo:mongo@mongodb:27017"
+    )
+    mongo_db = Variable.get("MONGODB_DATABASE", default_var="mydb")
+
+    client = pymongo.MongoClient(mongo_url)
+    db = client[mongo_db]
+
+    # Convert Glue columns to catalog schema format
+    schema_columns = []
+    for col in glue_table.get("columns", []):
+        schema_columns.append({
+            "name": col.get("Name", col.get("name", "unknown")),
+            "type": col.get("Type", col.get("type", "string")),
+            "description": None,
+            "is_partition": False,
+            "tags": []
+        })
+
+    # Build dataset entry for Data Catalog (matches datasets collection schema)
+    table_name = glue_table["table"]
+    dataset_entry = {
+        "name": table_name,
+        "urn": f"urn:li:dataset:(urn:li:dataPlatform:s3,{glue_table['database']}.{table_name},PROD)",
+        "platform": "s3",
+        "description": f"ETL output from job: {job_name}",
+        "owner": "ETL Pipeline",
+        "tags": ["etl-output", "parquet"],
+        "schema": schema_columns,
+        "properties": {
+            "layer": "MART",
+            "location": glue_table["location"],
+            "format": "parquet",
+            "compression": "snappy",
+            "job_id": job_id,
+            "job_name": job_name,
+            "glue_database": glue_table["database"],
+            "glue_table": table_name,
+        },
+        "sources": [s.get("table") for s in config.get("sources", []) if s.get("table")],
+        "created_at": datetime.utcnow(),
+        "updated_at": datetime.utcnow(),
+    }
+
+    # Upsert to datasets collection (used by Data Catalog UI)
+    result = db.datasets.update_one(
+        {"name": table_name},
+        {"$set": dataset_entry},
+        upsert=True
+    )
+
+    if result.upserted_id:
+        print(f"✅ Created dataset in catalog: {table_name}")
+    else:
+        print(f"✅ Updated dataset in catalog: {table_name}")
+
+    # Also update the ETL job with output info
+    db.etl_jobs.update_one(
+        {"_id": ObjectId(job_id)},
+        {"$set": {
+            "output_schema": schema_columns,
+            "output_location": glue_table["location"],
+            "output_table": f"{glue_table['database']}.{table_name}",
+        }}
+    )
+    print(f"✅ Updated ETL job with output schema")
+
+    client.close()
+
+    return dataset_entry
 
 
 def on_success_callback(context):
@@ -300,10 +396,16 @@ with DAG(
         """,
     )
 
-    # Task 3: Run Glue Crawler to register data in Glue Catalog
+    # Task 3: Register table in Glue Catalog
     run_crawler = PythonOperator(
         task_id="run_glue_crawler",
         python_callable=run_glue_crawler,
     )
 
-    fetch_config >> run_spark_etl >> run_crawler
+    # Task 4: Save schema to MongoDB for Data Catalog
+    save_catalog = PythonOperator(
+        task_id="save_schema_to_catalog",
+        python_callable=save_schema_to_catalog,
+    )
+
+    fetch_config >> run_spark_etl >> run_crawler >> save_catalog
