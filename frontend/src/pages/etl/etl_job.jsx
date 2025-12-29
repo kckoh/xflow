@@ -10,7 +10,7 @@ import {
   BackgroundVariant,
 } from "@xyflow/react";
 import "@xyflow/react/dist/style.css";
-import { ArrowLeft, Save, Play, Plus, Columns, Filter, ArrowRightLeft, GitMerge, BarChart3, ArrowUpDown } from "lucide-react";
+import { ArrowLeft, Save, Play, Plus, Columns, Filter, ArrowRightLeft, GitMerge, BarChart3, ArrowUpDown, Combine } from "lucide-react";
 import { useNavigate, useParams } from "react-router-dom";
 import RDBSourcePropertiesPanel from "../../components/etl/RDBSourcePropertiesPanel";
 import TransformPropertiesPanel from "../../components/etl/TransformPropertiesPanel";
@@ -116,12 +116,28 @@ export default function ETLJobPage() {
     transform: [
       { id: "select-fields", label: "Select Fields", icon: Columns },
       { id: "filter", label: "Filter", icon: Filter },
+      { id: "union", label: "Union", icon: Combine },
       { id: "map", label: "Map", icon: ArrowRightLeft },
       { id: "join", label: "Join", icon: GitMerge },
       { id: "aggregate", label: "Aggregate", icon: BarChart3 },
       { id: "sort", label: "Sort", icon: ArrowUpDown },
     ],
     target: [{ id: "s3-target", label: "S3", icon: "📦" }],
+  };
+
+  // Helper function to merge schemas from multiple inputs (for Union)
+  const mergeSchemas = (schemas) => {
+    const columnMap = new Map();
+    schemas.forEach(schema => {
+      if (schema) {
+        schema.forEach(col => {
+          if (!columnMap.has(col.key)) {
+            columnMap.set(col.key, col.type);
+          }
+        });
+      }
+    });
+    return Array.from(columnMap.entries()).map(([key, type]) => ({ key, type }));
   };
 
   const onConnect = useCallback(
@@ -135,6 +151,33 @@ export default function ETLJobPage() {
 
         if (!sourceNode?.data?.schema) return nds;
 
+        // Special handling for Union transform - collect all input schemas
+        if (targetNode?.data?.transformType === 'union') {
+          // Get all edges leading to this union node (including the new one)
+          const allEdgesToTarget = [...edges, params].filter(e => e.target === params.target);
+          const inputSchemas = allEdgesToTarget.map(e => {
+            const inputNode = nds.find(n => n.id === e.source);
+            return inputNode?.data?.schema || [];
+          });
+
+          // Merge schemas for union - include all columns
+          const unionSchema = mergeSchemas(inputSchemas);
+
+          return nds.map((n) =>
+            n.id === params.target
+              ? {
+                ...n,
+                data: {
+                  ...n.data,
+                  inputSchemas: inputSchemas,  // Store array of schemas for Union config
+                  schema: unionSchema
+                }
+              }
+              : n
+          );
+        }
+
+        // Default single-input behavior
         return nds.map((n) =>
           n.id === params.target
             ? {
@@ -160,23 +203,43 @@ export default function ETLJobPage() {
       if (selectedNode) {
         setNodes((nds) => {
           const sourceNode = nds.find(n => n.id === params.source);
+          const targetNode = nds.find(n => n.id === params.target);
 
           if (selectedNode.id === params.target && sourceNode?.data?.schema) {
             // Target node is selected - update its data
-            setSelectedNode((prev) => ({
-              ...prev,
-              data: {
-                ...prev.data,
-                inputSchema: sourceNode.data.schema,
-                schema: prev.data.transformConfig
-                  ? applyTransformToSchema(
-                    sourceNode.data.schema,
-                    prev.data.transformType,
-                    prev.data.transformConfig
-                  )
-                  : sourceNode.data.schema
-              }
-            }));
+            if (targetNode?.data?.transformType === 'union') {
+              // Union: update with merged schemas
+              const allEdgesToTarget = [...edges, params].filter(e => e.target === params.target);
+              const inputSchemas = allEdgesToTarget.map(e => {
+                const inputNode = nds.find(n => n.id === e.source);
+                return inputNode?.data?.schema || [];
+              });
+              const unionSchema = mergeSchemas(inputSchemas);
+
+              setSelectedNode((prev) => ({
+                ...prev,
+                data: {
+                  ...prev.data,
+                  inputSchemas: inputSchemas,
+                  schema: unionSchema
+                }
+              }));
+            } else {
+              setSelectedNode((prev) => ({
+                ...prev,
+                data: {
+                  ...prev.data,
+                  inputSchema: sourceNode.data.schema,
+                  schema: prev.data.transformConfig
+                    ? applyTransformToSchema(
+                      sourceNode.data.schema,
+                      prev.data.transformType,
+                      prev.data.transformConfig
+                    )
+                    : sourceNode.data.schema
+                }
+              }));
+            }
           } else if (selectedNode.id === params.source) {
             // Source node is selected - keep panel open
             setSelectedNode({ ...sourceNode });
@@ -186,33 +249,43 @@ export default function ETLJobPage() {
         });
       }
     },
-    [setNodes, setEdges, selectedNode]
+    [setNodes, setEdges, selectedNode, edges]
   );
 
   // Convert nodes to ETL Jobs API format
   const convertNodesToApiFormat = () => {
-    // Find source node (input type)
-    const sourceNode = nodes.find(n => n.type === 'input');
+    // Find all source nodes (input type) - support multiple sources
+    const sourceNodes = nodes.filter(n => n.type === 'input');
     // Find transform nodes (default type)
     const transformNodes = nodes.filter(n => n.type === 'default');
     // Find target node (output type)
     const targetNode = nodes.find(n => n.type === 'output');
 
-    // Build source config
-    const source = sourceNode ? {
+    // Build sources array (multiple sources support)
+    const sources = sourceNodes.map(node => ({
+      nodeId: node.id,
       type: 'rdb',
-      connection_id: sourceNode.data?.sourceId || '',
-      table: sourceNode.data?.tableName || '',
-    } : null;
-
-    // Build transforms array
-    const transforms = transformNodes.map(node => ({
-      type: node.data?.transformType || 'select-fields',
-      config: node.data?.transformConfig || {},
+      connection_id: node.data?.sourceId || '',
+      table: node.data?.tableName || '',
     }));
+
+    // Build transforms array with nodeId and inputNodeIds
+    const transforms = transformNodes.map(node => {
+      // Find all incoming edges to this transform
+      const inputEdges = edges.filter(e => e.target === node.id);
+      const inputNodeIds = inputEdges.map(e => e.source);
+
+      return {
+        nodeId: node.id,
+        type: node.data?.transformType || 'select-fields',
+        config: node.data?.transformConfig || {},
+        inputNodeIds: inputNodeIds,
+      };
+    });
 
     // Build destination config
     const destination = targetNode ? {
+      nodeId: targetNode.id,
       type: 's3',
       path: targetNode.data?.s3Location || '',
       format: 'parquet',
@@ -221,18 +294,18 @@ export default function ETLJobPage() {
       },
     } : null;
 
-    return { source, transforms, destination };
+    return { sources, transforms, destination };
   };
 
   const handleSave = async () => {
     if (isSaving) return;
     setIsSaving(true);
 
-    const { source, transforms, destination } = convertNodesToApiFormat();
+    const { sources, transforms, destination } = convertNodesToApiFormat();
 
     // Validate required fields
-    if (!source?.connection_id) {
-      alert('Please select a source connection first.');
+    if (!sources || sources.length === 0 || !sources[0]?.connection_id) {
+      alert('Please select at least one source connection first.');
       setIsSaving(false);
       return;
     }
@@ -245,7 +318,7 @@ export default function ETLJobPage() {
     const payload = {
       name: jobName,
       description: jobDetails.description || '',
-      source,
+      sources,  // Multiple sources support
       transforms,
       destination,
       schedule: schedules.length > 0 ? schedules[0].cron : null,

@@ -340,22 +340,30 @@ services:
   localstack:
     image: localstack/localstack-pro
     container_name: localstack-main
+    restart: unless-stopped
     ports:
       - "4566:4566" # LocalStack Gateway - only expose 4566, not 443
     environment:
-      - SERVICES=s3,ec2,dynamodb,sqs,sns,lambda,apigateway,iam,cloudformation,rds,glue,athena,docdb
+      - SERVICES=s3,glue,athena,iam,rds,ec2
       - DEBUG=0
       - DOCKER_HOST=unix:///var/run/docker.sock
       - DISABLE_EVENTS=1
       - GATEWAY_LISTEN=0.0.0.0:4566
       - LOCALSTACK_AUTH_TOKEN=${LOCALSTACK_AUTH_TOKEN}
-      - RDS_POSTGRES_DOCKER=1
       - PERSISTENCE=1
+      - EAGER_SERVICE_LOADING=0
+      - GLUE_CRAWLER_ENABLE_TRINO_PROCESSING=0
     env_file:
       - .env
     volumes:
       - "/var/run/docker.sock:/var/run/docker.sock"
       - "localstack-data:/var/lib/localstack"
+    deploy:
+      resources:
+        limits:
+          memory: 8G
+        reservations:
+          memory: 4G
 
   # ============ OpenSearch ============
   opensearch:

@@ -83,11 +83,17 @@ class ETLJob(Document):
     """
     name: str
     description: Optional[str] = None
+
+    # Multiple sources support (new)
+    sources: List[dict] = Field(default_factory=list)
+    # Example: [{"nodeId": "1", "type": "rdb", "connection_id": "...", "table": "products"}]
+
+    # Legacy single source (backward compatibility)
     source: dict = Field(default_factory=dict)
     # Example: {"type": "rdb", "connection_id": "...", "table": "products"}
 
     transforms: List[dict] = Field(default_factory=list)
-    # Example: [{"type": "drop-columns", "config": {"columns": ["category"]}}]
+    # Example: [{"nodeId": "3", "type": "union", "config": {}, "inputNodeIds": ["1", "2"]}]
 
     destination: dict = Field(default_factory=dict)
     # Example: {"type": "s3", "path": "s3a://bucket/path", "format": "parquet"}

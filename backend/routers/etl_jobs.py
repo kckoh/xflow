@@ -25,26 +25,35 @@ async def create_etl_job(job: ETLJobCreate):
             detail="Job name already exists"
         )
 
-    # Validate source connection exists
-    if job.source.type == "rdb":
-        try:
-            source = await RDBSource.get(PydanticObjectId(job.source.connection_id))
-            if not source:
+    # Handle both multiple sources (new) and single source (legacy)
+    sources_data = []
+    if job.sources:
+        sources_data = [s.model_dump() for s in job.sources]
+    elif job.source:
+        sources_data = [job.source.model_dump()]
+
+    # Validate all source connections exist
+    for source_item in sources_data:
+        if source_item.get("type") == "rdb" and source_item.get("connection_id"):
+            try:
+                source = await RDBSource.get(PydanticObjectId(source_item["connection_id"]))
+                if not source:
+                    raise HTTPException(
+                        status_code=status.HTTP_400_BAD_REQUEST,
+                        detail=f"Source connection not found: {source_item['connection_id']}"
+                    )
+            except Exception:
                 raise HTTPException(
                     status_code=status.HTTP_400_BAD_REQUEST,
-                    detail="Source connection not found"
+                    detail=f"Invalid source connection ID: {source_item.get('connection_id')}"
                 )
-        except Exception:
-            raise HTTPException(
-                status_code=status.HTTP_400_BAD_REQUEST,
-                detail="Invalid source connection ID"
-            )
 
     # Create new ETL job
     new_job = ETLJob(
         name=job.name,
         description=job.description,
-        source=job.source.model_dump(),
+        sources=sources_data,
+        source=sources_data[0] if sources_data else {},  # Legacy compatibility
         transforms=[t.model_dump() for t in job.transforms],
         destination=job.destination.model_dump(),
         schedule=job.schedule,
@@ -61,6 +70,7 @@ async def create_etl_job(job: ETLJobCreate):
         id=str(new_job.id),
         name=new_job.name,
         description=new_job.description,
+        sources=new_job.sources,
         source=new_job.source,
         transforms=new_job.transforms,
         destination=new_job.destination,
@@ -82,6 +92,7 @@ async def list_etl_jobs():
             id=str(job.id),
             name=job.name,
             description=job.description,
+            sources=job.sources,
             source=job.source,
             transforms=job.transforms,
             destination=job.destination,
@@ -109,6 +120,7 @@ async def get_etl_job(job_id: str):
         id=str(job.id),
         name=job.name,
         description=job.description,
+        sources=job.sources,
         source=job.source,
         transforms=job.transforms,
         destination=job.destination,
@@ -137,8 +149,15 @@ async def update_etl_job(job_id: str, job_update: ETLJobUpdate):
         job.name = job_update.name
     if job_update.description is not None:
         job.description = job_update.description
-    if job_update.source is not None:
+
+    # Handle both multiple sources (new) and single source (legacy)
+    if job_update.sources is not None:
+        job.sources = [s.model_dump() for s in job_update.sources]
+        job.source = job.sources[0] if job.sources else {}  # Legacy compatibility
+    elif job_update.source is not None:
         job.source = job_update.source.model_dump()
+        job.sources = [job.source]  # Also update sources array
+
     if job_update.transforms is not None:
         job.transforms = [t.model_dump() for t in job_update.transforms]
     if job_update.destination is not None:
@@ -159,6 +178,7 @@ async def update_etl_job(job_id: str, job_update: ETLJobUpdate):
         id=str(job.id),
         name=job.name,
         description=job.description,
+        sources=job.sources,
         source=job.source,
         transforms=job.transforms,
         destination=job.destination,
