@@ -78,11 +78,6 @@ output "glue_crawler_data_lake" {
   value       = aws_glue_crawler.data_lake.name
 }
 
-output "athena_workgroup_name" {
-  description = "Athena workgroup name"
-  value       = aws_athena_workgroup.main.name
-}
-
 output "athena_results_bucket" {
   description = "S3 bucket for Athena query results"
   value       = aws_s3_bucket.athena_results.bucket
