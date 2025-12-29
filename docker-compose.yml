@@ -80,11 +80,14 @@ services:
     environment:
       MONGODB_URL: mongodb://mongo:mongo@mongodb:27017
       MONGODB_DATABASE: mydb
+      OPENSEARCH_HOST: opensearch
+      OPENSEARCH_PORT: 9200
       CORS_ORIGINS: http://localhost:5173,http://localhost:3000
       AWS_ENDPOINT: http://localstack-main:4566
       AWS_REGION: ap-northeast-2
     depends_on:
       - mongodb
+      - opensearch
 
   airflow-db-init:
     image: postgres:16-alpine

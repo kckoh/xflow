@@ -1,0 +1,65 @@
+{
+  "catalog_index": {
+    "index_name": "data_catalog",
+    "settings": {
+      "number_of_shards": 1,
+      "number_of_replicas": 0,
+      "analysis": {
+        "analyzer": {
+          "catalog_analyzer": {
+            "type": "custom",
+            "tokenizer": "standard",
+            "filter": ["lowercase", "asciifolding"]
+          }
+        }
+      }
+    },
+    "mappings": {
+      "dynamic": true,
+      "properties": {
+        "source": {
+          "type": "keyword"
+        },
+        "source_type": {
+          "type": "keyword"
+        },
+        "database": {
+          "type": "text",
+          "analyzer": "catalog_analyzer",
+          "fields": {
+            "keyword": {
+              "type": "keyword"
+            }
+          }
+        },
+        "resource_name": {
+          "type": "text",
+          "analyzer": "catalog_analyzer",
+          "fields": {
+            "keyword": {
+              "type": "keyword"
+            }
+          }
+        },
+        "field_name": {
+          "type": "text",
+          "analyzer": "catalog_analyzer",
+          "fields": {
+            "keyword": {
+              "type": "keyword"
+            }
+          }
+        },
+        "field_type": {
+          "type": "keyword"
+        },
+        "location": {
+          "type": "keyword"
+        },
+        "last_indexed": {
+          "type": "date"
+        }
+      }
+    }
+  }
+}
