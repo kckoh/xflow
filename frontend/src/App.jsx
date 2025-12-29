@@ -137,7 +137,7 @@ function App() {
           path="/etl/visual"
           element={
             <ProtectedRoute>
-              <MainLayout>
+              <MainLayout fullWidth={true}>
                 <ETLJobPage />
               </MainLayout>
             </ProtectedRoute>
@@ -148,7 +148,7 @@ function App() {
           path="/etl/job/:jobId"
           element={
             <ProtectedRoute>
-              <MainLayout>
+              <MainLayout fullWidth={true}>
                 <ETLJobPage />
               </MainLayout>
             </ProtectedRoute>
