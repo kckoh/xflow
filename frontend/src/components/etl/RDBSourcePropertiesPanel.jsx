@@ -1,7 +1,8 @@
 import { useState, useEffect } from 'react';
-import { X, Plus, Trash2 } from 'lucide-react';
+import { X } from 'lucide-react';
 import { rdbSourceApi } from '../../services/rdbSourceApi';
 import RDBSourceForm from '../sources/RDBSourceForm';
+import ConnectionCombobox from '../sources/ConnectionCombobox';
 
 export default function RDBSourcePropertiesPanel({ node, onClose, onUpdate }) {
     const [sources, setSources] = useState([]);
@@ -128,71 +129,38 @@ export default function RDBSourcePropertiesPanel({ node, onClose, onUpdate }) {
                     <p className="text-xs text-gray-500 mb-2">
                         Choose the RDB connection for your data source.
                     </p>
-                    <div className="relative">
-                        <select
-                            className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white"
-                            value={selectedSource?.id || ''}
-                            onChange={(e) => {
-                                const source = sources.find((s) => s.id === e.target.value);
-                                setSelectedSource(source);
-                                setSelectedTable('');
-                                setTables([]); // 커넥션 변경 시 테이블 목록 초기화
-                                // Auto-save connection selection (including clearing)
-                                onUpdate({
-                                    sourceId: source?.id || null,
-                                    sourceName: source?.name || null,
-                                    tableName: '',
-                                    schema: []
-                                });
-                            }}
-                            disabled={isSourcesLoading}
-                        >
-                            <option value="">{isSourcesLoading ? 'Loading connections...' : 'Choose one connection'}</option>
-                            {sources.map((source) => (
-                                <option key={source.id} value={source.id}>
-                                    {source.name} ({source.type})
-                                </option>
-                            ))}
-                        </select>
-                        {isSourcesLoading && (
-                            <div className="absolute right-3 top-2">
-                                <span className="animate-spin h-5 w-5 text-gray-400 border-2 border-current border-t-transparent rounded-full block"></span>
-                            </div>
-                        )}
-                    </div>
-
-                    <button
-                        onClick={() => setShowCreateModal(true)}
-                        className="mt-2 w-full px-3 py-2 border border-blue-600 text-blue-600 rounded-md hover:bg-blue-50 transition-colors flex items-center justify-center gap-2"
-                    >
-                        <Plus className="w-4 h-4" />
-                        Create a connection
-                    </button>
-
-                    {/* Delete Connection Button */}
-                    {selectedSource && (
-                        <button
-                            onClick={async () => {
-                                if (window.confirm(`Are you sure you want to delete "${selectedSource.name}"?`)) {
-                                    try {
-                                        await rdbSourceApi.deleteSource(selectedSource.id);
-                                        // 삭제된 커넥션을 sources 배열에서 직접 제거
-                                        setSources((prev) => prev.filter((s) => s.id !== selectedSource.id));
-                                        setSelectedSource(null);
-                                        setSelectedTable('');
-                                        setTables([]);
-                                    } catch (err) {
-                                        console.error('Failed to delete connection:', err);
-                                        alert('Failed to delete connection');
-                                    }
+                    <ConnectionCombobox
+                        connections={sources}
+                        selectedId={selectedSource?.id}
+                        isLoading={isSourcesLoading}
+                        placeholder="Choose a connection"
+                        onSelect={(source) => {
+                            setSelectedSource(source);
+                            setSelectedTable('');
+                            setTables([]);
+                            onUpdate({
+                                sourceId: source?.id || null,
+                                sourceName: source?.name || null,
+                                tableName: '',
+                                schema: []
+                            });
+                        }}
+                        onCreate={() => setShowCreateModal(true)}
+                        onDelete={async (connectionId) => {
+                            try {
+                                await rdbSourceApi.deleteSource(connectionId);
+                                setSources((prev) => prev.filter((s) => s.id !== connectionId));
+                                if (selectedSource?.id === connectionId) {
+                                    setSelectedSource(null);
+                                    setSelectedTable('');
+                                    setTables([]);
                                 }
-                            }}
-                            className="mt-2 w-full px-3 py-2 border border-red-300 text-red-600 rounded-md hover:bg-red-50 transition-colors flex items-center justify-center gap-2"
-                        >
-                            <Trash2 className="w-4 h-4" />
-                            Delete connection
-                        </button>
-                    )}
+                            } catch (err) {
+                                console.error('Failed to delete connection:', err);
+                                alert('Failed to delete connection');
+                            }
+                        }}
+                    />
                 </div>
 
                 {/* Table */}
