@@ -3,6 +3,7 @@ import { X } from 'lucide-react';
 import { rdbSourceApi } from '../../services/rdbSourceApi';
 import RDBSourceForm from '../sources/RDBSourceForm';
 import ConnectionCombobox from '../sources/ConnectionCombobox';
+import Combobox from '../common/Combobox';
 
 export default function RDBSourcePropertiesPanel({ node, onClose, onUpdate }) {
     const [sources, setSources] = useState([]);
@@ -171,47 +172,28 @@ export default function RDBSourcePropertiesPanel({ node, onClose, onUpdate }) {
                     <p className="text-xs text-gray-500 mb-2">
                         Look up the names of the table from your data source and enter it here.
                     </p>
-                    {!selectedSource ? (
-                        <input
-                            type="text"
-                            disabled
-                            className="w-full px-3 py-2 border border-gray-300 rounded-md bg-gray-100 text-gray-500"
-                            placeholder="Please select a connection first"
-                        />
-                    ) : (
-                        <div className="relative">
-                            <select
-                                value={selectedTable}
-                                onChange={(e) => {
-                                    const table = e.target.value;
-                                    setSelectedTable(table);
-                                    // Auto-save table selection
-                                    if (selectedSource && table) {
-                                        onUpdate({
-                                            sourceId: selectedSource.id,
-                                            sourceName: selectedSource.name,
-                                            tableName: table,
-                                            schema: node?.data?.schema || []
-                                        });
-                                    }
-                                }}
-                                className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-blue-500 focus:border-blue-500 bg-white"
-                                disabled={loading}
-                            >
-                                <option value="">Select a table</option>
-                                {tables.map((table) => (
-                                    <option key={table} value={table}>
-                                        {table}
-                                    </option>
-                                ))}
-                            </select>
-                            {loading && (
-                                <div className="absolute right-3 top-2">
-                                    <span className="animate-spin h-5 w-5 text-gray-400 border-2 border-current border-t-transparent rounded-full block"></span>
-                                </div>
-                            )}
-                        </div>
-                    )}
+                    <Combobox
+                        options={tables}
+                        value={selectedTable}
+                        onChange={(table) => {
+                            setSelectedTable(table);
+                            // Auto-save table selection
+                            if (selectedSource && table) {
+                                onUpdate({
+                                    sourceId: selectedSource.id,
+                                    sourceName: selectedSource.name,
+                                    tableName: table,
+                                    schema: node?.data?.schema || []
+                                });
+                            }
+                        }}
+                        getKey={(table) => table}
+                        getLabel={(table) => table}
+                        placeholder="Select a table"
+                        isLoading={loading}
+                        disabled={!selectedSource}
+                        emptyMessage="No tables available"
+                    />
                 </div>
             </div>
 
