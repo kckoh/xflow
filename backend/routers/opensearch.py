@@ -86,7 +86,7 @@ async def get_status():
         )
 
 
-@router.post("/index", response_model=IndexingResult)
+@router.post("/index", response_model=IndexingResult, status_code=201)
 async def trigger_indexing():
     """
     수동 인덱싱 트리거
