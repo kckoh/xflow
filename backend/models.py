@@ -2,7 +2,10 @@ from datetime import datetime
 from typing import Optional, List
 from beanie import Document
 from pydantic import Field
-
+from neomodel import (
+    StructuredNode, StringProperty, RelationshipTo, RelationshipFrom, 
+    UniqueIdProperty, JSONProperty
+)
 
 class User(Document):
     """
@@ -116,3 +119,77 @@ class JobRun(Document):
 
     class Settings:
         name = "job_runs"
+
+
+class ETLJob(Document):
+    """
+    ETL Job document for storing ETL pipeline configurations.
+    Defines source, transforms, and destination for data processing.
+    """
+    name: str
+    description: Optional[str] = None
+    source: dict = Field(default_factory=dict)
+    # Example: {"type": "rdb", "connection_id": "...", "table": "products"}
+
+    transforms: List[dict] = Field(default_factory=list)
+    # Example: [{"type": "drop-columns", "config": {"columns": ["category"]}}]
+
+    destination: dict = Field(default_factory=dict)
+    # Example: {"type": "s3", "path": "s3a://bucket/path", "format": "parquet"}
+
+    schedule: Optional[str] = None  # Cron expression or None for manual trigger
+    status: str = "draft"  # draft, active, paused
+
+    created_at: datetime = Field(default_factory=datetime.utcnow)
+    updated_at: datetime = Field(default_factory=datetime.utcnow)
+
+    class Settings:
+        name = "etl_jobs"
+
+
+class JobRun(Document):
+    """
+    Job Run document for tracking ETL job executions.
+    """
+    job_id: str  # Reference to ETLJob
+    status: str = "pending"  # pending, running, success, failed
+    started_at: Optional[datetime] = None
+    finished_at: Optional[datetime] = None
+    error_message: Optional[str] = None
+    airflow_run_id: Optional[str] = None  # Airflow DAG run ID
+
+    class Settings:
+        name = "job_runs"
+
+# Neo4j Models
+class Column(StructuredNode):
+    """
+    Represents a Column in a Table.
+    """
+    uid = UniqueIdProperty() # Auto-generated or manual unique ID
+    name = StringProperty(required=True)
+    type = StringProperty(default="string")
+    description = StringProperty()
+    
+    # Relationships
+    flows_to = RelationshipTo('Column', 'FLOWS_TO')
+    belongs_to = RelationshipFrom('Table', 'HAS_COLUMN')
+
+class Table(StructuredNode):
+    """
+    Represents a Dataset/Table.
+    """
+    mongo_id = StringProperty(unique_index=True, required=True)
+    name = StringProperty(required=True)
+    platform = StringProperty(default="hive")
+    layer = StringProperty()
+    description = StringProperty()
+    urn = StringProperty()
+    domain = StringProperty()
+    
+    # Dynamic properties payload if needed
+    properties = JSONProperty()
+
+    # Relationships
+    has_columns = RelationshipTo(Column, 'HAS_COLUMN')
+    flows_to = RelationshipTo('Table', 'FLOWS_TO') # Table-level lineage
