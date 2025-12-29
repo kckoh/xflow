@@ -13,9 +13,10 @@ export default function RDBSourcePropertiesPanel({ node, onClose, onUpdate }) {
     const [isSourcesLoading, setIsSourcesLoading] = useState(false);
     const [showCreateModal, setShowCreateModal] = useState(false);
 
+    // Load sources and restore node-specific data when node changes
     useEffect(() => {
         loadSources();
-    }, []);
+    }, [node?.id]);  // Re-run when a different node is selected
 
     useEffect(() => {
         if (selectedSource) {
@@ -23,20 +24,31 @@ export default function RDBSourcePropertiesPanel({ node, onClose, onUpdate }) {
         }
     }, [selectedSource]);
 
+    // Restore node data when switching between nodes (without reloading sources)
+    useEffect(() => {
+        if (sources.length > 0 && node?.data?.sourceId) {
+            const prevSource = sources.find(s => s.id === node.data.sourceId);
+            if (prevSource) {
+                setSelectedSource(prevSource);
+                setSelectedTable(node.data.tableName || '');
+            } else {
+                // Node has no saved source or source was deleted
+                setSelectedSource(null);
+                setSelectedTable('');
+            }
+        } else if (sources.length > 0 && !node?.data?.sourceId) {
+            // Node has no saved data - reset selections
+            setSelectedSource(null);
+            setSelectedTable('');
+            setTables([]);
+        }
+    }, [node?.id, sources]);  // When node changes OR sources finish loading
+
     const loadSources = async () => {
         try {
             setIsSourcesLoading(true);
             const data = await rdbSourceApi.fetchSources();
             setSources(data);
-
-            // Restore previous selection from node data
-            if (node?.data?.sourceId) {
-                const prevSource = data.find(s => s.id === node.data.sourceId);
-                if (prevSource) {
-                    setSelectedSource(prevSource);
-                    setSelectedTable(node.data.tableName || '');
-                }
-            }
         } catch (err) {
             console.error('Failed to load sources:', err);
         } finally {

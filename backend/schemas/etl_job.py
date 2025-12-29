@@ -4,6 +4,7 @@ from datetime import datetime
 
 
 class SourceConfig(BaseModel):
+    nodeId: Optional[str] = None  # Node ID for graph reference
     type: str  # rdb
     connection_id: str  # RDBSource ID
     table: Optional[str] = None
@@ -11,8 +12,10 @@ class SourceConfig(BaseModel):
 
 
 class TransformConfig(BaseModel):
-    type: str  # select-fields, drop-columns, filter
+    nodeId: Optional[str] = None  # Node ID for graph reference
+    type: str  # select-fields, drop-columns, filter, union
     config: dict  # Type-specific configuration
+    inputNodeIds: Optional[List[str]] = None  # For multi-input transforms like union
 
 
 class DestinationConfig(BaseModel):
@@ -25,7 +28,10 @@ class DestinationConfig(BaseModel):
 class ETLJobCreate(BaseModel):
     name: str
     description: Optional[str] = None
-    source: SourceConfig
+    # Multiple sources support (new)
+    sources: Optional[List[SourceConfig]] = None
+    # Legacy single source (backward compatibility)
+    source: Optional[SourceConfig] = None
     transforms: List[TransformConfig] = []
     destination: DestinationConfig
     schedule: Optional[str] = None  # Cron expression or None for manual
@@ -37,6 +43,9 @@ class ETLJobCreate(BaseModel):
 class ETLJobUpdate(BaseModel):
     name: Optional[str] = None
     description: Optional[str] = None
+    # Multiple sources support (new)
+    sources: Optional[List[SourceConfig]] = None
+    # Legacy single source (backward compatibility)
     source: Optional[SourceConfig] = None
     transforms: Optional[List[TransformConfig]] = None
     destination: Optional[DestinationConfig] = None
@@ -51,7 +60,10 @@ class ETLJobResponse(BaseModel):
     id: str
     name: str
     description: Optional[str] = None
-    source: dict
+    # Multiple sources support (new)
+    sources: Optional[List[dict]] = None
+    # Legacy single source (backward compatibility)
+    source: Optional[dict] = None
     transforms: List[dict]
     destination: dict
     schedule: Optional[str] = None

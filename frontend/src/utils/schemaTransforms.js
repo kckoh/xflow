@@ -20,6 +20,8 @@ export const applyTransformToSchema = (inputSchema, transformType, transformConf
             return applySelectFields(inputSchema, transformConfig);
         case 'filter':
             return applyFilter(inputSchema, transformConfig);
+        case 'union':
+            return applyUnion(inputSchema, transformConfig);
         case 'join':
             return applyJoin(inputSchema, transformConfig);
         case 'aggregate':
@@ -67,5 +69,26 @@ const applyJoin = (inputSchema, config) => {
  * Sort: Schema unchanged (only changes row order)
  */
 const applySort = (inputSchema, config) => {
+    return inputSchema;
+};
+
+/**
+ * Union: Merge schemas from multiple inputs
+ * Note: Actual merging is handled in onConnect (etl_job.jsx)
+ * This function is for single-input propagation (fallback)
+ */
+const applyUnion = (inputSchema, config) => {
+    // Union schema merging is handled specially in onConnect
+    // because it needs multiple input schemas
+    // If we reach here, just return the input schema
+    return inputSchema;
+};
+
+/**
+ * Aggregate: Transform schema based on groupBy and aggregation columns
+ * TODO: Implement when aggregate transform is added
+ */
+const applyAggregate = (inputSchema, config) => {
+    // For now, return input schema
     return inputSchema;
 };

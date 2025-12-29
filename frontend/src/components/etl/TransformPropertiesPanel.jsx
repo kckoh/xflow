@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { X } from 'lucide-react';
 import SelectFieldsConfig from './SelectFieldsConfig';
+import UnionConfig from './UnionConfig';
 
 export default function TransformPropertiesPanel({ node, onClose, onUpdate }) {
     const [transformName, setTransformName] = useState('');
@@ -56,6 +57,15 @@ export default function TransformPropertiesPanel({ node, onClose, onUpdate }) {
                     <div className="text-sm text-gray-500 italic">
                         Filter configuration coming soon...
                     </div>
+                )}
+
+                {transformType === 'union' && (
+                    <UnionConfig
+                        node={node}
+                        transformName={transformName}
+                        onUpdate={onUpdate}
+                        onClose={onClose}
+                    />
                 )}
 
                 {transformType === 'join' && (
