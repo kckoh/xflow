@@ -1,0 +1,128 @@
+import { useState, useEffect } from 'react';
+import { Settings, RefreshCw } from 'lucide-react';
+
+export default function JobDetailsPanel({ jobDetails, onUpdate }) {
+    const [description, setDescription] = useState('');
+    const [maxRetries, setMaxRetries] = useState(0);
+
+    useEffect(() => {
+        if (jobDetails) {
+            setDescription(jobDetails.description || '');
+            setMaxRetries(jobDetails.maxRetries || 0);
+        }
+    }, [jobDetails]);
+
+    const handleChange = (updates) => {
+        const newDetails = {
+            description: updates.description ?? description,
+            jobType: 'batch', // 고정값
+            maxRetries: updates.maxRetries ?? maxRetries,
+        };
+        onUpdate(newDetails);
+    };
+
+    return (
+        <div className="flex-1 overflow-y-auto bg-gray-50 p-6">
+            <div className="max-w-4xl mx-auto space-y-6">
+
+                {/* Basic Information Card */}
+                <div className="bg-white rounded-lg border border-gray-200 shadow-sm">
+                    <div className="px-6 py-4 border-b border-gray-200 flex items-center gap-3">
+                        <Settings className="w-5 h-5 text-gray-500" />
+                        <h3 className="text-lg font-semibold text-gray-900">Basic Information</h3>
+                    </div>
+                    <div className="p-6 space-y-5">
+                        {/* Description */}
+                        <div>
+                            <label className="block text-sm font-medium text-gray-700 mb-2">
+                                Description
+                            </label>
+                            <textarea
+                                value={description}
+                                onChange={(e) => {
+                                    setDescription(e.target.value);
+                                    handleChange({ description: e.target.value });
+                                }}
+                                rows={3}
+                                className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent resize-none"
+                                placeholder="Describe what this ETL job does..."
+                            />
+                        </div>
+
+                        {/* Job Type - Batch Only (Disabled) */}
+                        <div>
+                            <label className="block text-sm font-medium text-gray-700 mb-3">
+                                Job Type
+                            </label>
+                            <div className="grid grid-cols-2 gap-4">
+                                {/* Batch - Selected & Fixed */}
+                                <div className="relative flex items-start p-4 border-2 border-blue-500 bg-blue-50 rounded-lg">
+                                    <div>
+                                        <span className="block font-medium text-blue-700">
+                                            Batch ETL
+                                        </span>
+                                        <span className="block text-sm text-gray-500 mt-1">
+                                            Process data on a schedule
+                                        </span>
+                                    </div>
+                                    <div className="absolute top-3 right-3 w-5 h-5 bg-blue-500 rounded-full flex items-center justify-center">
+                                        <svg className="w-3 h-3 text-white" fill="currentColor" viewBox="0 0 20 20">
+                                            <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
+                                        </svg>
+                                    </div>
+                                </div>
+
+                                {/* CDC - Disabled */}
+                                <div className="relative flex items-start p-4 border-2 border-gray-200 bg-gray-100 rounded-lg opacity-50 cursor-not-allowed">
+                                    <div>
+                                        <span className="block font-medium text-gray-500">
+                                            CDC (Streaming)
+                                        </span>
+                                        <span className="block text-sm text-gray-400 mt-1">
+                                            Coming soon
+                                        </span>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                {/* Execution Settings Card */}
+                <div className="bg-white rounded-lg border border-gray-200 shadow-sm">
+                    <div className="px-6 py-4 border-b border-gray-200 flex items-center gap-3">
+                        <RefreshCw className="w-5 h-5 text-gray-500" />
+                        <h3 className="text-lg font-semibold text-gray-900">Execution Settings</h3>
+                    </div>
+                    <div className="p-6">
+                        {/* Max Retries */}
+                        <div>
+                            <label className="block text-sm font-medium text-gray-700 mb-2">
+                                Max Retries
+                            </label>
+                            <div className="flex items-center gap-3">
+                                <input
+                                    type="number"
+                                    min={0}
+                                    max={10}
+                                    value={maxRetries}
+                                    onChange={(e) => {
+                                        const value = parseInt(e.target.value) || 0;
+                                        setMaxRetries(value);
+                                        handleChange({ maxRetries: value });
+                                    }}
+                                    className="w-32 px-4 py-2.5 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                                />
+                                <span className="text-sm text-gray-500">attempts</span>
+                            </div>
+                            <p className="mt-2 text-xs text-gray-400">
+                                Number of retry attempts if job fails (0-10)
+                            </p>
+                        </div>
+                    </div>
+                </div>
+
+            </div>
+        </div>
+    );
+}

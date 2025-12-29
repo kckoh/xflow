@@ -15,6 +15,9 @@ import { useNavigate } from "react-router-dom";
 import RDBSourcePropertiesPanel from "../../components/etl/RDBSourcePropertiesPanel";
 import TransformPropertiesPanel from "../../components/etl/TransformPropertiesPanel";
 import S3TargetPropertiesPanel from "../../components/etl/S3TargetPropertiesPanel";
+import JobDetailsPanel from "../../components/etl/JobDetailsPanel";
+import SchedulesPanel from "../../components/etl/SchedulesPanel";
+import RunsPanel from "../../components/etl/RunsPanel";
 import { applyTransformToSchema } from "../../utils/schemaTransforms";
 
 const initialNodes = [];
@@ -30,6 +33,24 @@ export default function ETLJobPage() {
   const [activeTab, setActiveTab] = useState("source");
   const [mainTab, setMainTab] = useState("Visual"); // Top level tabs: Visual, Job details, Schedules
   const [selectedNode, setSelectedNode] = useState(null);
+  const [jobDetails, setJobDetails] = useState({
+    description: '',
+    jobType: 'batch',
+    glueVersion: '4.0',
+    workerType: 'G.1X',
+    numberOfWorkers: 2,
+    jobTimeout: 2880,
+    maxRetries: 0,
+  });
+  const [schedules, setSchedules] = useState([]);
+  const [runs, setRuns] = useState([]);
+  const [pipelineId, setPipelineId] = useState(null);
+  const [isSaving, setIsSaving] = useState(false);
+
+  // Tabs shown based on whether pipeline is saved
+  const availableTabs = pipelineId
+    ? ["Visual", "Job details", "Runs", "Schedules"]
+    : ["Visual", "Job details"];
 
   const nodeOptions = {
     source: [
@@ -113,9 +134,51 @@ export default function ETLJobPage() {
     [setNodes, setEdges, selectedNode]
   );
 
-  const handleSave = () => {
-    console.log("Saving job:", { jobName, nodes, edges });
-    // TODO: Implement save to backend
+  const handleSave = async () => {
+    if (isSaving) return;
+    setIsSaving(true);
+
+    const payload = {
+      name: jobName,
+      nodes: nodes,
+      edges: edges,
+      jobDetails: jobDetails,
+      schedules: schedules,
+    };
+
+    try {
+      let response;
+      if (pipelineId) {
+        // Update existing pipeline
+        response = await fetch(`http://localhost:8000/api/pipelines/${pipelineId}`, {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(payload),
+        });
+      } else {
+        // Create new pipeline
+        response = await fetch('http://localhost:8000/api/pipelines', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(payload),
+        });
+      }
+
+      if (!response.ok) {
+        const error = await response.json();
+        throw new Error(error.detail || 'Failed to save pipeline');
+      }
+
+      const data = await response.json();
+      setPipelineId(data.id);
+      console.log("Pipeline saved:", data);
+      alert('Pipeline saved successfully!');
+    } catch (error) {
+      console.error("Save failed:", error);
+      alert(`Save failed: ${error.message}`);
+    } finally {
+      setIsSaving(false);
+    }
   };
 
   const handleRun = () => {
@@ -195,20 +258,27 @@ export default function ETLJobPage() {
         </div>
       </div>
 
-      {/* Main Tabs (Visual / Job details / Schedules) */}
+      {/* Main Tabs (Visual / Job details / Runs / Schedules) */}
       <div className="bg-white border-b border-gray-200 px-6 flex items-center gap-6">
-        {["Visual", "Job details", "Schedules"].map((tab) => (
-          <button
-            key={tab}
-            onClick={() => setMainTab(tab)}
-            className={`py-3 text-sm font-medium border-b-2 transition-colors ${mainTab === tab
-              ? "text-blue-600 border-blue-600"
-              : "text-gray-600 border-transparent hover:text-gray-900 hover:border-gray-300"
-              }`}
-          >
-            {tab}
-          </button>
-        ))}
+        {["Visual", "Job details", "Runs", "Schedules"].map((tab) => {
+          const isDisabled = !pipelineId && (tab === "Runs" || tab === "Schedules");
+          return (
+            <button
+              key={tab}
+              onClick={() => !isDisabled && setMainTab(tab)}
+              disabled={isDisabled}
+              className={`py-3 text-sm font-medium border-b-2 transition-colors ${mainTab === tab
+                  ? "text-blue-600 border-blue-600"
+                  : isDisabled
+                    ? "text-gray-400 border-transparent cursor-not-allowed"
+                    : "text-gray-600 border-transparent hover:text-gray-900 hover:border-gray-300"
+                }`}
+              title={isDisabled ? "Save the job first to access this tab" : ""}
+            >
+              {tab}
+            </button>
+          );
+        })}
       </div>
 
       {/* Main Content: Canvas + Properties Panel (Shown only when 'Visual' is active) */}
@@ -452,7 +522,28 @@ export default function ETLJobPage() {
               Right-click for more options
             </p>
           </div >
-        </>) : (
+        </>) : mainTab === "Job details" ? (
+          <JobDetailsPanel
+            jobDetails={jobDetails}
+            onUpdate={(details) => {
+              console.log("Job details updated:", details);
+              setJobDetails(details);
+            }}
+          />
+        ) : mainTab === "Schedules" ? (
+          <SchedulesPanel
+            schedules={schedules}
+            onUpdate={(newSchedules) => {
+              console.log("Schedules updated:", newSchedules);
+              setSchedules(newSchedules);
+            }}
+          />
+        ) : mainTab === "Runs" ? (
+          <RunsPanel
+            runs={runs}
+            onRefresh={() => console.log("Refresh runs")}
+          />
+        ) : (
         <div className="flex-1 flex items-center justify-center bg-gray-50">
           <div className="text-center">
             <h3 className="text-xl font-medium text-gray-900 mb-2">{mainTab}</h3>
