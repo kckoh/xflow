@@ -1,16 +1,17 @@
 import { useState, useEffect } from "react";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, useLocation } from "react-router-dom";
 import { Play, Code, FileText, BarChart3, Plus, Info, RefreshCw } from "lucide-react";
 
 export default function ETLMain() {
   const [jobs, setJobs] = useState([]);
   const [isLoading, setIsLoading] = useState(true);
   const navigate = useNavigate();
+  const location = useLocation();
 
-  // Fetch jobs from API on mount
+  // Fetch jobs when page is visited (location.key changes on each navigation)
   useEffect(() => {
     fetchJobs();
-  }, []);
+  }, [location.key]);
 
   const fetchJobs = async () => {
     setIsLoading(true);
