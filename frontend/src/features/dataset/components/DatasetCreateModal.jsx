@@ -2,6 +2,7 @@
 import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { X, ArrowRight, Plus, Database, Tag, Book } from 'lucide-react';
+import { catalogAPI } from '../../../services/catalog/index';
 
 export default function DatasetCreateModal({ isOpen, onClose, onCreated }) {
     const navigate = useNavigate();
@@ -33,7 +34,7 @@ export default function DatasetCreateModal({ isOpen, onClose, onCreated }) {
         }));
         setTagInput("");
     };
-     
+
     const removeTag = (tagToRemove) => {
         setFormData(prev => ({
             ...prev,
@@ -51,18 +52,8 @@ export default function DatasetCreateModal({ isOpen, onClose, onCreated }) {
     const handleSubmit = async () => {
         setLoading(true);
         try {
-            const response = await fetch('http://localhost:8000/api/catalog', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify(formData)
-            });
+            const data = await catalogAPI.createDataset(formData);
 
-            if (!response.ok) {
-                const err = await response.json();
-                throw new Error(err.detail || "Failed to create dataset");
-            }
-
-            const data = await response.json();
             onCreated(); // Refresh list
             onClose();
             // Redirect to the new dataset's lineage/detail page

@@ -14,6 +14,7 @@ import {
 import DatasetHeader from "../../features/dataset/components/DatasetHeader";
 import DatasetSchema from "../../features/dataset/components/DatasetSchema";
 import DatasetLineage from "../../features/dataset/components/DatasetLineage";
+import { catalogAPI } from "../../services/catalog/index";
 
 export default function DatasetDetailPage() {
     const { id } = useParams();
@@ -27,13 +28,7 @@ export default function DatasetDetailPage() {
         const fetchDataset = async () => {
             try {
                 setLoading(true);
-                const response = await fetch(`http://localhost:8000/api/catalog/${id}`);
-
-                if (!response.ok) {
-                    throw new Error("Failed to load dataset details");
-                }
-
-                const data = await response.json();
+                const data = await catalogAPI.getDataset(id);
                 setDataset(data);
             } catch (err) {
                 console.error(err);
@@ -81,11 +76,8 @@ export default function DatasetDetailPage() {
             }
 
             // Fetch details for the selected node
-            const response = await fetch(`http://localhost:8000/api/catalog/${selectedId}`);
-            if (response.ok) {
-                const data = await response.json();
-                setSidebarDataset(data);
-            }
+            const data = await catalogAPI.getDataset(selectedId);
+            setSidebarDataset(data);
         } catch (error) {
             console.error("Failed to load sidebar dataset:", error);
         }

@@ -103,7 +103,7 @@ export const SchemaNode = ({ id, data }) => {
                                         <ColumnHandle
                                             type="target"
                                             position={Position.Left}
-                                            id={col}
+                                            id={`col:${col}`}
                                             isConnectable={true}
                                         />
 
@@ -114,7 +114,7 @@ export const SchemaNode = ({ id, data }) => {
                                             <ColumnHandle
                                                 type="source"
                                                 position={Position.Right}
-                                                id={col}
+                                                id={`col:${col}`}
                                                 isConnectable={true}
                                             />
                                         )}
@@ -133,7 +133,7 @@ export const SchemaNode = ({ id, data }) => {
                                 <ColumnHandle
                                     type="target"
                                     position={Position.Left}
-                                    id="__NEW__"
+                                    id="new"
                                     isConnectable={true}
                                 />
                                 <span className="truncate font-medium flex-1 pl-2 text-sm italic">+ Add Column</span>
@@ -155,14 +155,14 @@ export const SchemaNode = ({ id, data }) => {
                         <Handle
                             type="target"
                             position={Position.Left}
-                            id="__TABLE__"
+                            id="table"
                             className="!w-3 !h-3 !bg-blue-500 !border-2 !border-white"
                             style={{ top: '50%' }}
                         />
                         <Handle
                             type="source"
                             position={Position.Right}
-                            id="__TABLE__"
+                            id="table"
                             className="!w-3 !h-3 !bg-blue-500 !border-2 !border-white"
                             style={{ top: '50%' }}
                         />

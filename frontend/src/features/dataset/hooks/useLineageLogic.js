@@ -135,18 +135,18 @@ export const useLineageLogic = ({ datasetId, selectedId, onStreamAnalysis, onNod
             let originalSource = edge.data?.originalSourceHandle;
             let originalTarget = edge.data?.originalTargetHandle;
 
-            // If not stored yet, use current handle (but only if it's not __TABLE__)
-            if (!originalSource && edge.sourceHandle !== '__TABLE__') {
+            // If not stored yet, use current handle (but only if it's not 'table')
+            if (!originalSource && edge.sourceHandle !== 'table') {
                 originalSource = edge.sourceHandle;
             }
-            if (!originalTarget && edge.targetHandle !== '__TABLE__') {
+            if (!originalTarget && edge.targetHandle !== 'table') {
                 originalTarget = edge.targetHandle;
             }
 
             return {
                 ...edge,
-                sourceHandle: sourceCollapsed ? '__TABLE__' : (originalSource || edge.sourceHandle),
-                targetHandle: targetCollapsed ? '__TABLE__' : (originalTarget || edge.targetHandle),
+                sourceHandle: sourceCollapsed ? 'table' : (originalSource || edge.sourceHandle),
+                targetHandle: targetCollapsed ? 'table' : (originalTarget || edge.targetHandle),
                 style: {
                     ...(edge.style || {}),
                     strokeDasharray: (sourceCollapsed || targetCollapsed) ? '5,5' : 'none'
@@ -200,8 +200,8 @@ export const useLineageLogic = ({ datasetId, selectedId, onStreamAnalysis, onNod
 
                         return {
                             ...e,
-                            sourceHandle: sourceCollapsed ? '__TABLE__' : e.sourceHandle,
-                            targetHandle: targetCollapsed ? '__TABLE__' : e.targetHandle,
+                            sourceHandle: sourceCollapsed ? 'table' : e.sourceHandle,
+                            targetHandle: targetCollapsed ? 'table' : e.targetHandle,
                             type: 'deletion',
                             animated: true,
                             label: '',
@@ -344,10 +344,13 @@ export const useLineageLogic = ({ datasetId, selectedId, onStreamAnalysis, onNod
 
         const sourceMongoId = sourceNode.data.mongoId;
         const targetMongoId = targetNode.data.mongoId;
-        const sourceColName = sourceHandle;
+
+        // Strip 'col:' prefix for logic
+        const sourceColName = sourceHandle.replace('col:', '');
+        let targetColName = targetHandle === 'new' ? 'new' : targetHandle.replace('col:', '');
 
         // "Drag-to-Add" Logic (Drop on + Zone)
-        if (targetHandle === '__NEW__') {
+        if (targetHandle === 'new') {
             try {
                 // 1. Find Source Column Details
                 const sourceRawSchema = sourceNode.data.rawSchema || [];
@@ -357,9 +360,11 @@ export const useLineageLogic = ({ datasetId, selectedId, onStreamAnalysis, onNod
                 const currentSchema = targetNode.data.rawSchema || [];
                 // Check if already exists to avoid dupes 
                 if (currentSchema.some(c => c.name === sourceColName)) {
-                    targetHandle = sourceColName;
+                    targetHandle = `col:${sourceColName}`; // Use prefixed ID
+                    targetColName = sourceColName;
                 } else {
                     // Update Schema
+
                     const newSchema = [...currentSchema, sourceColDef];
 
                     const updateRes = await fetch(`http://localhost:8000/api/catalog/${targetMongoId}`, {
@@ -385,7 +390,8 @@ export const useLineageLogic = ({ datasetId, selectedId, onStreamAnalysis, onNod
                         return n;
                     }));
 
-                    targetHandle = sourceColName; // Proceed to link to this new column
+                    targetHandle = `col:${sourceColName}`; // Update handle to the new column
+                    targetColName = sourceColName;
                 }
             } catch (err) {
                 console.error(err);
@@ -401,8 +407,8 @@ export const useLineageLogic = ({ datasetId, selectedId, onStreamAnalysis, onNod
                 body: JSON.stringify({
                     target_id: targetMongoId,
                     type: 'DOWNSTREAM',
-                    source_col: sourceHandle,
-                    target_col: targetHandle
+                    source_col: sourceColName,
+                    target_col: targetColName
                 })
             });
 

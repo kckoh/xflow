@@ -130,8 +130,8 @@ async def get_lineage(dataset_id: str) -> Dict[str, List[Dict[str, Any]]]:
                     "id": rel_id,
                     "source": source_id,
                     "target": target_id,
-                    "sourceHandle": e_obj.get("source_col"),
-                    "targetHandle": e_obj.get("target_col"),
+                    "sourceHandle": f"col:{e_obj.get('source_col')}",
+                    "targetHandle": f"col:{e_obj.get('target_col')}",
                     "label": rel.type,
                     "animated": True
                 }

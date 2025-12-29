@@ -14,6 +14,7 @@ import {
 } from "lucide-react";
 import DatasetDrawer from "../../features/dataset/components/DatasetDrawer";
 import DatasetCreateModal from "../../features/dataset/components/DatasetCreateModal";
+import { catalogAPI } from "../../services/catalog/index";
 
 export default function CatalogPage() {
     const navigate = useNavigate();
@@ -30,12 +31,7 @@ export default function CatalogPage() {
     const fetchCatalog = async () => {
         setLoading(true);
         try {
-            // Fetch catalog data from the API
-            const response = await fetch("http://localhost:8000/api/catalog");
-            if (!response.ok) {
-                throw new Error("Failed to fetch catalog data");
-            }
-            const data = await response.json();
+            const data = await catalogAPI.getDatasets();
             setAllTables(data);
         } catch (err) {
             console.error("Error fetching catalog:", err);
@@ -55,15 +51,8 @@ export default function CatalogPage() {
         if (!confirm("Are you sure you want to delete this dataset?")) return;
 
         try {
-            const response = await fetch(`http://localhost:8000/api/catalog/${id}`, {
-                method: 'DELETE'
-            });
-
-            if (response.ok) {
-                fetchCatalog(); // Refresh list
-            } else {
-                alert("Failed to delete dataset");
-            }
+            await catalogAPI.deleteDataset(id);
+            fetchCatalog(); // Refresh list
         } catch (err) {
             console.error("Error deleting dataset:", err);
             alert("Error deleting dataset");
