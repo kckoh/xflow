@@ -28,6 +28,27 @@ export default function ETLMain() {
     }
   };
 
+  const handleRun = async (jobId) => {
+    try {
+      const response = await fetch(`http://localhost:8000/api/etl-jobs/${jobId}/run`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+      });
+
+      if (!response.ok) {
+        const error = await response.json();
+        throw new Error(error.detail || 'Failed to run job');
+      }
+
+      const data = await response.json();
+      console.log("Job run triggered:", data);
+      alert(`Job started! Run ID: ${data.run_id}`);
+    } catch (error) {
+      console.error("Run failed:", error);
+      alert(`Run failed: ${error.message}`);
+    }
+  };
+
   const createJobOptions = [
     {
       title: "Visual ETL",
@@ -133,9 +154,6 @@ export default function ETLMain() {
                     Job name
                   </th>
                   <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                    Status
-                  </th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                     Description
                   </th>
                   <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
@@ -152,14 +170,6 @@ export default function ETLMain() {
                     <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-blue-600 hover:underline cursor-pointer" onClick={() => navigate(`/etl/job/${job.id}`)}>
                       {job.name}
                     </td>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                      <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${job.status === 'active' ? 'bg-green-100 text-green-800' :
-                          job.status === 'draft' ? 'bg-yellow-100 text-yellow-800' :
-                            'bg-gray-100 text-gray-800'
-                        }`}>
-                        {job.status}
-                      </span>
-                    </td>
                     <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
                       {job.description || '-'}
                     </td>
@@ -169,7 +179,10 @@ export default function ETLMain() {
                     <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
                       <button
                         className="text-blue-600 hover:underline"
-                        onClick={() => alert(`Run job ${job.id}`)}
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          handleRun(job.id);
+                        }}
                       >
                         Run
                       </button>

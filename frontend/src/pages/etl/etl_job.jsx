@@ -10,7 +10,20 @@ import {
   BackgroundVariant,
 } from "@xyflow/react";
 import "@xyflow/react/dist/style.css";
-import { ArrowLeft, Save, Play, Plus, Columns, Filter, ArrowRightLeft, GitMerge, BarChart3, ArrowUpDown, Combine } from "lucide-react";
+import {
+  ArrowLeft,
+  Save,
+  Play,
+  Plus,
+  Columns,
+  Filter,
+  ArrowRightLeft,
+  GitMerge,
+  BarChart3,
+  ArrowUpDown,
+  Combine,
+} from "lucide-react";
+import "./etl_job.css";
 import { useNavigate, useParams } from "react-router-dom";
 import RDBSourcePropertiesPanel from "../../components/etl/RDBSourcePropertiesPanel";
 import TransformPropertiesPanel from "../../components/etl/TransformPropertiesPanel";
@@ -35,10 +48,10 @@ export default function ETLJobPage() {
   const [mainTab, setMainTab] = useState("Visual"); // Top level tabs: Visual, Job details, Schedules
   const [selectedNode, setSelectedNode] = useState(null);
   const [jobDetails, setJobDetails] = useState({
-    description: '',
-    jobType: 'batch',
-    glueVersion: '4.0',
-    workerType: 'G.1X',
+    description: "",
+    jobType: "batch",
+    glueVersion: "4.0",
+    workerType: "G.1X",
     numberOfWorkers: 2,
     jobTimeout: 2880,
     maxRetries: 0,
@@ -51,7 +64,7 @@ export default function ETLJobPage() {
 
   // Load runs when switching to Runs tab
   useEffect(() => {
-    if (mainTab === 'Runs' && jobId) {
+    if (mainTab === "Runs" && jobId) {
       fetchRuns();
     }
   }, [mainTab, jobId]);
@@ -68,16 +81,16 @@ export default function ETLJobPage() {
     try {
       const response = await fetch(`http://localhost:8000/api/etl-jobs/${id}`);
       if (!response.ok) {
-        throw new Error('Failed to load job');
+        throw new Error("Failed to load job");
       }
       const data = await response.json();
 
       // Restore state from loaded job
       setJobName(data.name);
       setJobId(data.id);
-      setJobDetails(prev => ({
+      setJobDetails((prev) => ({
         ...prev,
-        description: data.description || '',
+        description: data.description || "",
       }));
 
       // Restore nodes and edges if they exist
@@ -90,12 +103,12 @@ export default function ETLJobPage() {
 
       // Restore schedule
       if (data.schedule) {
-        setSchedules([{ id: '1', name: 'Main Schedule', cron: data.schedule }]);
+        setSchedules([{ id: "1", name: "Main Schedule", cron: data.schedule }]);
       }
 
-      console.log('Job loaded:', data);
+      console.log("Job loaded:", data);
     } catch (error) {
-      console.error('Failed to load job:', error);
+      console.error("Failed to load job:", error);
       alert(`Failed to load job: ${error.message}`);
     } finally {
       setIsLoading(false);
@@ -128,16 +141,19 @@ export default function ETLJobPage() {
   // Helper function to merge schemas from multiple inputs (for Union)
   const mergeSchemas = (schemas) => {
     const columnMap = new Map();
-    schemas.forEach(schema => {
+    schemas.forEach((schema) => {
       if (schema) {
-        schema.forEach(col => {
+        schema.forEach((col) => {
           if (!columnMap.has(col.key)) {
             columnMap.set(col.key, col.type);
           }
         });
       }
     });
-    return Array.from(columnMap.entries()).map(([key, type]) => ({ key, type }));
+    return Array.from(columnMap.entries()).map(([key, type]) => ({
+      key,
+      type,
+    }));
   };
 
   const onConnect = useCallback(
@@ -146,17 +162,19 @@ export default function ETLJobPage() {
 
       // Schema propagation: use functional update to access latest state
       setNodes((nds) => {
-        const sourceNode = nds.find(n => n.id === params.source);
-        const targetNode = nds.find(n => n.id === params.target);
+        const sourceNode = nds.find((n) => n.id === params.source);
+        const targetNode = nds.find((n) => n.id === params.target);
 
         if (!sourceNode?.data?.schema) return nds;
 
         // Special handling for Union transform - collect all input schemas
-        if (targetNode?.data?.transformType === 'union') {
+        if (targetNode?.data?.transformType === "union") {
           // Get all edges leading to this union node (including the new one)
-          const allEdgesToTarget = [...edges, params].filter(e => e.target === params.target);
-          const inputSchemas = allEdgesToTarget.map(e => {
-            const inputNode = nds.find(n => n.id === e.source);
+          const allEdgesToTarget = [...edges, params].filter(
+            (e) => e.target === params.target,
+          );
+          const inputSchemas = allEdgesToTarget.map((e) => {
+            const inputNode = nds.find((n) => n.id === e.source);
             return inputNode?.data?.schema || [];
           });
 
@@ -166,14 +184,14 @@ export default function ETLJobPage() {
           return nds.map((n) =>
             n.id === params.target
               ? {
-                ...n,
-                data: {
-                  ...n.data,
-                  inputSchemas: inputSchemas,  // Store array of schemas for Union config
-                  schema: unionSchema
+                  ...n,
+                  data: {
+                    ...n.data,
+                    inputSchemas: inputSchemas, // Store array of schemas for Union config
+                    schema: unionSchema,
+                  },
                 }
-              }
-              : n
+              : n,
           );
         }
 
@@ -181,37 +199,39 @@ export default function ETLJobPage() {
         return nds.map((n) =>
           n.id === params.target
             ? {
-              ...n,
-              data: {
-                ...n.data,
-                inputSchema: sourceNode.data.schema,
-                // If transform has config, apply it; otherwise use input as output
-                schema: n.data.transformConfig
-                  ? applyTransformToSchema(
-                    sourceNode.data.schema,
-                    n.data.transformType,
-                    n.data.transformConfig
-                  )
-                  : sourceNode.data.schema
+                ...n,
+                data: {
+                  ...n.data,
+                  inputSchema: sourceNode.data.schema,
+                  // If transform has config, apply it; otherwise use input as output
+                  schema: n.data.transformConfig
+                    ? applyTransformToSchema(
+                        sourceNode.data.schema,
+                        n.data.transformType,
+                        n.data.transformConfig,
+                      )
+                    : sourceNode.data.schema,
+                },
               }
-            }
-            : n
+            : n,
         );
       });
 
       // Update selectedNode to keep panel open (if either source or target is selected)
       if (selectedNode) {
         setNodes((nds) => {
-          const sourceNode = nds.find(n => n.id === params.source);
-          const targetNode = nds.find(n => n.id === params.target);
+          const sourceNode = nds.find((n) => n.id === params.source);
+          const targetNode = nds.find((n) => n.id === params.target);
 
           if (selectedNode.id === params.target && sourceNode?.data?.schema) {
             // Target node is selected - update its data
-            if (targetNode?.data?.transformType === 'union') {
+            if (targetNode?.data?.transformType === "union") {
               // Union: update with merged schemas
-              const allEdgesToTarget = [...edges, params].filter(e => e.target === params.target);
-              const inputSchemas = allEdgesToTarget.map(e => {
-                const inputNode = nds.find(n => n.id === e.source);
+              const allEdgesToTarget = [...edges, params].filter(
+                (e) => e.target === params.target,
+              );
+              const inputSchemas = allEdgesToTarget.map((e) => {
+                const inputNode = nds.find((n) => n.id === e.source);
                 return inputNode?.data?.schema || [];
               });
               const unionSchema = mergeSchemas(inputSchemas);
@@ -221,8 +241,8 @@ export default function ETLJobPage() {
                 data: {
                   ...prev.data,
                   inputSchemas: inputSchemas,
-                  schema: unionSchema
-                }
+                  schema: unionSchema,
+                },
               }));
             } else {
               setSelectedNode((prev) => ({
@@ -232,12 +252,12 @@ export default function ETLJobPage() {
                   inputSchema: sourceNode.data.schema,
                   schema: prev.data.transformConfig
                     ? applyTransformToSchema(
-                      sourceNode.data.schema,
-                      prev.data.transformType,
-                      prev.data.transformConfig
-                    )
-                    : sourceNode.data.schema
-                }
+                        sourceNode.data.schema,
+                        prev.data.transformType,
+                        prev.data.transformConfig,
+                      )
+                    : sourceNode.data.schema,
+                },
               }));
             }
           } else if (selectedNode.id === params.source) {
@@ -249,50 +269,52 @@ export default function ETLJobPage() {
         });
       }
     },
-    [setNodes, setEdges, selectedNode, edges]
+    [setNodes, setEdges, selectedNode, edges],
   );
 
   // Convert nodes to ETL Jobs API format
   const convertNodesToApiFormat = () => {
     // Find all source nodes (input type) - support multiple sources
-    const sourceNodes = nodes.filter(n => n.type === 'input');
+    const sourceNodes = nodes.filter((n) => n.type === "input");
     // Find transform nodes (default type)
-    const transformNodes = nodes.filter(n => n.type === 'default');
+    const transformNodes = nodes.filter((n) => n.type === "default");
     // Find target node (output type)
-    const targetNode = nodes.find(n => n.type === 'output');
+    const targetNode = nodes.find((n) => n.type === "output");
 
     // Build sources array (multiple sources support)
-    const sources = sourceNodes.map(node => ({
+    const sources = sourceNodes.map((node) => ({
       nodeId: node.id,
-      type: 'rdb',
-      connection_id: node.data?.sourceId || '',
-      table: node.data?.tableName || '',
+      type: "rdb",
+      connection_id: node.data?.sourceId || "",
+      table: node.data?.tableName || "",
     }));
 
     // Build transforms array with nodeId and inputNodeIds
-    const transforms = transformNodes.map(node => {
+    const transforms = transformNodes.map((node) => {
       // Find all incoming edges to this transform
-      const inputEdges = edges.filter(e => e.target === node.id);
-      const inputNodeIds = inputEdges.map(e => e.source);
+      const inputEdges = edges.filter((e) => e.target === node.id);
+      const inputNodeIds = inputEdges.map((e) => e.source);
 
       return {
         nodeId: node.id,
-        type: node.data?.transformType || 'select-fields',
+        type: node.data?.transformType || "select-fields",
         config: node.data?.transformConfig || {},
         inputNodeIds: inputNodeIds,
       };
     });
 
     // Build destination config
-    const destination = targetNode ? {
-      nodeId: targetNode.id,
-      type: 's3',
-      path: targetNode.data?.s3Location || '',
-      format: 'parquet',
-      options: {
-        compression: targetNode.data?.compressionType || 'snappy',
-      },
-    } : null;
+    const destination = targetNode
+      ? {
+          nodeId: targetNode.id,
+          type: "s3",
+          path: targetNode.data?.s3Location || "",
+          format: "parquet",
+          options: {
+            compression: targetNode.data?.compressionType || "snappy",
+          },
+        }
+      : null;
 
     return { sources, transforms, destination };
   };
@@ -305,20 +327,20 @@ export default function ETLJobPage() {
 
     // Validate required fields
     if (!sources || sources.length === 0 || !sources[0]?.connection_id) {
-      alert('Please select at least one source connection first.');
+      alert("Please select at least one source connection first.");
       setIsSaving(false);
       return;
     }
     if (!destination?.path) {
-      alert('Please set S3 destination path first.');
+      alert("Please set S3 destination path first.");
       setIsSaving(false);
       return;
     }
 
     const payload = {
       name: jobName,
-      description: jobDetails.description || '',
-      sources,  // Multiple sources support
+      description: jobDetails.description || "",
+      sources, // Multiple sources support
       transforms,
       destination,
       schedule: schedules.length > 0 ? schedules[0].cron : null,
@@ -331,28 +353,28 @@ export default function ETLJobPage() {
       if (jobId) {
         // Update existing job
         response = await fetch(`http://localhost:8000/api/etl-jobs/${jobId}`, {
-          method: 'PUT',
-          headers: { 'Content-Type': 'application/json' },
+          method: "PUT",
+          headers: { "Content-Type": "application/json" },
           body: JSON.stringify(payload),
         });
       } else {
         // Create new job
-        response = await fetch('http://localhost:8000/api/etl-jobs', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
+        response = await fetch("http://localhost:8000/api/etl-jobs", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
           body: JSON.stringify(payload),
         });
       }
 
       if (!response.ok) {
         const error = await response.json();
-        throw new Error(error.detail || 'Failed to save job');
+        throw new Error(error.detail || "Failed to save job");
       }
 
       const data = await response.json();
       setJobId(data.id);
       console.log("Job saved:", data);
-      alert('Job saved successfully!');
+      alert("Job saved successfully!");
     } catch (error) {
       console.error("Save failed:", error);
       alert(`Save failed: ${error.message}`);
@@ -363,19 +385,22 @@ export default function ETLJobPage() {
 
   const handleRun = async () => {
     if (!jobId) {
-      alert('Please save the job first before running.');
+      alert("Please save the job first before running.");
       return;
     }
 
     try {
-      const response = await fetch(`http://localhost:8000/api/etl-jobs/${jobId}/run`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-      });
+      const response = await fetch(
+        `http://localhost:8000/api/etl-jobs/${jobId}/run`,
+        {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+        },
+      );
 
       if (!response.ok) {
         const error = await response.json();
-        throw new Error(error.detail || 'Failed to run job');
+        throw new Error(error.detail || "Failed to run job");
       }
 
       const data = await response.json();
@@ -396,17 +421,19 @@ export default function ETLJobPage() {
   const fetchRuns = async () => {
     if (!jobId) return;
     try {
-      const response = await fetch(`http://localhost:8000/api/job-runs?job_id=${jobId}`);
+      const response = await fetch(
+        `http://localhost:8000/api/job-runs?job_id=${jobId}`,
+      );
       if (response.ok) {
         const data = await response.json();
         // Transform API response to match RunsPanel format
-        const formattedRuns = data.map(run => ({
+        const formattedRuns = data.map((run) => ({
           id: run.id,
-          status: run.status === 'success' ? 'succeeded' : run.status,
+          status: run.status === "success" ? "succeeded" : run.status,
           startTime: run.started_at,
           endTime: run.finished_at,
           duration: run.duration_seconds,
-          trigger: 'Manual',
+          trigger: "Manual",
         }));
         setRuns(formattedRuns);
       }
@@ -428,7 +455,7 @@ export default function ETLJobPage() {
       data: {
         label: nodeOption.label,
         // Transform 타입 저장 (확장성 고려)
-        transformType: category === "transform" ? nodeOption.id : undefined
+        transformType: category === "transform" ? nodeOption.id : undefined,
       },
       position: {
         x: Math.random() * 400 + 100,
@@ -496,12 +523,13 @@ export default function ETLJobPage() {
               key={tab}
               onClick={() => !isDisabled && setMainTab(tab)}
               disabled={isDisabled}
-              className={`py-3 text-sm font-medium border-b-2 transition-colors ${mainTab === tab
-                ? "text-blue-600 border-blue-600"
-                : isDisabled
-                  ? "text-gray-400 border-transparent cursor-not-allowed"
-                  : "text-gray-600 border-transparent hover:text-gray-900 hover:border-gray-300"
-                }`}
+              className={`py-3 text-sm font-medium border-b-2 transition-colors ${
+                mainTab === tab
+                  ? "text-blue-600 border-blue-600"
+                  : isDisabled
+                    ? "text-gray-400 border-transparent cursor-not-allowed"
+                    : "text-gray-600 border-transparent hover:text-gray-900 hover:border-gray-300"
+              }`}
               title={isDisabled ? "Save the job first to access this tab" : ""}
             >
               {tab}
@@ -534,28 +562,31 @@ export default function ETLJobPage() {
                     <div className="flex border-b border-gray-200">
                       <button
                         onClick={() => setActiveTab("source")}
-                        className={`flex-1 px-4 py-3 text-sm font-medium transition-colors ${activeTab === "source"
-                          ? "text-blue-600 border-b-2 border-blue-600 bg-blue-50"
-                          : "text-gray-600 hover:text-gray-900 hover:bg-gray-50"
-                          }`}
+                        className={`flex-1 px-4 py-3 text-sm font-medium transition-colors ${
+                          activeTab === "source"
+                            ? "text-blue-600 border-b-2 border-blue-600 bg-blue-50"
+                            : "text-gray-600 hover:text-gray-900 hover:bg-gray-50"
+                        }`}
                       >
                         Source
                       </button>
                       <button
                         onClick={() => setActiveTab("transform")}
-                        className={`flex-1 px-4 py-3 text-sm font-medium transition-colors ${activeTab === "transform"
-                          ? "text-purple-600 border-b-2 border-purple-600 bg-purple-50"
-                          : "text-gray-600 hover:text-gray-900 hover:bg-gray-50"
-                          }`}
+                        className={`flex-1 px-4 py-3 text-sm font-medium transition-colors ${
+                          activeTab === "transform"
+                            ? "text-purple-600 border-b-2 border-purple-600 bg-purple-50"
+                            : "text-gray-600 hover:text-gray-900 hover:bg-gray-50"
+                        }`}
                       >
                         Transform
                       </button>
                       <button
                         onClick={() => setActiveTab("target")}
-                        className={`flex-1 px-4 py-3 text-sm font-medium transition-colors ${activeTab === "target"
-                          ? "text-green-600 border-b-2 border-green-600 bg-green-50"
-                          : "text-gray-600 hover:text-gray-900 hover:bg-gray-50"
-                          }`}
+                        className={`flex-1 px-4 py-3 text-sm font-medium transition-colors ${
+                          activeTab === "target"
+                            ? "text-green-600 border-b-2 border-green-600 bg-green-50"
+                            : "text-gray-600 hover:text-gray-900 hover:bg-gray-50"
+                        }`}
                       >
                         Target
                       </button>
@@ -569,7 +600,7 @@ export default function ETLJobPage() {
                           onClick={() => addNode(activeTab, option)}
                           className="w-full px-4 py-3 text-left hover:bg-gray-100 rounded-md flex items-center gap-3 transition-colors"
                         >
-                          {typeof option.icon === 'string' ? (
+                          {typeof option.icon === "string" ? (
                             <span className="text-2xl">{option.icon}</span>
                           ) : (
                             <option.icon className="w-5 h-5 text-gray-600" />
@@ -611,64 +642,83 @@ export default function ETLJobPage() {
                   }}
                   className="bg-white border border-gray-200"
                 />
-                <Background variant={BackgroundVariant.Dots} gap={12} size={1} />
+                <Background
+                  variant={BackgroundVariant.Dots}
+                  gap={12}
+                  size={1}
+                />
               </ReactFlow>
 
               {/* Bottom Panel (Output Schema) - Show for Source, Transform, and Target nodes */}
-              {selectedNode && (selectedNode.type === "input" || selectedNode.type === "default" || selectedNode.type === "output") && (
-                <div className="h-64 border-t border-gray-200 bg-white flex flex-col transition-all duration-300 ease-in-out">
-                  <div className="flex items-center px-4 py-2 border-b border-gray-200 bg-gray-50">
-                    <span className="text-sm font-semibold text-gray-700">Output schema</span>
-                  </div>
+              {selectedNode &&
+                (selectedNode.type === "input" ||
+                  selectedNode.type === "default" ||
+                  selectedNode.type === "output") && (
+                  <div className="h-64 border-t border-gray-200 bg-white flex flex-col transition-all duration-300 ease-in-out">
+                    <div className="flex items-center px-4 py-2 border-b border-gray-200 bg-gray-50">
+                      <span className="text-sm font-semibold text-gray-700">
+                        Output schema
+                      </span>
+                    </div>
 
-                  <div className="flex-1 overflow-auto">
-                    <div className="h-full flex flex-col">
-                      <table className="min-w-full divide-y divide-gray-200">
-                        <thead className="bg-gray-50 sticky top-0">
-                          <tr>
-                            <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider w-1/3">
-                              Key
-                            </th>
-                            <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                              Data type
-                            </th>
-                          </tr>
-                        </thead>
-                        <tbody className="bg-white divide-y divide-gray-200">
-                          {/* Schema Data - use inputSchema for Target, schema for others */}
-                          {(() => {
-                            const schemaData = selectedNode.type === "output"
-                              ? selectedNode.data?.inputSchema
-                              : selectedNode.data?.schema;
-                            return schemaData && schemaData.length > 0 ? (
-                              schemaData.map((row, idx) => (
-                                <tr key={idx} className="hover:bg-gray-50">
-                                  <td className="px-6 py-2 whitespace-nowrap text-sm font-medium text-gray-900">
-                                    {row.key}
-                                  </td>
-                                  <td className="px-6 py-2 whitespace-nowrap text-sm text-gray-500">
-                                    {row.type}
+                    <div className="flex-1 overflow-auto">
+                      <div className="h-full flex flex-col">
+                        <table className="min-w-full divide-y divide-gray-200">
+                          <thead className="bg-gray-50 sticky top-0">
+                            <tr>
+                              <th
+                                scope="col"
+                                className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider w-1/3"
+                              >
+                                Key
+                              </th>
+                              <th
+                                scope="col"
+                                className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider"
+                              >
+                                Data type
+                              </th>
+                            </tr>
+                          </thead>
+                          <tbody className="bg-white divide-y divide-gray-200">
+                            {/* Schema Data - use inputSchema for Target, schema for others */}
+                            {(() => {
+                              const schemaData =
+                                selectedNode.type === "output"
+                                  ? selectedNode.data?.inputSchema
+                                  : selectedNode.data?.schema;
+                              return schemaData && schemaData.length > 0 ? (
+                                schemaData.map((row, idx) => (
+                                  <tr key={idx} className="hover:bg-gray-50">
+                                    <td className="px-6 py-2 whitespace-nowrap text-sm font-medium text-gray-900">
+                                      {row.key}
+                                    </td>
+                                    <td className="px-6 py-2 whitespace-nowrap text-sm text-gray-500">
+                                      {row.type}
+                                    </td>
+                                  </tr>
+                                ))
+                              ) : (
+                                <tr>
+                                  <td
+                                    colSpan="2"
+                                    className="px-6 py-8 text-center text-sm text-gray-500 italic"
+                                  >
+                                    {selectedNode.type === "input"
+                                      ? "No schema available. Select a table in the Properties panel to load schema."
+                                      : selectedNode.type === "output"
+                                        ? "No schema available. Connect a source or transform node."
+                                        : "No schema available. Configure the transform in the Properties panel."}
                                   </td>
                                 </tr>
-                              ))
-                            ) : (
-                              <tr>
-                                <td colSpan="2" className="px-6 py-8 text-center text-sm text-gray-500 italic">
-                                  {selectedNode.type === "input"
-                                    ? "No schema available. Select a table in the Properties panel to load schema."
-                                    : selectedNode.type === "output"
-                                      ? "No schema available. Connect a source or transform node."
-                                      : "No schema available. Configure the transform in the Properties panel."}
-                                </td>
-                              </tr>
-                            );
-                          })()}
-                        </tbody>
-                      </table>
+                              );
+                            })()}
+                          </tbody>
+                        </table>
+                      </div>
                     </div>
                   </div>
-                </div>
-              )}
+                )}
             </div>
 
             {/* Properties Panel - Source */}
@@ -683,41 +733,43 @@ export default function ETLJobPage() {
                     nds.map((n) =>
                       n.id === selectedNode.id
                         ? { ...n, data: { ...n.data, ...data } }
-                        : n
-                    )
+                        : n,
+                    ),
                   );
                   // Update selectedNode to reflect changes in bottom panel
                   setSelectedNode((prev) => ({
                     ...prev,
-                    data: { ...prev.data, ...data }
+                    data: { ...prev.data, ...data },
                   }));
                 }}
               />
             )}
 
             {/* Properties Panel - Transform (확장성 고려) */}
-            {selectedNode && selectedNode.type === "default" && selectedNode.data?.transformType && (
-              <TransformPropertiesPanel
-                node={selectedNode}
-                onClose={() => setSelectedNode(null)}
-                onUpdate={(data) => {
-                  console.log("Transform updated:", data);
-                  // Update node data
-                  setNodes((nds) =>
-                    nds.map((n) =>
-                      n.id === selectedNode.id
-                        ? { ...n, data: { ...n.data, ...data } }
-                        : n
-                    )
-                  );
-                  // Update selectedNode to reflect changes in bottom panel
-                  setSelectedNode((prev) => ({
-                    ...prev,
-                    data: { ...prev.data, ...data }
-                  }));
-                }}
-              />
-            )}
+            {selectedNode &&
+              selectedNode.type === "default" &&
+              selectedNode.data?.transformType && (
+                <TransformPropertiesPanel
+                  node={selectedNode}
+                  onClose={() => setSelectedNode(null)}
+                  onUpdate={(data) => {
+                    console.log("Transform updated:", data);
+                    // Update node data
+                    setNodes((nds) =>
+                      nds.map((n) =>
+                        n.id === selectedNode.id
+                          ? { ...n, data: { ...n.data, ...data } }
+                          : n,
+                      ),
+                    );
+                    // Update selectedNode to reflect changes in bottom panel
+                    setSelectedNode((prev) => ({
+                      ...prev,
+                      data: { ...prev.data, ...data },
+                    }));
+                  }}
+                />
+              )}
 
             {/* S3 Target Properties Panel */}
             {selectedNode && selectedNode.type === "output" && (
@@ -731,56 +783,55 @@ export default function ETLJobPage() {
                     nds.map((n) =>
                       n.id === selectedNode.id
                         ? { ...n, data: { ...n.data, ...data } }
-                        : n
-                    )
+                        : n,
+                    ),
                   );
                   setSelectedNode((prev) => ({
                     ...prev,
-                    data: { ...prev.data, ...data }
+                    data: { ...prev.data, ...data },
                   }));
                 }}
               />
             )}
-          </div >
+          </div>
 
           {/* Info Panel */}
-          < div className="bg-white border-t border-gray-200 px-6 py-3 text-sm text-gray-600" >
+          <div className="bg-white border-t border-gray-200 px-6 py-3 text-sm text-gray-600">
             <p>
-              <span className="font-medium">Tip:</span> Drag nodes to reposition •
-              Connect nodes by dragging from the edge handles • Use scroll to zoom •
-              Right-click for more options
+              <span className="font-medium">Tip:</span> Drag nodes to reposition
+              • Connect nodes by dragging from the edge handles • Use scroll to
+              zoom • Right-click for more options
             </p>
-          </div >
-        </>) : mainTab === "Job details" ? (
-          <JobDetailsPanel
-            jobDetails={jobDetails}
-            onUpdate={(details) => {
-              console.log("Job details updated:", details);
-              setJobDetails(details);
-            }}
-          />
-        ) : mainTab === "Schedules" ? (
-          <SchedulesPanel
-            schedules={schedules}
-            onUpdate={(newSchedules) => {
-              console.log("Schedules updated:", newSchedules);
-              setSchedules(newSchedules);
-            }}
-          />
-        ) : mainTab === "Runs" ? (
-          <RunsPanel
-            runs={runs}
-            onRefresh={fetchRuns}
-          />
-        ) : (
+          </div>
+        </>
+      ) : mainTab === "Job details" ? (
+        <JobDetailsPanel
+          jobDetails={jobDetails}
+          onUpdate={(details) => {
+            console.log("Job details updated:", details);
+            setJobDetails(details);
+          }}
+        />
+      ) : mainTab === "Schedules" ? (
+        <SchedulesPanel
+          schedules={schedules}
+          onUpdate={(newSchedules) => {
+            console.log("Schedules updated:", newSchedules);
+            setSchedules(newSchedules);
+          }}
+        />
+      ) : mainTab === "Runs" ? (
+        <RunsPanel runs={runs} onRefresh={fetchRuns} />
+      ) : (
         <div className="flex-1 flex items-center justify-center bg-gray-50">
           <div className="text-center">
-            <h3 className="text-xl font-medium text-gray-900 mb-2">{mainTab}</h3>
+            <h3 className="text-xl font-medium text-gray-900 mb-2">
+              {mainTab}
+            </h3>
             <p className="text-gray-500">This feature is coming soon.</p>
           </div>
         </div>
-      )
-      }
-    </div >
+      )}
+    </div>
   );
 }
