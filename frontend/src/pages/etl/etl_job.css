@@ -1,6 +1,6 @@
 /* React Flow - 선택된 노드 스타일 커스터마이징 */
 .react-flow__node {
-    transition: all 0.2s ease-in-out;
+    transition: box-shadow 0.2s ease-in-out, outline 0.2s ease-in-out;
 }
 
 .react-flow__node.selected {
