@@ -71,3 +71,40 @@ class Transform(Document):
 
     class Settings:
         name = "transforms"
+
+from neomodel import (
+    StructuredNode, StringProperty, RelationshipTo, RelationshipFrom, 
+    UniqueIdProperty, JSONProperty
+)
+
+class Column(StructuredNode):
+    """
+    Represents a Column in a Table.
+    """
+    uid = UniqueIdProperty() # Auto-generated or manual unique ID
+    name = StringProperty(required=True)
+    type = StringProperty(default="string")
+    description = StringProperty()
+    
+    # Relationships
+    flows_to = RelationshipTo('Column', 'FLOWS_TO')
+    belongs_to = RelationshipFrom('Table', 'HAS_COLUMN')
+
+class Table(StructuredNode):
+    """
+    Represents a Dataset/Table.
+    """
+    mongo_id = StringProperty(unique_index=True, required=True)
+    name = StringProperty(required=True)
+    platform = StringProperty(default="hive")
+    layer = StringProperty()
+    description = StringProperty()
+    urn = StringProperty()
+    domain = StringProperty()
+    
+    # Dynamic properties payload if needed
+    properties = JSONProperty()
+
+    # Relationships
+    has_columns = RelationshipTo(Column, 'HAS_COLUMN')
+    flows_to = RelationshipTo('Table', 'FLOWS_TO') # Table-level lineage

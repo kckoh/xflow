@@ -125,8 +125,11 @@ export const useLineageLogic = ({ datasetId, selectedId, onStreamAnalysis, onNod
             const targetNode = currentNodes.find(n => n.id === edge.target);
 
             // Determine if nodes are collapsed (accounting for the node being toggled)
-            const sourceCollapsed = sourceNode && (sourceNode.id === nodeId ? !newExpandedState : !sourceNode.data.expanded);
-            const targetCollapsed = targetNode && (targetNode.id === nodeId ? !newExpandedState : !targetNode.data.expanded);
+            const isSourceExpanded = sourceNode ? (sourceNode.id === nodeId ? newExpandedState : (sourceNode.data.expanded !== false)) : true;
+            const isTargetExpanded = targetNode ? (targetNode.id === nodeId ? newExpandedState : (targetNode.data.expanded !== false)) : true;
+
+            const sourceCollapsed = !isSourceExpanded;
+            const targetCollapsed = !isTargetExpanded;
 
             // Get original handles (stored in data, or use current if not __TABLE__)
             let originalSource = edge.data?.originalSourceHandle;
@@ -316,7 +319,9 @@ export const useLineageLogic = ({ datasetId, selectedId, onStreamAnalysis, onNod
                         columns: source.schema.map(c => c.name),
                         mongoId: sourceId,
                         isCurrent: false,
-                        isSelected: false
+                        isSelected: false,
+                        expanded: true, // Explicitly set default state
+                        onToggleExpand: handleToggleExpand // Bind toggle handler
                     }
                 };
 
@@ -404,19 +409,39 @@ export const useLineageLogic = ({ datasetId, selectedId, onStreamAnalysis, onNod
             if (response.ok) {
                 // Enforce styling for new edge
                 const finalParams = { ...params, targetHandle: targetHandle };
+
                 setEdges((eds) => addEdge({
                     ...finalParams,
                     animated: true,
                     type: 'deletion',
-                    label: ''
+                    label: '',
+                    data: {
+                        originalSourceHandle: sourceHandle,
+                        originalTargetHandle: targetHandle
+                    }
                 }, eds));
+
+                // Optimistic UI Update: Increment connection count for nodes
+                setNodes((nds) => nds.map((n) => {
+                    if (n.id === source || n.id === target) {
+                        return {
+                            ...n,
+                            data: {
+                                ...n.data,
+                                connectionCount: (n.data.connectionCount || 0) + 1
+                            }
+                        };
+                    }
+                    return n;
+                }));
+
             } else {
                 alert("Failed to connect datasets.");
             }
         } catch (error) {
             alert("Connection failed.");
         }
-    }, [nodes, setEdges]);
+    }, [nodes, setEdges, setNodes]);
 
     const onNodeContextMenu = useCallback((event, node) => {
         event.preventDefault();
