@@ -16,7 +16,7 @@ from pyspark.sql import SparkSession, DataFrame
 
 def transform_select_fields(df: DataFrame, config: dict) -> DataFrame:
     """Select specific columns from DataFrame"""
-    columns = config.get("columns", [])
+    columns = config.get("selectedColumns", [])
     if columns:
         return df.select(*columns)
     return df

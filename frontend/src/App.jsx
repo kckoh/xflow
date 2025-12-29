@@ -145,6 +145,17 @@ function App() {
         />
 
         <Route
+          path="/etl/job/:jobId"
+          element={
+            <ProtectedRoute>
+              <MainLayout>
+                <ETLJobPage />
+              </MainLayout>
+            </ProtectedRoute>
+          }
+        />
+
+        <Route
           path="/sources"
           element={
             <ProtectedRoute>
