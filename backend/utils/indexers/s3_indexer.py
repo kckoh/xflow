@@ -41,6 +41,13 @@ async def index_s3_metadata() -> int:
                     columns = storage_desc.get('Columns', [])
                     location = storage_desc.get('Location', '')
 
+                    # 테이블 메타데이터 추출 (Glue Parameters)
+                    table_params = table.get('Parameters', {})
+                    owner = table_params.get('owner', None)
+                    domain = table_params.get('domain', db_name)  # Fallback: DB 이름
+                    tags_str = table_params.get('tags', '')
+                    tags = [t.strip() for t in tags_str.split(',') if t.strip()] if tags_str else None
+
                     # 3. 각 컬럼을 Pydantic 스키마로 변환
                     for column in columns:
                         doc = CatalogDocument(
@@ -52,6 +59,9 @@ async def index_s3_metadata() -> int:
                             field_type=column['Type'],
                             description=column.get('Comment', None),
                             location=location,
+                            tag=tags,
+                            owner=owner,
+                            domain=domain,
                             last_indexed=datetime.utcnow()
                         )
                         documents.append(doc)

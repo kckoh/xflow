@@ -29,6 +29,9 @@ class ETLJobCreate(BaseModel):
     transforms: List[TransformConfig] = []
     destination: DestinationConfig
     schedule: Optional[str] = None  # Cron expression or None for manual
+    # Visual Editor state
+    nodes: Optional[List[dict]] = None
+    edges: Optional[List[dict]] = None
 
 
 class ETLJobUpdate(BaseModel):
@@ -39,6 +42,9 @@ class ETLJobUpdate(BaseModel):
     destination: Optional[DestinationConfig] = None
     schedule: Optional[str] = None
     status: Optional[str] = None
+    # Visual Editor state
+    nodes: Optional[List[dict]] = None
+    edges: Optional[List[dict]] = None
 
 
 class ETLJobResponse(BaseModel):
@@ -52,6 +58,10 @@ class ETLJobResponse(BaseModel):
     status: str
     created_at: datetime
     updated_at: datetime
+    # Visual Editor state
+    nodes: Optional[List[dict]] = None
+    edges: Optional[List[dict]] = None
 
     class Config:
         from_attributes = True
+

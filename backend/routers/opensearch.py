@@ -2,14 +2,88 @@
 OpenSearch 관련 API 엔드포인트
 - 수동 인덱싱 트리거
 - 검색 쿼리 처리
+- 상태 확인
 """
 from fastapi import APIRouter, HTTPException, Query
 from typing import Optional, Literal
-from schemas.opensearch import IndexingResult, SearchQuery, SearchResult, CatalogDocument
+from schemas.opensearch import IndexingResult, SearchQuery, SearchResult, CatalogDocument, StatusResponse
 from utils.indexers import index_all_sources
 from utils.opensearch_client import get_opensearch_client, CATALOG_INDEX
 
 router = APIRouter()
+
+
+@router.get("/status", response_model=StatusResponse)
+async def get_status():
+    """
+    OpenSearch 상태 확인
+    연결 상태, 인덱스 존재 여부, 문서 수 확인
+
+    Returns:
+        StatusResponse: OpenSearch 및 인덱스 상태 정보
+    """
+    try:
+        opensearch = get_opensearch_client()
+
+        # OpenSearch 연결 확인
+        opensearch_connected = False
+        index_exists = False
+        total_documents = 0
+        s3_documents = 0
+        mongodb_documents = 0
+
+        try:
+            # Cluster health 확인
+            opensearch.cluster.health()
+            opensearch_connected = True
+
+            # 인덱스 존재 확인
+            index_exists = opensearch.indices.exists(index=CATALOG_INDEX)
+
+            if index_exists:
+                # 총 문서 수
+                count_response = opensearch.count(index=CATALOG_INDEX)
+                total_documents = count_response['count']
+
+                # S3 문서 수
+                s3_response = opensearch.count(
+                    index=CATALOG_INDEX,
+                    body={"query": {"term": {"source": "s3"}}}
+                )
+                s3_documents = s3_response['count']
+
+                # MongoDB 문서 수
+                mongodb_response = opensearch.count(
+                    index=CATALOG_INDEX,
+                    body={"query": {"term": {"source": "mongodb"}}}
+                )
+                mongodb_documents = mongodb_response['count']
+
+        except Exception as e:
+            print(f"OpenSearch status check error: {e}")
+
+        # 전체 상태 판단
+        if opensearch_connected and index_exists and total_documents > 0:
+            status = "healthy"
+        elif opensearch_connected and index_exists:
+            status = "degraded"
+        else:
+            status = "unhealthy"
+
+        return StatusResponse(
+            status=status,
+            opensearch_connected=opensearch_connected,
+            index_exists=index_exists,
+            total_documents=total_documents,
+            s3_documents=s3_documents,
+            mongodb_documents=mongodb_documents
+        )
+
+    except Exception as e:
+        raise HTTPException(
+            status_code=500,
+            detail=f"Status check failed: {str(e)}"
+        )
 
 
 @router.post("/index", response_model=IndexingResult)

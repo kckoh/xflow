@@ -104,7 +104,12 @@ def create_s3_sample_data():
                         'SerializationLibrary': 'org.apache.hadoop.hive.ql.io.parquet.serde.ParquetHiveSerDe'
                     }
                 },
-                'TableType': 'EXTERNAL_TABLE'
+                'TableType': 'EXTERNAL_TABLE',
+                'Parameters': {
+                    'owner': 'data-team@xflow.com',
+                    'domain': 'user-management',
+                    'tags': 'pii,user-data,production'
+                }
             }
         )
         print("✅ Created Glue table: sample_db.users")
@@ -132,7 +137,12 @@ def create_s3_sample_data():
                         'SerializationLibrary': 'org.apache.hadoop.hive.ql.io.parquet.serde.ParquetHiveSerDe'
                     }
                 },
-                'TableType': 'EXTERNAL_TABLE'
+                'TableType': 'EXTERNAL_TABLE',
+                'Parameters': {
+                    'owner': 'product-team@xflow.com',
+                    'domain': 'inventory',
+                    'tags': 'catalog,inventory,production'
+                }
             }
         )
         print("✅ Created Glue table: sample_db.products")

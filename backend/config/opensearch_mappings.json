@@ -53,7 +53,25 @@
         "field_type": {
           "type": "keyword"
         },
+        "description": {
+          "type": "text",
+          "analyzer": "catalog_analyzer",
+          "fields": {
+            "keyword": {
+              "type": "keyword"
+            }
+          }
+        },
         "location": {
+          "type": "keyword"
+        },
+        "tag": {
+          "type": "keyword"
+        },
+        "owner": {
+          "type": "keyword"
+        },
+        "domain": {
           "type": "keyword"
         },
         "last_indexed": {

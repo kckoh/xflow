@@ -37,6 +37,18 @@ class CatalogDocument(BaseModel):
         default=None,
         description="S3 경로 등"
     )
+    tag: Optional[list[str]] = Field(
+        default=None,
+        description="태그 목록"
+    )
+    owner: Optional[str] = Field(
+        default=None,
+        description="소유자"
+    )
+    domain: Optional[str] = Field(
+        default=None,
+        description="비즈니스 도메인"
+    )
     last_indexed: datetime = Field(
         description="마지막 인덱싱 시간"
     )
@@ -77,3 +89,27 @@ class SearchResult(BaseModel):
     """
     total: int = Field(description="총 검색 결과 수")
     results: list[CatalogDocument] = Field(description="검색 결과 문서들")
+
+
+class StatusResponse(BaseModel):
+    """
+    OpenSearch 상태 응답 스키마
+    """
+    status: Literal['healthy', 'degraded', 'unhealthy'] = Field(
+        description="전체 상태"
+    )
+    opensearch_connected: bool = Field(
+        description="OpenSearch 연결 상태"
+    )
+    index_exists: bool = Field(
+        description="인덱스 존재 여부"
+    )
+    total_documents: int = Field(
+        description="총 문서 수"
+    )
+    s3_documents: int = Field(
+        description="S3 소스 문서 수"
+    )
+    mongodb_documents: int = Field(
+        description="MongoDB 소스 문서 수"
+    )

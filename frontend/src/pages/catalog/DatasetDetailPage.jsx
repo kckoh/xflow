@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback } from "react";
-import { useParams } from "react-router-dom";
+import { useParams, useNavigate } from "react-router-dom";
 import {
     FileText,
     Users,
@@ -14,9 +14,11 @@ import {
 import DatasetHeader from "../../features/dataset/components/DatasetHeader";
 import DatasetSchema from "../../features/dataset/components/DatasetSchema";
 import DatasetLineage from "../../features/dataset/components/DatasetLineage";
+import { catalogAPI } from "../../services/catalog/index";
 
 export default function DatasetDetailPage() {
     const { id } = useParams();
+    const navigate = useNavigate();
     const [activeTab, setActiveTab] = useState("columns");
     const [dataset, setDataset] = useState(null);
     const [loading, setLoading] = useState(true);
@@ -26,13 +28,7 @@ export default function DatasetDetailPage() {
         const fetchDataset = async () => {
             try {
                 setLoading(true);
-                const response = await fetch(`http://localhost:8000/api/catalog/${id}`);
-
-                if (!response.ok) {
-                    throw new Error("Failed to load dataset details");
-                }
-
-                const data = await response.json();
+                const data = await catalogAPI.getDataset(id);
                 setDataset(data);
             } catch (err) {
                 console.error(err);
@@ -51,11 +47,41 @@ export default function DatasetDetailPage() {
     const [isSidebarOpen, setIsSidebarOpen] = useState(true);
     const [sidebarTab, setSidebarTab] = useState("summary"); // 'summary' | 'stream'
     const [streamData, setStreamData] = useState({ upstream: [], downstream: [] });
+    // New: Independent Sidebar Dataset State
+    const [sidebarDataset, setSidebarDataset] = useState(null);
+
+    // Sync sidebar with main dataset initially
+    useEffect(() => {
+        if (dataset && !sidebarDataset) {
+            setSidebarDataset(dataset);
+        }
+    }, [dataset]);
 
     // Stream Analysis Callback
     const handleStreamAnalysis = useCallback((data) => {
         setStreamData(data);
     }, []);
+
+    // Handle Node Click: Update Sidebar Only
+    const handleNodeSelect = useCallback(async (selectedId) => {
+        try {
+            // Open sidebar if closed
+            setIsSidebarOpen(true);
+            setSidebarTab("summary");
+
+            // If selecting the main dataset again, just revert state
+            if (selectedId === id) {
+                setSidebarDataset(dataset);
+                return;
+            }
+
+            // Fetch details for the selected node
+            const data = await catalogAPI.getDataset(selectedId);
+            setSidebarDataset(data);
+        } catch (error) {
+            console.error("Failed to load sidebar dataset:", error);
+        }
+    }, [id, dataset]);
 
     // Toggle Logic: If clicking active tab, toggle open/close. If clicking new tab, switch and ensure open.
     const handleSidebarTabClick = (tab) => {
@@ -70,6 +96,9 @@ export default function DatasetDetailPage() {
     if (loading) return <div className="flex items-center justify-center h-screen">Loading...</div>;
     if (error) return <div className="flex items-center justify-center h-screen text-red-500">Error: {error}</div>;
     if (!dataset) return <div className="flex items-center justify-center h-screen">Dataset not found</div>;
+
+    // Fallback if sidebarDataset is null (shouldn't happen after load)
+    const activeSidebarData = sidebarDataset || dataset;
 
     const columnCount = dataset.columns ? dataset.columns.length : 0;
     const tabs = [
@@ -121,7 +150,9 @@ export default function DatasetDetailPage() {
                     {activeTab === "lineage" && (
                         <DatasetLineage
                             datasetId={dataset.id}
+                            selectedId={activeSidebarData.id}
                             onStreamAnalysis={handleStreamAnalysis}
+                            onNodeSelect={handleNodeSelect}
                         />
                     )}
                     {activeTab !== "columns" && activeTab !== "lineage" && (
@@ -194,37 +225,37 @@ export default function DatasetDetailPage() {
                                             <Database className="w-5 h-5" />
                                         </div>
                                         <div className="overflow-hidden">
-                                            <div className="font-bold text-gray-900 truncate" title={dataset.name}>{dataset.name}</div>
+                                            <div className="font-bold text-gray-900 truncate" title={activeSidebarData.name}>{activeSidebarData.name}</div>
                                             <div className="text-xs text-gray-500 flex items-center gap-1 mt-0.5">
                                                 <TableIcon className="w-3 h-3" />
-                                                {dataset.type || "Dataset"}
+                                                {activeSidebarData.type || "Dataset"}
                                             </div>
                                         </div>
                                     </div>
 
                                     <SidebarItem title="Documentation" icon={<FileText className="w-4 h-4" />}>
-                                        {dataset.description || "No description provided."}
+                                        {activeSidebarData.description || "No description provided."}
                                     </SidebarItem>
 
                                     <SidebarItem title="Owners" icon={<Users className="w-4 h-4" />}>
-                                        {dataset.owner ? (
+                                        {activeSidebarData.owner ? (
                                             <div className="flex items-center gap-2 mt-2">
                                                 <div className="w-6 h-6 rounded-full bg-indigo-100 text-indigo-600 flex items-center justify-center text-xs font-bold">
-                                                    {dataset.owner[0].toUpperCase()}
+                                                    {activeSidebarData.owner[0].toUpperCase()}
                                                 </div>
-                                                <span className="text-sm text-gray-700">{dataset.owner}</span>
+                                                <span className="text-sm text-gray-700">{activeSidebarData.owner}</span>
                                             </div>
                                         ) : "No owners."}
                                     </SidebarItem>
 
                                     <SidebarItem title="Tags" icon={<Tag className="w-4 h-4" />}>
                                         <div className="flex flex-wrap gap-2 mt-2">
-                                            {dataset.tags && dataset.tags.map(tag => (
+                                            {activeSidebarData.tags && activeSidebarData.tags.map(tag => (
                                                 <span key={tag} className="px-2 py-1 bg-gray-100 text-gray-600 rounded text-xs border border-gray-200">
                                                     {tag}
                                                 </span>
                                             ))}
-                                            {(!dataset.tags || dataset.tags.length === 0) && <span className="text-gray-400 text-xs">No tags</span>}
+                                            {(!activeSidebarData.tags || activeSidebarData.tags.length === 0) && <span className="text-gray-400 text-xs">No tags</span>}
                                         </div>
                                     </SidebarItem>
                                 </div>

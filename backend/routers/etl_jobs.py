@@ -49,6 +49,8 @@ async def create_etl_job(job: ETLJobCreate):
         destination=job.destination.model_dump(),
         schedule=job.schedule,
         status="draft",
+        nodes=job.nodes or [],
+        edges=job.edges or [],
         created_at=datetime.utcnow(),
         updated_at=datetime.utcnow(),
     )
@@ -64,6 +66,8 @@ async def create_etl_job(job: ETLJobCreate):
         destination=new_job.destination,
         schedule=new_job.schedule,
         status=new_job.status,
+        nodes=new_job.nodes,
+        edges=new_job.edges,
         created_at=new_job.created_at,
         updated_at=new_job.updated_at,
     )
@@ -110,6 +114,8 @@ async def get_etl_job(job_id: str):
         destination=job.destination,
         schedule=job.schedule,
         status=job.status,
+        nodes=job.nodes,
+        edges=job.edges,
         created_at=job.created_at,
         updated_at=job.updated_at,
     )
@@ -141,6 +147,10 @@ async def update_etl_job(job_id: str, job_update: ETLJobUpdate):
         job.schedule = job_update.schedule
     if job_update.status is not None:
         job.status = job_update.status
+    if job_update.nodes is not None:
+        job.nodes = job_update.nodes
+    if job_update.edges is not None:
+        job.edges = job_update.edges
 
     job.updated_at = datetime.utcnow()
     await job.save()
@@ -154,6 +164,8 @@ async def update_etl_job(job_id: str, job_update: ETLJobUpdate):
         destination=job.destination,
         schedule=job.schedule,
         status=job.status,
+        nodes=job.nodes,
+        edges=job.edges,
         created_at=job.created_at,
         updated_at=job.updated_at,
     )

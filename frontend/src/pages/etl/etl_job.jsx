@@ -1,4 +1,4 @@
-import { useCallback, useState } from "react";
+import { useCallback, useState, useEffect } from "react";
 import {
   ReactFlow,
   MiniMap,
@@ -11,10 +11,13 @@ import {
 } from "@xyflow/react";
 import "@xyflow/react/dist/style.css";
 import { ArrowLeft, Save, Play, Plus, Columns, Filter, ArrowRightLeft, GitMerge, BarChart3, ArrowUpDown } from "lucide-react";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, useParams } from "react-router-dom";
 import RDBSourcePropertiesPanel from "../../components/etl/RDBSourcePropertiesPanel";
 import TransformPropertiesPanel from "../../components/etl/TransformPropertiesPanel";
 import S3TargetPropertiesPanel from "../../components/etl/S3TargetPropertiesPanel";
+import JobDetailsPanel from "../../components/etl/JobDetailsPanel";
+import SchedulesPanel from "../../components/etl/SchedulesPanel";
+import RunsPanel from "../../components/etl/RunsPanel";
 import { applyTransformToSchema } from "../../utils/schemaTransforms";
 
 const initialNodes = [];
@@ -23,6 +26,7 @@ const initialEdges = [];
 
 export default function ETLJobPage() {
   const navigate = useNavigate();
+  const { jobId: urlJobId } = useParams();
   const [nodes, setNodes, onNodesChange] = useNodesState(initialNodes);
   const [edges, setEdges, onEdgesChange] = useEdgesState(initialEdges);
   const [jobName, setJobName] = useState("Untitled Job");
@@ -30,6 +34,78 @@ export default function ETLJobPage() {
   const [activeTab, setActiveTab] = useState("source");
   const [mainTab, setMainTab] = useState("Visual"); // Top level tabs: Visual, Job details, Schedules
   const [selectedNode, setSelectedNode] = useState(null);
+  const [jobDetails, setJobDetails] = useState({
+    description: '',
+    jobType: 'batch',
+    glueVersion: '4.0',
+    workerType: 'G.1X',
+    numberOfWorkers: 2,
+    jobTimeout: 2880,
+    maxRetries: 0,
+  });
+  const [schedules, setSchedules] = useState([]);
+  const [runs, setRuns] = useState([]);
+  const [jobId, setJobId] = useState(urlJobId || null);
+  const [isSaving, setIsSaving] = useState(false);
+  const [isLoading, setIsLoading] = useState(!!urlJobId);
+
+  // Load runs when switching to Runs tab
+  useEffect(() => {
+    if (mainTab === 'Runs' && jobId) {
+      fetchRuns();
+    }
+  }, [mainTab, jobId]);
+
+  // Load job data if jobId is provided in URL
+  useEffect(() => {
+    if (urlJobId) {
+      loadJob(urlJobId);
+    }
+  }, [urlJobId]);
+
+  const loadJob = async (id) => {
+    setIsLoading(true);
+    try {
+      const response = await fetch(`http://localhost:8000/api/etl-jobs/${id}`);
+      if (!response.ok) {
+        throw new Error('Failed to load job');
+      }
+      const data = await response.json();
+
+      // Restore state from loaded job
+      setJobName(data.name);
+      setJobId(data.id);
+      setJobDetails(prev => ({
+        ...prev,
+        description: data.description || '',
+      }));
+
+      // Restore nodes and edges if they exist
+      if (data.nodes && data.nodes.length > 0) {
+        setNodes(data.nodes);
+      }
+      if (data.edges && data.edges.length > 0) {
+        setEdges(data.edges);
+      }
+
+      // Restore schedule
+      if (data.schedule) {
+        setSchedules([{ id: '1', name: 'Main Schedule', cron: data.schedule }]);
+      }
+
+      console.log('Job loaded:', data);
+    } catch (error) {
+      console.error('Failed to load job:', error);
+      alert(`Failed to load job: ${error.message}`);
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  // Tabs shown based on whether job is saved
+  const availableTabs = jobId
+    ? ["Visual", "Job details", "Runs", "Schedules"]
+    : ["Visual", "Job details"];
 
   const nodeOptions = {
     source: [
@@ -113,14 +189,157 @@ export default function ETLJobPage() {
     [setNodes, setEdges, selectedNode]
   );
 
-  const handleSave = () => {
-    console.log("Saving job:", { jobName, nodes, edges });
-    // TODO: Implement save to backend
+  // Convert nodes to ETL Jobs API format
+  const convertNodesToApiFormat = () => {
+    // Find source node (input type)
+    const sourceNode = nodes.find(n => n.type === 'input');
+    // Find transform nodes (default type)
+    const transformNodes = nodes.filter(n => n.type === 'default');
+    // Find target node (output type)
+    const targetNode = nodes.find(n => n.type === 'output');
+
+    // Build source config
+    const source = sourceNode ? {
+      type: 'rdb',
+      connection_id: sourceNode.data?.sourceId || '',
+      table: sourceNode.data?.tableName || '',
+    } : null;
+
+    // Build transforms array
+    const transforms = transformNodes.map(node => ({
+      type: node.data?.transformType || 'select-fields',
+      config: node.data?.transformConfig || {},
+    }));
+
+    // Build destination config
+    const destination = targetNode ? {
+      type: 's3',
+      path: targetNode.data?.s3Location || '',
+      format: 'parquet',
+      options: {
+        compression: targetNode.data?.compressionType || 'snappy',
+      },
+    } : null;
+
+    return { source, transforms, destination };
   };
 
-  const handleRun = () => {
-    console.log("Running job:", { jobName, nodes, edges });
-    // TODO: Implement run job
+  const handleSave = async () => {
+    if (isSaving) return;
+    setIsSaving(true);
+
+    const { source, transforms, destination } = convertNodesToApiFormat();
+
+    // Validate required fields
+    if (!source?.connection_id) {
+      alert('Please select a source connection first.');
+      setIsSaving(false);
+      return;
+    }
+    if (!destination?.path) {
+      alert('Please set S3 destination path first.');
+      setIsSaving(false);
+      return;
+    }
+
+    const payload = {
+      name: jobName,
+      description: jobDetails.description || '',
+      source,
+      transforms,
+      destination,
+      schedule: schedules.length > 0 ? schedules[0].cron : null,
+      nodes: nodes,
+      edges: edges,
+    };
+
+    try {
+      let response;
+      if (jobId) {
+        // Update existing job
+        response = await fetch(`http://localhost:8000/api/etl-jobs/${jobId}`, {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(payload),
+        });
+      } else {
+        // Create new job
+        response = await fetch('http://localhost:8000/api/etl-jobs', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(payload),
+        });
+      }
+
+      if (!response.ok) {
+        const error = await response.json();
+        throw new Error(error.detail || 'Failed to save job');
+      }
+
+      const data = await response.json();
+      setJobId(data.id);
+      console.log("Job saved:", data);
+      alert('Job saved successfully!');
+    } catch (error) {
+      console.error("Save failed:", error);
+      alert(`Save failed: ${error.message}`);
+    } finally {
+      setIsSaving(false);
+    }
+  };
+
+  const handleRun = async () => {
+    if (!jobId) {
+      alert('Please save the job first before running.');
+      return;
+    }
+
+    try {
+      const response = await fetch(`http://localhost:8000/api/etl-jobs/${jobId}/run`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+      });
+
+      if (!response.ok) {
+        const error = await response.json();
+        throw new Error(error.detail || 'Failed to run job');
+      }
+
+      const data = await response.json();
+      console.log("Job run triggered:", data);
+      alert(`Job started! Run ID: ${data.run_id}`);
+
+      // Switch to Runs tab to see the execution
+      setMainTab("Runs");
+
+      // Fetch updated runs
+      fetchRuns();
+    } catch (error) {
+      console.error("Run failed:", error);
+      alert(`Run failed: ${error.message}`);
+    }
+  };
+
+  const fetchRuns = async () => {
+    if (!jobId) return;
+    try {
+      const response = await fetch(`http://localhost:8000/api/job-runs?job_id=${jobId}`);
+      if (response.ok) {
+        const data = await response.json();
+        // Transform API response to match RunsPanel format
+        const formattedRuns = data.map(run => ({
+          id: run.id,
+          status: run.status === 'success' ? 'succeeded' : run.status,
+          startTime: run.started_at,
+          endTime: run.finished_at,
+          duration: run.duration_seconds,
+          trigger: 'Manual',
+        }));
+        setRuns(formattedRuns);
+      }
+    } catch (error) {
+      console.error("Failed to fetch runs:", error);
+    }
   };
 
   const addNode = (category, nodeOption) => {
@@ -195,20 +414,27 @@ export default function ETLJobPage() {
         </div>
       </div>
 
-      {/* Main Tabs (Visual / Job details / Schedules) */}
+      {/* Main Tabs (Visual / Job details / Runs / Schedules) */}
       <div className="bg-white border-b border-gray-200 px-6 flex items-center gap-6">
-        {["Visual", "Job details", "Schedules"].map((tab) => (
-          <button
-            key={tab}
-            onClick={() => setMainTab(tab)}
-            className={`py-3 text-sm font-medium border-b-2 transition-colors ${mainTab === tab
-              ? "text-blue-600 border-blue-600"
-              : "text-gray-600 border-transparent hover:text-gray-900 hover:border-gray-300"
-              }`}
-          >
-            {tab}
-          </button>
-        ))}
+        {["Visual", "Job details", "Runs", "Schedules"].map((tab) => {
+          const isDisabled = !jobId && (tab === "Runs" || tab === "Schedules");
+          return (
+            <button
+              key={tab}
+              onClick={() => !isDisabled && setMainTab(tab)}
+              disabled={isDisabled}
+              className={`py-3 text-sm font-medium border-b-2 transition-colors ${mainTab === tab
+                ? "text-blue-600 border-blue-600"
+                : isDisabled
+                  ? "text-gray-400 border-transparent cursor-not-allowed"
+                  : "text-gray-600 border-transparent hover:text-gray-900 hover:border-gray-300"
+                }`}
+              title={isDisabled ? "Save the job first to access this tab" : ""}
+            >
+              {tab}
+            </button>
+          );
+        })}
       </div>
 
       {/* Main Content: Canvas + Properties Panel (Shown only when 'Visual' is active) */}
@@ -452,7 +678,28 @@ export default function ETLJobPage() {
               Right-click for more options
             </p>
           </div >
-        </>) : (
+        </>) : mainTab === "Job details" ? (
+          <JobDetailsPanel
+            jobDetails={jobDetails}
+            onUpdate={(details) => {
+              console.log("Job details updated:", details);
+              setJobDetails(details);
+            }}
+          />
+        ) : mainTab === "Schedules" ? (
+          <SchedulesPanel
+            schedules={schedules}
+            onUpdate={(newSchedules) => {
+              console.log("Schedules updated:", newSchedules);
+              setSchedules(newSchedules);
+            }}
+          />
+        ) : mainTab === "Runs" ? (
+          <RunsPanel
+            runs={runs}
+            onRefresh={fetchRuns}
+          />
+        ) : (
         <div className="flex-1 flex items-center justify-center bg-gray-50">
           <div className="text-center">
             <h3 className="text-xl font-medium text-gray-900 mb-2">{mainTab}</h3>

@@ -66,6 +66,11 @@ async def index_mongodb_metadata() -> int:
                         resource_name=collection_name,
                         field_name=field_name,
                         field_type=field_type,
+                        description=None,
+                        location=None,
+                        tag=None,
+                        owner=None,
+                        domain=db_name,  # MongoDB는 DB 이름을 domain으로 사용
                         last_indexed=datetime.utcnow()
                     )
                     documents.append(catalog_doc)
