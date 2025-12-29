@@ -92,6 +92,10 @@ class ETLJob(Document):
     schedule: Optional[str] = None  # Cron expression or None for manual trigger
     status: str = "draft"  # draft, active, paused
 
+    # Visual Editor state (for UI restoration)
+    nodes: Optional[List[dict]] = Field(default_factory=list)
+    edges: Optional[List[dict]] = Field(default_factory=list)
+
     created_at: datetime = Field(default_factory=datetime.utcnow)
     updated_at: datetime = Field(default_factory=datetime.utcnow)
 
