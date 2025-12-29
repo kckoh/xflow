@@ -1,20 +1,12 @@
-import React, { useRef, useEffect } from 'react';
+import React, { useRef } from 'react';
 import { createPortal } from 'react-dom';
+import { useOnClickOutside } from '../../../../hooks/useOnClickOutside';
 
 export const LineageSourcePicker = ({ picker, sources, onSelect, onClose }) => {
     const pickerRef = useRef(null);
 
     // Close on click outside
-    useEffect(() => {
-        const handleClick = (e) => {
-            if (pickerRef.current && !pickerRef.current.contains(e.target)) {
-                onClose();
-            }
-        };
-        // Use mousedown to capture quickly
-        window.addEventListener('mousedown', handleClick);
-        return () => window.removeEventListener('mousedown', handleClick);
-    }, [onClose]);
+    useOnClickOutside(pickerRef, onClose);
 
     if (!picker) return null;
 
