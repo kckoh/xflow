@@ -1,0 +1,19 @@
+/* React Flow - 선택된 노드 스타일 커스터마이징 */
+.react-flow__node {
+    transition: box-shadow 0.2s ease-in-out, outline 0.2s ease-in-out;
+}
+
+.react-flow__node.selected {
+    /* 부드러운 glow 효과 */
+    box-shadow: 0 0 0 2px #3b82f6,
+        0 0 20px rgba(59, 130, 246, 0.4),
+        0 4px 12px rgba(0, 0, 0, 0.1) !important;
+    outline: none !important;
+    transform: translateY(-1px);
+    z-index: 10 !important;
+}
+
+.react-flow__node.selected .react-flow__handle {
+    border-color: #3b82f6 !important;
+    box-shadow: 0 0 8px rgba(59, 130, 246, 0.6);
+}
