@@ -315,8 +315,8 @@ export default function ETLJobPage() {
                 <Background variant={BackgroundVariant.Dots} gap={12} size={1} />
               </ReactFlow>
 
-              {/* Bottom Panel (Output Schema) - Show for Source and Transform nodes */}
-              {selectedNode && (selectedNode.type === "input" || selectedNode.type === "default") && (
+              {/* Bottom Panel (Output Schema) - Show for Source, Transform, and Target nodes */}
+              {selectedNode && (selectedNode.type === "input" || selectedNode.type === "default" || selectedNode.type === "output") && (
                 <div className="h-64 border-t border-gray-200 bg-white flex flex-col transition-all duration-300 ease-in-out">
                   <div className="flex items-center px-4 py-2 border-b border-gray-200 bg-gray-50">
                     <span className="text-sm font-semibold text-gray-700">Output schema</span>
@@ -336,27 +336,34 @@ export default function ETLJobPage() {
                           </tr>
                         </thead>
                         <tbody className="bg-white divide-y divide-gray-200">
-                          {/* Schema Data */}
-                          {selectedNode.data?.schema && selectedNode.data.schema.length > 0 ? (
-                            selectedNode.data.schema.map((row, idx) => (
-                              <tr key={idx} className="hover:bg-gray-50">
-                                <td className="px-6 py-2 whitespace-nowrap text-sm font-medium text-gray-900">
-                                  {row.key}
-                                </td>
-                                <td className="px-6 py-2 whitespace-nowrap text-sm text-gray-500">
-                                  {row.type}
+                          {/* Schema Data - use inputSchema for Target, schema for others */}
+                          {(() => {
+                            const schemaData = selectedNode.type === "output"
+                              ? selectedNode.data?.inputSchema
+                              : selectedNode.data?.schema;
+                            return schemaData && schemaData.length > 0 ? (
+                              schemaData.map((row, idx) => (
+                                <tr key={idx} className="hover:bg-gray-50">
+                                  <td className="px-6 py-2 whitespace-nowrap text-sm font-medium text-gray-900">
+                                    {row.key}
+                                  </td>
+                                  <td className="px-6 py-2 whitespace-nowrap text-sm text-gray-500">
+                                    {row.type}
+                                  </td>
+                                </tr>
+                              ))
+                            ) : (
+                              <tr>
+                                <td colSpan="2" className="px-6 py-8 text-center text-sm text-gray-500 italic">
+                                  {selectedNode.type === "input"
+                                    ? "No schema available. Select a table in the Properties panel to load schema."
+                                    : selectedNode.type === "output"
+                                      ? "No schema available. Connect a source or transform node."
+                                      : "No schema available. Configure the transform in the Properties panel."}
                                 </td>
                               </tr>
-                            ))
-                          ) : (
-                            <tr>
-                              <td colSpan="2" className="px-6 py-8 text-center text-sm text-gray-500 italic">
-                                {selectedNode.type === "input"
-                                  ? "No schema available. Select a table in the Properties panel to load schema."
-                                  : "No schema available. Configure the transform in the Properties panel."}
-                              </td>
-                            </tr>
-                          )}
+                            );
+                          })()}
                         </tbody>
                       </table>
                     </div>
