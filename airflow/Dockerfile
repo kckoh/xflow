@@ -1,3 +1,4 @@
+# syntax=docker/dockerfile:1
 FROM apache/airflow:2.8.1
 
 USER root
@@ -19,4 +20,5 @@ RUN apt-get update && \
 
 USER airflow
 
-RUN pip install --no-cache-dir apache-airflow-providers-apache-spark pymongo
+RUN --mount=type=cache,target=/home/airflow/.cache/pip \
+    pip install apache-airflow-providers-apache-spark pymongo boto3

@@ -1,10 +1,12 @@
+# syntax=docker/dockerfile:1
 FROM python:3.10-slim
 
 WORKDIR /app
 
-# Install dependencies (layer caching optimization)
+# Install dependencies with BuildKit cache (much faster rebuilds)
 COPY requirements.txt .
-RUN pip install --no-cache-dir -r requirements.txt
+RUN --mount=type=cache,target=/root/.cache/pip \
+    pip install -r requirements.txt
 
 # Copy application code
 COPY . .
