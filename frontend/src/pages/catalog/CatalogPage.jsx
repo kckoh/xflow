@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import { Link, useNavigate } from "react-router-dom";
+import { Link, useNavigate, useSearchParams } from "react-router-dom";
 import {
     Search,
     Filter,
@@ -18,12 +18,21 @@ import { catalogAPI } from "../../services/catalog/index";
 
 export default function CatalogPage() {
     const navigate = useNavigate();
-    const [searchTerm, setSearchTerm] = useState("");
+    const [searchParams, setSearchParams] = useSearchParams();
+    const [searchTerm, setSearchTerm] = useState(searchParams.get('search') || "");
     // Catalog Data
     const [allTables, setAllTables] = useState([]);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState(null);
     const [showCreateModal, setShowCreateModal] = useState(false);
+
+    // URL search 파라미터가 변경되면 searchTerm 업데이트
+    useEffect(() => {
+        const urlSearch = searchParams.get('search');
+        if (urlSearch) {
+            setSearchTerm(urlSearch);
+        }
+    }, [searchParams]);
 
     // TODO: Recently Used Tables 임의로 구현
     const recentTables = allTables.slice(0, 4);
