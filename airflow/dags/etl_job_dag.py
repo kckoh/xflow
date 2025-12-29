@@ -266,9 +266,8 @@ def run_glue_crawler(**context):
 
 
 def save_schema_to_catalog(**context):
-    """Save table schema to MongoDB datasets collection for Data Catalog"""
-    import pymongo
-    from bson import ObjectId
+    """Save table schema to Data Catalog via Backend API (MongoDB + Neo4j)"""
+    import requests
 
     # Get Glue table info from previous task
     glue_table = context["ti"].xcom_pull(task_ids="run_glue_crawler", key="glue_table")
@@ -280,6 +279,120 @@ def save_schema_to_catalog(**context):
     config = json.loads(context["ti"].xcom_pull(task_ids="fetch_job_config"))
     job_id = context["dag_run"].conf.get("job_id")
     job_name = config.get("name", "unknown")
+    nodes = config.get("nodes", [])
+
+    # Backend API URL
+    backend_url = Variable.get("BACKEND_URL", default_var="http://xflow-backend:8000")
+
+    # Helper: Convert schema to catalog format
+    def to_catalog_schema(schema_list):
+        result = []
+        for col in schema_list:
+            result.append({
+                "name": col.get("Name", col.get("name", col.get("key", "unknown"))),
+                "type": col.get("Type", col.get("type", "string")),
+                "description": None,
+                "is_partition": False,
+                "tags": []
+            })
+        return result
+
+    # 1. Register SOURCE tables in catalog first (for lineage)
+    sources = config.get("sources", [])
+    source_ids = {}  # table_name -> catalog_id
+
+    for source in sources:
+        source_table = source.get("table")
+        if not source_table:
+            continue
+
+        # Find schema from nodes
+        source_node_id = source.get("nodeId")
+        source_schema = []
+        for node in nodes:
+            if node.get("id") == source_node_id:
+                source_schema = node.get("data", {}).get("schema", [])
+                break
+
+        # Get connection info for description
+        conn_info = source.get("connection", {})
+        db_type = conn_info.get("type", source.get("type", "rdb"))
+
+        source_payload = {
+            "name": source_table,
+            "description": f"Source table from {db_type}",
+            "platform": db_type,
+            "domain": "SOURCE",
+            "owner": "External System",
+            "tags": ["source", "rdb"],
+            "schema": to_catalog_schema(source_schema),
+        }
+
+        try:
+            resp = requests.post(
+                f"{backend_url}/api/catalog",
+                json=source_payload,
+                timeout=30
+            )
+            resp.raise_for_status()
+            result = resp.json()
+            source_ids[source_table] = result.get("id")
+            print(f"✅ Registered source in catalog: {source_table} (ID: {source_ids[source_table]})")
+        except Exception as e:
+            print(f"⚠️ Failed to register source {source_table}: {e}")
+
+    # 2. Register OUTPUT table in catalog
+    output_schema = to_catalog_schema(glue_table.get("columns", []))
+    table_name = glue_table["table"]
+
+    dataset_payload = {
+        "name": table_name,
+        "description": f"ETL output from job: {job_name}",
+        "platform": "s3",
+        "domain": "ETL",
+        "owner": "ETL Pipeline",
+        "tags": ["etl-output", "parquet"],
+        "schema": output_schema,
+    }
+
+    try:
+        response = requests.post(
+            f"{backend_url}/api/catalog",
+            json=dataset_payload,
+            timeout=30
+        )
+        response.raise_for_status()
+        created_dataset = response.json()
+        dataset_id = created_dataset.get("id")
+        print(f"✅ Registered output in catalog: {table_name} (ID: {dataset_id})")
+    except Exception as e:
+        print(f"⚠️ Failed to create output dataset: {e}")
+        dataset_id = None
+
+    # 3. Create lineage: source -> output
+    if dataset_id:
+        for source_table, source_id in source_ids.items():
+            if source_id:
+                try:
+                    lineage_payload = {
+                        "target_id": dataset_id,
+                        "type": "FLOWS_TO"
+                    }
+                    lineage_resp = requests.post(
+                        f"{backend_url}/api/catalog/{source_id}/lineage",
+                        json=lineage_payload,
+                        timeout=10
+                    )
+                    if lineage_resp.ok:
+                        print(f"✅ Created lineage: {source_table} -> {table_name}")
+                    else:
+                        print(f"⚠️ Lineage creation failed: {lineage_resp.text}")
+                except Exception as e:
+                    print(f"⚠️ Failed to create lineage for {source_table}: {e}")
+
+    # 4. Update ETL job with output info (direct MongoDB for internal data)
+    import pymongo
+    from bson import ObjectId
 
     mongo_url = Variable.get(
         "MONGODB_URL", default_var="mongodb://mongo:mongo@mongodb:27017"
@@ -289,68 +402,25 @@ def save_schema_to_catalog(**context):
     client = pymongo.MongoClient(mongo_url)
     db = client[mongo_db]
 
-    # Convert Glue columns to catalog schema format
-    schema_columns = []
-    for col in glue_table.get("columns", []):
-        schema_columns.append({
-            "name": col.get("Name", col.get("name", "unknown")),
-            "type": col.get("Type", col.get("type", "string")),
-            "description": None,
-            "is_partition": False,
-            "tags": []
-        })
-
-    # Build dataset entry for Data Catalog (matches datasets collection schema)
-    table_name = glue_table["table"]
-    dataset_entry = {
-        "name": table_name,
-        "urn": f"urn:li:dataset:(urn:li:dataPlatform:s3,{glue_table['database']}.{table_name},PROD)",
-        "platform": "s3",
-        "description": f"ETL output from job: {job_name}",
-        "owner": "ETL Pipeline",
-        "tags": ["etl-output", "parquet"],
-        "schema": schema_columns,
-        "properties": {
-            "layer": "MART",
-            "location": glue_table["location"],
-            "format": "parquet",
-            "compression": "snappy",
-            "job_id": job_id,
-            "job_name": job_name,
-            "glue_database": glue_table["database"],
-            "glue_table": table_name,
-        },
-        "sources": [s.get("table") for s in config.get("sources", []) if s.get("table")],
-        "created_at": datetime.utcnow(),
-        "updated_at": datetime.utcnow(),
-    }
-
-    # Upsert to datasets collection (used by Data Catalog UI)
-    result = db.datasets.update_one(
-        {"name": table_name},
-        {"$set": dataset_entry},
-        upsert=True
-    )
-
-    if result.upserted_id:
-        print(f"✅ Created dataset in catalog: {table_name}")
-    else:
-        print(f"✅ Updated dataset in catalog: {table_name}")
-
-    # Also update the ETL job with output info
     db.etl_jobs.update_one(
         {"_id": ObjectId(job_id)},
         {"$set": {
-            "output_schema": schema_columns,
+            "output_schema": output_schema,
             "output_location": glue_table["location"],
             "output_table": f"{glue_table['database']}.{table_name}",
+            "catalog_dataset_id": dataset_id,
         }}
     )
     print(f"✅ Updated ETL job with output schema")
 
     client.close()
 
-    return dataset_entry
+    return {
+        "dataset_id": dataset_id,
+        "table_name": table_name,
+        "columns": len(output_schema),
+        "sources_registered": list(source_ids.keys()),
+    }
 
 
 def on_success_callback(context):
