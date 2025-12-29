@@ -21,4 +21,4 @@ RUN apt-get update && \
 USER airflow
 
 RUN --mount=type=cache,target=/home/airflow/.cache/pip \
-    pip install apache-airflow-providers-apache-spark pymongo boto3
+    pip install apache-airflow-providers-apache-spark pymongo boto3 motor

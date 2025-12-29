@@ -1,1 +1,4 @@
 apache-airflow-providers-apache-spark
+boto3>=1.28.0
+motor>=3.3.0
+pymongo==4.9.2

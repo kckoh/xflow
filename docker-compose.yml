@@ -10,6 +10,12 @@ x-airflow-common: &airflow-common
     AIRFLOW__CORE__LOAD_EXAMPLES: "false"
     AIRFLOW__WEBSERVER__EXPOSE_CONFIG: "true"
     AIRFLOW__API__AUTH_BACKENDS: "airflow.api.auth.backend.basic_auth,airflow.api.auth.backend.session"
+    # MongoDB 설정
+    MONGODB_URL: mongodb://mongo:mongo@mongodb:27017
+    MONGODB_DATABASE: mydb
+    # AWS 설정
+    AWS_ENDPOINT: http://localstack-main:4566
+    AWS_REGION: ap-northeast-2
   volumes:
     - ./airflow/dags:/opt/airflow/dags
     - ./airflow/logs:/opt/airflow/logs

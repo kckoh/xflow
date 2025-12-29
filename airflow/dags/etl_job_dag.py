@@ -22,8 +22,13 @@ from datetime import datetime
 from airflow.models import Variable
 from airflow.operators.bash import BashOperator
 from airflow.operators.python import PythonOperator
+from airflow.sensors.python import PythonSensor
 
 from airflow import DAG
+
+# Lineage tracking helpers
+from utils.glue_helpers import check_crawler_status
+from utils.mongodb_helpers import save_lineage_to_mongodb
 
 
 def fetch_job_config(**context):
@@ -199,11 +204,19 @@ def run_glue_crawler(**context):
         else:
             raise
 
-    return {
+    # Store crawler info in XCom for next tasks
+    result = {
         "crawler_name": crawler_name,
         "database": database_name,
         "table": table_name,
     }
+
+    # Explicitly push to XCom for sensor
+    context['ti'].xcom_push(key='crawler_name', value=crawler_name)
+    context['ti'].xcom_push(key='database_name', value=database_name)
+    context['ti'].xcom_push(key='table_name', value=table_name)
+
+    return result
 
 
 def on_success_callback(context):
@@ -255,4 +268,20 @@ with DAG(
         python_callable=run_glue_crawler,
     )
 
-    fetch_config >> run_spark_etl >> run_crawler
+    # Task 4: Wait for Glue Crawler to complete
+    wait_for_crawler = PythonSensor(
+        task_id='wait_for_crawler_completion',
+        python_callable=check_crawler_status,
+        timeout=1800,  # 30 minutes
+        poke_interval=30,  # Check every 30 seconds
+        mode='poke',
+    )
+
+    # Task 5: Save data lineage to MongoDB
+    save_lineage = PythonOperator(
+        task_id='save_lineage_to_mongodb',
+        python_callable=save_lineage_to_mongodb,
+    )
+
+    # Task dependencies
+    fetch_config >> run_spark_etl >> run_crawler >> wait_for_crawler >> save_lineage
