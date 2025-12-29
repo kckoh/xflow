@@ -74,12 +74,21 @@ def read_rdb_source(spark: SparkSession, source_config: dict) -> DataFrame:
         .option("url", jdbc_url) \
         .option("user", connection.get("user_name", "postgres")) \
         .option("password", connection.get("password", "postgres")) \
-        .option("driver", driver)
+        .option("driver", driver) \
+        .option("fetchsize", "10000")
 
     if query:
         reader = reader.option("dbtable", f"({query}) as subquery")
     elif table:
         reader = reader.option("dbtable", table)
+        # Add partitioning for large tables (parallel read)
+        partition_column = source_config.get("partition_column", "id")
+        num_partitions = source_config.get("num_partitions", 16)  # More partitions for large tables
+        reader = reader \
+            .option("numPartitions", num_partitions) \
+            .option("partitionColumn", partition_column) \
+            .option("lowerBound", "1") \
+            .option("upperBound", "10000000")
     else:
         raise ValueError("Either 'table' or 'query' must be specified in source config")
 
@@ -88,19 +97,35 @@ def read_rdb_source(spark: SparkSession, source_config: dict) -> DataFrame:
 
 # ============ Destination Writers ============
 
-def write_s3_destination(df: DataFrame, dest_config: dict):
+def write_s3_destination(df: DataFrame, dest_config: dict, job_name: str = "output"):
     """Write DataFrame to S3 as Parquet"""
     path = dest_config.get("path")
     if not path:
         raise ValueError("Destination path is required")
 
+    # Convert s3:// to s3a:// (Spark requires s3a scheme)
+    if path.startswith("s3://"):
+        path = path.replace("s3://", "s3a://", 1)
+
+    # If path ends with / (bucket root), append job name as folder
+    if path.endswith("/"):
+        path = path + job_name
+    elif not path.split("/")[-1]:  # Empty last segment
+        path = path.rstrip("/") + "/" + job_name
+
     options = dest_config.get("options", {})
     compression = options.get("compression", "snappy")
     mode = options.get("mode", "overwrite")
     partition_by = options.get("partitionBy", [])
-    coalesce_num = options.get("coalesce", 1)
+    coalesce_num = options.get("coalesce")  # None means use default partitions
 
-    writer = df.coalesce(coalesce_num).write \
+    # For large datasets, keep original partitions to avoid shuffle OOM
+    if coalesce_num:
+        writer = df.coalesce(coalesce_num).write
+    else:
+        writer = df.write  # Keep original 16 partitions from JDBC read
+
+    writer = writer \
         .mode(mode) \
         .option("compression", compression)
 
@@ -173,14 +198,13 @@ def run_etl(config: dict):
         else:
             raise ValueError(f"Unsupported source type: {source_type}")
 
-        print(f"📊 Source data count: {df.count()}")
+        # Print schema only (skip count to save memory on large datasets)
         df.printSchema()
 
         # Apply transforms
         transforms = config.get("transforms", [])
         if transforms:
             df = apply_transforms(df, transforms)
-            print(f"📊 Transformed data count: {df.count()}")
 
         # Write to destination
         dest_config = config.get("destination", {})
@@ -188,7 +212,7 @@ def run_etl(config: dict):
 
         print(f"💾 Writing to destination: {dest_type}")
         if dest_type == "s3":
-            write_s3_destination(df, dest_config)
+            write_s3_destination(df, dest_config, config.get("name", "output"))
         else:
             raise ValueError(f"Unsupported destination type: {dest_type}")
 

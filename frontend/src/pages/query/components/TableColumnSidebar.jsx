@@ -1,5 +1,11 @@
 import { useState, useEffect } from "react";
-import { Table, Columns, ChevronDown, ChevronRight, RefreshCw } from "lucide-react";
+import {
+  Table,
+  Columns,
+  ChevronDown,
+  ChevronRight,
+  RefreshCw,
+} from "lucide-react";
 import { apiGlue } from "../../../services/apiGlue";
 
 const DATABASE_NAME = "xflow_db"; // 고정된 데이터베이스
@@ -64,7 +70,7 @@ export default function TableColumnSidebar({ selectedTable, onSelectTable }) {
       try {
         const data = await apiGlue.getTableSchema(
           DATABASE_NAME,
-          selectedTable.name
+          selectedTable.name,
         );
         setColumns(data.columns);
       } catch (err) {
@@ -107,7 +113,9 @@ export default function TableColumnSidebar({ selectedTable, onSelectTable }) {
             }`}
             title="Sync S3 Data"
           >
-            <RefreshCw className={`w-3.5 h-3.5 ${syncing ? "animate-spin" : ""}`} />
+            <RefreshCw
+              className={`w-3.5 h-3.5 ${syncing ? "animate-spin" : ""}`}
+            />
             {syncing ? "Syncing..." : "Sync"}
           </button>
         </div>
