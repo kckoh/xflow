@@ -65,9 +65,50 @@ class Transform(Document):
     name: str  # Transform name
     transform_type: str  # Transform type: "select-fields", "filter", "join", etc.
     config: dict = Field(default_factory=dict)  # Type-specific configuration
-    
+
     created_at: datetime = Field(default_factory=datetime.utcnow)
     updated_at: datetime = Field(default_factory=datetime.utcnow)
 
     class Settings:
         name = "transforms"
+
+
+class ETLJob(Document):
+    """
+    ETL Job document for storing ETL pipeline configurations.
+    Defines source, transforms, and destination for data processing.
+    """
+    name: str
+    description: Optional[str] = None
+    source: dict = Field(default_factory=dict)
+    # Example: {"type": "rdb", "connection_id": "...", "table": "products"}
+
+    transforms: List[dict] = Field(default_factory=list)
+    # Example: [{"type": "drop-columns", "config": {"columns": ["category"]}}]
+
+    destination: dict = Field(default_factory=dict)
+    # Example: {"type": "s3", "path": "s3a://bucket/path", "format": "parquet"}
+
+    schedule: Optional[str] = None  # Cron expression or None for manual trigger
+    status: str = "draft"  # draft, active, paused
+
+    created_at: datetime = Field(default_factory=datetime.utcnow)
+    updated_at: datetime = Field(default_factory=datetime.utcnow)
+
+    class Settings:
+        name = "etl_jobs"
+
+
+class JobRun(Document):
+    """
+    Job Run document for tracking ETL job executions.
+    """
+    job_id: str  # Reference to ETLJob
+    status: str = "pending"  # pending, running, success, failed
+    started_at: Optional[datetime] = None
+    finished_at: Optional[datetime] = None
+    error_message: Optional[str] = None
+    airflow_run_id: Optional[str] = None  # Airflow DAG run ID
+
+    class Settings:
+        name = "job_runs"
