@@ -351,7 +351,7 @@ export default function ETLJobPage() {
     };
 
     const newNode = {
-      id: `${nodes.length + 1}`,
+      id: `node_${Date.now()}`,
       type: typeMap[category],
       data: {
         label: nodeOption.label,
