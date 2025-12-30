@@ -1,22 +1,15 @@
 import { useState, useEffect } from 'react';
 import { X } from 'lucide-react';
 
-export default function S3TargetPropertiesPanel({ node, nodes, onClose, onUpdate }) {
+export default function S3TargetPropertiesPanel({ node, onClose, onUpdate }) {
     const [name, setName] = useState(node?.data?.label || 'Amazon S3');
-    const [compressionType, setCompressionType] = useState(node?.data?.compressionType || 'snappy');
     const [s3Location, setS3Location] = useState(node?.data?.s3Location || '');
-    const [selectedParents, setSelectedParents] = useState(node?.data?.parentIds || []);
-
-    // Get possible parent nodes (all nodes except this one and output nodes)
-    const possibleParents = nodes?.filter(n => n.id !== node?.id && n.type !== 'output') || [];
 
     // Restore state from node data on mount
     useEffect(() => {
         if (node?.data) {
             setName(node.data.label || 'Amazon S3');
-            setCompressionType(node.data.compressionType || 'snappy');
             setS3Location(node.data.s3Location || '');
-            setSelectedParents(node.data.parentIds || []);
         }
     }, [node?.id]);
 
@@ -25,18 +18,10 @@ export default function S3TargetPropertiesPanel({ node, nodes, onClose, onUpdate
         onUpdate({
             label: updates.name ?? name,
             format: 'parquet',
-            compressionType: updates.compressionType ?? compressionType,
+            compressionType: 'snappy', // 기본값 고정
             s3Location: updates.s3Location ?? s3Location,
-            parentIds: updates.parentIds ?? selectedParents,
         });
     };
-
-    const compressionOptions = [
-        { value: 'snappy', label: 'Snappy' },
-        { value: 'gzip', label: 'Gzip' },
-        { value: 'lzo', label: 'LZO' },
-        { value: 'uncompressed', label: 'Uncompressed' },
-    ];
 
     return (
         <div className="w-96 bg-white border-l border-gray-200 h-full flex flex-col">
@@ -72,53 +57,6 @@ export default function S3TargetPropertiesPanel({ node, nodes, onClose, onUpdate
                     />
                 </div>
 
-                {/* Node Parents */}
-                <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">
-                        Node parents
-                    </label>
-                    <p className="text-xs text-gray-500 mb-2">
-                        Choose which nodes will provide inputs for this one.
-                    </p>
-                    <select
-                        className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-green-500 bg-white"
-                        value={selectedParents[0] || ''}
-                        onChange={(e) => {
-                            const newParents = e.target.value ? [e.target.value] : [];
-                            setSelectedParents(newParents);
-                            autoSave({ parentIds: newParents });
-                        }}
-                    >
-                        <option value="">Choose one or more parent node</option>
-                        {possibleParents.map((n) => (
-                            <option key={n.id} value={n.id}>
-                                {n.data?.label || n.id}
-                            </option>
-                        ))}
-                    </select>
-                </div>
-
-                {/* Compression Type */}
-                <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">
-                        Compression Type
-                    </label>
-                    <select
-                        className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-green-500 bg-white"
-                        value={compressionType}
-                        onChange={(e) => {
-                            setCompressionType(e.target.value);
-                            autoSave({ compressionType: e.target.value });
-                        }}
-                    >
-                        {compressionOptions.map((opt) => (
-                            <option key={opt.value} value={opt.value}>
-                                {opt.label}
-                            </option>
-                        ))}
-                    </select>
-                </div>
-
                 {/* S3 Target Location */}
                 <div>
                     <label className="block text-sm font-medium text-gray-700 mb-1">
@@ -152,3 +90,4 @@ export default function S3TargetPropertiesPanel({ node, nodes, onClose, onUpdate
         </div>
     );
 }
+
