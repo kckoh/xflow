@@ -37,7 +37,6 @@ import SchedulesPanel from "../../components/etl/SchedulesPanel";
 import RunsPanel from "../../components/etl/RunsPanel";
 import { applyTransformToSchema } from "../../utils/schemaTransforms";
 import DatasetNode from "../../components/common/nodes/DatasetNode";
-import ColumnDetailPanel from "../../components/common/nodes/ColumnDetailPanel";
 
 const initialNodes = [];
 
@@ -73,7 +72,8 @@ export default function ETLJobPage() {
   const [isSaving, setIsSaving] = useState(false);
   const [isLoading, setIsLoading] = useState(!!urlJobId);
   const reactFlowInstance = useRef(null);
-  const [selectedColumn, setSelectedColumn] = useState(null); // 하단 패널용
+  // 오른쪽 패널 하단에 표시할 메타데이터 아이템 (table 또는 column)
+  const [selectedMetadataItem, setSelectedMetadataItem] = useState(null);
 
   // Icon mappings (defined early so loadJob can use it)
   const iconMap = {
@@ -240,6 +240,7 @@ export default function ETLJobPage() {
               data: {
                 ...n.data,
                 inputSchema: sourceNode.data.schema,
+                tableName: sourceNode.data.tableName, // 테이블명도 전파
                 // If transform has config, apply it; otherwise use input as output
                 schema: n.data.transformConfig
                   ? applyTransformToSchema(
@@ -287,6 +288,7 @@ export default function ETLJobPage() {
                 data: {
                   ...prev.data,
                   inputSchema: sourceNode.data.schema,
+                  tableName: sourceNode.data.tableName, // 테이블명도 전파
                   schema: prev.data.transformConfig
                     ? applyTransformToSchema(
                       sourceNode.data.schema,
@@ -472,7 +474,16 @@ export default function ETLJobPage() {
         color: nodeOption.color,
         nodeCategory: category, // source, transform, target
         transformType: category === "transform" ? nodeOption.id : undefined,
-        onColumnClick: (column) => setSelectedColumn(column),
+        
+        // TODO: nodeID 변경 (convention + unique ID)
+        nodeId: `${nodes.length + 1}`, // 노드 ID 전달
+        nodeId: `${nodes.lengh + 1}`, // 노드 ID 전달
+
+        // Table 또는 Column 클릭 시 노드 선택 + 메타데이터 편집
+        onMetadataSelect: (item, clickedNodeId) => {
+          setSelectedMetadataItem(item);
+          // 노드 선택은 propagation을 통해 React Flow가 처리함
+        },
       },
       position,
     };
@@ -491,11 +502,16 @@ export default function ETLJobPage() {
   };
 
   const handleNodeClick = (event, node) => {
+    // 메타데이터(테이블/컬럼) 클릭이 아닐 때만 메타데이터 선택 초기화
+    if (!event.isMetadataClick && selectedNode?.id !== node.id) {
+      setSelectedMetadataItem(null);
+    }
     setSelectedNode(node);
   };
 
   const handlePaneClick = () => {
     setSelectedNode(null);
+    setSelectedMetadataItem(null);
   };
 
   return (
@@ -664,24 +680,17 @@ export default function ETLJobPage() {
                   size={1}
                 />
               </ReactFlow>
-
-              {/* Bottom Panel - Column Detail */}
-              <ColumnDetailPanel
-                column={selectedColumn}
-                onUpdate={(updatedColumn) => {
-                  // 컨럼 메타데이터 업데이트 (향후 확장)
-                  console.log("Column updated:", updatedColumn);
-                  setSelectedColumn(updatedColumn);
-                }}
-                onClose={() => setSelectedColumn(null)}
-              />
             </div>
 
             {/* Properties Panel - Source */}
             {selectedNode && selectedNode.data?.nodeCategory === "source" && (
               <RDBSourcePropertiesPanel
                 node={selectedNode}
-                onClose={() => setSelectedNode(null)}
+                selectedMetadataItem={selectedMetadataItem}
+                onClose={() => {
+                  setSelectedNode(null);
+                  setSelectedMetadataItem(null);
+                }}
                 onUpdate={(data) => {
                   console.log("Source updated:", data);
                   // Update node data with schema
@@ -692,11 +701,16 @@ export default function ETLJobPage() {
                         : n,
                     ),
                   );
-                  // Update selectedNode to reflect changes in bottom panel
+                  // Update selectedNode to reflect changes
                   setSelectedNode((prev) => ({
                     ...prev,
                     data: { ...prev.data, ...data },
                   }));
+                }}
+                onMetadataUpdate={(updatedItem) => {
+                  console.log("Metadata updated:", updatedItem);
+                  setSelectedMetadataItem(updatedItem);
+                  // TODO: 노드 데이터에 반영
                 }}
               />
             )}
@@ -707,10 +721,14 @@ export default function ETLJobPage() {
               selectedNode.data?.transformType && (
                 <TransformPropertiesPanel
                   node={selectedNode}
-                  onClose={() => setSelectedNode(null)}
+                  selectedMetadataItem={selectedMetadataItem}
+                  onClose={() => {
+                    setSelectedNode(null);
+                    setSelectedMetadataItem(null);
+                  }}
                   onUpdate={(data) => {
                     console.log("Transform updated:", data);
-                    // Update node data
+                    // Update node data (schema etc)
                     setNodes((nds) =>
                       nds.map((n) =>
                         n.id === selectedNode.id
@@ -718,11 +736,14 @@ export default function ETLJobPage() {
                           : n,
                       ),
                     );
-                    // Update selectedNode to reflect changes in bottom panel
                     setSelectedNode((prev) => ({
                       ...prev,
                       data: { ...prev.data, ...data },
                     }));
+                  }}
+                  onMetadataUpdate={(updatedItem) => {
+                    setSelectedMetadataItem(updatedItem);
+                    // TODO: Update node schema metadata
                   }}
                 />
               )}
@@ -731,10 +752,14 @@ export default function ETLJobPage() {
             {selectedNode && selectedNode.data?.nodeCategory === "target" && (
               <S3TargetPropertiesPanel
                 node={selectedNode}
+                selectedMetadataItem={selectedMetadataItem}
                 nodes={nodes}
-                onClose={() => setSelectedNode(null)}
+                onClose={() => {
+                  setSelectedNode(null);
+                  setSelectedMetadataItem(null);
+                }}
                 onUpdate={(data) => {
-                  console.log("S3 Target updated:", data);
+                  console.log("Target updated:", data);
                   setNodes((nds) =>
                     nds.map((n) =>
                       n.id === selectedNode.id
@@ -746,6 +771,10 @@ export default function ETLJobPage() {
                     ...prev,
                     data: { ...prev.data, ...data },
                   }));
+                }}
+                onMetadataUpdate={(updatedItem) => {
+                  setSelectedMetadataItem(updatedItem);
+                  // TODO: Update node schema metadata
                 }}
               />
             )}
