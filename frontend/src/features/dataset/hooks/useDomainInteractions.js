@@ -5,24 +5,14 @@ import { catalogAPI } from '../../../services/catalog/index';
 export const useDomainInteractions = ({ nodes, edges, setNodes, setEdges, datasetId, handleToggleExpand, onNodeSelect }) => {
 
     // UI States
-    const [sourcePicker, setSourcePicker] = useState(null);
-    const [mockSources, setMockSources] = useState([]);
     const [edgeMenu, setEdgeMenu] = useState(null);
-    const [nodeMenu, setNodeMenu] = useState(null);
 
-    // Fetch Mock Sources (could be in Data hook, but purely for Picker UI here)
-    useEffect(() => {
-        fetch('http://localhost:8000/api/catalog/mock-sources')
-            .then(res => res.json())
-            .then(data => setMockSources(data))
-            .catch(err => console.error("Failed to load mock sources", err));
-    }, []);
+
 
     // Close menus on click
     useEffect(() => {
         const handleClick = () => {
             setEdgeMenu(null);
-            setNodeMenu(null);
         };
         window.addEventListener('click', handleClick);
         return () => window.removeEventListener('click', handleClick);
@@ -31,18 +21,7 @@ export const useDomainInteractions = ({ nodes, edges, setNodes, setEdges, datase
 
     // --- Handlers ---
 
-    const onNodeContextMenu = useCallback((event, node) => {
-        event.preventDefault();
-        if (!node || !node.data || !node.data.mongoId) return;
-        setNodeMenu({
-            x: event.clientX,
-            y: event.clientY,
-            nodeId: node.id,
-            mongoId: node.data.mongoId,
-            label: node.data.label
-        });
-        setEdgeMenu(null);
-    }, []);
+
 
     const onEdgeClick = useCallback((event, edge) => {
         event.stopPropagation();
@@ -62,7 +41,6 @@ export const useDomainInteractions = ({ nodes, edges, setNodes, setEdges, datase
             sourceHandle: edge.data?.originalSourceHandle || edge.sourceHandle,
             targetHandle: edge.data?.originalTargetHandle || edge.targetHandle
         });
-        setNodeMenu(null);
     }, [nodes]);
 
     const onNodeClick = useCallback((event, node) => {
@@ -71,33 +49,7 @@ export const useDomainInteractions = ({ nodes, edges, setNodes, setEdges, datase
         }
     }, [onNodeSelect]);
 
-    const handleAddSource = (nodeId) => {
-        const node = nodes.find(n => n.id === nodeId);
-        if (!node) return;
-        const { x, y } = node.position;
-        setSourcePicker({
-            x: x - 200,
-            y: y,
-            targetNodeId: nodeId
-        });
-        setNodeMenu(null);
-    };
 
-    const handleDeleteDataset = async () => {
-        if (!nodeMenu) return;
-
-        try {
-            await catalogAPI.deleteDataset(nodeMenu.mongoId);
-
-            // Optimistic UI Update
-            setNodes((nds) => nds.filter((n) => n.id !== nodeMenu.nodeId));
-            setEdges((eds) => eds.filter((e) => e.source !== nodeMenu.nodeId && e.target !== nodeMenu.nodeId));
-            setNodeMenu(null);
-        } catch (e) {
-            console.error(e);
-            alert("Failed to delete dataset.");
-        }
-    };
 
     const handleDeleteEdge = useCallback(async () => {
         if (!edgeMenu) return;
@@ -126,51 +78,7 @@ export const useDomainInteractions = ({ nodes, edges, setNodes, setEdges, datase
         }
     }, [edgeMenu, setEdges]);
 
-    const handleSelectSource = async (source, targetNodeId) => {
-        if (!targetNodeId) return;
 
-        try {
-            // 1. Create New Dataset via API
-            const newDataset = await catalogAPI.createDataset({
-                name: source.name,
-                description: `Imported from ${source.platform}`,
-                owner: "admin",
-                domain: "RAW",
-                tags: ["external", source.platform.toLowerCase()],
-                schema: source.schema || []
-            });
-            const sourceId = newDataset.id;
-
-            // 2. Update Graph (Add Node Only)
-            if (datasetId) {
-                const targetNode = nodes.find(n => n.id === targetNodeId);
-                const { x, y } = targetNode ? targetNode.position : { x: 0, y: 0 };
-
-                const newNode = {
-                    id: `node-${sourceId}`,
-                    type: 'custom',
-                    position: { x: x - 400, y: y },
-                    data: {
-                        label: source.name,
-                        platform: source.platform,
-                        columns: (source.schema || []).map(c => c.name),
-                        mongoId: sourceId,
-                        isCurrent: false,
-                        isSelected: false,
-                        expanded: true,
-                        onToggleExpand: handleToggleExpand,
-                        connectionCount: 0
-                    }
-                };
-
-                setNodes((nds) => nds.concat(newNode));
-                alert("Source added. Please connect columns manually.");
-            }
-        } catch (e) {
-            console.error(e);
-            alert("Failed to import source: " + e.message);
-        }
-    };
 
     const onConnect = useCallback(async (params) => {
         let { source, target, sourceHandle, targetHandle } = params;
@@ -286,11 +194,9 @@ export const useDomainInteractions = ({ nodes, edges, setNodes, setEdges, datase
     }, [nodes, setNodes, setEdges]); // Added setNodes/Edges deps
 
     return {
-        sourcePicker, setSourcePicker, mockSources,
-        nodeMenu, setNodeMenu,
         edgeMenu, setEdgeMenu,
-        onNodeContextMenu, onEdgeClick, onNodeClick,
-        handleAddSource, handleDeleteDataset, handleDeleteEdge, handleSelectSource,
+        onEdgeClick, onNodeClick,
+        handleDeleteEdge,
         onConnect
     };
 };
