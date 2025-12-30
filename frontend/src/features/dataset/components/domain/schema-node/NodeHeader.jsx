@@ -1,7 +1,18 @@
 import React from "react";
-import { ChevronDown, ChevronRight, Database, Table as TableIcon } from "lucide-react";
+import { ChevronDown, ChevronRight, Archive, Database } from "lucide-react";
+import { SiPostgresql, SiMongodb, SiMysql, SiApachekafka } from "@icons-pack/react-simple-icons";
 
 export const NodeHeader = ({ data, expanded, sourcePlatform, onToggleExpand }) => {
+    const getPlatformIcon = (platform) => {
+        const p = platform?.toLowerCase() || "";
+        if (p.includes("s3") || p.includes("archive")) return <Archive className="w-4 h-4 text-orange-500" />;
+        if (p.includes("postgres")) return <SiPostgresql className="w-4 h-4 text-blue-600" />;
+        if (p.includes("mongo")) return <SiMongodb className="w-4 h-4 text-green-600" />;
+        if (p.includes("mysql")) return <SiMysql className="w-4 h-4 text-blue-500" />;
+        if (p.includes("kafka")) return <SiApachekafka className="w-4 h-4 text-black" />;
+        return <Database className="w-4 h-4 text-gray-500" />;
+    };
+
     return (
         <>
             {/* Top Color Strip */}
@@ -19,10 +30,10 @@ export const NodeHeader = ({ data, expanded, sourcePlatform, onToggleExpand }) =
             >
                 {/* Icon and Label */}
                 <div className="flex items-center gap-1.5 overflow-hidden">
-                    {/* User put sourcePlatform text here in Step 423 */}
-                    <span className="text-[10px] font-bold text-slate-500 uppercase tracking-wider">
-                        {sourcePlatform}
-                    </span>
+                    {/* Platform Icon */}
+                    <div className="shrink-0 flex items-center justify-center">
+                        {getPlatformIcon(sourcePlatform)}
+                    </div>
 
                     <span className="font-bold text-[18px] truncate text-slate-900">
                         {data.label}
