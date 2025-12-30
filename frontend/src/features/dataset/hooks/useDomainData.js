@@ -2,7 +2,7 @@ import { useState, useEffect, useCallback } from 'react';
 import { catalogAPI } from '../../../services/catalog/index';
 import { mergeGraphData, calculateImpact } from '../utils/domainUtils';
 
-export const useDomainData = ({ datasetId, selectedId, onStreamAnalysis, nodes, edges, setNodes, setEdges, updateLayout, handleToggleExpand }) => {
+export const useDomainData = ({ datasetId, selectedId, onStreamAnalysis, nodes, edges, setNodes, setEdges, updateLayout, handleToggleExpand, onDeleteNode }) => {
     const [expandTarget, setExpandTarget] = useState(null);
 
     // Expand Handler (Deferred for state update)
@@ -28,6 +28,7 @@ export const useDomainData = ({ datasetId, selectedId, onStreamAnalysis, nodes, 
                     ...n.data,
                     onToggleExpand: handleToggleExpand, // Bind the layout toggler
                     onExpand: handleExpandWithState,    // Bind the data fetcher
+                    onDelete: onDeleteNode,             // Bind delete handler
                     isCurrent: n.data.mongoId === datasetId,
                     isSelected: n.data.mongoId === selectedId,
                     columns: n.data.columns || n.data.schema || [],

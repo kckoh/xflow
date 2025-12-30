@@ -2,9 +2,11 @@ import React, { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { X, ArrowRight, Plus, Database, Tag, Book } from "lucide-react";
 import { catalogAPI } from "../../../services/catalog/index";
+import { useToast } from "../../../components/common/Toast";
 
 export default function DatasetCreateModal({ isOpen, onClose, onCreated }) {
   const navigate = useNavigate();
+  const { showToast } = useToast();
   const [loading, setLoading] = useState(false);
   const [tagInput, setTagInput] = useState("");
 
@@ -52,12 +54,13 @@ export default function DatasetCreateModal({ isOpen, onClose, onCreated }) {
     try {
       const data = await catalogAPI.createDataset(formData);
 
+      showToast("Dataset registered successfully", "success");
       onCreated(); // Refresh list
       onClose();
       // Redirect to the new dataset's lineage/detail page
       navigate(`/catalog/${data.id}`);
     } catch (e) {
-      alert(e.message);
+      showToast(e.message, "error");
     } finally {
       setLoading(false);
     }
@@ -204,9 +207,8 @@ export default function DatasetCreateModal({ isOpen, onClose, onCreated }) {
           <button
             onClick={handleSubmit}
             disabled={loading || !formData.name}
-            className={`px-6 py-2 bg-blue-600 text-white rounded-lg text-sm font-medium hover:bg-blue-700 transition flex items-center gap-2 ${
-              loading ? "opacity-50 cursor-not-allowed" : ""
-            }`}
+            className={`px-6 py-2 bg-blue-600 text-white rounded-lg text-sm font-medium hover:bg-blue-700 transition flex items-center gap-2 ${loading ? "opacity-50 cursor-not-allowed" : ""
+              }`}
           >
             {loading ? "Registering..." : "Register Dataset"}
             {!loading && <Database size={16} />}
