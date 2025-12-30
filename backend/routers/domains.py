@@ -1,19 +1,12 @@
-from fastapi import APIRouter, HTTPException, Body
+from fastapi import APIRouter, HTTPException, Body, status
 from typing import List, Optional, Dict, Any
 from models import Domain
-from pydantic import BaseModel
+from schemas.domain import DomainCreate, DomainGraphUpdate
+
+
 from datetime import datetime
 
 router = APIRouter()
-
-# --- Pydantic Schemas for Request Body ---
-class DomainCreate(BaseModel):
-    name: str
-    type: str
-
-class DomainGraphUpdate(BaseModel):
-    nodes: List[Dict[str, Any]]
-    edges: List[Dict[str, Any]]
 
 # --- API Endpoints ---
 
@@ -35,7 +28,7 @@ async def get_domain(id: str):
         raise HTTPException(status_code=404, detail="Domain not found")
     return domain
 
-@router.post("/", response_model=Domain)
+@router.post("/", response_model=Domain, status_code=status.HTTP_201_CREATED)
 async def create_domain(domain_data: DomainCreate):
     """
     Create a new domain.
@@ -51,17 +44,16 @@ async def create_domain(domain_data: DomainCreate):
     await new_domain.insert()
     return new_domain
 
-@router.post("/{id}", response_model=Dict[str, str])
+@router.delete("/{id}", status_code=status.HTTP_204_NO_CONTENT)
 async def delete_domain(id: str):
     """
-    Delete a domain (POST method as requested, normally DELETE).
+    Delete a domain.
     """
     domain = await Domain.get(id)
     if not domain:
         raise HTTPException(status_code=404, detail="Domain not found")
     
     await domain.delete()
-    return {"message": "Domain deleted successfully"}
 
 @router.post("/{id}/graph", response_model=Domain)
 async def save_domain_graph(id: str, graph_data: DomainGraphUpdate):
