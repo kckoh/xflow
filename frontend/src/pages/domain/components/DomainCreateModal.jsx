@@ -2,6 +2,7 @@ import React, { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { X, ArrowRight, Plus, Database, Tag, Book } from "lucide-react";
 import { useToast } from "../../../components/common/Toast";
+import { createDomain } from "../api/domainApi";
 
 export default function DomainCreateModal({ isOpen, onClose, onCreated }) {
   const navigate = useNavigate();
@@ -48,26 +49,15 @@ export default function DomainCreateModal({ isOpen, onClose, onCreated }) {
     }
   };
 
+
+
   const handleSubmit = async () => {
     setLoading(true);
     try {
-      // Replace with new API
-      const response = await fetch("http://localhost:8000/api/domains", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({
-          name: formData.name,
-          type: formData.tags[0] || "custom", // Use first tag as type or default
-        }),
+      const data = await createDomain({
+        name: formData.name,
+        type: formData.tags[0] || "custom", // Use first tag as type or default
       });
-
-      if (!response.ok) {
-        throw new Error("Failed to create domain");
-      }
-
-      const data = await response.json();
 
       showToast("Domain registered successfully", "success");
       onCreated(); // Refresh list

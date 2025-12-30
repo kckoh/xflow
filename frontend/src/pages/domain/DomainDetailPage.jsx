@@ -21,6 +21,7 @@ import DomainCanvas from "./components/DomainCanvas";
 import DomainImportModal from "./components/DomainImportModal";
 import { RightSidebar } from "./components/RightSideBar/RightSidebar";
 import { SidebarToggle } from "./components/RightSideBar/SidebarToggle";
+import { getDomain, saveDomainGraph } from "./api/domainApi";
 
 
 export default function DomainDetailPage() {
@@ -40,10 +41,7 @@ export default function DomainDetailPage() {
         const fetchDataset = async () => {
             try {
                 setLoading(true);
-                const response = await fetch(`http://localhost:8000/api/domains/${id}`);
-                if (!response.ok) throw new Error("Failed to fetch domain");
-
-                const data = await response.json();
+                const data = await getDomain(id);
                 setDomain(data);
             } catch (err) {
                 console.error(err);
@@ -64,14 +62,7 @@ export default function DomainDetailPage() {
         const { nodes, edges } = canvasRef.current.getGraph();
 
         try {
-            const response = await fetch(`http://localhost:8000/api/domains/${id}/graph`, {
-                method: "POST",
-                headers: { "Content-Type": "application/json" },
-                body: JSON.stringify({ nodes, edges }),
-            });
-
-            if (!response.ok) throw new Error("Failed to save graph");
-
+            await saveDomainGraph(id, { nodes, edges });
             showToast("Layout saved successfully", "success");
         } catch (err) {
             console.error(err);

@@ -5,6 +5,7 @@ import DomainCreateModal from "./components/DomainCreateModal";
 import DomainHeader from "./components/DomainHeader";
 import RecentlyUsedSection from "./components/RecentlyUsedSection";
 import DomainTable from "./components/DomainTable";
+import { getDomains, deleteDomain } from "./api/domainApi";
 
 export default function DomainPage() {
   const { showToast } = useToast();
@@ -29,12 +30,12 @@ export default function DomainPage() {
   // TODO: Recently Used Tables 임의로 구현
   const recentTables = allTables.slice(0, 4);
 
+
+
   const fetchCatalog = async () => {
     setLoading(true);
     try {
-      const response = await fetch("http://localhost:8000/api/domains");
-      if (!response.ok) throw new Error("Failed to fetch domains");
-      const data = await response.json();
+      const data = await getDomains();
       setAllTables(data);
     } catch (err) {
       console.error("Error fetching domain:", err);
@@ -44,25 +45,11 @@ export default function DomainPage() {
     }
   };
 
-  useEffect(() => {
-    fetchCatalog();
-  }, []);
-
-  const handleDelete = async (e, id) => {
-    e.stopPropagation(); // Prevent row click navigation
-
-    if (!confirm("Are you sure you want to delete this domain?")) return;
-
+  const handleDelete = async (id) => {
     try {
-      // POST based deletion as per request/router implementation
-      const response = await fetch(`http://localhost:8000/api/domains/${id}`, {
-        method: "POST",
-      });
-
-      if (!response.ok) throw new Error("Failed to delete");
-
+      await deleteDomain(id);
       showToast("Domain deleted successfully", "success");
-      fetchCatalog(); // Refresh list
+      fetchCatalog();
     } catch (err) {
       console.error("Error deleting domain:", err);
       showToast("Error deleting domain", "error");
