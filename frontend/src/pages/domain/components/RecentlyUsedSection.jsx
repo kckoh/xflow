@@ -17,7 +17,7 @@ export default function RecentlyUsedSection({ recentTables }) {
           {recentTables.map((item) => (
             <button
               key={item.id}
-              onClick={() => navigate(`/catalog/${item.id}`)}
+              onClick={() => navigate(`/domain/${item.id}`)}
               className="bg-white p-4 rounded-xl shadow-sm border border-gray-100 hover:shadow-md hover:border-blue-200 transition-all text-left group"
             >
               <div className="flex items-start justify-between">

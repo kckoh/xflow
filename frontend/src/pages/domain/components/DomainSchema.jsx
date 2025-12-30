@@ -1,6 +1,6 @@
 import { Search, ArrowUpDown, AlignLeft, Hash } from "lucide-react";
 
-export default function DatasetSchema({ columns = [] }) {
+export default function DomainSchema({ columns = [] }) {
     return (
         <div className="p-6 bg-white rounded-lg min-h-[500px]">
             {/* Toolbar */}
