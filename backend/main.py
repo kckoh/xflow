@@ -2,7 +2,7 @@ import os
 from contextlib import asynccontextmanager
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
-from routers import auth, users, rdb_sources, catalog, rdb_tables, etl_jobs, job_runs, opensearch, duckdb
+from routers import auth, users, connections, catalog, etl_jobs, job_runs, opensearch, duckdb, metadata
 from routers.transforms import select_fields # 추후 type 추가 예정 (예: join ...)
 from database import init_db, close_db
 
@@ -47,9 +47,9 @@ app.add_middleware(
 # Include routers
 app.include_router(auth.router, prefix="/api", tags=["auth"])
 app.include_router(users.router, prefix="/users", tags=["users"])
-app.include_router(rdb_sources.router, prefix="/api/rdb-sources", tags=["rdb-sources"])
+app.include_router(connections.router, prefix="/api/connections", tags=["connections"])
 app.include_router(catalog.router, prefix="/api/catalog", tags=["catalog"])
-app.include_router(rdb_tables.router, prefix="/api/rdb-tables", tags=["rdb-tables"])
+app.include_router(metadata.router, prefix="/api/metadata", tags=["metadata"])
 app.include_router(opensearch.router, prefix="/api/opensearch", tags=["opensearch"])
 
 app.include_router(select_fields.router, prefix="/api/rdb-transform/select-fields", tags=["select-fields"])
