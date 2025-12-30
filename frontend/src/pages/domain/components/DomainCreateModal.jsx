@@ -3,7 +3,7 @@ import { useNavigate } from "react-router-dom";
 import { X, ArrowRight, Plus, Database, Tag, Book } from "lucide-react";
 import { useToast } from "../../../components/common/Toast";
 
-export default function DatasetCreateModal({ isOpen, onClose, onCreated }) {
+export default function DomainCreateModal({ isOpen, onClose, onCreated }) {
   const navigate = useNavigate();
   const { showToast } = useToast();
   const [loading, setLoading] = useState(false);
@@ -58,7 +58,7 @@ export default function DatasetCreateModal({ isOpen, onClose, onCreated }) {
       onCreated(); // Refresh list
       onClose();
       // Redirect to the new dataset's lineage/detail page
-      navigate(`/catalog/${data.id}`);
+      navigate(`/domain/${data.id}`);
     } catch (e) {
       showToast(e.message, "error");
     } finally {

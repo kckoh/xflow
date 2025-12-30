@@ -12,21 +12,23 @@ import {
     ChevronLeft,
     BookOpen,
     ShieldCheck,
+    Download,
 } from "lucide-react";
-import DatasetHeader from "../../features/dataset/components/DatasetHeader";
-import DatasetSchema from "../../features/dataset/components/DatasetSchema";
-import DatasetDomain from "../../features/dataset/components/DatasetDomain";
+import DomainDetailHeader from "./components/DomainDetailHeader";
+import DomainSchema from "./components/DomainSchema";
+import DomainCanvas from "./components/DomainCanvas";
+import DomainImportModal from "./components/DomainImportModal";
 import { RightSidebar } from "./components/RightSideBar/RightSidebar";
 import { SidebarToggle } from "./components/RightSideBar/SidebarToggle";
 
-export default function DatasetDetailPage() {
+export default function DomainDetailPage() {
     const { id } = useParams();
     const navigate = useNavigate();
     const [activeTab, setActiveTab] = useState("columns");
     const [dataset, setDataset] = useState(null);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState(null);
-
+    const [showImportModal, setShowImportModal] = useState(false);
     useEffect(() => {
         const fetchDataset = async () => {
             try {
@@ -130,14 +132,32 @@ export default function DatasetDetailPage() {
         <div className="flex flex-col h-[calc(100vh-2rem)] bg-white overflow-hidden relative -m-8">
             {/* Top Navigation Wrapper (Header + Tabs) - Highest Z-Index */}
             <div className="relative z-[110] bg-white shadow-sm">
-                <DatasetHeader dataset={dataset} />
+                <DomainDetailHeader
+                    dataset={dataset}
+                    actions={
+                        <button
+                            onClick={() => setShowImportModal(true)}
+                            className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors text-sm font-medium"
+                        >
+                            <Download size={16} />
+                            Import
+                        </button>
+                    }
+                />
             </div>
-
+            {/* Import Modal */}
+            {showImportModal && (
+                <DomainImportModal
+                    isOpen={showImportModal}
+                    onClose={() => setShowImportModal(false)}
+                    datasetId={dataset?.id}
+                />
+            )}
             {/* Main Split Layout */}
             <div className="flex flex-1 overflow-hidden relative z-0">
                 {/* Main Content Area: mr-12 to ensure scrollbar separation */}
                 <div className="flex-1 overflow-y-auto p-6 bg-gray-50 custom-scrollbar relative z-0">
-                    <DatasetDomain
+                    <DomainCanvas
                         datasetId={dataset.id}
                         selectedId={activeSidebarData.id}
                         onStreamAnalysis={handleStreamAnalysis}

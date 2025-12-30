@@ -1,9 +1,9 @@
 import { useState, useEffect } from "react";
 import { X, Database, Table as TableIcon, GitFork, FileText, Tag, Hash, AlignLeft, Users } from "lucide-react";
-import DatasetSchema from "./DatasetSchema";
-import DatasetDomain from "./DatasetDomain";
+import DomainSchema from "./DomainSchema";
+import DomainCanvas from "./DomainCanvas";
 
-export default function DatasetDrawer({ isOpen, onClose, datasetId }) {
+export default function DomainDrawer({ isOpen, onClose, datasetId }) {
     const [dataset, setDataset] = useState(null);
     const [loading, setLoading] = useState(false);
     const [activeTab, setActiveTab] = useState("schema");
@@ -99,12 +99,12 @@ export default function DatasetDrawer({ isOpen, onClose, datasetId }) {
                     {!loading && !error && dataset && (
                         <>
                             {activeTab === "schema" && (
-                                <DatasetSchema columns={dataset.columns || dataset.schema || []} />
+                                <DomainSchema columns={dataset.columns || dataset.schema || []} />
                             )}
 
                             {activeTab === "domain" && (
                                 <div className="bg-white rounded-lg border border-gray-200 p-1 h-[600px] shadow-sm">
-                                    <DatasetDomain datasetId={dataset.id} />
+                                    <DomainCanvas datasetId={dataset.id} />
                                 </div>
                             )}
 
