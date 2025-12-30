@@ -16,7 +16,6 @@ import {
 import DatasetHeader from "../../features/dataset/components/DatasetHeader";
 import DatasetSchema from "../../features/dataset/components/DatasetSchema";
 import DatasetDomain from "../../features/dataset/components/DatasetDomain";
-import { catalogAPI } from "../../services/catalog/index";
 import { RightSidebar } from "./components/RightSideBar/RightSidebar";
 import { SidebarToggle } from "./components/RightSideBar/SidebarToggle";
 
@@ -32,7 +31,8 @@ export default function DatasetDetailPage() {
         const fetchDataset = async () => {
             try {
                 setLoading(true);
-                const data = await catalogAPI.getDataset(id);
+                // TODO: Replace with new API
+                const data = { id, name: 'Dataset', type: 'hive' };
                 setDataset(data);
             } catch (err) {
                 console.error(err);
@@ -83,8 +83,8 @@ export default function DatasetDetailPage() {
                     return;
                 }
 
-                // Fetch details for the selected node
-                const data = await catalogAPI.getDataset(selectedId);
+                // TODO: Replace with new API
+                const data = { id: selectedId, name: 'Dataset', type: 'hive' };
                 setSidebarDataset(data);
             } catch (error) {
                 console.error("Failed to load sidebar dataset:", error);
