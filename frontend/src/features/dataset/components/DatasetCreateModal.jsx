@@ -13,7 +13,7 @@ export default function DatasetCreateModal({ isOpen, onClose, onCreated }) {
     name: "",
     description: "",
     platform: "hive", // Default or Hidden
-    owner: "User",
+    owner: "",
     tags: [], // Replaces Platform select for user
   });
 
@@ -106,7 +106,6 @@ export default function DatasetCreateModal({ isOpen, onClose, onCreated }) {
                 className="w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500 outline-none"
                 value={formData.name}
                 onChange={(e) => updateField("name", e.target.value)}
-                placeholder="e.g. user_logs"
                 autoFocus
               />
             </div>
@@ -119,6 +118,7 @@ export default function DatasetCreateModal({ isOpen, onClose, onCreated }) {
                 className="w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500 outline-none"
                 value={formData.owner}
                 onChange={(e) => updateField("owner", e.target.value)}
+                placeholder="CEO"
               />
             </div>
           </div>
@@ -204,7 +204,9 @@ export default function DatasetCreateModal({ isOpen, onClose, onCreated }) {
           <button
             onClick={handleSubmit}
             disabled={loading || !formData.name}
-            className={`px-6 py-2 bg-blue-600 text-white rounded-lg text-sm font-medium hover:bg-blue-700 transition flex items-center gap-2 ${loading ? "opacity-50 cursor-not-allowed" : ""}`}
+            className={`px-6 py-2 bg-blue-600 text-white rounded-lg text-sm font-medium hover:bg-blue-700 transition flex items-center gap-2 ${
+              loading ? "opacity-50 cursor-not-allowed" : ""
+            }`}
           >
             {loading ? "Registering..." : "Register Dataset"}
             {!loading && <Database size={16} />}
