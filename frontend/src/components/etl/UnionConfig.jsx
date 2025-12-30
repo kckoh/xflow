@@ -134,12 +134,7 @@ export default function UnionConfig({ node, transformName, onUpdate, onClose }) 
 
             {/* Footer */}
             <div className="pt-4 border-t border-gray-200 flex justify-end gap-2">
-                <button
-                    onClick={onClose}
-                    className="px-4 py-2 border border-gray-300 rounded-md text-gray-700 hover:bg-gray-50"
-                >
-                    Cancel
-                </button>
+
                 <button
                     onClick={handleSave}
                     disabled={inputSchemas.length < 2 || loading}

@@ -129,12 +129,6 @@ export default function S3TargetPropertiesPanel({ node, selectedMetadataItem, on
 
             {/* Footer */}
             <div className="px-4 py-3 border-t border-gray-200 flex justify-end gap-2">
-                <button
-                    onClick={onClose}
-                    className="px-4 py-2 border border-gray-300 rounded-md text-gray-700 hover:bg-gray-50"
-                >
-                    Close
-                </button>
             </div>
         </div>
     );
