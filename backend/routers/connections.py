@@ -25,13 +25,37 @@ async def test_connection_config(connection: ConnectionCreate):
 @router.post("/", response_model=ConnectionResponse, status_code=status.HTTP_201_CREATED)
 async def create_connection(connection: ConnectionCreate):
     """Create a new connection"""
-    # Check if name exists
-    existing = await Connection.find_one(Connection.name == connection.name)
-    if existing:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Connection name already exists"
-        )
+    # Check for duplicate configuration based on core identity fields
+    # We allow duplicate names but prevent duplicate connections to the same actual data source
+    existing_conns = await Connection.find(Connection.type == connection.type).to_list()
+    
+    for conn in existing_conns:
+        # RDB Identity: Host + Port + Database
+        if connection.type in ['postgres', 'mysql', 'mariadb']:
+            if (conn.config.get('host') == connection.config.get('host') and
+                str(conn.config.get('port')) == str(connection.config.get('port')) and
+                conn.config.get('database_name') == connection.config.get('database_name')):
+                raise HTTPException(
+                    status_code=status.HTTP_400_BAD_REQUEST,
+                    detail=f"Connection to {connection.config.get('host')}:{connection.config.get('port')}/{connection.config.get('database_name')} already exists."
+                )
+        
+        # S3 Identity: Bucket
+        elif connection.type == 's3':
+             if conn.config.get('bucket') == connection.config.get('bucket'):
+                 raise HTTPException(
+                    status_code=status.HTTP_400_BAD_REQUEST,
+                    detail=f"Connection to S3 bucket '{connection.config.get('bucket')}' already exists."
+                )
+        
+        # MongoDB Identity: URI + Database
+        elif connection.type == 'mongodb':
+             if (conn.config.get('uri') == connection.config.get('uri') and
+                 conn.config.get('database') == connection.config.get('database')):
+                 raise HTTPException(
+                    status_code=status.HTTP_400_BAD_REQUEST,
+                    detail=f"Connection to MongoDB '{connection.config.get('database')}' already exists."
+                )
 
     new_conn = Connection(
         name=connection.name,

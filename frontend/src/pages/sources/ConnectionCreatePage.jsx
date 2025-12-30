@@ -1,10 +1,13 @@
 import { useNavigate } from 'react-router-dom';
 import ConnectionForm from '../../components/sources/ConnectionForm';
+import { useToast } from '../../components/common/Toast/ToastContext';
 
 export default function ConnectionCreatePage() {
+    const { openToast } = useToast();
     const navigate = useNavigate();
 
     const handleSuccess = () => {
+        openToast({ message: 'Connection created successfully', type: 'success' });
         navigate('/sources');
     };
 

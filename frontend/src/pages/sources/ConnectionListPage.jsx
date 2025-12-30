@@ -2,11 +2,17 @@ import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Database, Plus, Info, Server, Trash2 } from 'lucide-react';
 import { connectionApi } from '../../services/connectionApi';
+import { useToast } from '../../components/common/Toast/ToastContext';
+import ConfirmationModal from '../../components/common/ConfirmationModal';
 
 export default function ConnectionListPage() {
+    const { openToast } = useToast();
     const [connections, setConnections] = useState([]);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState(null);
+    const [deleteModalOpen, setDeleteModalOpen] = useState(false);
+    const [pendingDeleteId, setPendingDeleteId] = useState(null);
+
     const navigate = useNavigate();
 
     useEffect(() => {
@@ -25,14 +31,23 @@ export default function ConnectionListPage() {
         }
     };
 
-    const handleDelete = async (id) => {
-        if (window.confirm('Are you sure you want to delete this connection?')) {
-            try {
-                await connectionApi.deleteConnection(id);
-                setConnections(prev => prev.filter(c => c.id !== id));
-            } catch (err) {
-                alert('Failed to delete connection');
-            }
+    const handleOpenDeleteModal = (id) => {
+        setPendingDeleteId(id);
+        setDeleteModalOpen(true);
+    };
+
+    const handleDeleteConfirm = async () => {
+        if (!pendingDeleteId) return;
+
+        try {
+            await connectionApi.deleteConnection(pendingDeleteId);
+            setConnections(prev => prev.filter(c => c.id !== pendingDeleteId));
+            openToast({ message: 'Connection deleted successfully', type: 'success' });
+        } catch (err) {
+            openToast({ message: 'Failed to delete connection', type: 'error' });
+        } finally {
+            setDeleteModalOpen(false);
+            setPendingDeleteId(null);
         }
     };
 
@@ -154,7 +169,7 @@ export default function ConnectionListPage() {
                                         </td>
                                         <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
                                             <button
-                                                onClick={() => handleDelete(conn.id)}
+                                                onClick={() => handleOpenDeleteModal(conn.id)}
                                                 className="text-gray-400 hover:text-red-600 transition-colors"
                                             >
                                                 <Trash2 className="w-5 h-5" />
@@ -167,6 +182,21 @@ export default function ConnectionListPage() {
                     </div>
                 )}
             </div>
+
+            {/* Delete Confirmation Modal */}
+            <ConfirmationModal
+                isOpen={deleteModalOpen}
+                onClose={() => {
+                    setDeleteModalOpen(false);
+                    setPendingDeleteId(null);
+                }}
+                onConfirm={handleDeleteConfirm}
+                title="Delete Connection"
+                message="Are you sure you want to delete this connection? This action cannot be undone."
+                confirmText="Delete"
+                cancelText="Cancel"
+                variant="danger"
+            />
         </div>
     );
 }
