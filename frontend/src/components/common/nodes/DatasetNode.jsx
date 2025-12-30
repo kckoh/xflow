@@ -88,11 +88,6 @@ const DatasetNode = ({ data, selected }) => {
                         <span className="text-sm font-semibold text-gray-900 truncate">
                             {data.label}
                         </span>
-                        {data.tableName && (
-                            <span className="text-xs text-gray-500 truncate">
-                                Table: {data.tableName}
-                            </span>
-                        )}
                     </div>
 
                     {/* 토글 버튼 - 항상 표시 */}
@@ -115,6 +110,15 @@ const DatasetNode = ({ data, selected }) => {
             {/* 스키마 테이블 (토글 시 펼침) */}
             {schemaExpanded && (
                 <div className="border-t border-gray-100 bg-gray-50 rounded-b-lg max-h-56 overflow-y-auto">
+                    {/* 테이블명 - 클릭 가능 (나중에 description/tag 편집용) */}
+                    {data.tableName && (
+                        <div className="px-3 py-2 border-b border-gray-200 bg-white hover:bg-gray-50 cursor-pointer">
+                            <span className="text-xs font-medium text-gray-700">
+                                Table: {data.tableName}
+                            </span>
+                        </div>
+                    )}
+
                     {/* 컬럼 헤더 */}
                     <div className="flex px-3 py-1.5 border-b border-gray-200 bg-gray-100 text-xs font-medium text-gray-500 uppercase tracking-wider sticky top-0">
                         <span className="flex-1">Column</span>

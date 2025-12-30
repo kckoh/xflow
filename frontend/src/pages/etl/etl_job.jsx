@@ -216,6 +216,7 @@ export default function ETLJobPage() {
               data: {
                 ...n.data,
                 inputSchema: sourceNode.data.schema,
+                tableName: sourceNode.data.tableName, // 테이블명도 전파
                 // If transform has config, apply it; otherwise use input as output
                 schema: n.data.transformConfig
                   ? applyTransformToSchema(
@@ -263,6 +264,7 @@ export default function ETLJobPage() {
                 data: {
                   ...prev.data,
                   inputSchema: sourceNode.data.schema,
+                  tableName: sourceNode.data.tableName, // 테이블명도 전파
                   schema: prev.data.transformConfig
                     ? applyTransformToSchema(
                       sourceNode.data.schema,
@@ -431,8 +433,8 @@ export default function ETLJobPage() {
 
       // 그 노드 아래에 배치 (150px 간격)
       position = {
-        x: bottomNode.position.x + 300 ,
-        y: bottomNode.position.y ,
+        x: bottomNode.position.x + 300,
+        y: bottomNode.position.y,
       };
     } else {
       // 첫 번째 노드는 화면 상단 중앙에 배치
