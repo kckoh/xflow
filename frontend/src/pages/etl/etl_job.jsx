@@ -224,6 +224,14 @@ export default function ETLJobPage() {
             return inputNode?.data?.schema || [];
           });
 
+          // Collect table names from input sources
+          const tableNames = allEdgesToTarget.map((e) => {
+            const inputNode = nds.find((n) => n.id === e.source);
+            return inputNode?.data?.tableName || '';
+          }).filter(name => name); // Remove empty names
+
+          const combinedTableName = tableNames.join('_');
+
           // Merge schemas for union - include all columns
           const unionSchema = mergeSchemas(inputSchemas);
 
@@ -235,6 +243,7 @@ export default function ETLJobPage() {
                   ...n.data,
                   inputSchemas: inputSchemas, // Store array of schemas for Union config
                   schema: unionSchema,
+                  tableName: combinedTableName, // Set combined table name
                 },
               }
               : n,
@@ -281,6 +290,14 @@ export default function ETLJobPage() {
                 const inputNode = nds.find((n) => n.id === e.source);
                 return inputNode?.data?.schema || [];
               });
+
+              // Collect table names from input sources
+              const tableNames = allEdgesToTarget.map((e) => {
+                const inputNode = nds.find((n) => n.id === e.source);
+                return inputNode?.data?.tableName || '';
+              }).filter(name => name);
+
+              const combinedTableName = tableNames.join('_');
               const unionSchema = mergeSchemas(inputSchemas);
 
               setSelectedNode((prev) => ({
@@ -289,6 +306,7 @@ export default function ETLJobPage() {
                   ...prev.data,
                   inputSchemas: inputSchemas,
                   schema: unionSchema,
+                  tableName: combinedTableName,
                 },
               }));
             } else {
