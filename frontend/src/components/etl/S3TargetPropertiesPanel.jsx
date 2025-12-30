@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import { X } from 'lucide-react';
 
-export default function S3TargetPropertiesPanel({ node, onClose, onUpdate }) {
+export default function S3TargetPropertiesPanel({ node, selectedMetadataItem, onClose, onUpdate, onMetadataUpdate }) {
     const [name, setName] = useState(node?.data?.label || 'Amazon S3');
     const [s3Location, setS3Location] = useState(node?.data?.s3Location || '');
 
@@ -76,6 +76,55 @@ export default function S3TargetPropertiesPanel({ node, onClose, onUpdate }) {
                         placeholder="s3://bucket/prefix/object/"
                     />
                 </div>
+
+                {/* Metadata Edit Section */}
+                {typeof selectedMetadataItem !== 'undefined' && selectedMetadataItem && (
+                    <div className="border-t border-gray-200 pt-4 mt-4">
+                        <div className="mb-3">
+                            <label className="block text-sm font-semibold text-gray-700 mb-2">
+                                {selectedMetadataItem.type === 'table' ? `Table: ${selectedMetadataItem.name}` : `Column: ${selectedMetadataItem.name}`}
+                                {selectedMetadataItem.type === 'column' && selectedMetadataItem.dataType && (
+                                    <span className="ml-2 text-xs font-mono text-gray-500 bg-gray-200 px-2 py-0.5 rounded">
+                                        {selectedMetadataItem.dataType}
+                                    </span>
+                                )}
+                            </label>
+                        </div>
+
+                        {/* Description */}
+                        <div className="mb-3">
+                            <label className="block text-xs font-medium text-gray-600 mb-1">
+                                Description
+                            </label>
+                            <input
+                                type="text"
+                                value={selectedMetadataItem.description || ''}
+                                onChange={(e) => onMetadataUpdate && onMetadataUpdate({ ...selectedMetadataItem, description: e.target.value })}
+                                placeholder={`Add description for this ${selectedMetadataItem.type}...`}
+                                className="w-full px-3 py-2 text-sm border border-gray-200 rounded-md focus:outline-none focus:ring-1 focus:ring-blue-500"
+                            />
+                        </div>
+
+                        {/* Tags */}
+                        <div>
+                            <label className="block text-xs font-medium text-gray-600 mb-1">
+                                Tags
+                            </label>
+                            <input
+                                type="text"
+                                value={(selectedMetadataItem.tags || []).join(', ')}
+                                onChange={(e) => {
+                                    const tags = e.target.value.split(',').map(t => t.trim()).filter(t => t);
+                                    if (onMetadataUpdate) {
+                                        onMetadataUpdate({ ...selectedMetadataItem, tags });
+                                    }
+                                }}
+                                placeholder="Add tags (comma separated)"
+                                className="w-full px-3 py-2 text-sm border border-gray-200 rounded-md focus:outline-none focus:ring-1 focus:ring-blue-500"
+                            />
+                        </div>
+                    </div>
+                )}
             </div>
 
             {/* Footer */}
@@ -90,4 +139,3 @@ export default function S3TargetPropertiesPanel({ node, onClose, onUpdate }) {
         </div>
     );
 }
-

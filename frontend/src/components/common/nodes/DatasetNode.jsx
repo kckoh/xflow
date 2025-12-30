@@ -110,9 +110,23 @@ const DatasetNode = ({ data, selected }) => {
             {/* 스키마 테이블 (토글 시 펼침) */}
             {schemaExpanded && (
                 <div className="border-t border-gray-100 bg-gray-50 rounded-b-lg max-h-56 overflow-y-auto">
-                    {/* 테이블명 - 클릭 가능 (나중에 description/tag 편집용) */}
+                    {/* 테이블명 - 클릭하면 오른쪽 패널에서 편집 */}
                     {data.tableName && (
-                        <div className="px-3 py-2 border-b border-gray-200 bg-white hover:bg-gray-50 cursor-pointer">
+                        <div
+                            className="px-3 py-2 border-b border-gray-200 bg-white hover:bg-blue-50 cursor-pointer transition-colors"
+                            onClick={(e) => {
+                                // e.stopPropagation(); 
+                                e.isMetadataClick = true; // Flag to prevent clearing metadata selection in parent
+                                if (data.onMetadataSelect) {
+                                    data.onMetadataSelect({
+                                        type: 'table',
+                                        name: data.tableName,
+                                        description: data.tableDescription || '',
+                                        tags: data.tableTags || []
+                                    }, data.nodeId);
+                                }
+                            }}
+                        >
                             <span className="text-xs font-medium text-gray-700">
                                 Table: {data.tableName}
                             </span>
@@ -131,11 +145,18 @@ const DatasetNode = ({ data, selected }) => {
                             {data.schema.slice(0, 10).map((field, idx) => (
                                 <div
                                     key={idx}
-                                    className="flex px-3 py-1.5 hover:bg-gray-100 cursor-pointer text-xs"
+                                    className="flex px-3 py-1.5 hover:bg-blue-50 cursor-pointer text-xs transition-colors"
                                     onClick={(e) => {
-                                        e.stopPropagation();
-                                        if (data.onColumnClick) {
-                                            data.onColumnClick(field);
+                                        // e.stopPropagation();
+                                        e.isMetadataClick = true; // Flag to prevent clearing metadata selection in parent
+                                        if (data.onMetadataSelect) {
+                                            data.onMetadataSelect({
+                                                type: 'column',
+                                                name: field.key,
+                                                dataType: field.type,
+                                                description: field.description || '',
+                                                tags: field.tags || []
+                                            }, data.nodeId);
                                         }
                                     }}
                                 >
