@@ -67,3 +67,9 @@ app.include_router(duckdb.router, prefix="/api/duckdb", tags=["duckdb"])
 @app.get("/")
 def read_root():
     return {"message": "Connected to FastAPI + MongoDB"}
+
+
+# Health check for Kubernetes
+@app.get("/health")
+def health_check():
+    return {"status": "healthy"}
