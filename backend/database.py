@@ -2,7 +2,7 @@ import os
 from beanie import init_beanie
 from motor.motor_asyncio import AsyncIOMotorClient
 from neo4j import GraphDatabase
-from models import User, Connection, Transform, ETLJob, JobRun
+from models import User, Connection, Transform, ETLJob, JobRun, Dataset
 
 
 # MongoDB connection from environment variables
@@ -33,25 +33,25 @@ async def init_db():
 
     await init_beanie(
         database=mongodb_client[DATABASE_NAME],
-        document_models=[User, Connection, Transform, ETLJob, JobRun]
+        document_models=[User, Connection, Transform, ETLJob, JobRun, Dataset]
     )
     print(f"✅ Connected to MongoDB at {MONGODB_URL}")
 
-    # Neo4j (Official Driver)
-    try:
-        neo4j_driver = GraphDatabase.driver(NEO4J_URI, auth=(NEO4J_USER, NEO4J_PASSWORD))
-        neo4j_driver.verify_connectivity()
-        print(f"✅ Connected to Neo4j at {NEO4J_URI}")
+    # Neo4j (Official Driver) - Disabled for now as we use MongoDB for Lineage
+    # try:
+    #     neo4j_driver = GraphDatabase.driver(NEO4J_URI, auth=(NEO4J_USER, NEO4J_PASSWORD))
+    #     neo4j_driver.verify_connectivity()
+    #     print(f"✅ Connected to Neo4j at {NEO4J_URI}")
         
-        # Configure Neomodel OGM
-        from neomodel import config
-        config.DATABASE_URL = f"bolt://{NEO4J_USER}:{NEO4J_PASSWORD}@{NEO4J_URI.replace('bolt://', '')}"
+    #     # Configure Neomodel OGM
+    #     from neomodel import config
+    #     config.DATABASE_URL = f"bolt://{NEO4J_USER}:{NEO4J_PASSWORD}@{NEO4J_URI.replace('bolt://', '')}"
         
-        from neomodel import install_all_labels
-        install_all_labels()
-        print(f"✅ Neomodel Configured")
-    except Exception as e:
-        print(f"❌ Failed to connect to Neo4j: {e}")
+    #     from neomodel import install_all_labels
+    #     install_all_labels()
+    #     print(f"✅ Neomodel Configured")
+    # except Exception as e:
+    #     print(f"❌ Failed to connect to Neo4j: {e}")
 
 
 async def close_db():
