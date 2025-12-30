@@ -1,9 +1,9 @@
 import { useState, useEffect } from "react";
 import { X, Database, Table as TableIcon, GitFork, FileText, Tag, Hash, AlignLeft, Users } from "lucide-react";
-import DatasetSchema from "./DatasetSchema";
-import DatasetDomain from "./DatasetDomain";
+import DomainSchema from "./DomainSchema";
+import DomainCanvas from "./DomainCanvas";
 
-export default function DatasetDrawer({ isOpen, onClose, datasetId }) {
+export default function DomainDrawer({ isOpen, onClose, datasetId }) {
     const [dataset, setDataset] = useState(null);
     const [loading, setLoading] = useState(false);
     const [activeTab, setActiveTab] = useState("schema");
@@ -16,9 +16,8 @@ export default function DatasetDrawer({ isOpen, onClose, datasetId }) {
                 setLoading(true);
                 setError(null);
                 try {
-                    const response = await fetch(`http://localhost:8000/api/catalog/${datasetId}`);
-                    if (!response.ok) throw new Error("Failed to fetch dataset details");
-                    const data = await response.json();
+                    // TODO: Replace with new API
+                    const data = { id: datasetId, name: 'Dataset', type: 'hive', columns: [] };
                     setDataset(data);
                 } catch (err) {
                     console.error(err);
@@ -30,7 +29,7 @@ export default function DatasetDrawer({ isOpen, onClose, datasetId }) {
             fetchDetails();
         } else if (!isOpen) {
             // Reset state when closed? Optional.
-            // setDataset(null); 
+            // setDataset(null);
         }
     }, [isOpen, datasetId]);
 
@@ -100,12 +99,12 @@ export default function DatasetDrawer({ isOpen, onClose, datasetId }) {
                     {!loading && !error && dataset && (
                         <>
                             {activeTab === "schema" && (
-                                <DatasetSchema columns={dataset.columns || dataset.schema || []} />
+                                <DomainSchema columns={dataset.columns || dataset.schema || []} />
                             )}
 
                             {activeTab === "domain" && (
                                 <div className="bg-white rounded-lg border border-gray-200 p-1 h-[600px] shadow-sm">
-                                    <DatasetDomain datasetId={dataset.id} />
+                                    <DomainCanvas datasetId={dataset.id} />
                                 </div>
                             )}
 

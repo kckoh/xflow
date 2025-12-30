@@ -1,164 +1,151 @@
-from typing import List, Dict, Any
-from bson import ObjectId
-import database
-from models import Table, Column
-from neomodel import db as neomodel_db
+from typing import List, Dict, Set
+from models import ETLJob, Dataset
+from datetime import datetime
 
-def get_db():
-    return database.mongodb_client[database.DATABASE_NAME]
-
-async def get_lineage(dataset_id: str) -> Dict[str, List[Dict[str, Any]]]:
+async def sync_pipeline_to_dataset(job: ETLJob):
     """
-    Fetch lineage data (Column Level) from Neo4j OGM.
-    Returns nodes (Tables) and edges (Column-to-Column links).
+    Syncs ETLJob configuration to Dataset model for lineage tracking.
+    Parses nodes and edges to build detailed source/transform/target specs.
+    Also updates the is_active status of the dataset.
     """
-    
-    driver = database.neo4j_driver
-    if not driver:
-        return {"nodes": [], "edges": []}
+    if not job.nodes:
+        return
 
-    try:
-        with driver.session() as session:
-            # Get center node
-            center_query = "MATCH (center:Table {mongo_id: $id}) RETURN center"
-            center_result = session.run(center_query, id=dataset_id)
-            center_record = center_result.single()
-            
-            if not center_record:
-                return {"nodes": [], "edges": []}
-            
-            center_node = center_record["center"]
-            all_nodes = [center_node]
-            raw_edges = []
-            
-            # Get upstream relationships
-            upstream_query = """
-            MATCH (upstream:Table)-[:HAS_COLUMN]->(uc:Column)-[r:FLOWS_TO]->(cc:Column)<-[:HAS_COLUMN]-(center:Table {mongo_id: $id})
-            RETURN upstream, r, uc.name as source_col, cc.name as target_col, center
-            """
-            upstream_result = session.run(upstream_query, id=dataset_id)
-            for record in upstream_result:
-                upstream_node = record["upstream"]
-                rel = record["r"]
-                source_col = record["source_col"]
-                target_col = record["target_col"]
-                target_node = record["center"]
-                
-                all_nodes.append(upstream_node)
-                raw_edges.append({
-                    "rel": rel,
-                    "source": upstream_node,
-                    "target": target_node,
-                    "source_col": source_col,
-                    "target_col": target_col
-                })
-            
-            # Get downstream relationships
-            downstream_query = """
-            MATCH (center:Table {mongo_id: $id})-[:HAS_COLUMN]->(cc:Column)-[r:FLOWS_TO]->(dc:Column)<-[:HAS_COLUMN]-(downstream:Table)
-            RETURN downstream, r, cc.name as source_col, dc.name as target_col, center
-            """
-            downstream_result = session.run(downstream_query, id=dataset_id)
-            for record in downstream_result:
-                downstream_node = record["downstream"]
-                rel = record["r"]
-                source_col = record["source_col"]
-                target_col = record["target_col"]
-                source_node = record["center"]
-                
-                all_nodes.append(downstream_node)
-                raw_edges.append({
-                    "rel": rel,
-                    "source": source_node,
-                    "target": downstream_node,
-                    "source_col": source_col,
-                    "target_col": target_col
-                })
-            
-            # Deduplicate nodes by ID
-            unique_nodes = {}
-            for node in all_nodes:
-                if not node: continue
-                n_id = node.element_id if hasattr(node, "element_id") else str(node.id)
-                if n_id not in unique_nodes:
-                    unique_nodes[n_id] = node
+    # 1. Parse Nodes and Build Maps
+    nodes_map = {node['id']: node for node in job.nodes}
     
-            # Build Frontend Nodes
-            nodes = []
-            for n_id, node_obj in unique_nodes.items():
-                # node_obj is a Neo4j Node object
-                props = dict(node_obj.items()) 
-                
-                react_node = {
-                    "id": n_id, 
-                    "type": "custom", 
-                    "data": { 
-                        "label": props.get("name", "Unnamed"),
-                        "type": "Table",
-                        "mongoId": props.get("mongo_id"),
-                        **props
-                    },
-                    "position": {"x": 0, "y": 0} 
-                }
-                nodes.append(react_node)
-    
-            # Build Frontend Edges
-            edges = []
-            seen_edges = set()
-            
-            for e_obj in raw_edges:
-                rel = e_obj.get("rel")
-                if rel is None:
-                    continue
-                
-                rel_id = rel.element_id if hasattr(rel, "element_id") else str(rel.id)
-                
-                if rel_id in seen_edges:
-                    continue
-                seen_edges.add(rel_id)
-    
-                src_node = e_obj.get("source")
-                tgt_node = e_obj.get("target")
-                
-                if src_node is None or tgt_node is None:
-                    continue
-                
-                source_id = src_node.element_id if hasattr(src_node, "element_id") else str(src_node.id)
-                target_id = tgt_node.element_id if hasattr(tgt_node, "element_id") else str(tgt_node.id)
-    
-                edge_data = {
-                    "id": rel_id,
-                    "source": source_id,
-                    "target": target_id,
-                    "sourceHandle": f"col:{e_obj.get('source_col')}",
-                    "targetHandle": f"col:{e_obj.get('target_col')}",
-                    "label": rel.type,
-                    "animated": True
-                }
-                edges.append(edge_data)
-    
-            # --- Enrichment: Fetch Schema from MongoDB ---
-            # (Same logic as before to populate columns for UI)
-            mongo_ids = [n["data"]["mongoId"] for n in nodes if n["data"].get("mongoId")]
-            if mongo_ids:
-                try:
-                    db = get_db()
-                    if db is not None:
-                        obj_ids = [ObjectId(mid) for mid in mongo_ids if mid and ObjectId.is_valid(mid)]
-                        cursor = db.datasets.find({"_id": {"$in": obj_ids}}, {"_id": 1, "schema": 1})
-                        mongo_docs = await cursor.to_list(length=len(obj_ids))
-                        schema_map = {str(doc["_id"]): doc.get("schema", []) for doc in mongo_docs}
-                        
-                        for node in nodes:
-                            mid = node["data"].get("mongoId")
-                            if mid in schema_map:
-                                node["data"]["columns"] = [col["name"] for col in schema_map[mid]]
-                                node["data"]["rawSchema"] = schema_map[mid]
-                except Exception as e:
-                    print(f"⚠️ Enrichment Error: {e}")
-    
-            return {"nodes": nodes, "edges": edges}
+    # 2. Build Input Map (Target Node ID -> List of Source Node IDs)
+    input_map: Dict[str, List[str]] = {}
+    if job.edges:
+        for edge in job.edges:
+            target_id = edge['target']
+            source_id = edge['source']
+            if target_id not in input_map:
+                input_map[target_id] = []
+            input_map[target_id].append(source_id)
 
-    except Exception as e:
-        print(f"❌ Lineage Fetch Error (OGM/Driver): {e}")
-        return {"nodes": [], "edges": []}
+    # 3. Categorize Nodes
+    sources = []
+    transforms = []
+    targets = []
+
+    for node in job.nodes:
+        node_id = node['id']
+        data = node.get('data', {})
+        category = data.get('nodeCategory')
+        
+        # Base item structure
+        item = {
+            "nodeId": node_id,
+            "type": data.get('type') or data.get('transformType') or "unknown",
+            "schema": data.get('schema', []),
+            "inputNodeIds": input_map.get(node_id, []),
+            "config": _extract_config(data)
+        }
+
+        # Add connection info for sources/targets if available
+        if data.get('connectionId'):
+            item['connection_id'] = data.get('connectionId')
+        
+        # URN Generation (Standardized)
+        urn = f"urn:unknown:{node_id}"
+        config = item['config']
+        
+        if category == 'source':
+            conn_id = config.get('connection_id') or config.get('sourceId') or 'unknown'
+            table_name = config.get('table') or config.get('tableName') or 'unknown'
+            schema_name = "public"
+            urn = f"urn:rdb:{conn_id}:{schema_name}.{table_name}"
+            
+        elif category == 'target':
+            s3_path = config.get('path') or config.get('s3Location') or ''
+            clean_path = s3_path.replace("s3://", "").replace("s3a://", "")
+            if "/" in clean_path:
+                bucket, key = clean_path.split("/", 1)
+                urn = f"urn:s3:{bucket}:{key}"
+            else:
+                urn = f"urn:s3:{clean_path}"
+                
+        elif category == 'transform':
+            urn = f"urn:job:{job.id}:{node_id}"
+            
+        item['urn'] = urn
+
+        if category == 'source':
+            sources.append(item)
+        elif category == 'transform':
+            transforms.append(item)
+        elif category == 'target':
+            targets.append(item)
+
+    # 4. Check Connectivity for Active Status
+    is_active = _check_connectivity(sources, targets, input_map)
+
+    # 5. Upsert Dataset
+    dataset = await Dataset.find_one(Dataset.job_id == str(job.id))
+    if not dataset:
+        dataset = Dataset(
+            name=job.name,
+            job_id=str(job.id),
+            created_at=datetime.utcnow()
+        )
+    
+    # Update fields
+    dataset.name = job.name
+    dataset.description = job.description
+    dataset.sources = sources
+    dataset.transforms = transforms
+    dataset.targets = targets
+    dataset.is_active = is_active
+    dataset.updated_at = datetime.utcnow()
+    
+    await dataset.save()
+    
+    # Optional: Update Job status immediately if needed
+    if is_active and job.status == 'draft':
+        # job.status = 'active' # Decide if we want to auto-activate
+        pass 
+
+
+def _extract_config(data: dict) -> dict:
+    """Extract relevant configuration from node data"""
+    config = {}
+    # Copy all fields except schema and UI specific ones
+    exclude_keys = ['schema', 'nodeCategory', 'label', 'icon', 'onColumnClick']
+    for k, v in data.items():
+        if k not in exclude_keys:
+            config[k] = v
+    return config
+
+
+def _check_connectivity(sources: List[dict], targets: List[dict], input_map: Dict[str, List[str]]) -> bool:
+    """
+    Check if there is at least one complete path from a Source to a Target.
+    Simple BFS/DFS from Targets backwards to Sources.
+    """
+    if not sources or not targets:
+        return False
+        
+    source_ids = {s['nodeId'] for s in sources}
+    
+    # Check each target if it connects to ANY source
+    for target in targets:
+        # Trace back from this target
+        queue = [target['nodeId']]
+        visited = set()
+        
+        while queue:
+            curr = queue.pop(0)
+            if curr in visited:
+                continue
+            visited.add(curr)
+            
+            # If current node is a source, we found a path!
+            if curr in source_ids:
+                return True
+            
+            # Add parents to queue
+            parents = input_map.get(curr, [])
+            queue.extend(parents)
+            
+    return False

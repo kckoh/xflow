@@ -1,19 +1,18 @@
 import { useState, useEffect } from "react";
 import { useSearchParams } from "react-router-dom";
 import { useToast } from "../../components/common/Toast";
-import DatasetCreateModal from "../../features/dataset/components/DatasetCreateModal";
-import { catalogAPI } from "../../services/catalog/index";
-import CatalogHeader from "./components/CatalogHeader";
+import DomainCreateModal from "./components/DomainCreateModal";
+import DomainHeader from "./components/DomainHeader";
 import RecentlyUsedSection from "./components/RecentlyUsedSection";
-import AllDomainsTable from "./components/AllDomainsTable";
+import DomainTable from "./components/DomainTable";
 
-export default function CatalogPage() {
+export default function DomainPage() {
   const { showToast } = useToast();
   const [searchParams, setSearchParams] = useSearchParams();
   const [searchTerm, setSearchTerm] = useState(
     searchParams.get("search") || "",
   );
-  // Catalog Data
+  // Domain Data
   const [allTables, setAllTables] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
@@ -33,10 +32,11 @@ export default function CatalogPage() {
   const fetchCatalog = async () => {
     setLoading(true);
     try {
-      const data = await catalogAPI.getDatasets();
+      // TODO: Replace with new API
+      const data = [];
       setAllTables(data);
     } catch (err) {
-      console.error("Error fetching catalog:", err);
+      console.error("Error fetching domain:", err);
       setError(err.message);
     } finally {
       setLoading(false);
@@ -53,7 +53,8 @@ export default function CatalogPage() {
     if (!confirm("Are you sure you want to delete this dataset?")) return;
 
     try {
-      await catalogAPI.deleteDataset(id);
+      // TODO: Replace with new API
+      // await domainAPI.deleteDataset(id);
       showToast("Dataset deleted successfully", "success");
       fetchCatalog(); // Refresh list
     } catch (err) {
@@ -69,11 +70,11 @@ export default function CatalogPage() {
   return (
     <div className="space-y-8 relative">
       {/* Header */}
-      <CatalogHeader onCreateClick={() => setShowCreateModal(true)} />
+      <DomainHeader onCreateClick={() => setShowCreateModal(true)} />
 
       {/* Create Dataset Modal */}
       {showCreateModal && (
-        <DatasetCreateModal
+        <DomainCreateModal
           isOpen={showCreateModal}
           onClose={() => setShowCreateModal(false)}
           onCreated={fetchCatalog}
@@ -84,7 +85,7 @@ export default function CatalogPage() {
       <RecentlyUsedSection recentTables={recentTables} />
 
       {/* All Domains Table */}
-      <AllDomainsTable
+      <DomainTable
         tables={filteredTables}
         loading={loading}
         error={error}

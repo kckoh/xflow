@@ -7,9 +7,9 @@ import {
 } from "@xyflow/react";
 import "@xyflow/react/dist/style.css";
 import React from "react";
-import { SchemaNode } from "./domain/schema-node";
-import { DeletionEdge } from "./domain/CustomEdges";
-import { DomainEdgeMenu } from "./domain/DomainEdgeMenu";
+import { SchemaNode } from "./schema-node";
+import { DeletionEdge } from "./CustomEdges";
+import { DomainEdgeMenu } from "./DomainEdgeMenu";
 import { useDomainLogic } from "../hooks/useDomainLogic";
 
 const nodeTypes = {
@@ -75,7 +75,7 @@ function DomainFlow(props) {
     );
 }
 
-export default function DatasetDomain(props) {
+export default function DomainCanvas(props) {
     return (
         <ReactFlowProvider>
             <DomainFlow {...props} />

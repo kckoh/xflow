@@ -8,7 +8,7 @@ import {
   Trash2,
 } from "lucide-react";
 
-export default function AllDomainsTable({
+export default function DomainTable({
   tables,
   loading,
   error,
@@ -88,7 +88,7 @@ export default function AllDomainsTable({
               tables.map((table) => (
                 <tr
                   key={table.id}
-                  onClick={() => navigate(`/catalog/${table.id}`)}
+                  onClick={() => navigate(`/domain/${table.id}`)}
                   className="hover:bg-blue-50/50 cursor-pointer transition-colors group"
                 >
                   <td className="px-6 py-4">
