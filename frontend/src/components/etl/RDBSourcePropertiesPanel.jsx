@@ -7,7 +7,7 @@ import Combobox from '../common/Combobox';
 import { useToast } from '../common/Toast/ToastContext';
 
 export default function RDBSourcePropertiesPanel({ node, onClose, onUpdate }) {
-    const { openToast } = useToast();
+    const { showToast } = useToast();
     const [connections, setConnections] = useState([]);
     const [selectedConnection, setSelectedConnection] = useState(null);
     const [tables, setTables] = useState([]);
@@ -84,10 +84,10 @@ export default function RDBSourcePropertiesPanel({ node, onClose, onUpdate }) {
                     tableName: selectedTable,
                     schema: columns.map(col => ({ key: col.name, type: col.type }))
                 });
-                openToast({ message: 'Dataset info saved successfully', type: 'success' });
+                showToast('Dataset info saved successfully', 'success');
             } catch (err) {
                 console.error('Failed to fetch schema:', err);
-                openToast({ message: 'Failed to fetch schema, but saved basic info', type: 'warning' });
+                showToast('Failed to fetch schema, but saved basic info', 'warning');
                 // Still update even if schema fetch fails
                 onUpdate({
                     sourceId: selectedConnection.id,
@@ -175,7 +175,7 @@ export default function RDBSourcePropertiesPanel({ node, onClose, onUpdate }) {
                                 }
                             } catch (err) {
                                 console.error('Failed to delete connection:', err);
-                                alert('Failed to delete connection');
+                                showToast('Failed to delete connection', 'error');
                             }
                         }}
                     />

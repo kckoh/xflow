@@ -1,8 +1,10 @@
 import { useState, useEffect, useCallback } from 'react';
 import { addEdge } from '@xyflow/react';
 import { catalogAPI } from '../../../services/catalog/index';
+import { useToast } from '../../../components/common/Toast';
 
 export const useDomainInteractions = ({ nodes, edges, setNodes, setEdges, datasetId, handleToggleExpand, onNodeSelect }) => {
+    const { showToast } = useToast();
 
     // UI States
     const [edgeMenu, setEdgeMenu] = useState(null);
@@ -70,13 +72,14 @@ export const useDomainInteractions = ({ nodes, edges, setNodes, setEdges, datase
             if (response.ok) {
                 setEdges((eds) => eds.filter((e) => e.id !== edgeMenu.edgeId));
                 setEdgeMenu(null);
+                showToast("Connection removed", "success");
             } else {
-                alert("Failed to disconnect datasets.");
+                showToast("Failed to disconnect datasets.", "error");
             }
         } catch (error) {
-            alert("Deletion failed.");
+            showToast("Deletion failed.", "error");
         }
-    }, [edgeMenu, setEdges]);
+    }, [edgeMenu, setEdges, showToast]);
 
 
 
@@ -140,7 +143,7 @@ export const useDomainInteractions = ({ nodes, edges, setNodes, setEdges, datase
 
             } catch (err) {
                 console.error(err);
-                alert("Failed to add column: " + err.message);
+                showToast("Failed to add column: " + err.message, "error");
                 return;
             }
         }
@@ -186,12 +189,12 @@ export const useDomainInteractions = ({ nodes, edges, setNodes, setEdges, datase
                     return n;
                 }));
             } else {
-                alert("Failed to connect datasets.");
+                showToast("Failed to connect datasets.", "error");
             }
         } catch (error) {
-            alert("Connection failed.");
+            showToast("Connection failed.", "error");
         }
-    }, [nodes, setNodes, setEdges]); // Added setNodes/Edges deps
+    }, [nodes, setNodes, setEdges, showToast]); // Added setNodes/Edges deps
 
     return {
         edgeMenu, setEdgeMenu,

@@ -1,6 +1,8 @@
 import { useState, useEffect } from 'react';
+import { useToast } from '../common/Toast';
 
 export default function SelectFieldsConfig({ node, transformName, onUpdate, onClose }) {
+    const { showToast } = useToast();
     const [availableColumns, setAvailableColumns] = useState([]);
     const [selectedColumns, setSelectedColumns] = useState([]);
     const [loading, setLoading] = useState(false);
@@ -51,7 +53,7 @@ export default function SelectFieldsConfig({ node, transformName, onUpdate, onCl
 
         } catch (err) {
             console.error('Failed to save transform:', err);
-            alert('Failed to save transform. Please try again.');
+            showToast('Failed to save transform. Please try again.', 'error');
         } finally {
             setLoading(false);
         }

@@ -1,5 +1,6 @@
 import { useState, useEffect } from "react";
 import { useSearchParams } from "react-router-dom";
+import { useToast } from "../../components/common/Toast";
 import DatasetCreateModal from "../../features/dataset/components/DatasetCreateModal";
 import { catalogAPI } from "../../services/catalog/index";
 import CatalogHeader from "./components/CatalogHeader";
@@ -7,6 +8,7 @@ import RecentlyUsedSection from "./components/RecentlyUsedSection";
 import AllDomainsTable from "./components/AllDomainsTable";
 
 export default function CatalogPage() {
+  const { showToast } = useToast();
   const [searchParams, setSearchParams] = useSearchParams();
   const [searchTerm, setSearchTerm] = useState(
     searchParams.get("search") || "",
@@ -52,10 +54,11 @@ export default function CatalogPage() {
 
     try {
       await catalogAPI.deleteDataset(id);
+      showToast("Dataset deleted successfully", "success");
       fetchCatalog(); // Refresh list
     } catch (err) {
       console.error("Error deleting dataset:", err);
-      alert("Error deleting dataset");
+      showToast("Error deleting dataset", "error");
     }
   };
 

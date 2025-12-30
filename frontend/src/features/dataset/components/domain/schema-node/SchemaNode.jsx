@@ -1,3 +1,4 @@
+import clsx from "clsx";
 import React, { useState } from "react";
 import { NodeControls } from "./NodeControls";
 import { NodeHeader } from "./NodeHeader";
@@ -18,16 +19,14 @@ export const SchemaNode = ({ id, data }) => {
         }
     };
 
-    let borderClass = "border-slate-200";
-    let ringClass = "";
-
-    if (data.isSelected) {
-        borderClass = "border-purple-500";
-        ringClass = "ring-4 ring-purple-100";
-    } else if (data.isCurrent) {
-        borderClass = "border-yellow-400";
-        ringClass = "ring-2 ring-yellow-100";
-    }
+    const containerClasses = clsx(
+        "absolute inset-0 rounded-xl border-2 pointer-events-none z-10",
+        {
+            "border-purple-500 ring-4 ring-purple-100": data.isSelected,
+            "border-yellow-400 ring-2 ring-yellow-100": data.isCurrent && !data.isSelected,
+            "border-slate-200": !data.isSelected && !data.isCurrent,
+        }
+    );
 
     return (
         <div className="relative group font-sans w-[220px]">
@@ -44,7 +43,7 @@ export const SchemaNode = ({ id, data }) => {
                 className="bg-white rounded-xl shadow-md overflow-visible transition-all duration-200"
             >
                 {/* Border Overlay */}
-                <div className={`absolute inset-0 rounded-xl border-2 pointer-events-none z-10 ${borderClass} ${ringClass}`} />
+                <div className={containerClasses} />
 
                 {/* Header & Title */}
                 <NodeHeader

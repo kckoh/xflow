@@ -2,9 +2,11 @@ import { useCallback } from 'react';
 import { useDomainGraph } from './useDomainGraph';
 import { useDomainData } from './useDomainData';
 import { useDomainInteractions } from './useDomainInteractions';
+import { useToast } from '../../../components/common/Toast';
 import { catalogAPI } from '../../../services/catalog/index';
 
 export const useDomainLogic = ({ datasetId, selectedId, onStreamAnalysis, onNodeSelect }) => {
+    const { showToast } = useToast();
 
     // 1. Graph State & Layout Logic
     const {
@@ -25,11 +27,12 @@ export const useDomainLogic = ({ datasetId, selectedId, onStreamAnalysis, onNode
             // Optimistic UI Update
             setNodes((nds) => nds.filter((n) => n.id !== nodeId));
             setEdges((eds) => eds.filter((e) => e.source !== nodeId && e.target !== nodeId));
+            showToast("Dataset deleted successfully", "success");
         } catch (e) {
             console.error(e);
-            alert("Failed to delete dataset.");
+            showToast("Failed to delete dataset.", "error");
         }
-    }, [nodes, setNodes, setEdges]);
+    }, [nodes, setNodes, setEdges, showToast]);
 
     const { fetchAndMerge } = useDomainData({
         datasetId,
