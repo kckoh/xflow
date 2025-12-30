@@ -31,8 +31,6 @@ export const useDomainLogic = ({ datasetId, selectedId, onStreamAnalysis, onNode
         }
     }, [nodes, setNodes, setEdges]);
 
-    // 2. Data Fetching & Sync Logic
-    // Depends on graph state to merge new data into it
     const { fetchAndMerge } = useDomainData({
         datasetId,
         selectedId,
