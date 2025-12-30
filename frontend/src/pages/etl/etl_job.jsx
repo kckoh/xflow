@@ -461,12 +461,12 @@ export default function ETLJobPage() {
     if (nodes.length > 0) {
       // 가장 아래에 있는 노드 찾기
       const bottomNode = nodes.reduce((bottom, node) => {
-        return node.position.y > bottom.position.y ? node : bottom;
+        return node.position.x > bottom.position.x ? node : bottom;
       }, nodes[0]);
 
-      // 그 노드 아래에 배치 (150px 간격)
+      // 그 노드 아래에 배치 
       position = {
-        x: bottomNode.position.x + 300,
+        x: bottomNode.position.x + 350,
         y: bottomNode.position.y,
       };
     } else {
