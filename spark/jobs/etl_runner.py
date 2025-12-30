@@ -38,10 +38,43 @@ def transform_filter(df: DataFrame, config: dict) -> DataFrame:
     return df
 
 
+# Single-input transforms
 TRANSFORMS = {
     "select-fields": transform_select_fields,
     "drop-columns": transform_drop_columns,
     "filter": transform_filter,
+}
+
+
+# ============ Multi-Input Transforms ============
+
+def transform_union(dfs: list, config: dict) -> DataFrame:
+    """
+    Union multiple DataFrames.
+    Uses unionByName with allowMissingColumns=True to handle schema differences.
+    Missing columns will be filled with NULL.
+    """
+    if len(dfs) < 2:
+        raise ValueError("Union requires at least 2 DataFrames")
+
+    print(f"🔗 Unioning {len(dfs)} DataFrames")
+
+    # Start with first DataFrame
+    result = dfs[0]
+
+    # Union with remaining DataFrames using unionByName
+    # allowMissingColumns=True fills missing columns with NULL
+    for i, df in enumerate(dfs[1:], start=2):
+        print(f"   Merging DataFrame {i}...")
+        result = result.unionByName(df, allowMissingColumns=True)
+
+    print(f"   Union complete. Total columns: {len(result.columns)}")
+    return result
+
+
+# Multi-input transforms (require special handling)
+MULTI_INPUT_TRANSFORMS = {
+    "union": transform_union,
 }
 
 
@@ -181,30 +214,89 @@ def apply_transforms(df: DataFrame, transforms: list) -> DataFrame:
 
 
 def run_etl(config: dict):
-    """Main ETL execution function"""
+    """Main ETL execution function with multi-source support"""
     print(f"🚀 Starting ETL job: {config.get('name', 'Unknown')}")
 
     # Create Spark session
     spark = create_spark_session(config)
 
     try:
-        # Read source data
-        source_config = config.get("source", {})
-        source_type = source_config.get("type", "rdb")
+        # Dictionary to store DataFrames by nodeId
+        dataframes = {}
 
-        print(f"📖 Reading from source: {source_type}")
-        if source_type == "rdb":
-            df = read_rdb_source(spark, source_config)
-        else:
-            raise ValueError(f"Unsupported source type: {source_type}")
+        # Handle multiple sources (new) or single source (legacy)
+        sources = config.get("sources", [])
+        if not sources and config.get("source"):
+            # Legacy single source - wrap in list
+            sources = [config.get("source")]
 
-        # Print schema only (skip count to save memory on large datasets)
-        df.printSchema()
+        # Read all sources
+        print(f"📖 Reading {len(sources)} source(s)...")
+        for idx, source_config in enumerate(sources):
+            node_id = source_config.get("nodeId", f"source_{idx}")
+            source_type = source_config.get("type", "rdb")
+
+            print(f"   [{node_id}] Reading from {source_type}: {source_config.get('table', 'query')}")
+            if source_type == "rdb":
+                df = read_rdb_source(spark, source_config)
+            else:
+                raise ValueError(f"Unsupported source type: {source_type}")
+
+            dataframes[node_id] = df
+            print(f"   [{node_id}] Schema:")
+            df.printSchema()
 
         # Apply transforms
         transforms = config.get("transforms", [])
-        if transforms:
-            df = apply_transforms(df, transforms)
+        last_node_id = list(dataframes.keys())[-1] if dataframes else None
+
+        for transform in transforms:
+            node_id = transform.get("nodeId", f"transform_{len(dataframes)}")
+            transform_type = transform.get("type")
+            transform_config = transform.get("config", {})
+            input_node_ids = transform.get("inputNodeIds", [])
+
+            print(f"📝 [{node_id}] Applying transform: {transform_type}")
+
+            if transform_type in MULTI_INPUT_TRANSFORMS:
+                # Multi-input transform (like union)
+                if not input_node_ids:
+                    raise ValueError(f"Transform {transform_type} requires inputNodeIds")
+
+                input_dfs = []
+                for input_id in input_node_ids:
+                    if input_id not in dataframes:
+                        raise ValueError(f"Input node {input_id} not found for transform {node_id}")
+                    input_dfs.append(dataframes[input_id])
+
+                if len(input_dfs) < 2:
+                    raise ValueError(f"Transform {transform_type} requires at least 2 inputs, got {len(input_dfs)}")
+
+                result_df = MULTI_INPUT_TRANSFORMS[transform_type](input_dfs, transform_config)
+
+            elif transform_type in TRANSFORMS:
+                # Single-input transform
+                if input_node_ids:
+                    input_df = dataframes[input_node_ids[0]]
+                elif last_node_id:
+                    input_df = dataframes[last_node_id]
+                else:
+                    raise ValueError(f"No input available for transform {node_id}")
+
+                result_df = TRANSFORMS[transform_type](input_df, transform_config)
+
+            else:
+                print(f"⚠️ Unknown transform type: {transform_type}, skipping...")
+                continue
+
+            dataframes[node_id] = result_df
+            last_node_id = node_id
+
+        # Get final DataFrame for destination
+        if not last_node_id:
+            raise ValueError("No data to write to destination")
+
+        final_df = dataframes[last_node_id]
 
         # Write to destination
         dest_config = config.get("destination", {})
@@ -212,7 +304,7 @@ def run_etl(config: dict):
 
         print(f"💾 Writing to destination: {dest_type}")
         if dest_type == "s3":
-            write_s3_destination(df, dest_config, config.get("name", "output"))
+            write_s3_destination(final_df, dest_config, config.get("name", "output"))
         else:
             raise ValueError(f"Unsupported destination type: {dest_type}")
 

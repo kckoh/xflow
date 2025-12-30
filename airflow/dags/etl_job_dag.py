@@ -49,27 +49,35 @@ def fetch_job_config(**context):
     if not job:
         raise ValueError(f"ETL job not found: {job_id}")
 
-    # Fetch source connection if RDB
-    source = job.get("source", {})
-    if source.get("type") == "rdb" and source.get("connection_id"):
-        connection = db.rdb_sources.find_one({"_id": ObjectId(source["connection_id"])})
-        if connection:
-            # Remove MongoDB-specific fields and add connection details
-            source["connection"] = {
-                "type": connection.get("type"),
-                "host": connection.get("host"),
-                "port": connection.get("port"),
-                "database_name": connection.get("database_name"),
-                "user_name": connection.get("user_name"),
-                "password": connection.get("password"),
-            }
+    # Handle multiple sources (new) or single source (legacy)
+    sources = job.get("sources", [])
+    if not sources and job.get("source"):
+        # Legacy single source - wrap in list
+        sources = [job.get("source")]
+
+    # Enrich each source with connection details
+    enriched_sources = []
+    for source in sources:
+        if source.get("type") == "rdb" and source.get("connection_id"):
+            connection = db.rdb_sources.find_one({"_id": ObjectId(source["connection_id"])})
+            if connection:
+                source["connection"] = {
+                    "type": connection.get("type"),
+                    "host": connection.get("host"),
+                    "port": connection.get("port"),
+                    "database_name": connection.get("database_name"),
+                    "user_name": connection.get("user_name"),
+                    "password": connection.get("password"),
+                }
+        enriched_sources.append(source)
 
     # Build complete config for Spark
     config = {
         "name": job.get("name"),
-        "source": source,
+        "sources": enriched_sources,  # Multiple sources
         "transforms": job.get("transforms", []),
         "destination": job.get("destination", {}),
+        "nodes": job.get("nodes", []),  # Include nodes for schema info
     }
 
     # Add S3 config for LocalStack
@@ -130,7 +138,7 @@ def update_job_run_status(status: str, error_message: str = None, **context):
 
 
 def run_glue_crawler(**context):
-    """Create/update and start Glue Crawler for ETL output"""
+    """Register table in Glue Catalog directly (no Crawler = no Trino)"""
     import boto3
     from botocore.exceptions import ClientError
 
@@ -141,9 +149,11 @@ def run_glue_crawler(**context):
 
     # Glue settings
     database_name = "xflow_db"
-    table_name = job_name.replace("-", "_")  # Glue doesn't allow hyphens
-    crawler_name = f"xflow_{table_name}_crawler"
+    table_name = job_name.replace("-", "_").replace(" ", "_").lower()
     s3_path = destination["path"].replace("s3a://", "s3://")
+    if not s3_path.endswith("/"):
+        s3_path += "/"
+    s3_path += job_name  # Add job name as folder
 
     # Create Glue client
     glue = boto3.client(
@@ -166,43 +176,250 @@ def run_glue_crawler(**context):
         else:
             raise
 
-    # 2. Create or update crawler
-    crawler_config = {
-        "Name": crawler_name,
-        "Role": "arn:aws:iam::000000000000:role/GlueRole",
-        "DatabaseName": database_name,
-        "Targets": {"S3Targets": [{"Path": s3_path}]},
-        "TablePrefix": "",
-        "SchemaChangePolicy": {
-            "UpdateBehavior": "UPDATE_IN_DATABASE",
-            "DeleteBehavior": "DEPRECATE_IN_DATABASE",
+    # 2. Build columns from schema (from nodes data)
+    columns = []
+    nodes = config.get("nodes", [])
+    transforms = config.get("transforms", [])
+
+    # Find schema from nodes - priority: last transform node > source nodes
+    schema_source = None
+
+    # First try: get schema from the last transform node
+    if transforms:
+        last_transform_id = transforms[-1].get("nodeId")
+        for node in nodes:
+            if node.get("id") == last_transform_id:
+                schema_source = node.get("data", {}).get("schema")
+                break
+
+    # Fallback: get schema from first source node
+    if not schema_source:
+        for node in nodes:
+            if node.get("type") == "input":
+                schema_source = node.get("data", {}).get("schema")
+                if schema_source:
+                    break
+
+    # Convert to Glue column format
+    if schema_source:
+        type_mapping = {
+            "integer": "int", "int4": "int", "int8": "bigint",
+            "float8": "double", "float4": "float", "numeric": "decimal",
+            "varchar": "string", "text": "string",
+            "boolean": "boolean", "bool": "boolean",
+            "timestamp": "timestamp", "date": "date",
+        }
+        for col in schema_source:
+            col_name = col.get("key", col.get("name", "unknown"))
+            col_type = col.get("type", "string").lower()
+            glue_type = type_mapping.get(col_type, "string")
+            columns.append({"Name": col_name, "Type": glue_type})
+    else:
+        columns = [{"Name": "data", "Type": "string"}]
+
+    # 3. Create or update table directly (no Crawler = no Trino!)
+    table_input = {
+        "Name": table_name,
+        "StorageDescriptor": {
+            "Columns": columns,
+            "Location": s3_path,
+            "InputFormat": "org.apache.hadoop.hive.ql.io.parquet.MapredParquetInputFormat",
+            "OutputFormat": "org.apache.hadoop.hive.ql.io.parquet.MapredParquetOutputFormat",
+            "SerdeInfo": {
+                "SerializationLibrary": "org.apache.hadoop.hive.ql.io.parquet.serde.ParquetHiveSerDe",
+                "Parameters": {"serialization.format": "1"},
+            },
+            "Compressed": True,
+        },
+        "TableType": "EXTERNAL_TABLE",
+        "Parameters": {
+            "classification": "parquet",
+            "compressionType": "snappy",
         },
     }
 
     try:
-        glue.create_crawler(**crawler_config)
-        print(f"Created crawler: {crawler_name}")
+        glue.create_table(DatabaseName=database_name, TableInput=table_input)
+        print(f"Created table: {database_name}.{table_name}")
     except ClientError as e:
         if e.response["Error"]["Code"] == "AlreadyExistsException":
-            glue.update_crawler(**crawler_config)
-            print(f"Updated crawler: {crawler_name}")
+            glue.update_table(DatabaseName=database_name, TableInput=table_input)
+            print(f"Updated table: {database_name}.{table_name}")
         else:
             raise
 
-    # 3. Start crawler (async - don't wait for completion)
-    try:
-        glue.start_crawler(Name=crawler_name)
-        print(f"Started crawler: {crawler_name} for path: {s3_path}")
-    except ClientError as e:
-        if e.response["Error"]["Code"] == "CrawlerRunningException":
-            print(f"Crawler already running: {crawler_name}")
-        else:
-            raise
+    print(f"✅ Table registered at: {s3_path}")
 
-    return {
-        "crawler_name": crawler_name,
+    # Push to XCom for next task
+    context["ti"].xcom_push(key="glue_table", value={
         "database": database_name,
         "table": table_name,
+        "location": s3_path,
+        "columns": columns,
+    })
+
+    return {
+        "database": database_name,
+        "table": table_name,
+        "location": s3_path,
+    }
+
+
+def save_schema_to_catalog(**context):
+    """Save table schema to Data Catalog via Backend API (MongoDB + Neo4j)"""
+    import requests
+
+    # Get Glue table info from previous task
+    glue_table = context["ti"].xcom_pull(task_ids="run_glue_crawler", key="glue_table")
+    if not glue_table:
+        print("No Glue table info found, skipping schema save")
+        return
+
+    # Get job config
+    config = json.loads(context["ti"].xcom_pull(task_ids="fetch_job_config"))
+    job_id = context["dag_run"].conf.get("job_id")
+    job_name = config.get("name", "unknown")
+    nodes = config.get("nodes", [])
+
+    # Backend API URL
+    backend_url = Variable.get("BACKEND_URL", default_var="http://xflow-backend:8000")
+
+    # Helper: Convert schema to catalog format
+    def to_catalog_schema(schema_list):
+        result = []
+        for col in schema_list:
+            result.append({
+                "name": col.get("Name", col.get("name", col.get("key", "unknown"))),
+                "type": col.get("Type", col.get("type", "string")),
+                "description": None,
+                "is_partition": False,
+                "tags": []
+            })
+        return result
+
+    # 1. Register SOURCE tables in catalog first (for lineage)
+    sources = config.get("sources", [])
+    source_ids = {}  # table_name -> catalog_id
+
+    for source in sources:
+        source_table = source.get("table")
+        if not source_table:
+            continue
+
+        # Find schema from nodes
+        source_node_id = source.get("nodeId")
+        source_schema = []
+        for node in nodes:
+            if node.get("id") == source_node_id:
+                source_schema = node.get("data", {}).get("schema", [])
+                break
+
+        # Get connection info for description
+        conn_info = source.get("connection", {})
+        db_type = conn_info.get("type", source.get("type", "rdb"))
+
+        source_payload = {
+            "name": source_table,
+            "description": f"Source table from {db_type}",
+            "platform": db_type,
+            "domain": "SOURCE",
+            "owner": "External System",
+            "tags": ["source", "rdb"],
+            "schema": to_catalog_schema(source_schema),
+        }
+
+        try:
+            resp = requests.post(
+                f"{backend_url}/api/catalog",
+                json=source_payload,
+                timeout=30
+            )
+            resp.raise_for_status()
+            result = resp.json()
+            source_ids[source_table] = result.get("id")
+            print(f"✅ Registered source in catalog: {source_table} (ID: {source_ids[source_table]})")
+        except Exception as e:
+            print(f"⚠️ Failed to register source {source_table}: {e}")
+
+    # 2. Register OUTPUT table in catalog
+    output_schema = to_catalog_schema(glue_table.get("columns", []))
+    table_name = glue_table["table"]
+
+    dataset_payload = {
+        "name": table_name,
+        "description": f"ETL output from job: {job_name}",
+        "platform": "s3",
+        "domain": "ETL",
+        "owner": "ETL Pipeline",
+        "tags": ["etl-output", "parquet"],
+        "schema": output_schema,
+    }
+
+    try:
+        response = requests.post(
+            f"{backend_url}/api/catalog",
+            json=dataset_payload,
+            timeout=30
+        )
+        response.raise_for_status()
+        created_dataset = response.json()
+        dataset_id = created_dataset.get("id")
+        print(f"✅ Registered output in catalog: {table_name} (ID: {dataset_id})")
+    except Exception as e:
+        print(f"⚠️ Failed to create output dataset: {e}")
+        dataset_id = None
+
+    # 3. Create lineage: source -> output
+    if dataset_id:
+        for source_table, source_id in source_ids.items():
+            if source_id:
+                try:
+                    lineage_payload = {
+                        "target_id": dataset_id,
+                        "type": "FLOWS_TO"
+                    }
+                    lineage_resp = requests.post(
+                        f"{backend_url}/api/catalog/{source_id}/lineage",
+                        json=lineage_payload,
+                        timeout=10
+                    )
+                    if lineage_resp.ok:
+                        print(f"✅ Created lineage: {source_table} -> {table_name}")
+                    else:
+                        print(f"⚠️ Lineage creation failed: {lineage_resp.text}")
+                except Exception as e:
+                    print(f"⚠️ Failed to create lineage for {source_table}: {e}")
+
+    # 4. Update ETL job with output info (direct MongoDB for internal data)
+    import pymongo
+    from bson import ObjectId
+
+    mongo_url = Variable.get(
+        "MONGODB_URL", default_var="mongodb://mongo:mongo@mongodb:27017"
+    )
+    mongo_db = Variable.get("MONGODB_DATABASE", default_var="mydb")
+
+    client = pymongo.MongoClient(mongo_url)
+    db = client[mongo_db]
+
+    db.etl_jobs.update_one(
+        {"_id": ObjectId(job_id)},
+        {"$set": {
+            "output_schema": output_schema,
+            "output_location": glue_table["location"],
+            "output_table": f"{glue_table['database']}.{table_name}",
+            "catalog_dataset_id": dataset_id,
+        }}
+    )
+    print(f"✅ Updated ETL job with output schema")
+
+    client.close()
+
+    return {
+        "dataset_id": dataset_id,
+        "table_name": table_name,
+        "columns": len(output_schema),
+        "sources_registered": list(source_ids.keys()),
     }
 
 
@@ -249,10 +466,16 @@ with DAG(
         """,
     )
 
-    # Task 3: Run Glue Crawler to register data in Glue Catalog
+    # Task 3: Register table in Glue Catalog
     run_crawler = PythonOperator(
         task_id="run_glue_crawler",
         python_callable=run_glue_crawler,
     )
 
-    fetch_config >> run_spark_etl >> run_crawler
+    # Task 4: Save schema to MongoDB for Data Catalog
+    save_catalog = PythonOperator(
+        task_id="save_schema_to_catalog",
+        python_callable=save_schema_to_catalog,
+    )
+
+    fetch_config >> run_spark_etl >> run_crawler >> save_catalog
