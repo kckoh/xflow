@@ -32,13 +32,13 @@ export default function DomainPage() {
 
 
 
-  const fetchCatalog = async () => {
+  const fetchDomains = async () => {
     setLoading(true);
     try {
       const data = await getDomains();
       setAllTables(data);
     } catch (err) {
-      console.error("Error fetching domain:", err);
+      console.error("Error fetching domains:", err);
       // setError(err.message); // Don't block UI on error, just log
     } finally {
       setLoading(false);
@@ -46,14 +46,13 @@ export default function DomainPage() {
   };
 
   useEffect(() => {
-    fetchCatalog();
+    fetchDomains();
   }, []);
-
   const handleDelete = async (id) => {
     try {
       await deleteDomain(id);
       showToast("Domain deleted successfully", "success");
-      fetchCatalog();
+      fetchDomains();
     } catch (err) {
       console.error("Error deleting domain:", err);
       showToast("Error deleting domain", "error");
@@ -74,7 +73,7 @@ export default function DomainPage() {
         <DomainCreateModal
           isOpen={showCreateModal}
           onClose={() => setShowCreateModal(false)}
-          onCreated={fetchCatalog}
+          onCreated={fetchDomains}
         />
       )}
 
