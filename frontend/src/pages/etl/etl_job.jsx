@@ -24,7 +24,9 @@ import {
   BarChart3,
   ArrowUpDown,
   Combine,
+  Archive,
 } from "lucide-react";
+import { SiPostgresql, SiMongodb } from "@icons-pack/react-simple-icons";
 import "./etl_job.css";
 import { useNavigate, useParams } from "react-router-dom";
 import RDBSourcePropertiesPanel from "../../components/etl/RDBSourcePropertiesPanel";
@@ -125,9 +127,9 @@ export default function ETLJobPage() {
 
   const nodeOptions = {
     source: [
-      { id: "s3", label: "S3", icon: "📦" },
-      { id: "postgres", label: "PostgreSQL", icon: "🐘" },
-      { id: "mongodb", label: "MongoDB", icon: "🍃" },
+      { id: "s3", label: "S3", icon: Archive, color: "#FF9900" },
+      { id: "postgres", label: "PostgreSQL", icon: SiPostgresql, color: "#4169E1" },
+      { id: "mongodb", label: "MongoDB", icon: SiMongodb, color: "#47A248" },
     ],
     transform: [
       { id: "select-fields", label: "Select Fields", icon: Columns },
@@ -138,7 +140,7 @@ export default function ETLJobPage() {
       { id: "aggregate", label: "Aggregate", icon: BarChart3 },
       { id: "sort", label: "Sort", icon: ArrowUpDown },
     ],
-    target: [{ id: "s3-target", label: "S3", icon: "📦" }],
+    target: [{ id: "s3-target", label: "S3", icon: Archive, color: "#FF9900" }],
   };
 
   // Helper function to merge schemas from multiple inputs (for Union)
@@ -581,11 +583,10 @@ export default function ETLJobPage() {
                           onClick={() => addNode(activeTab, option)}
                           className="w-full px-4 py-3 text-left hover:bg-gray-100 rounded-md flex items-center gap-3 transition-colors"
                         >
-                          {typeof option.icon === "string" ? (
-                            <span className="text-2xl">{option.icon}</span>
-                          ) : (
-                            <option.icon className="w-5 h-5 text-gray-600" />
-                          )}
+                          <option.icon
+                            className="w-5 h-5"
+                            style={{ color: option.color || '#4b5563' }}
+                          />
                           <span className="text-sm font-medium text-gray-700">
                             {option.label}
                           </span>
