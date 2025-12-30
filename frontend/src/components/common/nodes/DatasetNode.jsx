@@ -120,11 +120,13 @@ const DatasetNode = ({ data, selected }) => {
                                 // e.stopPropagation(); 
                                 e.isMetadataClick = true; // Flag to prevent clearing metadata selection in parent
                                 if (data.onMetadataSelect) {
+                                    // Load existing metadata from node data
+                                    const tableMetadata = data.metadata?.table || {};
                                     data.onMetadataSelect({
                                         type: 'table',
                                         name: data.tableName,
-                                        description: data.tableDescription || '',
-                                        tags: data.tableTags || []
+                                        description: tableMetadata.description || '',
+                                        tags: tableMetadata.tags || []
                                     }, data.nodeId);
                                 }
                             }}
@@ -152,12 +154,14 @@ const DatasetNode = ({ data, selected }) => {
                                         // e.stopPropagation();
                                         e.isMetadataClick = true; // Flag to prevent clearing metadata selection in parent
                                         if (data.onMetadataSelect) {
+                                            // Load existing metadata from node data
+                                            const columnMetadata = data.metadata?.columns?.[field.key] || {};
                                             data.onMetadataSelect({
                                                 type: 'column',
                                                 name: field.key,
                                                 dataType: field.type,
-                                                description: field.description || '',
-                                                tags: field.tags || []
+                                                description: columnMetadata.description || '',
+                                                tags: columnMetadata.tags || []
                                             }, data.nodeId);
                                         }
                                     }}

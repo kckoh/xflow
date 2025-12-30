@@ -37,6 +37,7 @@ import SchedulesPanel from "../../components/etl/SchedulesPanel";
 import RunsPanel from "../../components/etl/RunsPanel";
 import { applyTransformToSchema } from "../../utils/schemaTransforms";
 import DatasetNode from "../../components/common/nodes/DatasetNode";
+import { useMetadataUpdate } from "../../hooks/useMetadataUpdate";
 
 const initialNodes = [];
 
@@ -74,6 +75,14 @@ export default function ETLJobPage() {
   const reactFlowInstance = useRef(null);
   // 오른쪽 패널 하단에 표시할 메타데이터 아이템 (table 또는 column)
   const [selectedMetadataItem, setSelectedMetadataItem] = useState(null);
+
+  // Custom hook for metadata updates (removes duplicate code)
+  const handleMetadataUpdate = useMetadataUpdate(
+    selectedNode,
+    setNodes,
+    setSelectedNode,
+    setSelectedMetadataItem
+  );
 
   // Icon mappings (defined early so loadJob can use it)
   const iconMap = {
@@ -474,7 +483,7 @@ export default function ETLJobPage() {
         color: nodeOption.color,
         nodeCategory: category, // source, transform, target
         transformType: category === "transform" ? nodeOption.id : undefined,
-        
+
         nodeId: `${nodes.length + 1}`, // 노드 ID 전달
 
         // Table 또는 Column 클릭 시 노드 선택 + 메타데이터 편집
@@ -707,8 +716,7 @@ export default function ETLJobPage() {
                 }}
                 onMetadataUpdate={(updatedItem) => {
                   console.log("Metadata updated:", updatedItem);
-                  setSelectedMetadataItem(updatedItem);
-                  // TODO: 노드 데이터에 반영
+                  handleMetadataUpdate(updatedItem);
                 }}
               />
             )}
@@ -739,10 +747,7 @@ export default function ETLJobPage() {
                       data: { ...prev.data, ...data },
                     }));
                   }}
-                  onMetadataUpdate={(updatedItem) => {
-                    setSelectedMetadataItem(updatedItem);
-                    // TODO: Update node schema metadata
-                  }}
+                  onMetadataUpdate={handleMetadataUpdate}
                 />
               )}
 
@@ -770,10 +775,7 @@ export default function ETLJobPage() {
                     data: { ...prev.data, ...data },
                   }));
                 }}
-                onMetadataUpdate={(updatedItem) => {
-                  setSelectedMetadataItem(updatedItem);
-                  // TODO: Update node schema metadata
-                }}
+                onMetadataUpdate={handleMetadataUpdate}
               />
             )}
           </div>
