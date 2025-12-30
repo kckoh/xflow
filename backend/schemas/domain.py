@@ -1,4 +1,4 @@
-from typing import Optional, List
+from typing import Optional, List, Dict, Any
 from pydantic import BaseModel
 from datetime import datetime
 
@@ -41,3 +41,11 @@ class JobExecutionResponse(BaseModel):
 
     class Config:
         from_attributes = True
+
+class DomainCreate(BaseModel):
+    name: str
+    type: str
+
+class DomainGraphUpdate(BaseModel):
+    nodes: List[Dict[str, Any]]
+    edges: List[Dict[str, Any]]

@@ -22,7 +22,7 @@ const edgeTypes = {
     deletion: DeletionEdge,
 };
 
-function DomainFlow(props) {
+const DomainFlow = React.forwardRef((props, ref) => {
     const {
         nodes,
         edges,
@@ -37,6 +37,11 @@ function DomainFlow(props) {
         handleDeleteEdge,
         setEdgeMenu,
     } = useDomainLogic(props);
+
+    // Expose nodes/edges to parent via ref
+    React.useImperativeHandle(ref, () => ({
+        getGraph: () => ({ nodes, edges }),
+    }));
 
     return (
         <div style={{ width: "100%", height: "100%" }}>
@@ -73,12 +78,12 @@ function DomainFlow(props) {
             </ReactFlow>
         </div>
     );
-}
+});
 
-export default function DomainCanvas(props) {
+export default React.forwardRef(function DomainCanvas(props, ref) {
     return (
         <ReactFlowProvider>
-            <DomainFlow {...props} />
+            <DomainFlow ref={ref} {...props} />
         </ReactFlowProvider>
     );
-}
+});

@@ -14,9 +14,9 @@ export default function RecentlyUsedSection({ recentTables }) {
       </div>
       {recentTables.length > 0 ? (
         <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-4">
-          {recentTables.map((item) => (
+          {recentTables.map((item, index) => (
             <button
-              key={item.id}
+              key={item.id || index}
               onClick={() => navigate(`/domain/${item.id}`)}
               className="bg-white p-4 rounded-xl shadow-sm border border-gray-100 hover:shadow-md hover:border-blue-200 transition-all text-left group"
             >
