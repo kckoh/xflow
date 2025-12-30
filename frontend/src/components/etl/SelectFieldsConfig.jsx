@@ -51,6 +51,8 @@ export default function SelectFieldsConfig({ node, transformName, onUpdate, onCl
                 schema: outputSchema,  // Output schema
             });
 
+            showToast('Transform configuration saved successfully', 'success');
+
         } catch (err) {
             console.error('Failed to save transform:', err);
             showToast('Failed to save transform. Please try again.', 'error');

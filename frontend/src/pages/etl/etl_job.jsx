@@ -466,7 +466,7 @@ export default function ETLJobPage() {
 
       // 그 노드 아래에 배치 
       position = {
-        x: bottomNode.position.x + 350,
+        x: bottomNode.position.x + 200,
         y: bottomNode.position.y,
       };
     } else {

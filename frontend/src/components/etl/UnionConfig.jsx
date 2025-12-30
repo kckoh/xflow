@@ -51,6 +51,8 @@ export default function UnionConfig({ node, transformName, onUpdate, onClose }) 
                 schema: outputSchema.map(({ key, type }) => ({ key, type })),
             });
 
+            showToast('Union configuration applied successfully', 'success');
+
         } catch (err) {
             console.error('Failed to save transform:', err);
             showToast('Failed to save transform. Please try again.', 'error');
