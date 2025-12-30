@@ -73,7 +73,7 @@ class ETLJobResponse(BaseModel):
     # Visual Editor state
     nodes: Optional[List[dict]] = None
     edges: Optional[List[dict]] = None
+    is_active: bool = False  # Derived from Dataset model
 
     class Config:
         from_attributes = True
-

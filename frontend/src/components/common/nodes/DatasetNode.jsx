@@ -18,7 +18,9 @@ import { ChevronDown, ChevronUp } from "lucide-react";
 const DatasetNode = ({ data, selected }) => {
     const [schemaExpanded, setSchemaExpanded] = useState(false);
 
-    const IconComponent = data.icon;
+    // Verify if icon is a valid React component (function) or valid object. 
+    // If it comes from JSON, it might be an empty object {}.
+    const IconComponent = (data.icon && typeof data.icon === 'function') ? data.icon : null;
     const hasSchema = data.schema && data.schema.length > 0;
 
     // 노드 카테고리별 설정
