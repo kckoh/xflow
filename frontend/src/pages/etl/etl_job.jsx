@@ -1,4 +1,4 @@
-import { useCallback, useState, useEffect } from "react";
+import { useCallback, useState, useEffect, useRef } from "react";
 import {
   ReactFlow,
   MiniMap,
@@ -63,6 +63,7 @@ export default function ETLJobPage() {
   const [jobId, setJobId] = useState(urlJobId || null);
   const [isSaving, setIsSaving] = useState(false);
   const [isLoading, setIsLoading] = useState(!!urlJobId);
+  const reactFlowInstance = useRef(null);
 
   // Load runs when switching to Runs tab
   useEffect(() => {
@@ -481,6 +482,16 @@ export default function ETLJobPage() {
     };
     setNodes((nds) => [...nds, newNode]);
     setShowMenu(false);
+
+    // 새 노드 위치로 부드럽게 이동
+    setTimeout(() => {
+      if (reactFlowInstance.current) {
+        reactFlowInstance.current.setCenter(position.x + 75, position.y + 25, {
+          zoom: 1.2,
+          duration: 200,
+        });
+      }
+    }, 50);
   };
 
   const handleNodeClick = (event, node) => {
@@ -636,7 +647,9 @@ export default function ETLJobPage() {
                 onConnect={onConnect}
                 onNodeClick={handleNodeClick}
                 onPaneClick={handlePaneClick}
+                onInit={(instance) => { reactFlowInstance.current = instance; }}
                 fitView
+                fitViewOptions={{ maxZoom: 1.2, padding: 0.4 }}
                 nodesDraggable
                 nodesConnectable
                 className="bg-gray-50 flex-1"
