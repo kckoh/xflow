@@ -2,7 +2,7 @@ import os
 from beanie import init_beanie
 from motor.motor_asyncio import AsyncIOMotorClient
 from neo4j import GraphDatabase
-from models import User, RDBSource, Transform, ETLJob, JobRun
+from models import User, Connection, Transform, ETLJob, JobRun
 
 
 # MongoDB connection from environment variables
@@ -33,7 +33,7 @@ async def init_db():
 
     await init_beanie(
         database=mongodb_client[DATABASE_NAME],
-        document_models=[User, RDBSource, Transform, ETLJob, JobRun]
+        document_models=[User, Connection, Transform, ETLJob, JobRun]
     )
     print(f"✅ Connected to MongoDB at {MONGODB_URL}")
 

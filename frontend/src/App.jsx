@@ -9,8 +9,8 @@ import ProtectedRoute from "./components/ProtectedRoute";
 import MainLayout from "./components/layout/MainLayout";
 import ETLJobPage from "./pages/etl/etl_job";
 import ETLPage from "./pages/etl/etl_main";
-import RDBSourceListPage from "./pages/sources/RDBSourceListPage";
-import RDBSourceCreatePage from "./pages/sources/RDBSourceCreatePage";
+import ConnectionListPage from "./pages/sources/ConnectionListPage";
+import ConnectionCreatePage from "./pages/sources/ConnectionCreatePage";
 import QueryPage from "./pages/query/QueryPage";
 import { ToastProvider } from "./components/common/Toast";
 
@@ -162,7 +162,7 @@ function App() {
             element={
               <ProtectedRoute>
                 <MainLayout>
-                  <RDBSourceListPage />
+                  <ConnectionListPage />
                 </MainLayout>
               </ProtectedRoute>
             }
@@ -173,7 +173,7 @@ function App() {
             element={
               <ProtectedRoute>
                 <MainLayout>
-                  <RDBSourceCreatePage />
+                  <ConnectionCreatePage />
                 </MainLayout>
               </ProtectedRoute>
             }

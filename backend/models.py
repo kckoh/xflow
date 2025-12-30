@@ -24,39 +24,27 @@ class User(Document):
         ]
 
 
-class RDBSource(Document):
+class Connection(Document):
     """
-    RDB Source document for storing relational database connection info.
-    Supports PostgreSQL, MySQL, MariaDB, etc.
-    For AWS/LocalStack deployment configurations.
+    Generic Connection document for storing connection info for various sources.
+    Supports RDB (PostgreSQL, MySQL), NoSQL (MongoDB), Object Storage (S3), etc.
     """
-    # Basic connection info
-    name: str # 별명
+    name: str
     description: Optional[str] = None
-    type: str  # postgres / mysql / mariadb / oracle
-    host: str
-    port: int
-    database_name: str
-    user_name: str
-    password: str  # Should be encrypted in production
-    status: str = "disconnected"  # connected / fail / disconnected
+    type: str  # postgres / mysql / s3 / mongodb / etc.
     
-    # AWS/LocalStack deployment configuration (required)
-    cloud_config: dict = Field(default_factory=dict)
-    # Example structure (based on AWS Glue Connection):
-    # {
-    #   "vpc_id": "vpc-123abc",
-    #   "subnet_id": "subnet-456def",
-    #   "security_group_ids": ["sg-789ghi"],
-    #   "availability_zone": "us-east-1a",
-    #   "iam_role_arn": "arn:aws:iam::123456789012:role/GlueRole"
-    # }
+    # Generic configuration storage
+    # - RDB: { host, port, database, user, password, ... }
+    # - S3: { bucket, access_key, secret_key, region, ... }
+    config: dict = Field(default_factory=dict)
+    
+    status: str = "disconnected"  # connected / error / disconnected
     
     created_at: datetime = Field(default_factory=datetime.utcnow)
     updated_at: datetime = Field(default_factory=datetime.utcnow)
 
     class Settings:
-        name = "rdb_sources"
+        name = "connections"
 
 
 class Transform(Document):
