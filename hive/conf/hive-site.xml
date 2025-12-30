@@ -1,20 +1,20 @@
 <?xml version="1.0"?>
 <?xml-stylesheet type="text/xsl" href="configuration.xsl"?>
 <configuration>
-    <!-- S3A FileSystem Configuration for MinIO -->
+    <!-- S3A FileSystem Configuration for LocalStack -->
     <property>
         <name>fs.s3a.endpoint</name>
-        <value>http://minio:9000</value>
+        <value>http://localstack-main:4566</value>
     </property>
 
     <property>
         <name>fs.s3a.access.key</name>
-        <value>minio</value>
+        <value>test</value>
     </property>
 
     <property>
         <name>fs.s3a.secret.key</name>
-        <value>minio123</value>
+        <value>test</value>
     </property>
 
     <property>

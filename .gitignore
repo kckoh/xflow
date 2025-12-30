@@ -221,3 +221,4 @@ frontend/node_modules/
 
 # Spark JARs (too large for GitHub)
 spark/jars/*.jar
+trino/plugin/
