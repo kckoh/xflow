@@ -474,8 +474,11 @@ export default function ETLJobPage() {
         color: nodeOption.color,
         nodeCategory: category, // source, transform, target
         transformType: category === "transform" ? nodeOption.id : undefined,
+        
+        // TODO: nodeID 변경 (convention + unique ID)
         nodeId: `${nodes.length + 1}`, // 노드 ID 전달
-        nodeId: `${nodes.length + 1}`, // 노드 ID 전달
+        nodeId: `${nodes.lengh + 1}`, // 노드 ID 전달
+
         // Table 또는 Column 클릭 시 노드 선택 + 메타데이터 편집
         onMetadataSelect: (item, clickedNodeId) => {
           setSelectedMetadataItem(item);
