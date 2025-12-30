@@ -1,12 +1,32 @@
 import { useState, useEffect } from "react";
 import { useNavigate, useLocation } from "react-router-dom";
-import { Play, Code, FileText, BarChart3, Plus, Info, RefreshCw } from "lucide-react";
+import { Play, Code, FileText, BarChart3, Plus, Info, RefreshCw, Trash2, Search } from "lucide-react";
+import ConfirmationModal from "../../components/common/ConfirmationModal";
+import { useToast } from "../../components/common/Toast";
+
+const ITEMS_PER_PAGE = 10;
 
 export default function ETLMain() {
   const [jobs, setJobs] = useState([]);
   const [isLoading, setIsLoading] = useState(true);
+  const [currentPage, setCurrentPage] = useState(1);
+  const [searchQuery, setSearchQuery] = useState("");
+  const [deleteModal, setDeleteModal] = useState({ isOpen: false, jobId: null, jobName: "" });
   const navigate = useNavigate();
   const location = useLocation();
+  const { showToast } = useToast();
+
+  // Filter jobs by search query
+  const filteredJobs = jobs.filter(job =>
+    job.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
+    (job.description && job.description.toLowerCase().includes(searchQuery.toLowerCase()))
+  );
+
+  // Pagination calculations (based on filtered jobs)
+  const totalPages = Math.ceil(filteredJobs.length / ITEMS_PER_PAGE);
+  const startIndex = (currentPage - 1) * ITEMS_PER_PAGE;
+  const endIndex = startIndex + ITEMS_PER_PAGE;
+  const currentJobs = filteredJobs.slice(startIndex, endIndex);
 
   // Fetch jobs when page is visited (location.key changes on each navigation)
   useEffect(() => {
@@ -42,11 +62,42 @@ export default function ETLMain() {
 
       const data = await response.json();
       console.log("Job run triggered:", data);
-      alert(`Job started! Run ID: ${data.run_id}`);
+      showToast(`Job started! Run ID: ${data.run_id}`, "success");
     } catch (error) {
       console.error("Run failed:", error);
-      alert(`Run failed: ${error.message}`);
+      showToast(`Run failed: ${error.message}`, "error");
     }
+  };
+
+  const handleDelete = async () => {
+    const { jobId } = deleteModal;
+
+    try {
+      const response = await fetch(`http://localhost:8000/api/etl-jobs/${jobId}`, {
+        method: 'DELETE',
+      });
+
+      if (!response.ok) {
+        const error = await response.json();
+        throw new Error(error.detail || 'Failed to delete pipeline');
+      }
+
+      // Refresh the list after deletion
+      fetchJobs();
+      setCurrentPage(1);
+      showToast("Pipeline deleted successfully", "success");
+    } catch (error) {
+      console.error("Delete failed:", error);
+      showToast(`Delete failed: ${error.message}`, "error");
+    }
+  };
+
+  const openDeleteModal = (jobId, jobName) => {
+    setDeleteModal({ isOpen: true, jobId, jobName });
+  };
+
+  const closeDeleteModal = () => {
+    setDeleteModal({ isOpen: false, jobId: null, jobName: "" });
   };
 
   const createJobOptions = [
@@ -61,17 +112,11 @@ export default function ETLMain() {
   ];
 
   return (
-    <div className="min-h-screen bg-gray-50 p-6">
-      {/* Header */}
-      <div className="mb-8">
-        <h1 className="text-2xl font-bold text-gray-900">AWS Glue Studio</h1>
-      </div>
-
-      {/* Create Job Section */}
+    <div className="min-h-screen bg-gray-50 px-6 pt-2 pb-6">
+      {/* Create Pipeline Section */}
       <div className="mb-8">
         <div className="flex items-center gap-2 mb-4">
-          <h2 className="text-lg font-semibold text-gray-900">Create job</h2>
-          <Info className="w-5 h-5 text-gray-400" />
+          <h2 className="text-lg font-semibold text-gray-900">Create pipeline</h2>
         </div>
 
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
@@ -97,32 +142,25 @@ export default function ETLMain() {
         <div className="border-b border-gray-200 px-6 py-4 flex items-center justify-between">
           <div className="flex items-center gap-2">
             <h2 className="text-lg font-semibold text-gray-900">
-              Your jobs ({jobs.length})
+              Pipelines ({filteredJobs.length})
             </h2>
-            <Info className="w-5 h-5 text-gray-400" />
           </div>
-          <div className="flex items-center gap-2">
-            <button
-              disabled={jobs.length === 0}
-              className="px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-md hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
-            >
-              <Play className="w-4 h-4" />
-              Run job
-            </button>
+          <div className="relative">
+            <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 w-4 h-4 text-gray-400" />
+            <input
+              type="text"
+              placeholder="Search pipelines..."
+              value={searchQuery}
+              onChange={(e) => {
+                setSearchQuery(e.target.value);
+                setCurrentPage(1); // Reset to first page on search
+              }}
+              className="pl-9 pr-4 py-2 border border-gray-300 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent w-64"
+            />
           </div>
         </div>
 
-        {/* Loading indicator */}
-        <div className="px-6 py-2 text-sm text-gray-500 border-b border-gray-200 flex items-center gap-2">
-          {isLoading ? (
-            <>
-              <RefreshCw className="w-4 h-4 animate-spin" />
-              Loading jobs...
-            </>
-          ) : (
-            `Loaded ${jobs.length} job(s)`
-          )}
-        </div>
+
 
         {/* Table or Empty State */}
         {jobs.length === 0 ? (
@@ -151,7 +189,7 @@ export default function ETLMain() {
               <thead className="bg-gray-50">
                 <tr>
                   <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                    Job name
+                    Pipeline name
                   </th>
                   <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                     Description
@@ -165,7 +203,7 @@ export default function ETLMain() {
                 </tr>
               </thead>
               <tbody className="bg-white divide-y divide-gray-200">
-                {jobs.map((job) => (
+                {currentJobs.map((job) => (
                   <tr key={job.id} className="hover:bg-gray-50">
                     <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-blue-600 hover:underline cursor-pointer" onClick={() => navigate(`/etl/job/${job.id}`)}>
                       {job.name}
@@ -177,15 +215,28 @@ export default function ETLMain() {
                       {new Date(job.updated_at).toLocaleString()}
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                      <button
-                        className="text-blue-600 hover:underline"
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          handleRun(job.id);
-                        }}
-                      >
-                        Run
-                      </button>
+                      <div className="flex items-center gap-3">
+                        <button
+                          className="text-green-600 hover:text-green-800 transition-colors"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            handleRun(job.id);
+                          }}
+                          title="Run"
+                        >
+                          <Play className="w-4 h-4" />
+                        </button>
+                        <button
+                          className="text-red-600 hover:text-red-800 transition-colors"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            openDeleteModal(job.id, job.name);
+                          }}
+                          title="Delete"
+                        >
+                          <Trash2 className="w-4 h-4" />
+                        </button>
+                      </div>
                     </td>
                   </tr>
                 ))}
@@ -198,22 +249,42 @@ export default function ETLMain() {
         {jobs.length > 0 && (
           <div className="px-6 py-4 border-t border-gray-200 flex items-center justify-between">
             <div className="text-sm text-gray-700">
-              Showing 1 to {jobs.length} of {jobs.length} results
+              Showing {startIndex + 1} to {Math.min(endIndex, filteredJobs.length)} of {filteredJobs.length} results
             </div>
             <div className="flex items-center gap-2">
-              <button className="px-3 py-1 border border-gray-300 rounded-md text-sm text-gray-700 hover:bg-gray-50">
+              <button
+                onClick={() => setCurrentPage(p => Math.max(1, p - 1))}
+                disabled={currentPage === 1}
+                className="px-3 py-1 border border-gray-300 rounded-md text-sm text-gray-700 hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
+              >
                 Previous
               </button>
               <span className="px-3 py-1 bg-blue-600 text-white rounded-md text-sm">
-                1
+                {currentPage}
               </span>
-              <button className="px-3 py-1 border border-gray-300 rounded-md text-sm text-gray-700 hover:bg-gray-50">
+              <button
+                onClick={() => setCurrentPage(p => Math.min(totalPages, p + 1))}
+                disabled={currentPage === totalPages}
+                className="px-3 py-1 border border-gray-300 rounded-md text-sm text-gray-700 hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
+              >
                 Next
               </button>
             </div>
           </div>
         )}
       </div>
+
+      {/* Delete Confirmation Modal */}
+      <ConfirmationModal
+        isOpen={deleteModal.isOpen}
+        onClose={closeDeleteModal}
+        onConfirm={handleDelete}
+        title="Delete Pipeline"
+        message={`"${deleteModal.jobName}" 파이프라인을 삭제하시겠습니까? 이 작업은 되돌릴 수 없습니다.`}
+        confirmText="Delete"
+        cancelText="Cancel"
+        variant="danger"
+      />
     </div>
   );
 }
