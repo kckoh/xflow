@@ -1,6 +1,6 @@
 from datetime import datetime
-from typing import Optional, List
-from beanie import Document
+from typing import Optional, List, Dict, Any
+from beanie import Document, Link
 from pydantic import Field, BaseModel
 
 class User(Document):
@@ -109,6 +109,19 @@ class JobRun(Document):
 
     class Settings:
         name = "job_runs"
+
+
+
+class Domain(Document):
+    name: str
+    type: str  # e.g., 'marketing', 'sales'
+    nodes: List[Dict[str, Any]] = []
+    edges: List[Dict[str, Any]] = []
+    created_at: datetime = Field(default_factory=datetime.utcnow)
+    updated_at: datetime = Field(default_factory=datetime.utcnow)
+
+    class Settings:
+        name = "domains"
 
 
 # Dataset Model (MongoDB - Replaces Neo4j Models)

@@ -5,6 +5,7 @@ import DomainCreateModal from "./components/DomainCreateModal";
 import DomainHeader from "./components/DomainHeader";
 import RecentlyUsedSection from "./components/RecentlyUsedSection";
 import DomainTable from "./components/DomainTable";
+import { getDomains, deleteDomain } from "./api/domainApi";
 
 export default function DomainPage() {
   const { showToast } = useToast();
@@ -29,37 +30,32 @@ export default function DomainPage() {
   // TODO: Recently Used Tables 임의로 구현
   const recentTables = allTables.slice(0, 4);
 
-  const fetchCatalog = async () => {
+
+
+  const fetchDomains = async () => {
     setLoading(true);
     try {
-      // TODO: Replace with new API
-      const data = [];
+      const data = await getDomains();
       setAllTables(data);
     } catch (err) {
-      console.error("Error fetching domain:", err);
-      setError(err.message);
+      console.error("Error fetching domains:", err);
+      // setError(err.message); // Don't block UI on error, just log
     } finally {
       setLoading(false);
     }
   };
 
   useEffect(() => {
-    fetchCatalog();
+    fetchDomains();
   }, []);
-
-  const handleDelete = async (e, id) => {
-    e.stopPropagation(); // Prevent row click navigation
-
-    if (!confirm("Are you sure you want to delete this dataset?")) return;
-
+  const handleDelete = async (id) => {
     try {
-      // TODO: Replace with new API
-      // await domainAPI.deleteDataset(id);
-      showToast("Dataset deleted successfully", "success");
-      fetchCatalog(); // Refresh list
+      await deleteDomain(id);
+      showToast("Domain deleted successfully", "success");
+      fetchDomains();
     } catch (err) {
-      console.error("Error deleting dataset:", err);
-      showToast("Error deleting dataset", "error");
+      console.error("Error deleting domain:", err);
+      showToast("Error deleting domain", "error");
     }
   };
 
@@ -77,7 +73,7 @@ export default function DomainPage() {
         <DomainCreateModal
           isOpen={showCreateModal}
           onClose={() => setShowCreateModal(false)}
-          onCreated={fetchCatalog}
+          onCreated={fetchDomains}
         />
       )}
 

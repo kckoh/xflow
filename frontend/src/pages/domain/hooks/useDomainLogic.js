@@ -3,8 +3,9 @@ import { useDomainGraph } from './useDomainGraph';
 import { useDomainData } from './useDomainData';
 import { useDomainInteractions } from './useDomainInteractions';
 import { useToast } from '../../../components/common/Toast';
+import { deleteDomain } from '../api/domainApi';
 
-export const useDomainLogic = ({ datasetId, selectedId, onStreamAnalysis, onNodeSelect }) => {
+export const useDomainLogic = ({ datasetId, selectedId, onStreamAnalysis, onNodeSelect, initialNodes, initialEdges }) => {
     const { showToast } = useToast();
 
     // 1. Graph State & Layout Logic
@@ -12,7 +13,7 @@ export const useDomainLogic = ({ datasetId, selectedId, onStreamAnalysis, onNode
         nodes, edges, setNodes, setEdges,
         onNodesChange, onEdgesChange,
         handleToggleExpand, updateLayout, fitView
-    } = useDomainGraph();
+    } = useDomainGraph({ initialNodes, initialEdges });
 
     // 2. Data Fetching & Sync Logic
     // Depends on graph state to merge new data into it
@@ -21,8 +22,7 @@ export const useDomainLogic = ({ datasetId, selectedId, onStreamAnalysis, onNode
         if (!node || !node.data.mongoId) return;
 
         try {
-            // TODO: Replace with new API
-            // await catalogAPI.deleteDataset(node.data.mongoId);
+            await deleteDomain(node.data.mongoId);
 
             // Optimistic UI Update
             setNodes((nds) => nds.filter((n) => n.id !== nodeId));

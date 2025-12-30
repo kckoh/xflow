@@ -6,9 +6,9 @@ import {
 } from '@xyflow/react';
 import { getLayoutedElements } from '../utils/domainLayout';
 
-export const useDomainGraph = () => {
-    const [nodes, setNodes, onNodesChange] = useNodesState([]);
-    const [edges, setEdges, onEdgesChange] = useEdgesState([]);
+export const useDomainGraph = ({ initialNodes = [], initialEdges = [] } = {}) => {
+    const [nodes, setNodes, onNodesChange] = useNodesState(initialNodes);
+    const [edges, setEdges, onEdgesChange] = useEdgesState(initialEdges);
     const { fitView, getNodes } = useReactFlow();
 
     // Handle node expand/collapse
