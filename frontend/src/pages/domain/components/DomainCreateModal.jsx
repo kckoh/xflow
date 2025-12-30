@@ -51,14 +51,33 @@ export default function DomainCreateModal({ isOpen, onClose, onCreated }) {
   const handleSubmit = async () => {
     setLoading(true);
     try {
-      // TODO: Replace with new API
-      const data = { id: 'new-dataset-id', ...formData };
+      // Replace with new API
+      const response = await fetch("http://localhost:8000/api/domains", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          name: formData.name,
+          type: formData.tags[0] || "custom", // Use first tag as type or default
+        }),
+      });
 
-      showToast("Dataset registered successfully", "success");
+      if (!response.ok) {
+        throw new Error("Failed to create domain");
+      }
+
+      const data = await response.json();
+
+      showToast("Domain registered successfully", "success");
       onCreated(); // Refresh list
       onClose();
-      // Redirect to the new dataset's lineage/detail page
-      navigate(`/domain/${data.id}`);
+      // Redirect to the new domain's lineage/detail page
+      // Beanie/Pydantic usually returns 'id' or '_id'. Let's check response.
+      // If Pydantic model response, it usually has 'id' or '_id'.
+      // Let's assume 'id' is standard for frontend usage.
+      const newId = data._id || data.id;
+      navigate(`/domain/${newId}`);
     } catch (e) {
       showToast(e.message, "error");
     } finally {

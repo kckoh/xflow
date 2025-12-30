@@ -85,10 +85,10 @@ export default function DomainTable({
             )}
             {!loading &&
               !error &&
-              tables.map((table) => (
+              tables.map((table, index) => (
                 <tr
-                  key={table.id}
-                  onClick={() => navigate(`/domain/${table.id}`)}
+                  key={table.id || table._id || index}
+                  onClick={() => navigate(`/domain/${table.id || table._id}`)}
                   className="hover:bg-blue-50/50 cursor-pointer transition-colors group"
                 >
                   <td className="px-6 py-4">
@@ -102,10 +102,10 @@ export default function DomainTable({
                     </div>
                   </td>
                   <td className="px-6 py-4 text-sm text-gray-600">
-                    {table.owner !== "Unknown" ? (
+                    {table.owner && table.owner !== "Unknown" ? (
                       <div className="flex items-center gap-2">
                         <div className="w-5 h-5 rounded-full bg-indigo-100 text-indigo-600 flex items-center justify-center text-[10px] font-bold">
-                          {table.owner[0].toUpperCase()}
+                          {table.owner[0]?.toUpperCase()}
                         </div>
                         {table.owner}
                       </div>

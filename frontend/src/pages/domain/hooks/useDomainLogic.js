@@ -4,7 +4,7 @@ import { useDomainData } from './useDomainData';
 import { useDomainInteractions } from './useDomainInteractions';
 import { useToast } from '../../../components/common/Toast';
 
-export const useDomainLogic = ({ datasetId, selectedId, onStreamAnalysis, onNodeSelect }) => {
+export const useDomainLogic = ({ datasetId, selectedId, onStreamAnalysis, onNodeSelect, initialNodes, initialEdges }) => {
     const { showToast } = useToast();
 
     // 1. Graph State & Layout Logic
@@ -12,7 +12,7 @@ export const useDomainLogic = ({ datasetId, selectedId, onStreamAnalysis, onNode
         nodes, edges, setNodes, setEdges,
         onNodesChange, onEdgesChange,
         handleToggleExpand, updateLayout, fitView
-    } = useDomainGraph();
+    } = useDomainGraph({ initialNodes, initialEdges });
 
     // 2. Data Fetching & Sync Logic
     // Depends on graph state to merge new data into it

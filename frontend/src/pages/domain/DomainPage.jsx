@@ -32,12 +32,13 @@ export default function DomainPage() {
   const fetchCatalog = async () => {
     setLoading(true);
     try {
-      // TODO: Replace with new API
-      const data = [];
+      const response = await fetch("http://localhost:8000/api/domains");
+      if (!response.ok) throw new Error("Failed to fetch domains");
+      const data = await response.json();
       setAllTables(data);
     } catch (err) {
       console.error("Error fetching domain:", err);
-      setError(err.message);
+      // setError(err.message); // Don't block UI on error, just log
     } finally {
       setLoading(false);
     }
@@ -50,16 +51,21 @@ export default function DomainPage() {
   const handleDelete = async (e, id) => {
     e.stopPropagation(); // Prevent row click navigation
 
-    if (!confirm("Are you sure you want to delete this dataset?")) return;
+    if (!confirm("Are you sure you want to delete this domain?")) return;
 
     try {
-      // TODO: Replace with new API
-      // await domainAPI.deleteDataset(id);
-      showToast("Dataset deleted successfully", "success");
+      // POST based deletion as per request/router implementation
+      const response = await fetch(`http://localhost:8000/api/domains/${id}`, {
+        method: "POST",
+      });
+
+      if (!response.ok) throw new Error("Failed to delete");
+
+      showToast("Domain deleted successfully", "success");
       fetchCatalog(); // Refresh list
     } catch (err) {
-      console.error("Error deleting dataset:", err);
-      showToast("Error deleting dataset", "error");
+      console.error("Error deleting domain:", err);
+      showToast("Error deleting domain", "error");
     }
   };
 
