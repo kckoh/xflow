@@ -45,6 +45,10 @@ export default function DomainPage() {
     }
   };
 
+  useEffect(() => {
+    fetchCatalog();
+  }, []);
+
   const handleDelete = async (id) => {
     try {
       await deleteDomain(id);
