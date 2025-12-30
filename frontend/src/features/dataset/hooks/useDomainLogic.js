@@ -3,7 +3,6 @@ import { useDomainGraph } from './useDomainGraph';
 import { useDomainData } from './useDomainData';
 import { useDomainInteractions } from './useDomainInteractions';
 import { useToast } from '../../../components/common/Toast';
-import { catalogAPI } from '../../../services/catalog/index';
 
 export const useDomainLogic = ({ datasetId, selectedId, onStreamAnalysis, onNodeSelect }) => {
     const { showToast } = useToast();
@@ -22,7 +21,8 @@ export const useDomainLogic = ({ datasetId, selectedId, onStreamAnalysis, onNode
         if (!node || !node.data.mongoId) return;
 
         try {
-            await catalogAPI.deleteDataset(node.data.mongoId);
+            // TODO: Replace with new API
+            // await catalogAPI.deleteDataset(node.data.mongoId);
 
             // Optimistic UI Update
             setNodes((nds) => nds.filter((n) => n.id !== nodeId));
