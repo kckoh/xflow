@@ -1,6 +1,16 @@
 import { useState, useEffect } from "react";
 import { useNavigate, useLocation } from "react-router-dom";
-import { Play, Code, FileText, BarChart3, Plus, Info, RefreshCw, Trash2, Search } from "lucide-react";
+import {
+  Play,
+  Code,
+  FileText,
+  BarChart3,
+  Plus,
+  Info,
+  RefreshCw,
+  Trash2,
+  Search,
+} from "lucide-react";
 import ConfirmationModal from "../../components/common/ConfirmationModal";
 import { useToast } from "../../components/common/Toast";
 
@@ -11,15 +21,21 @@ export default function ETLMain() {
   const [isLoading, setIsLoading] = useState(true);
   const [currentPage, setCurrentPage] = useState(1);
   const [searchQuery, setSearchQuery] = useState("");
-  const [deleteModal, setDeleteModal] = useState({ isOpen: false, jobId: null, jobName: "" });
+  const [deleteModal, setDeleteModal] = useState({
+    isOpen: false,
+    jobId: null,
+    jobName: "",
+  });
   const navigate = useNavigate();
   const location = useLocation();
   const { showToast } = useToast();
 
   // Filter jobs by search query
-  const filteredJobs = jobs.filter(job =>
-    job.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-    (job.description && job.description.toLowerCase().includes(searchQuery.toLowerCase()))
+  const filteredJobs = jobs.filter(
+    (job) =>
+      job.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      (job.description &&
+        job.description.toLowerCase().includes(searchQuery.toLowerCase())),
   );
 
   // Pagination calculations (based on filtered jobs)
@@ -36,13 +52,13 @@ export default function ETLMain() {
   const fetchJobs = async () => {
     setIsLoading(true);
     try {
-      const response = await fetch('http://localhost:8000/api/etl-jobs');
+      const response = await fetch("http://localhost:8000/api/etl-jobs");
       if (response.ok) {
         const data = await response.json();
         setJobs(data);
       }
     } catch (error) {
-      console.error('Failed to fetch jobs:', error);
+      console.error("Failed to fetch jobs:", error);
     } finally {
       setIsLoading(false);
     }
@@ -50,14 +66,17 @@ export default function ETLMain() {
 
   const handleRun = async (jobId) => {
     try {
-      const response = await fetch(`http://localhost:8000/api/etl-jobs/${jobId}/run`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-      });
+      const response = await fetch(
+        `http://localhost:8000/api/etl-jobs/${jobId}/run`,
+        {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+        },
+      );
 
       if (!response.ok) {
         const error = await response.json();
-        throw new Error(error.detail || 'Failed to run job');
+        throw new Error(error.detail || "Failed to run job");
       }
 
       const data = await response.json();
@@ -73,13 +92,16 @@ export default function ETLMain() {
     const { jobId } = deleteModal;
 
     try {
-      const response = await fetch(`http://localhost:8000/api/etl-jobs/${jobId}`, {
-        method: 'DELETE',
-      });
+      const response = await fetch(
+        `http://localhost:8000/api/etl-jobs/${jobId}`,
+        {
+          method: "DELETE",
+        },
+      );
 
       if (!response.ok) {
         const error = await response.json();
-        throw new Error(error.detail || 'Failed to delete pipeline');
+        throw new Error(error.detail || "Failed to delete Dataset");
       }
 
       // Refresh the list after deletion
@@ -102,7 +124,7 @@ export default function ETLMain() {
 
   const createJobOptions = [
     {
-      title: "Visual ETL",
+      title: "Visual Dataset",
       description: "Author in a visual interface focused on data flow.",
       icon: BarChart3,
       color: "bg-blue-50 hover:bg-blue-100",
@@ -113,10 +135,12 @@ export default function ETLMain() {
 
   return (
     <div className="min-h-screen bg-gray-50 px-6 pt-2 pb-6">
-      {/* Create Pipeline Section */}
+      {/* Create a Dataset Section */}
       <div className="mb-8">
         <div className="flex items-center gap-2 mb-4">
-          <h2 className="text-lg font-semibold text-gray-900">Create pipeline</h2>
+          <h2 className="text-lg font-semibold text-gray-900">
+            Create Dataset
+          </h2>
         </div>
 
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
@@ -142,14 +166,14 @@ export default function ETLMain() {
         <div className="border-b border-gray-200 px-6 py-4 flex items-center justify-between">
           <div className="flex items-center gap-2">
             <h2 className="text-lg font-semibold text-gray-900">
-              Pipelines ({filteredJobs.length})
+              Datasets ({filteredJobs.length})
             </h2>
           </div>
           <div className="relative">
             <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 w-4 h-4 text-gray-400" />
             <input
               type="text"
-              placeholder="Search pipelines..."
+              placeholder="Search datasets..."
               value={searchQuery}
               onChange={(e) => {
                 setSearchQuery(e.target.value);
@@ -159,8 +183,6 @@ export default function ETLMain() {
             />
           </div>
         </div>
-
-
 
         {/* Table or Empty State */}
         {jobs.length === 0 ? (
@@ -189,7 +211,7 @@ export default function ETLMain() {
               <thead className="bg-gray-50">
                 <tr>
                   <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                    Pipeline name
+                    Dataset name
                   </th>
                   <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                     Description
@@ -205,11 +227,14 @@ export default function ETLMain() {
               <tbody className="bg-white divide-y divide-gray-200">
                 {currentJobs.map((job) => (
                   <tr key={job.id} className="hover:bg-gray-50">
-                    <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-blue-600 hover:underline cursor-pointer" onClick={() => navigate(`/etl/job/${job.id}`)}>
+                    <td
+                      className="px-6 py-4 whitespace-nowrap text-sm font-medium text-blue-600 hover:underline cursor-pointer"
+                      onClick={() => navigate(`/etl/job/${job.id}`)}
+                    >
                       {job.name}
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                      {job.description || '-'}
+                      {job.description || "-"}
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
                       {new Date(job.updated_at).toLocaleString()}
@@ -249,11 +274,13 @@ export default function ETLMain() {
         {jobs.length > 0 && (
           <div className="px-6 py-4 border-t border-gray-200 flex items-center justify-between">
             <div className="text-sm text-gray-700">
-              Showing {startIndex + 1} to {Math.min(endIndex, filteredJobs.length)} of {filteredJobs.length} results
+              Showing {startIndex + 1} to{" "}
+              {Math.min(endIndex, filteredJobs.length)} of {filteredJobs.length}{" "}
+              results
             </div>
             <div className="flex items-center gap-2">
               <button
-                onClick={() => setCurrentPage(p => Math.max(1, p - 1))}
+                onClick={() => setCurrentPage((p) => Math.max(1, p - 1))}
                 disabled={currentPage === 1}
                 className="px-3 py-1 border border-gray-300 rounded-md text-sm text-gray-700 hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
               >
@@ -263,7 +290,9 @@ export default function ETLMain() {
                 {currentPage}
               </span>
               <button
-                onClick={() => setCurrentPage(p => Math.min(totalPages, p + 1))}
+                onClick={() =>
+                  setCurrentPage((p) => Math.min(totalPages, p + 1))
+                }
                 disabled={currentPage === totalPages}
                 className="px-3 py-1 border border-gray-300 rounded-md text-sm text-gray-700 hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
               >
@@ -279,7 +308,7 @@ export default function ETLMain() {
         isOpen={deleteModal.isOpen}
         onClose={closeDeleteModal}
         onConfirm={handleDelete}
-        title="Delete Pipeline"
+        title="Delete Dataset"
         message={`"${deleteModal.jobName}" 파이프라인을 삭제하시겠습니까? 이 작업은 되돌릴 수 없습니다.`}
         confirmText="Delete"
         cancelText="Cancel"

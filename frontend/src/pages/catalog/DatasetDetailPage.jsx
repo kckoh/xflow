@@ -13,7 +13,7 @@ import {
 } from "lucide-react";
 import DatasetHeader from "../../features/dataset/components/DatasetHeader";
 import DatasetSchema from "../../features/dataset/components/DatasetSchema";
-import DatasetLineage from "../../features/dataset/components/DatasetLineage";
+import DatasetDomain from "../../features/dataset/components/DatasetDomain";
 import { catalogAPI } from "../../services/catalog/index";
 
 export default function DatasetDetailPage() {
@@ -103,7 +103,7 @@ export default function DatasetDetailPage() {
     const columnCount = dataset.columns ? dataset.columns.length : 0;
     const tabs = [
         { id: "columns", label: "Columns", count: columnCount },
-        { id: "lineage", label: "Lineage" },
+        { id: "domain", label: "Domain" },
         { id: "documentation", label: "Documentation" },
         { id: "quality", label: "Quality" },
     ];
@@ -147,15 +147,15 @@ export default function DatasetDetailPage() {
                 {/* Main Content Area: mr-12 to ensure scrollbar separation */}
                 <div className="flex-1 overflow-y-auto p-6 bg-gray-50 mr-12 custom-scrollbar relative z-0">
                     {activeTab === "columns" && <DatasetSchema columns={dataset.columns || []} />}
-                    {activeTab === "lineage" && (
-                        <DatasetLineage
+                    {activeTab === "domain" && (
+                        <DatasetDomain
                             datasetId={dataset.id}
                             selectedId={activeSidebarData.id}
                             onStreamAnalysis={handleStreamAnalysis}
                             onNodeSelect={handleNodeSelect}
                         />
                     )}
-                    {activeTab !== "columns" && activeTab !== "lineage" && (
+                    {activeTab !== "columns" && activeTab !== "domain" && (
                         <div className="flex items-center justify-center h-64 text-gray-400 bg-white rounded-lg border border-gray-200 border-dashed">
                             Content for {activeTab} is not implemented yet.
                         </div>
@@ -269,9 +269,9 @@ export default function DatasetDetailPage() {
                                         Stream Impact
                                     </h3>
 
-                                    {activeTab !== "lineage" ? (
+                                    {activeTab !== "domain" ? (
                                         <div className="text-center text-gray-400 text-sm py-10">
-                                            Switch to <strong>Lineage Tab</strong><br />to view stream analysis.
+                                            Switch to <strong>Domain Tab</strong><br />to view stream analysis.
                                         </div>
                                     ) : (
                                         <div className="space-y-6">

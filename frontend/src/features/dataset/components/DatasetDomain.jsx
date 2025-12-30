@@ -7,12 +7,12 @@ import {
 } from '@xyflow/react';
 import '@xyflow/react/dist/style.css';
 import React from 'react';
-import { SchemaNode } from './lineage/SchemaNode';
-import { DeletionEdge } from './lineage/CustomEdges';
-import { LineageSourcePicker } from './lineage/LineageSourcePicker';
-import { LineageEdgeMenu } from './lineage/LineageEdgeMenu';
-import { LineageNodeMenu } from './lineage/LineageNodeMenu';
-import { useLineageLogic } from '../hooks/useLineageLogic';
+import { SchemaNode } from './domain/SchemaNode';
+import { DeletionEdge } from './domain/CustomEdges';
+import { DomainSourcePicker } from './domain/DomainSourcePicker';
+import { DomainEdgeMenu } from './domain/DomainEdgeMenu';
+import { DomainNodeMenu } from './domain/DomainNodeMenu';
+import { useDomainLogic } from '../hooks/useDomainLogic';
 
 const nodeTypes = {
     custom: SchemaNode,
@@ -24,14 +24,14 @@ const edgeTypes = {
     deletion: DeletionEdge
 };
 
-function LineageFlow(props) {
+function DomainFlow(props) {
     const {
         nodes, edges, onNodesChange, onEdgesChange,
         onConnect, onConnectEnd, onEdgeClick, onNodeClick, onNodeContextMenu,
         edgeMenu, handleDeleteEdge, setEdgeMenu,
         sourcePicker, mockSources, handleSelectSource, setSourcePicker,
         nodeMenu, handleSyncSchema, setNodeMenu, handleDeleteDataset
-    } = useLineageLogic(props);
+    } = useDomainLogic(props);
 
     return (
         <div style={{ width: '100%', height: '100%' }}>
@@ -56,20 +56,20 @@ function LineageFlow(props) {
                 <Controls />
                 <MiniMap />
 
-                <LineageEdgeMenu
+                <DomainEdgeMenu
                     menu={edgeMenu}
                     onDelete={handleDeleteEdge}
                     onCancel={() => setEdgeMenu(null)}
                 />
 
-                <LineageSourcePicker
+                <DomainSourcePicker
                     picker={sourcePicker}
                     mockSources={mockSources}
                     onSelect={handleSelectSource}
                     onClose={() => setSourcePicker(null)}
                 />
 
-                <LineageNodeMenu
+                <DomainNodeMenu
                     menu={nodeMenu}
                     mockSources={mockSources}
                     onSelectSource={handleSelectSource}
@@ -82,10 +82,10 @@ function LineageFlow(props) {
     );
 }
 
-export default function DatasetLineage(props) {
+export default function DatasetDomain(props) {
     return (
         <ReactFlowProvider>
-            <LineageFlow {...props} />
+            <DomainFlow {...props} />
         </ReactFlowProvider>
     );
 }

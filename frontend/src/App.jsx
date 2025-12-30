@@ -15,8 +15,8 @@ import QueryPage from "./pages/query/QueryPage";
 import { ToastProvider } from "./components/common/Toast";
 
 // Placeholder components for new routes
-const LineagePage = () => (
-  <div className="p-4 bg-white rounded-lg shadow">Lineage Page Content</div>
+const DomainPage = () => (
+  <div className="p-4 bg-white rounded-lg shadow">Domain Page Content</div>
 );
 const GlossaryPage = () => (
   <div className="p-4 bg-white rounded-lg shadow">Glossary Page Content</div>
@@ -92,11 +92,11 @@ function App() {
 
 
           <Route
-            path="/lineage"
+            path="/domain"
             element={
               <ProtectedRoute>
                 <MainLayout>
-                  <LineagePage />
+                  <CatalogPage />
                 </MainLayout>
               </ProtectedRoute>
             }

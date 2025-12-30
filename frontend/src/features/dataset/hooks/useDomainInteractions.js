@@ -2,7 +2,7 @@ import { useState, useEffect, useCallback } from 'react';
 import { addEdge } from '@xyflow/react';
 import { catalogAPI } from '../../../services/catalog/index';
 
-export const useLineageInteractions = ({ nodes, edges, setNodes, setEdges, datasetId, handleToggleExpand, onNodeSelect }) => {
+export const useDomainInteractions = ({ nodes, edges, setNodes, setEdges, datasetId, handleToggleExpand, onNodeSelect }) => {
 
     // UI States
     const [sourcePicker, setSourcePicker] = useState(null);

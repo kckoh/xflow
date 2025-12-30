@@ -2,7 +2,7 @@ import React, { useRef } from 'react';
 import { createPortal } from 'react-dom';
 import { useOnClickOutside } from '../../../../hooks/useOnClickOutside';
 
-export const LineageSourcePicker = ({ picker, sources, onSelect, onClose }) => {
+export const DomainSourcePicker = ({ picker, sources, onSelect, onClose }) => {
     const pickerRef = useRef(null);
 
     // Close on click outside

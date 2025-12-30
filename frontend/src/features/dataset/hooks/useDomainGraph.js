@@ -4,9 +4,9 @@ import {
     useEdgesState,
     useReactFlow,
 } from '@xyflow/react';
-import { getLayoutedElements } from '../utils/lineageLayout';
+import { getLayoutedElements } from '../utils/domainLayout';
 
-export const useLineageGraph = () => {
+export const useDomainGraph = () => {
     const [nodes, setNodes, onNodesChange] = useNodesState([]);
     const [edges, setEdges, onEdgesChange] = useEdgesState([]);
     const { fitView, getNodes } = useReactFlow();

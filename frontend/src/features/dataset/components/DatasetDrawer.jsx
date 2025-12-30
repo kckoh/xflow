@@ -1,7 +1,7 @@
 import { useState, useEffect } from "react";
 import { X, Database, Table as TableIcon, GitFork, FileText, Tag, Hash, AlignLeft, Users } from "lucide-react";
 import DatasetSchema from "./DatasetSchema";
-import DatasetLineage from "./DatasetLineage";
+import DatasetDomain from "./DatasetDomain";
 
 export default function DatasetDrawer({ isOpen, onClose, datasetId }) {
     const [dataset, setDataset] = useState(null);
@@ -69,12 +69,6 @@ export default function DatasetDrawer({ isOpen, onClose, datasetId }) {
                                 </span>
                                 <span>•</span>
                                 <span>{dataset?.type || "Table"}</span>
-                                {dataset?.layer && (
-                                    <>
-                                        <span>•</span>
-                                        <span className="font-medium text-purple-600">{dataset.layer}</span>
-                                    </>
-                                )}
                             </div>
                         </div>
                     </div>
@@ -89,7 +83,7 @@ export default function DatasetDrawer({ isOpen, onClose, datasetId }) {
                 {/* Tabs */}
                 <div className="px-6 border-b border-gray-100 flex gap-6 bg-white z-10">
                     <TabButton id="schema" label="Schema" icon={<Hash size={14} />} active={activeTab} onClick={setActiveTab} />
-                    <TabButton id="lineage" label="Lineage" icon={<GitFork size={14} />} active={activeTab} onClick={setActiveTab} />
+                    <TabButton id="domain" label="Domain" icon={<GitFork size={14} />} active={activeTab} onClick={setActiveTab} />
                     <TabButton id="properties" label="Properties" icon={<FileText size={14} />} active={activeTab} onClick={setActiveTab} />
                 </div>
 
@@ -109,9 +103,9 @@ export default function DatasetDrawer({ isOpen, onClose, datasetId }) {
                                 <DatasetSchema columns={dataset.columns || dataset.schema || []} />
                             )}
 
-                            {activeTab === "lineage" && (
+                            {activeTab === "domain" && (
                                 <div className="bg-white rounded-lg border border-gray-200 p-1 h-[600px] shadow-sm">
-                                    <DatasetLineage datasetId={dataset.id} />
+                                    <DatasetDomain datasetId={dataset.id} />
                                 </div>
                             )}
 

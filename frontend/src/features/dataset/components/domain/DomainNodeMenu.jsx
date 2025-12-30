@@ -2,7 +2,7 @@ import React, { useState, useMemo } from 'react';
 import { createPortal } from 'react-dom';
 import { Database, Trash2, ChevronDown, ChevronRight, Search } from 'lucide-react';
 
-export const LineageNodeMenu = ({ menu, mockSources, onSelectSource, onDeleteDataset, onCancel }) => {
+export const DomainNodeMenu = ({ menu, mockSources, onSelectSource, onDeleteDataset, onCancel }) => {
     const [showSources, setShowSources] = useState(false);
     const [searchTerm, setSearchTerm] = useState("");
 

@@ -2,7 +2,7 @@ import React from 'react';
 import { createPortal } from 'react-dom';
 import { Trash2 } from 'lucide-react';
 
-export const LineageEdgeMenu = ({ menu, onDelete, onCancel }) => {
+export const DomainEdgeMenu = ({ menu, onDelete, onCancel }) => {
     if (!menu) return null;
 
     return createPortal(
@@ -16,7 +16,7 @@ export const LineageEdgeMenu = ({ menu, onDelete, onCancel }) => {
             onClick={(e) => e.stopPropagation()}
         >
             <div className="px-3 py-1.5 border-b border-gray-100 text-[10px] font-bold text-gray-400 uppercase tracking-wider">
-                Lineage Actions
+                Domain Actions
             </div>
 
             <button

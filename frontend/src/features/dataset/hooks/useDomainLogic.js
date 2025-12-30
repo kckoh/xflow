@@ -1,20 +1,20 @@
 import { useCallback } from 'react';
-import { useLineageGraph } from './useLineageGraph';
-import { useLineageData } from './useLineageData';
-import { useLineageInteractions } from './useLineageInteractions';
+import { useDomainGraph } from './useDomainGraph';
+import { useDomainData } from './useDomainData';
+import { useDomainInteractions } from './useDomainInteractions';
 
-export const useLineageLogic = ({ datasetId, selectedId, onStreamAnalysis, onNodeSelect }) => {
+export const useDomainLogic = ({ datasetId, selectedId, onStreamAnalysis, onNodeSelect }) => {
 
     // 1. Graph State & Layout Logic
     const {
         nodes, edges, setNodes, setEdges,
         onNodesChange, onEdgesChange,
         handleToggleExpand, updateLayout, fitView
-    } = useLineageGraph();
+    } = useDomainGraph();
 
     // 2. Data Fetching & Sync Logic
     // Depends on graph state to merge new data into it
-    const { fetchAndMerge } = useLineageData({
+    const { fetchAndMerge } = useDomainData({
         datasetId,
         selectedId,
         onStreamAnalysis,
@@ -25,7 +25,7 @@ export const useLineageLogic = ({ datasetId, selectedId, onStreamAnalysis, onNod
 
     // 3. User Interactions & Events
     // Depends on graph state and data handlers
-    const interactions = useLineageInteractions({
+    const interactions = useDomainInteractions({
         nodes, edges, setNodes, setEdges,
         datasetId,
         handleToggleExpand,

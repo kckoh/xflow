@@ -1,8 +1,8 @@
 import { useState, useEffect, useCallback } from 'react';
 import { catalogAPI } from '../../../services/catalog/index';
-import { mergeGraphData, calculateImpact } from '../utils/lineageUtils';
+import { mergeGraphData, calculateImpact } from '../utils/domainUtils';
 
-export const useLineageData = ({ datasetId, selectedId, onStreamAnalysis, nodes, edges, setNodes, setEdges, updateLayout, handleToggleExpand }) => {
+export const useDomainData = ({ datasetId, selectedId, onStreamAnalysis, nodes, edges, setNodes, setEdges, updateLayout, handleToggleExpand }) => {
     const [expandTarget, setExpandTarget] = useState(null);
 
     // Expand Handler (Deferred for state update)

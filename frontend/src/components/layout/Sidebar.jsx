@@ -21,13 +21,13 @@ export function Sidebar({ isCollapsed, onToggle }) {
 
   const navSections = [
     {
-      title: "DATA INTEGRATION",
-      items: [{ name: "ETL Pipelines", path: "/", icon: List }],
+      title: "DATA CATALOG",
+      items: [{ name: "Dataset", path: "/", icon: List }],
     },
     {
-      title: "DATA CATALOG",
+      title: "LINEAGE",
       items: [
-        { name: "Data Catalog", path: "/catalog", icon: Database },
+        { name: "Domain", path: "/domain", icon: Database },
         { name: "Business Glossary", path: "/glossary", icon: GitMerge },
       ],
     },
@@ -46,7 +46,7 @@ export function Sidebar({ isCollapsed, onToggle }) {
     <div
       className={clsx(
         "h-screen bg-white border-r border-gray-200 text-gray-700 flex flex-col fixed left-0 top-0 z-20 transition-all duration-300 ease-in-out",
-        isCollapsed ? "w-20" : "w-64"
+        isCollapsed ? "w-20" : "w-64",
       )}
     >
       {/* Brand & Toggle */}
@@ -54,7 +54,7 @@ export function Sidebar({ isCollapsed, onToggle }) {
         <div
           className={clsx(
             "flex items-center",
-            isCollapsed && "justify-center w-full"
+            isCollapsed && "justify-center w-full",
           )}
         >
           <div className="w-8 h-8 bg-blue-600 rounded-lg flex items-center justify-center shadow-sm shrink-0">
@@ -110,7 +110,7 @@ export function Sidebar({ isCollapsed, onToggle }) {
                       isCollapsed ? "justify-center" : "px-3",
                       isActive
                         ? "bg-blue-50 text-blue-600"
-                        : "text-gray-600 hover:bg-gray-50 hover:text-gray-900"
+                        : "text-gray-600 hover:bg-gray-50 hover:text-gray-900",
                     )}
                   >
                     <item.icon
@@ -119,7 +119,7 @@ export function Sidebar({ isCollapsed, onToggle }) {
                         !isCollapsed && "mr-3",
                         isActive
                           ? "text-blue-600"
-                          : "text-gray-400 group-hover:text-gray-600"
+                          : "text-gray-400 group-hover:text-gray-600",
                       )}
                     />
                     {!isCollapsed && (
@@ -140,7 +140,7 @@ export function Sidebar({ isCollapsed, onToggle }) {
           title={isCollapsed ? "Settings" : ""}
           className={clsx(
             "flex items-center text-sm font-medium text-gray-500 hover:text-gray-900 transition-colors w-full p-2 rounded-md hover:bg-gray-50",
-            isCollapsed ? "justify-center" : "px-3"
+            isCollapsed ? "justify-center" : "px-3",
           )}
         >
           <Settings
@@ -153,7 +153,7 @@ export function Sidebar({ isCollapsed, onToggle }) {
           title={isCollapsed ? "Sign out" : ""}
           className={clsx(
             "flex items-center text-sm font-medium text-gray-500 hover:text-red-600 transition-colors w-full p-2 rounded-md hover:bg-red-50",
-            isCollapsed ? "justify-center" : "px-3"
+            isCollapsed ? "justify-center" : "px-3",
           )}
         >
           <LogOut
@@ -171,7 +171,7 @@ export function Topbar({ isCollapsed }) {
     <div
       className={clsx(
         "h-16 bg-white border-b border-gray-200 flex items-center justify-between px-6 fixed top-0 right-0 z-[1000] transition-all duration-300 ease-in-out",
-        isCollapsed ? "left-20" : "left-64"
+        isCollapsed ? "left-20" : "left-64",
       )}
     >
       {/* Search */}

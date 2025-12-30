@@ -1,6 +1,5 @@
 import { useState } from "react";
 import { Play, Loader2, CheckCircle, XCircle, Clock } from "lucide-react";
-import { apiAthena } from "../../../services/apiAthena";
 
 export default function QueryEditor({ selectedTable }) {
     const [query, setQuery] = useState("");
@@ -15,28 +14,7 @@ export default function QueryEditor({ selectedTable }) {
             return;
         }
 
-        setExecuting(true);
-        setError(null);
-        setResults(null);
-        setQueryStatus("QUEUED");
-
-        try {
-            // 쿼리 실행 및 결과 대기 (상태 콜백 포함)
-            const resultsData = await apiAthena.executeAndWaitForResults(
-                query,
-                60, // 최대 60초 대기
-                (status) => setQueryStatus(status) // 상태 변경 시 업데이트
-            );
-
-            setResults(resultsData);
-            setQueryStatus("SUCCEEDED");
-        } catch (err) {
-            console.error("Query execution error:", err);
-            setError(err.message);
-            setQueryStatus("FAILED");
-        } finally {
-            setExecuting(false);
-        }
+        setError("Query execution is not available");
     };
 
     const getStatusIcon = () => {

@@ -383,41 +383,6 @@ export default function ETLJobPage() {
     }
   };
 
-  const handleRun = async () => {
-    if (!jobId) {
-      alert("Please save the job first before running.");
-      return;
-    }
-
-    try {
-      const response = await fetch(
-        `http://localhost:8000/api/etl-jobs/${jobId}/run`,
-        {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-        },
-      );
-
-      if (!response.ok) {
-        const error = await response.json();
-        throw new Error(error.detail || "Failed to run job");
-      }
-
-      const data = await response.json();
-      console.log("Job run triggered:", data);
-      alert(`Job started! Run ID: ${data.run_id}`);
-
-      // Switch to Runs tab to see the execution
-      setMainTab("Runs");
-
-      // Fetch updated runs
-      fetchRuns();
-    } catch (error) {
-      console.error("Run failed:", error);
-      alert(`Run failed: ${error.message}`);
-    }
-  };
-
   const fetchRuns = async () => {
     if (!jobId) return;
     try {
@@ -450,7 +415,7 @@ export default function ETLJobPage() {
     };
 
     const newNode = {
-      id: `node_${Date.now()}`,
+      id: `${nodes.length + 1}`,
       type: typeMap[category],
       data: {
         label: nodeOption.label,
@@ -502,14 +467,6 @@ export default function ETLJobPage() {
           >
             <Save className="w-4 h-4" />
             Save
-          </button>
-
-          <button
-            onClick={handleRun}
-            className="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 transition-colors flex items-center gap-2"
-          >
-            <Play className="w-4 h-4" />
-            Run
           </button>
         </div>
       </div>
