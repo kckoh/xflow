@@ -6,7 +6,7 @@ from datetime import datetime
 class SourceConfig(BaseModel):
     nodeId: Optional[str] = None  # Node ID for graph reference
     type: str  # rdb
-    connection_id: str  # RDBSource ID
+    connection_id: str  # Connection ID
     table: Optional[str] = None
     query: Optional[str] = None  # Custom SQL query
 

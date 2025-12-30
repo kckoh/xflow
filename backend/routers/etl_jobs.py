@@ -5,7 +5,7 @@ import httpx
 from beanie import PydanticObjectId
 from fastapi import APIRouter, HTTPException, status
 
-from models import ETLJob, JobRun, RDBSource
+from models import ETLJob, JobRun, Connection
 from schemas.etl_job import ETLJobCreate, ETLJobUpdate, ETLJobResponse
 
 router = APIRouter()
@@ -34,9 +34,9 @@ async def create_etl_job(job: ETLJobCreate):
 
     # Validate all source connections exist
     for source_item in sources_data:
-        if source_item.get("type") == "rdb" and source_item.get("connection_id"):
+        if source_item.get("connection_id"):
             try:
-                source = await RDBSource.get(PydanticObjectId(source_item["connection_id"]))
+                source = await Connection.get(PydanticObjectId(source_item["connection_id"]))
                 if not source:
                     raise HTTPException(
                         status_code=status.HTTP_400_BAD_REQUEST,

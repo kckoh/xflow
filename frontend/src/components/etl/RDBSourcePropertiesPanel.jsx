@@ -1,91 +1,97 @@
 import { useState, useEffect } from 'react';
 import { X } from 'lucide-react';
-import { rdbSourceApi } from '../../services/rdbSourceApi';
-import RDBSourceForm from '../sources/RDBSourceForm';
+import { connectionApi } from '../../services/connectionApi';
+import ConnectionForm from '../sources/ConnectionForm';
 import ConnectionCombobox from '../sources/ConnectionCombobox';
 import Combobox from '../common/Combobox';
+import { useToast } from '../common/Toast/ToastContext';
 
 export default function RDBSourcePropertiesPanel({ node, onClose, onUpdate }) {
-    const [sources, setSources] = useState([]);
-    const [selectedSource, setSelectedSource] = useState(null);
+    const { openToast } = useToast();
+    const [connections, setConnections] = useState([]);
+    const [selectedConnection, setSelectedConnection] = useState(null);
     const [tables, setTables] = useState([]);
     const [selectedTable, setSelectedTable] = useState('');
     const [loading, setLoading] = useState(false);
-    const [isSourcesLoading, setIsSourcesLoading] = useState(false);
+    const [isConnectionsLoading, setIsConnectionsLoading] = useState(false);
     const [showCreateModal, setShowCreateModal] = useState(false);
 
-    // Load sources and restore node-specific data when node changes
+    // Load connections and restore node-specific data when node changes
     useEffect(() => {
-        loadSources();
+        loadConnections();
     }, [node?.id]);  // Re-run when a different node is selected
 
     useEffect(() => {
-        if (selectedSource) {
-            loadTables(selectedSource.id);
+        if (selectedConnection) {
+            loadTables(selectedConnection.id);
         }
-    }, [selectedSource]);
+    }, [selectedConnection]);
 
-    // Restore node data when switching between nodes (without reloading sources)
+    // Restore node data when switching between nodes (without reloading connections)
     useEffect(() => {
-        if (sources.length > 0 && node?.data?.sourceId) {
-            const prevSource = sources.find(s => s.id === node.data.sourceId);
-            if (prevSource) {
-                setSelectedSource(prevSource);
+        if (connections.length > 0 && node?.data?.sourceId) {
+            const prevConn = connections.find(c => c.id === node.data.sourceId);
+            if (prevConn) {
+                setSelectedConnection(prevConn);
                 setSelectedTable(node.data.tableName || '');
             } else {
                 // Node has no saved source or source was deleted
-                setSelectedSource(null);
+                setSelectedConnection(null);
                 setSelectedTable('');
             }
-        } else if (sources.length > 0 && !node?.data?.sourceId) {
+        } else if (connections.length > 0 && !node?.data?.sourceId) {
             // Node has no saved data - reset selections
-            setSelectedSource(null);
+            setSelectedConnection(null);
             setSelectedTable('');
             setTables([]);
         }
-    }, [node?.id, sources]);  // When node changes OR sources finish loading
+    }, [node?.id, connections]);  // When node changes OR connections finish loading
 
-    const loadSources = async () => {
+    const loadConnections = async () => {
         try {
-            setIsSourcesLoading(true);
-            const data = await rdbSourceApi.fetchSources();
-            setSources(data);
+            setIsConnectionsLoading(true);
+            const data = await connectionApi.fetchConnections();
+            setConnections(data);
         } catch (err) {
-            console.error('Failed to load sources:', err);
+            console.error('Failed to load connections:', err);
         } finally {
-            setIsSourcesLoading(false);
+            setIsConnectionsLoading(false);
         }
     };
 
-    const loadTables = async (sourceId) => {
+    const loadTables = async (connectionId) => {
         try {
             setLoading(true);
-            const data = await rdbSourceApi.fetchSourceTables(sourceId);
+            const data = await connectionApi.fetchSourceTables(connectionId);
             setTables(data.tables || []);
         } catch (err) {
             console.error('Failed to load tables:', err);
+            // S3 or other types might fail here if not RDB, handle gracefully in future
+            setTables([]);
         } finally {
             setLoading(false);
         }
     };
 
     const handleSave = async () => {
-        if (selectedSource && selectedTable) {
+        if (selectedConnection && selectedTable) {
             try {
                 // Fetch column schema from API
-                const columns = await rdbSourceApi.fetchTableColumns(selectedSource.id, selectedTable);
+                const columns = await connectionApi.fetchTableColumns(selectedConnection.id, selectedTable);
                 onUpdate({
-                    sourceId: selectedSource.id,
-                    sourceName: selectedSource.name,
+                    sourceId: selectedConnection.id,
+                    sourceName: selectedConnection.name,
                     tableName: selectedTable,
                     schema: columns.map(col => ({ key: col.name, type: col.type }))
                 });
+                openToast({ message: 'Dataset info saved successfully', type: 'success' });
             } catch (err) {
                 console.error('Failed to fetch schema:', err);
+                openToast({ message: 'Failed to fetch schema, but saved basic info', type: 'warning' });
                 // Still update even if schema fetch fails
                 onUpdate({
-                    sourceId: selectedSource.id,
-                    sourceName: selectedSource.name,
+                    sourceId: selectedConnection.id,
+                    sourceName: selectedConnection.name,
                     tableName: selectedTable,
                     schema: []
                 });
@@ -93,13 +99,12 @@ export default function RDBSourcePropertiesPanel({ node, onClose, onUpdate }) {
         }
     };
 
-    const handleCreateSuccess = async (newSource) => {
+    const handleCreateSuccess = async (newConnection) => {
         setShowCreateModal(false);
-        await loadSources(); // Reload sources
-        // Automatically select the new source
-        const source = newSource;
-        if (source) {
-            setSelectedSource(source);
+        await loadConnections(); // Reload connections
+        // Automatically select the new connection
+        if (newConnection) {
+            setSelectedConnection(newConnection);
             // loadTables will be triggered by useEffect
         }
     };
@@ -109,7 +114,7 @@ export default function RDBSourcePropertiesPanel({ node, onClose, onUpdate }) {
             {/* Header */}
             <div className="px-4 py-3 border-b border-gray-200 flex items-center justify-between">
                 <h2 className="text-lg font-semibold text-gray-900">
-                    Data source properties - {node?.data?.label || 'PostgreSQL'}
+                    Source Properties
                 </h2>
                 <button
                     onClick={onClose}
@@ -124,12 +129,12 @@ export default function RDBSourcePropertiesPanel({ node, onClose, onUpdate }) {
                 {/* Name */}
                 <div>
                     <label className="block text-sm font-medium text-gray-700 mb-1">
-                        Name
+                        Node Label
                     </label>
                     <input
                         type="text"
                         className="w-full px-3 py-2 border border-gray-300 rounded-md bg-gray-50"
-                        value={node?.data?.label || 'PostgreSQL'}
+                        value={node?.data?.label || 'Source'}
                         disabled
                     />
                 </div>
@@ -137,23 +142,23 @@ export default function RDBSourcePropertiesPanel({ node, onClose, onUpdate }) {
                 {/* Connection */}
                 <div>
                     <label className="block text-sm font-medium text-gray-700 mb-1">
-                        Connection name
+                        Connection
                     </label>
                     <p className="text-xs text-gray-500 mb-2">
-                        Choose the RDB connection for your data source.
+                        Select a data connection.
                     </p>
                     <ConnectionCombobox
-                        connections={sources}
-                        selectedId={selectedSource?.id}
-                        isLoading={isSourcesLoading}
+                        connections={connections}
+                        selectedId={selectedConnection?.id}
+                        isLoading={isConnectionsLoading}
                         placeholder="Choose a connection"
-                        onSelect={(source) => {
-                            setSelectedSource(source);
+                        onSelect={(conn) => {
+                            setSelectedConnection(conn);
                             setSelectedTable('');
                             setTables([]);
                             onUpdate({
-                                sourceId: source?.id || null,
-                                sourceName: source?.name || null,
+                                sourceId: conn?.id || null,
+                                sourceName: conn?.name || null,
                                 tableName: '',
                                 schema: []
                             });
@@ -161,10 +166,10 @@ export default function RDBSourcePropertiesPanel({ node, onClose, onUpdate }) {
                         onCreate={() => setShowCreateModal(true)}
                         onDelete={async (connectionId) => {
                             try {
-                                await rdbSourceApi.deleteSource(connectionId);
-                                setSources((prev) => prev.filter((s) => s.id !== connectionId));
-                                if (selectedSource?.id === connectionId) {
-                                    setSelectedSource(null);
+                                await connectionApi.deleteConnection(connectionId);
+                                setConnections((prev) => prev.filter((c) => c.id !== connectionId));
+                                if (selectedConnection?.id === connectionId) {
+                                    setSelectedConnection(null);
                                     setSelectedTable('');
                                     setTables([]);
                                 }
@@ -176,13 +181,13 @@ export default function RDBSourcePropertiesPanel({ node, onClose, onUpdate }) {
                     />
                 </div>
 
-                {/* Table */}
+                {/* Table / Dataset */}
                 <div>
                     <label className="block text-sm font-medium text-gray-700 mb-1">
-                        Table name <span className="text-red-500">*</span>
+                        Dataset / Table <span className="text-red-500">*</span>
                     </label>
                     <p className="text-xs text-gray-500 mb-2">
-                        Look up the names of the table from your data source and enter it here.
+                        Select the table or dataset to process.
                     </p>
                     <Combobox
                         options={tables}
@@ -190,10 +195,10 @@ export default function RDBSourcePropertiesPanel({ node, onClose, onUpdate }) {
                         onChange={(table) => {
                             setSelectedTable(table);
                             // Auto-save table selection
-                            if (selectedSource && table) {
+                            if (selectedConnection && table) {
                                 onUpdate({
-                                    sourceId: selectedSource.id,
-                                    sourceName: selectedSource.name,
+                                    sourceId: selectedConnection.id,
+                                    sourceName: selectedConnection.name,
                                     tableName: table,
                                     schema: node?.data?.schema || []
                                 });
@@ -203,7 +208,7 @@ export default function RDBSourcePropertiesPanel({ node, onClose, onUpdate }) {
                         getLabel={(table) => table}
                         placeholder="Select a table"
                         isLoading={loading}
-                        disabled={!selectedSource}
+                        disabled={!selectedConnection}
                         emptyMessage="No tables available"
                     />
                 </div>
@@ -219,10 +224,10 @@ export default function RDBSourcePropertiesPanel({ node, onClose, onUpdate }) {
                 </button>
                 <button
                     onClick={handleSave}
-                    disabled={!selectedSource || !selectedTable}
+                    disabled={!selectedConnection || !selectedTable}
                     className="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed"
                 >
-                    Preview Schema
+                    Save & Preview
                 </button>
             </div>
 
@@ -230,9 +235,9 @@ export default function RDBSourcePropertiesPanel({ node, onClose, onUpdate }) {
             {
                 showCreateModal && (
                     <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-[1100] p-6">
-                        <div className="bg-white rounded-lg shadow-xl w-full max-w-4xl max-h-[90vh] overflow-y-auto">
+                        <div className="bg-white rounded-lg shadow-xl w-full max-w-2xl max-h-[90vh] overflow-y-auto">
                             <div className="px-6 py-4 border-b border-gray-200 flex items-center justify-between sticky top-0 bg-white z-10">
-                                <h3 className="text-lg font-bold text-gray-900">Create connection</h3>
+                                <h3 className="text-lg font-bold text-gray-900">Create New Connection</h3>
                                 <button
                                     onClick={() => setShowCreateModal(false)}
                                     className="p-1 hover:bg-gray-100 rounded transition-colors"
@@ -242,7 +247,7 @@ export default function RDBSourcePropertiesPanel({ node, onClose, onUpdate }) {
                             </div>
 
                             <div className="p-6">
-                                <RDBSourceForm
+                                <ConnectionForm
                                     onSuccess={handleCreateSuccess}
                                     onCancel={() => setShowCreateModal(false)}
                                 />
