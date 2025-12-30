@@ -132,7 +132,10 @@ export default function DomainTable({
                   <td className="px-6 py-4 text-gray-400 text-right">
                     <div className="flex items-center justify-end gap-3">
                       <button
-                        onClick={(e) => onDelete(e, table.id)}
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          onDelete(table._id);
+                        }}
                         className="p-1 hover:bg-red-50 text-gray-400 hover:text-red-500 rounded-md transition-colors"
                         title="Delete Dataset"
                       >
