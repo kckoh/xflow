@@ -8,6 +8,8 @@ import {
   useEdgesState,
   addEdge,
   BackgroundVariant,
+  useReactFlow,
+  ReactFlowProvider,
 } from "@xyflow/react";
 import "@xyflow/react/dist/style.css";
 import {
@@ -184,13 +186,13 @@ export default function ETLJobPage() {
           return nds.map((n) =>
             n.id === params.target
               ? {
-                  ...n,
-                  data: {
-                    ...n.data,
-                    inputSchemas: inputSchemas, // Store array of schemas for Union config
-                    schema: unionSchema,
-                  },
-                }
+                ...n,
+                data: {
+                  ...n.data,
+                  inputSchemas: inputSchemas, // Store array of schemas for Union config
+                  schema: unionSchema,
+                },
+              }
               : n,
           );
         }
@@ -199,20 +201,20 @@ export default function ETLJobPage() {
         return nds.map((n) =>
           n.id === params.target
             ? {
-                ...n,
-                data: {
-                  ...n.data,
-                  inputSchema: sourceNode.data.schema,
-                  // If transform has config, apply it; otherwise use input as output
-                  schema: n.data.transformConfig
-                    ? applyTransformToSchema(
-                        sourceNode.data.schema,
-                        n.data.transformType,
-                        n.data.transformConfig,
-                      )
-                    : sourceNode.data.schema,
-                },
-              }
+              ...n,
+              data: {
+                ...n.data,
+                inputSchema: sourceNode.data.schema,
+                // If transform has config, apply it; otherwise use input as output
+                schema: n.data.transformConfig
+                  ? applyTransformToSchema(
+                    sourceNode.data.schema,
+                    n.data.transformType,
+                    n.data.transformConfig,
+                  )
+                  : sourceNode.data.schema,
+              },
+            }
             : n,
         );
       });
@@ -252,10 +254,10 @@ export default function ETLJobPage() {
                   inputSchema: sourceNode.data.schema,
                   schema: prev.data.transformConfig
                     ? applyTransformToSchema(
-                        sourceNode.data.schema,
-                        prev.data.transformType,
-                        prev.data.transformConfig,
-                      )
+                      sourceNode.data.schema,
+                      prev.data.transformType,
+                      prev.data.transformConfig,
+                    )
                     : sourceNode.data.schema,
                 },
               }));
@@ -306,14 +308,14 @@ export default function ETLJobPage() {
     // Build destination config
     const destination = targetNode
       ? {
-          nodeId: targetNode.id,
-          type: "s3",
-          path: targetNode.data?.s3Location || "",
-          format: "parquet",
-          options: {
-            compression: targetNode.data?.compressionType || "snappy",
-          },
-        }
+        nodeId: targetNode.id,
+        type: "s3",
+        path: targetNode.data?.s3Location || "",
+        format: "parquet",
+        options: {
+          compression: targetNode.data?.compressionType || "snappy",
+        },
+      }
       : null;
 
     return { sources, transforms, destination };
@@ -449,6 +451,24 @@ export default function ETLJobPage() {
       target: "output",
     };
 
+    // 스마트 위치 계산: 기존 노드들 중 가장 아래에 있는 노드 찾기
+    let position;
+    if (nodes.length > 0) {
+      // 가장 아래에 있는 노드 찾기
+      const bottomNode = nodes.reduce((bottom, node) => {
+        return node.position.y > bottom.position.y ? node : bottom;
+      }, nodes[0]);
+
+      // 그 노드 아래에 배치 (150px 간격)
+      position = {
+        x: bottomNode.position.x,
+        y: bottomNode.position.y + 100,
+      };
+    } else {
+      // 첫 번째 노드는 화면 상단 중앙에 배치
+      position = { x: 250, y: 100 };
+    }
+
     const newNode = {
       id: `node_${Date.now()}`,
       type: typeMap[category],
@@ -457,10 +477,7 @@ export default function ETLJobPage() {
         // Transform 타입 저장 (확장성 고려)
         transformType: category === "transform" ? nodeOption.id : undefined,
       },
-      position: {
-        x: Math.random() * 400 + 100,
-        y: Math.random() * 400 + 100,
-      },
+      position,
     };
     setNodes((nds) => [...nds, newNode]);
     setShowMenu(false);
@@ -523,13 +540,12 @@ export default function ETLJobPage() {
               key={tab}
               onClick={() => !isDisabled && setMainTab(tab)}
               disabled={isDisabled}
-              className={`py-3 text-sm font-medium border-b-2 transition-colors ${
-                mainTab === tab
-                  ? "text-blue-600 border-blue-600"
-                  : isDisabled
-                    ? "text-gray-400 border-transparent cursor-not-allowed"
-                    : "text-gray-600 border-transparent hover:text-gray-900 hover:border-gray-300"
-              }`}
+              className={`py-3 text-sm font-medium border-b-2 transition-colors ${mainTab === tab
+                ? "text-blue-600 border-blue-600"
+                : isDisabled
+                  ? "text-gray-400 border-transparent cursor-not-allowed"
+                  : "text-gray-600 border-transparent hover:text-gray-900 hover:border-gray-300"
+                }`}
               title={isDisabled ? "Save the job first to access this tab" : ""}
             >
               {tab}
@@ -562,31 +578,28 @@ export default function ETLJobPage() {
                     <div className="flex border-b border-gray-200">
                       <button
                         onClick={() => setActiveTab("source")}
-                        className={`flex-1 px-4 py-3 text-sm font-medium transition-colors ${
-                          activeTab === "source"
-                            ? "text-blue-600 border-b-2 border-blue-600 bg-blue-50"
-                            : "text-gray-600 hover:text-gray-900 hover:bg-gray-50"
-                        }`}
+                        className={`flex-1 px-4 py-3 text-sm font-medium transition-colors ${activeTab === "source"
+                          ? "text-blue-600 border-b-2 border-blue-600 bg-blue-50"
+                          : "text-gray-600 hover:text-gray-900 hover:bg-gray-50"
+                          }`}
                       >
                         Source
                       </button>
                       <button
                         onClick={() => setActiveTab("transform")}
-                        className={`flex-1 px-4 py-3 text-sm font-medium transition-colors ${
-                          activeTab === "transform"
-                            ? "text-purple-600 border-b-2 border-purple-600 bg-purple-50"
-                            : "text-gray-600 hover:text-gray-900 hover:bg-gray-50"
-                        }`}
+                        className={`flex-1 px-4 py-3 text-sm font-medium transition-colors ${activeTab === "transform"
+                          ? "text-purple-600 border-b-2 border-purple-600 bg-purple-50"
+                          : "text-gray-600 hover:text-gray-900 hover:bg-gray-50"
+                          }`}
                       >
                         Transform
                       </button>
                       <button
                         onClick={() => setActiveTab("target")}
-                        className={`flex-1 px-4 py-3 text-sm font-medium transition-colors ${
-                          activeTab === "target"
-                            ? "text-green-600 border-b-2 border-green-600 bg-green-50"
-                            : "text-gray-600 hover:text-gray-900 hover:bg-gray-50"
-                        }`}
+                        className={`flex-1 px-4 py-3 text-sm font-medium transition-colors ${activeTab === "target"
+                          ? "text-green-600 border-b-2 border-green-600 bg-green-50"
+                          : "text-gray-600 hover:text-gray-900 hover:bg-gray-50"
+                          }`}
                       >
                         Target
                       </button>
