@@ -9,7 +9,9 @@ import {
     Database,
     Table as TableIcon,
     ChevronRight,
-    ChevronLeft
+    ChevronLeft,
+    BookOpen,
+    ShieldCheck
 } from "lucide-react";
 import DatasetHeader from "../../features/dataset/components/DatasetHeader";
 import DatasetSchema from "../../features/dataset/components/DatasetSchema";
@@ -100,13 +102,6 @@ export default function DatasetDetailPage() {
     // Fallback if sidebarDataset is null (shouldn't happen after load)
     const activeSidebarData = sidebarDataset || dataset;
 
-    const columnCount = dataset.columns ? dataset.columns.length : 0;
-    const tabs = [
-        { id: "columns", label: "Columns", count: columnCount },
-        { id: "domain", label: "Domain" },
-        { id: "documentation", label: "Documentation" },
-        { id: "quality", label: "Quality" },
-    ];
 
     return (
         <div className="flex flex-col h-[calc(100vh-4rem)] bg-white overflow-hidden relative">
@@ -114,52 +109,19 @@ export default function DatasetDetailPage() {
             {/* Top Navigation Wrapper (Header + Tabs) - Highest Z-Index */}
             <div className="relative z-[110] bg-white shadow-sm">
                 <DatasetHeader dataset={dataset} />
-
-                {/* Tabs Bar */}
-                <div className="px-6 border-b border-gray-100 flex items-center justify-between">
-                    <div className="flex items-center gap-6 overflow-x-auto scrollbar-hide">
-                        {tabs.map(tab => (
-                            <button
-                                key={tab.id}
-                                onClick={() => setActiveTab(tab.id)}
-                                className={`
-                                    py-4 text-sm font-medium border-b-2 transition-colors whitespace-nowrap flex items-center gap-2
-                                    ${activeTab === tab.id
-                                        ? "border-purple-600 text-purple-700"
-                                        : "border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-200"}
-                                `}
-                            >
-                                {tab.label}
-                                {tab.count !== undefined && (
-                                    <span className={`text-xs px-1.5 py-0.5 rounded-full ${activeTab === tab.id ? "bg-purple-100" : "bg-gray-100"}`}>
-                                        {tab.count}
-                                    </span>
-                                )}
-                            </button>
-                        ))}
-                    </div>
-                </div>
             </div>
 
             {/* Main Split Layout */}
             <div className="flex flex-1 overflow-hidden relative z-0">
 
                 {/* Main Content Area: mr-12 to ensure scrollbar separation */}
-                <div className="flex-1 overflow-y-auto p-6 bg-gray-50 mr-12 custom-scrollbar relative z-0">
-                    {activeTab === "columns" && <DatasetSchema columns={dataset.columns || []} />}
-                    {activeTab === "domain" && (
-                        <DatasetDomain
-                            datasetId={dataset.id}
-                            selectedId={activeSidebarData.id}
-                            onStreamAnalysis={handleStreamAnalysis}
-                            onNodeSelect={handleNodeSelect}
-                        />
-                    )}
-                    {activeTab !== "columns" && activeTab !== "domain" && (
-                        <div className="flex items-center justify-center h-64 text-gray-400 bg-white rounded-lg border border-gray-200 border-dashed">
-                            Content for {activeTab} is not implemented yet.
-                        </div>
-                    )}
+                <div className="flex-1 overflow-y-auto p-6 bg-gray-50 custom-scrollbar relative z-0">
+                    <DatasetDomain
+                        datasetId={dataset.id}
+                        selectedId={activeSidebarData.id}
+                        onStreamAnalysis={handleStreamAnalysis}
+                        onNodeSelect={handleNodeSelect}
+                    />
                 </div>
 
                 {/* Floating Toggle Button: Ultra High z-index */}
@@ -168,8 +130,9 @@ export default function DatasetDetailPage() {
                     className={`
                         absolute top-6 z-[100] flex items-center justify-center w-5 h-12 bg-white border-y border-l border-gray-200 shadow-sm rounded-l-md text-gray-400 hover:text-purple-600 hover:bg-gray-50 transition-all duration-300 ease-in-out
                     `}
+                    // right side bar width
                     style={{
-                        right: isSidebarOpen ? '376px' : '56px',
+                        right: isSidebarOpen ? '410px' : '56px',
                         borderRight: 'none'
                     }}
                     title={isSidebarOpen ? "Collapse Details" : "Expand Details"}
@@ -182,84 +145,53 @@ export default function DatasetDetailPage() {
                     className="flex h-full z-[90] shadow-[-4px_0_15px_-3px_rgba(0,0,0,0.05)] bg-white border-l border-gray-200"
                 >
                     {/* 1. Left Vertical Nav Strip */}
-                    <div className="w-14 bg-gray-50 border-r border-gray-100 flex flex-col items-center py-4 space-y-4 flex-shrink-0">
-                        <button
+                    <div className="w-14 bg-gray-50 border-r border-gray-100 flex flex-col items-center py-4 space-y-4 flex-shrink-0 z-20">
+                        <SidebarNavButton
+                            active={sidebarTab === "summary" && isSidebarOpen}
                             onClick={() => handleSidebarTabClick("summary")}
-                            className={`p-2.5 rounded-lg transition-all duration-200 group relative ${sidebarTab === "summary" && isSidebarOpen ? "bg-white text-purple-600 shadow-sm ring-1 ring-gray-200" : "text-gray-400 hover:text-gray-600 hover:bg-gray-100"}`}
+                            icon={<FileText className="w-5 h-5" />}
                             title="Summary"
-                        >
-                            <FileText className="w-5 h-5" />
-                            {/* Active Indicator Dot */}
-                            {sidebarTab === "summary" && isSidebarOpen && (
-                                <span className="absolute -left-0.5 top-1/2 -translate-y-1/2 w-1 h-3 bg-purple-500 rounded-r-full"></span>
-                            )}
-                        </button>
-                        <button
+                            color="purple"
+                        />
+                        <SidebarNavButton
+                            active={sidebarTab === "columns" && isSidebarOpen}
+                            onClick={() => handleSidebarTabClick("columns")}
+                            icon={<LayoutGrid className="w-5 h-5" />}
+                            title="Columns"
+                            color="blue"
+                        />
+                        <SidebarNavButton
+                            active={sidebarTab === "documentation" && isSidebarOpen}
+                            onClick={() => handleSidebarTabClick("documentation")}
+                            icon={<BookOpen className="w-5 h-5" />}
+                            title="Documentation"
+                            color="indigo"
+                        />
+                        <SidebarNavButton
+                            active={sidebarTab === "quality" && isSidebarOpen}
+                            onClick={() => handleSidebarTabClick("quality")}
+                            icon={<ShieldCheck className="w-5 h-5" />}
+                            title="Quality"
+                            color="green"
+                        />
+                        <SidebarNavButton
+                            active={sidebarTab === "stream" && isSidebarOpen}
                             onClick={() => handleSidebarTabClick("stream")}
-                            className={`p-2.5 rounded-lg transition-all duration-200 group relative ${sidebarTab === "stream" && isSidebarOpen ? "bg-white text-purple-600 shadow-sm ring-1 ring-gray-200" : "text-gray-400 hover:text-gray-600 hover:bg-gray-100"}`}
+                            icon={<GitFork className="w-5 h-5" />}
                             title="Stream Impact"
-                        >
-                            <GitFork className="w-5 h-5" />
-                            {sidebarTab === "stream" && isSidebarOpen && (
-                                <span className="absolute -left-0.5 top-1/2 -translate-y-1/2 w-1 h-3 bg-purple-500 rounded-r-full"></span>
-                            )}
-                        </button>
+                            color="orange"
+                        />
                     </div>
 
-                    {/* 2. Content Panel (Collapsible) */}
+                    {/* 2. Content Panel (Collapsible) right side bar*/}
                     <div
                         className={`
-                            overflow-hidden transition-all duration-300 ease-in-out bg-white flex flex-col
-                            ${isSidebarOpen ? "w-80 opacity-100" : "w-0 opacity-0"}
+                            overflow-hidden transition-all duration-300 ease-in-out bg-white flex flex-col relative z-10
+                            ${isSidebarOpen ? "w-[360px]" : "w-0"}
                         `}
+                        style={{ opacity: isSidebarOpen ? 1 : 0 }}
                     >
-                        <div className="p-5 overflow-y-auto flex-1 w-80">
-                            {/* Summary Tab Content */}
-                            {sidebarTab === "summary" && (
-                                <div className="animate-fade-in space-y-6">
-                                    <h3 className="font-semibold text-gray-900 border-b border-gray-100 pb-3 mb-4 sticky top-0 bg-white z-30 pt-1 shadow-sm px-1 -mx-1">Summary</h3>
-
-                                    {/* Identity Card */}
-                                    <div className="flex gap-3 mb-6 p-3 bg-blue-50/50 rounded-xl border border-blue-100">
-                                        <div className="w-10 h-10 rounded-lg bg-white flex items-center justify-center text-blue-600 shrink-0 shadow-sm">
-                                            <Database className="w-5 h-5" />
-                                        </div>
-                                        <div className="overflow-hidden">
-                                            <div className="font-bold text-gray-900 truncate" title={activeSidebarData.name}>{activeSidebarData.name}</div>
-                                            <div className="text-xs text-gray-500 flex items-center gap-1 mt-0.5">
-                                                <TableIcon className="w-3 h-3" />
-                                                {activeSidebarData.type || "Dataset"}
-                                            </div>
-                                        </div>
-                                    </div>
-
-                                    <SidebarItem title="Documentation" icon={<FileText className="w-4 h-4" />}>
-                                        {activeSidebarData.description || "No description provided."}
-                                    </SidebarItem>
-
-                                    <SidebarItem title="Owners" icon={<Users className="w-4 h-4" />}>
-                                        {activeSidebarData.owner ? (
-                                            <div className="flex items-center gap-2 mt-2">
-                                                <div className="w-6 h-6 rounded-full bg-indigo-100 text-indigo-600 flex items-center justify-center text-xs font-bold">
-                                                    {activeSidebarData.owner[0].toUpperCase()}
-                                                </div>
-                                                <span className="text-sm text-gray-700">{activeSidebarData.owner}</span>
-                                            </div>
-                                        ) : "No owners."}
-                                    </SidebarItem>
-
-                                    <SidebarItem title="Tags" icon={<Tag className="w-4 h-4" />}>
-                                        <div className="flex flex-wrap gap-2 mt-2">
-                                            {activeSidebarData.tags && activeSidebarData.tags.map(tag => (
-                                                <span key={tag} className="px-2 py-1 bg-gray-100 text-gray-600 rounded text-xs border border-gray-200">
-                                                    {tag}
-                                                </span>
-                                            ))}
-                                            {(!activeSidebarData.tags || activeSidebarData.tags.length === 0) && <span className="text-gray-400 text-xs">No tags</span>}
-                                        </div>
-                                    </SidebarItem>
-                                </div>
-                            )}
+                        <div className={`h-full overflow-y-auto ${sidebarTab === "columns" ? "p-0" : "p-5"}`}>
 
                             {/* Stream Tab Content */}
                             {sidebarTab === "stream" && (
@@ -269,61 +201,55 @@ export default function DatasetDetailPage() {
                                         Stream Impact
                                     </h3>
 
-                                    {activeTab !== "domain" ? (
-                                        <div className="text-center text-gray-400 text-sm py-10">
-                                            Switch to <strong>Domain Tab</strong><br />to view stream analysis.
+                                    <div className="space-y-6">
+                                        <div className="bg-purple-50 p-3 rounded-lg border border-purple-100 mb-4">
+                                            <p className="text-[11px] text-purple-600">
+                                                Dependency analysis based on current graph.
+                                            </p>
                                         </div>
-                                    ) : (
-                                        <div className="space-y-6">
-                                            <div className="bg-purple-50 p-3 rounded-lg border border-purple-100 mb-4">
-                                                <p className="text-[11px] text-purple-600">
-                                                    Dependency analysis based on current graph.
-                                                </p>
-                                            </div>
 
-                                            {/* Upstream */}
-                                            <div>
-                                                <div className="flex items-center justify-between mb-2">
-                                                    <div className="text-xs font-semibold text-gray-500 uppercase tracking-wider">Upstream</div>
-                                                    <span className="bg-gray-100 text-gray-600 text-[10px] px-1.5 py-0.5 rounded-full font-bold">{streamData.upstream.length}</span>
-                                                </div>
-                                                {streamData.upstream.length > 0 ? (
-                                                    <div className="space-y-1">
-                                                        {streamData.upstream.map((node, i) => (
-                                                            <div key={i} className="flex items-center gap-2 p-2 bg-white border border-gray-100 rounded-md shadow-sm hover:border-blue-200 transition-colors">
-                                                                <div className="w-6 h-6 rounded bg-blue-50 text-blue-500 flex items-center justify-center shrink-0">
-                                                                    <TableIcon className="w-3 h-3" />
-                                                                </div>
-                                                                <span className="text-xs text-gray-700 truncate font-medium flex-1" title={node.label}>{node.label}</span>
+                                        {/* Upstream */}
+                                        <div>
+                                            <div className="flex items-center justify-between mb-2">
+                                                <div className="text-xs font-semibold text-gray-500 uppercase tracking-wider">Upstream</div>
+                                                <span className="bg-gray-100 text-gray-600 text-[10px] px-1.5 py-0.5 rounded-full font-bold">{streamData.upstream.length}</span>
+                                            </div>
+                                            {streamData.upstream.length > 0 ? (
+                                                <div className="space-y-1">
+                                                    {streamData.upstream.map((node, i) => (
+                                                        <div key={i} className="flex items-center gap-2 p-2 bg-white border border-gray-100 rounded-md shadow-sm hover:border-blue-200 transition-colors">
+                                                            <div className="w-6 h-6 rounded bg-blue-50 text-blue-500 flex items-center justify-center shrink-0">
+                                                                <TableIcon className="w-3 h-3" />
                                                             </div>
-                                                        ))}
-                                                    </div>
-                                                ) : <div className="text-sm text-gray-400 italic bg-gray-50 p-3 rounded text-center">No upstream dependencies</div>}
-                                            </div>
-
-                                            <div className="h-px bg-gray-100 my-2"></div>
-
-                                            {/* Downstream */}
-                                            <div>
-                                                <div className="flex items-center justify-between mb-2">
-                                                    <div className="text-xs font-semibold text-gray-500 uppercase tracking-wider">Downstream</div>
-                                                    <span className="bg-gray-100 text-gray-600 text-[10px] px-1.5 py-0.5 rounded-full font-bold">{streamData.downstream.length}</span>
+                                                            <span className="text-xs text-gray-700 truncate font-medium flex-1" title={node.label}>{node.label}</span>
+                                                        </div>
+                                                    ))}
                                                 </div>
-                                                {streamData.downstream.length > 0 ? (
-                                                    <div className="space-y-1">
-                                                        {streamData.downstream.map((node, i) => (
-                                                            <div key={i} className="flex items-center gap-2 p-2 bg-white border border-gray-100 rounded-md shadow-sm hover:border-purple-200 transition-colors">
-                                                                <div className="w-6 h-6 rounded bg-purple-50 text-purple-500 flex items-center justify-center shrink-0">
-                                                                    <TableIcon className="w-3 h-3" />
-                                                                </div>
-                                                                <span className="text-xs text-gray-700 truncate font-medium flex-1" title={node.label}>{node.label}</span>
-                                                            </div>
-                                                        ))}
-                                                    </div>
-                                                ) : <div className="text-sm text-gray-400 italic bg-gray-50 p-3 rounded text-center">No downstream consumers</div>}
-                                            </div>
+                                            ) : <div className="text-sm text-gray-400 italic bg-gray-50 p-3 rounded text-center">No upstream dependencies</div>}
                                         </div>
-                                    )}
+
+                                        <div className="h-px bg-gray-100 my-2"></div>
+
+                                        {/* Downstream */}
+                                        <div>
+                                            <div className="flex items-center justify-between mb-2">
+                                                <div className="text-xs font-semibold text-gray-500 uppercase tracking-wider">Downstream</div>
+                                                <span className="bg-gray-100 text-gray-600 text-[10px] px-1.5 py-0.5 rounded-full font-bold">{streamData.downstream.length}</span>
+                                            </div>
+                                            {streamData.downstream.length > 0 ? (
+                                                <div className="space-y-1">
+                                                    {streamData.downstream.map((node, i) => (
+                                                        <div key={i} className="flex items-center gap-2 p-2 bg-white border border-gray-100 rounded-md shadow-sm hover:border-purple-200 transition-colors">
+                                                            <div className="w-6 h-6 rounded bg-purple-50 text-purple-500 flex items-center justify-center shrink-0">
+                                                                <TableIcon className="w-3 h-3" />
+                                                            </div>
+                                                            <span className="text-xs text-gray-700 truncate font-medium flex-1" title={node.label}>{node.label}</span>
+                                                        </div>
+                                                    ))}
+                                                </div>
+                                            ) : <div className="text-sm text-gray-400 italic bg-gray-50 p-3 rounded text-center">No downstream consumers</div>}
+                                        </div>
+                                    </div>
                                 </div>
                             )}
                         </div>
@@ -331,6 +257,40 @@ export default function DatasetDetailPage() {
                 </aside>
             </div>
         </div>
+    );
+}
+
+function SidebarNavButton({ active, onClick, icon, title, color }) {
+    const colorClasses = {
+        purple: "text-purple-600 bg-white",
+        blue: "text-blue-600 bg-white",
+        indigo: "text-indigo-600 bg-white",
+        green: "text-green-600 bg-white",
+        orange: "text-orange-600 bg-white"
+    };
+
+    return (
+        <button
+            onClick={onClick}
+            className={`
+                p-2.5 rounded-lg transition-all duration-200 group relative
+                ${active
+                    ? `${colorClasses[color] || "text-purple-600 bg-white"} shadow-sm ring-1 ring-gray-200`
+                    : "text-gray-400 hover:text-gray-600 hover:bg-gray-100"}
+            `}
+            title={title}
+        >
+            {icon}
+            {active && (
+                <span className={`absolute -left-0.5 top-1/2 -translate-y-1/2 w-1 h-3 rounded-r-full
+                    ${color === "purple" ? "bg-purple-500" : ""}
+                    ${color === "blue" ? "bg-blue-500" : ""}
+                    ${color === "indigo" ? "bg-indigo-500" : ""}
+                    ${color === "green" ? "bg-green-500" : ""}
+                    ${color === "orange" ? "bg-orange-500" : ""}
+                `}></span>
+            )}
+        </button>
     );
 }
 
