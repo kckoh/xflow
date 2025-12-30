@@ -56,12 +56,43 @@ async def preview_table(path: str, limit: int = 100):
         raise HTTPException(status_code=400, detail=str(e))
 
 
+def get_s3_client():
+    import boto3
+    import os
+    return boto3.client(
+        "s3",
+        endpoint_url=os.getenv("AWS_ENDPOINT", "http://localstack-main:4566"),
+        aws_access_key_id=os.getenv("AWS_ACCESS_KEY_ID", "test"),
+        aws_secret_access_key=os.getenv("AWS_SECRET_ACCESS_KEY", "test"),
+        region_name=os.getenv("AWS_REGION", "ap-northeast-2"),
+    )
+
+
 @router.get("/buckets")
-async def list_s3_contents(bucket: str = "xflow-data-lake", prefix: str = ""):
-    """S3 버킷 내용 조회"""
+async def list_all_buckets():
+    """모든 S3 버킷 목록 조회"""
     try:
-        path = f"s3://{bucket}/{prefix}*" if prefix else f"s3://{bucket}/*"
-        data = execute_query(f"SELECT * FROM glob('{path}')")
-        return {"files": data}
+        s3 = get_s3_client()
+        response = s3.list_buckets()
+        buckets = [b["Name"] for b in response.get("Buckets", [])]
+        return {"buckets": buckets}
+    except Exception as e:
+        raise HTTPException(status_code=400, detail=str(e))
+
+
+@router.get("/buckets/{bucket}/files")
+async def list_bucket_files(bucket: str, prefix: str = ""):
+    """특정 버킷의 파일 목록 조회"""
+    try:
+        s3 = get_s3_client()
+        response = s3.list_objects_v2(Bucket=bucket, Prefix=prefix)
+        files = []
+        for obj in response.get("Contents", []):
+            files.append({
+                "file": f"s3://{bucket}/{obj['Key']}",
+                "size": obj["Size"],
+            })
+
+        return {"files": files}
     except Exception as e:
         raise HTTPException(status_code=400, detail=str(e))
