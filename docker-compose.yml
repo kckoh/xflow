@@ -344,7 +344,7 @@ services:
     ports:
       - "4566:4566" # LocalStack Gateway - only expose 4566, not 443
     environment:
-      - SERVICES=s3,glue,athena,iam,rds,ec2
+      - SERVICES=s3,iam
       - DEBUG=0
       - DOCKER_HOST=unix:///var/run/docker.sock
       - DISABLE_EVENTS=1
@@ -352,7 +352,6 @@ services:
       - LOCALSTACK_AUTH_TOKEN=${LOCALSTACK_AUTH_TOKEN}
       - PERSISTENCE=1
       - EAGER_SERVICE_LOADING=0
-      - GLUE_CRAWLER_ENABLE_TRINO_PROCESSING=0
     env_file:
       - .env
     volumes:

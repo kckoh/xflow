@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState } from "react";
 import {
   Table,
   Columns,
@@ -6,83 +6,25 @@ import {
   ChevronRight,
   RefreshCw,
 } from "lucide-react";
-import { apiGlue } from "../../../services/apiGlue";
 
-const DATABASE_NAME = "xflow_db"; // 고정된 데이터베이스
+const DATABASE_NAME = "xflow_db";
 
 export default function TableColumnSidebar({ selectedTable, onSelectTable }) {
   const [tables, setTables] = useState([]);
   const [columns, setColumns] = useState([]);
-  const [loadingTables, setLoadingTables] = useState(true);
+  const [loadingTables, setLoadingTables] = useState(false);
   const [loadingColumns, setLoadingColumns] = useState(false);
   const [syncing, setSyncing] = useState(false);
-  const [error, setError] = useState(null);
+  const [error, setError] = useState("Table sync is not available");
   const [expandedTable, setExpandedTable] = useState(null);
 
-  // 테이블 목록 가져오기
   const fetchTables = async () => {
-    setLoadingTables(true);
-    setError(null);
-    try {
-      const data = await apiGlue.getTables(DATABASE_NAME);
-      setTables(data.tables);
-    } catch (err) {
-      console.error("Error fetching tables:", err);
-      setError(err.message);
-    } finally {
-      setLoadingTables(false);
-    }
+    setError("Table sync is not available");
   };
 
-  // S3 데이터 동기화
   const handleSyncS3 = async () => {
-    setSyncing(true);
-    setError(null);
-    try {
-      const result = await apiGlue.syncS3();
-      console.log("Sync result:", result);
-
-      // 동기화 후 테이블 목록 새로고침
-      await fetchTables();
-    } catch (err) {
-      console.error("Error syncing S3:", err);
-      setError(err.message);
-    } finally {
-      setSyncing(false);
-    }
+    setError("S3 sync is not available");
   };
-
-  // 컴포넌트 마운트 시 테이블 목록 자동 실행
-  useEffect(() => {
-    fetchTables();
-  }, []);
-
-  // 테이블 선택 시 컬럼 정보 가져오기
-  useEffect(() => {
-    if (!selectedTable) {
-      setColumns([]);
-      return;
-    }
-
-    const fetchColumns = async () => {
-      setLoadingColumns(true);
-      setError(null);
-      try {
-        const data = await apiGlue.getTableSchema(
-          DATABASE_NAME,
-          selectedTable.name,
-        );
-        setColumns(data.columns);
-      } catch (err) {
-        console.error("Error fetching columns:", err);
-        setError(err.message);
-      } finally {
-        setLoadingColumns(false);
-      }
-    };
-
-    fetchColumns();
-  }, [selectedTable]);
 
   const handleTableClick = (table) => {
     if (expandedTable?.name === table.name) {
