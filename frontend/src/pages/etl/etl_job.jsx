@@ -75,6 +75,22 @@ export default function ETLJobPage() {
   // 오른쪽 패널 하단에 표시할 메타데이터 아이템 (table 또는 column)
   const [selectedMetadataItem, setSelectedMetadataItem] = useState(null);
 
+  // Icon mappings (defined early so loadJob can use it)
+  const iconMap = {
+    // Sources
+    "PostgreSQL": SiPostgresql,
+    "MongoDB": SiMongodb,
+    "S3": Archive,
+    // Transforms
+    "Select Fields": Columns,
+    "Filter": Filter,
+    "Union": Combine,
+    "Map": ArrowRightLeft,
+    "Join": GitMerge,
+    "Aggregate": BarChart3,
+    "Sort": ArrowUpDown,
+  };
+
   // Load runs when switching to Runs tab
   useEffect(() => {
     if (mainTab === "Runs" && jobId) {
@@ -108,7 +124,15 @@ export default function ETLJobPage() {
 
       // Restore nodes and edges if they exist
       if (data.nodes && data.nodes.length > 0) {
-        setNodes(data.nodes);
+        // Hydrate icons based on label
+        const hydratedNodes = data.nodes.map((node) => ({
+          ...node,
+          data: {
+            ...node.data,
+            icon: iconMap[node.data.label] || Archive, // Fallback to Archive
+          },
+        }));
+        setNodes(hydratedNodes);
       }
       if (data.edges && data.edges.length > 0) {
         setEdges(data.edges);
