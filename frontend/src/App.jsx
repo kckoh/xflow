@@ -12,6 +12,7 @@ import ETLPage from "./pages/etl/etl_main";
 import RDBSourceListPage from "./pages/sources/RDBSourceListPage";
 import RDBSourceCreatePage from "./pages/sources/RDBSourceCreatePage";
 import QueryPage from "./pages/query/QueryPage";
+import { ToastProvider } from "./components/common/Toast";
 
 // Placeholder components for new routes
 const LineagePage = () => (
@@ -27,156 +28,158 @@ const SettingsPage = () => (
 function App() {
   return (
     <BrowserRouter>
-      <Routes>
-        {/* Public Routes */}
-        <Route path="/login" element={<Login />} />
-        <Route path="/signup" element={<SignUp />} />
+      <ToastProvider>
+        <Routes>
+          {/* Public Routes */}
+          <Route path="/login" element={<Login />} />
+          <Route path="/signup" element={<SignUp />} />
 
-        {/* Protected Routes Application Shell */}
-        <Route element={<ProtectedRoute />}>
-          <Route
-            element={
-              <MainLayout>
-                <div />
-              </MainLayout>
-            }
-          >
-            {/* Wrapping specific routes in MainLayout is usually better,
+          {/* Protected Routes Application Shell */}
+          <Route element={<ProtectedRoute />}>
+            <Route
+              element={
+                <MainLayout>
+                  <div />
+                </MainLayout>
+              }
+            >
+              {/* Wrapping specific routes in MainLayout is usually better,
                   but here we want MainLayout to persist.
                   Below technique renders MainLayout as a wrapper for nested routes.
               */}
-          </Route>
+            </Route>
 
-          {/*
+            {/*
              Better approach:
              Create a Layout wrapper route or use MainLayout inside individual pages?
              Let's use a Layout Route approach for authenticated pages.
            */}
-        </Route>
+          </Route>
 
-        {/* Re-structuring for clarity: */}
-        <Route
-          path="/"
-          element={
-            <ProtectedRoute>
-              <MainLayout>
-                <ETLPage />
-              </MainLayout>
-            </ProtectedRoute>
-          }
-        />
+          {/* Re-structuring for clarity: */}
+          <Route
+            path="/"
+            element={
+              <ProtectedRoute>
+                <MainLayout>
+                  <ETLPage />
+                </MainLayout>
+              </ProtectedRoute>
+            }
+          />
 
-        <Route
-          path="/catalog"
-          element={
-            <ProtectedRoute>
-              <MainLayout>
-                <CatalogPage />
-              </MainLayout>
-            </ProtectedRoute>
-          }
-        />
+          <Route
+            path="/catalog"
+            element={
+              <ProtectedRoute>
+                <MainLayout>
+                  <CatalogPage />
+                </MainLayout>
+              </ProtectedRoute>
+            }
+          />
 
-        <Route
-          path="/catalog/:id"
-          element={
-            <ProtectedRoute>
-              <MainLayout>
-                <DatasetDetailPage />
-              </MainLayout>
-            </ProtectedRoute>
-          }
-        />
+          <Route
+            path="/catalog/:id"
+            element={
+              <ProtectedRoute>
+                <MainLayout>
+                  <DatasetDetailPage />
+                </MainLayout>
+              </ProtectedRoute>
+            }
+          />
 
 
-        <Route
-          path="/lineage"
-          element={
-            <ProtectedRoute>
-              <MainLayout>
-                <LineagePage />
-              </MainLayout>
-            </ProtectedRoute>
-          }
-        />
+          <Route
+            path="/lineage"
+            element={
+              <ProtectedRoute>
+                <MainLayout>
+                  <LineagePage />
+                </MainLayout>
+              </ProtectedRoute>
+            }
+          />
 
-        <Route
-          path="/glossary"
-          element={
-            <ProtectedRoute>
-              <MainLayout>
-                <GlossaryPage />
-              </MainLayout>
-            </ProtectedRoute>
-          }
-        />
+          <Route
+            path="/glossary"
+            element={
+              <ProtectedRoute>
+                <MainLayout>
+                  <GlossaryPage />
+                </MainLayout>
+              </ProtectedRoute>
+            }
+          />
 
-        <Route
-          path="/query"
-          element={
-            <ProtectedRoute>
-              <MainLayout>
-                <QueryPage />
-              </MainLayout>
-            </ProtectedRoute>
-          }
-        />
+          <Route
+            path="/query"
+            element={
+              <ProtectedRoute>
+                <MainLayout>
+                  <QueryPage />
+                </MainLayout>
+              </ProtectedRoute>
+            }
+          />
 
-        <Route
-          path="/settings"
-          element={
-            <ProtectedRoute>
-              <MainLayout>
-                <SettingsPage />
-              </MainLayout>
-            </ProtectedRoute>
-          }
-        />
+          <Route
+            path="/settings"
+            element={
+              <ProtectedRoute>
+                <MainLayout>
+                  <SettingsPage />
+                </MainLayout>
+              </ProtectedRoute>
+            }
+          />
 
-        <Route
-          path="/etl/visual"
-          element={
-            <ProtectedRoute>
-              <MainLayout fullWidth={true}>
-                <ETLJobPage />
-              </MainLayout>
-            </ProtectedRoute>
-          }
-        />
+          <Route
+            path="/etl/visual"
+            element={
+              <ProtectedRoute>
+                <MainLayout fullWidth={true}>
+                  <ETLJobPage />
+                </MainLayout>
+              </ProtectedRoute>
+            }
+          />
 
-        <Route
-          path="/etl/job/:jobId"
-          element={
-            <ProtectedRoute>
-              <MainLayout fullWidth={true}>
-                <ETLJobPage />
-              </MainLayout>
-            </ProtectedRoute>
-          }
-        />
+          <Route
+            path="/etl/job/:jobId"
+            element={
+              <ProtectedRoute>
+                <MainLayout fullWidth={true}>
+                  <ETLJobPage />
+                </MainLayout>
+              </ProtectedRoute>
+            }
+          />
 
-        <Route
-          path="/sources"
-          element={
-            <ProtectedRoute>
-              <MainLayout>
-                <RDBSourceListPage />
-              </MainLayout>
-            </ProtectedRoute>
-          }
-        />
+          <Route
+            path="/sources"
+            element={
+              <ProtectedRoute>
+                <MainLayout>
+                  <RDBSourceListPage />
+                </MainLayout>
+              </ProtectedRoute>
+            }
+          />
 
-        <Route
-          path="/sources/new"
-          element={
-            <ProtectedRoute>
-              <MainLayout>
-                <RDBSourceCreatePage />
-              </MainLayout>
-            </ProtectedRoute>
-          }
-        />
-      </Routes>
+          <Route
+            path="/sources/new"
+            element={
+              <ProtectedRoute>
+                <MainLayout>
+                  <RDBSourceCreatePage />
+                </MainLayout>
+              </ProtectedRoute>
+            }
+          />
+        </Routes>
+      </ToastProvider>
     </BrowserRouter>
   );
 }
