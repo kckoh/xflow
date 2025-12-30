@@ -85,6 +85,9 @@ class ETLJob(Document):
     schedule: Optional[str] = None  # Cron expression or None for manual trigger
     status: str = "draft"  # draft, active, paused
 
+    # Import ready flag - true when job execution is complete and ready to import
+    import_ready: bool = False
+
     # Visual Editor state (for UI restoration)
     nodes: Optional[List[dict]] = Field(default_factory=list)
     edges: Optional[List[dict]] = Field(default_factory=list)

@@ -88,10 +88,14 @@ async def create_etl_job(job: ETLJobCreate):
 
 
 @router.get("/", response_model=List[ETLJobResponse])
-async def list_etl_jobs():
-    """Get all ETL jobs with their active status"""
-    jobs = await ETLJob.find_all().to_list()
-    
+async def list_etl_jobs(import_ready: bool = None):
+    """Get all ETL jobs with their active status, optionally filtered by import_ready flag"""
+    # Build query filter
+    if import_ready is not None:
+        jobs = await ETLJob.find(ETLJob.import_ready == import_ready).to_list()
+    else:
+        jobs = await ETLJob.find_all().to_list()
+
     # Pre-fetch Datasets to map is_active status
     datasets = await Dataset.find_all().to_list()
     status_map = {d.job_id: d.is_active for d in datasets if d.job_id}
@@ -111,7 +115,8 @@ async def list_etl_jobs():
             edges=job.edges,
             created_at=job.created_at,
             updated_at=job.updated_at,
-            is_active=status_map.get(str(job.id), False)
+            is_active=status_map.get(str(job.id), False),
+            import_ready=getattr(job, 'import_ready', False)
         )
         for job in jobs
     ]
@@ -178,6 +183,8 @@ async def update_etl_job(job_id: str, job_update: ETLJobUpdate):
         job.schedule = job_update.schedule
     if job_update.status is not None:
         job.status = job_update.status
+    if job_update.import_ready is not None:
+        job.import_ready = job_update.import_ready
     if job_update.nodes is not None:
         job.nodes = job_update.nodes
     if job_update.edges is not None:
