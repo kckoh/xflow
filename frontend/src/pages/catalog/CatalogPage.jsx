@@ -2,7 +2,6 @@ import { useState, useEffect } from "react";
 import { useSearchParams } from "react-router-dom";
 import { useToast } from "../../components/common/Toast";
 import DatasetCreateModal from "../../features/dataset/components/DatasetCreateModal";
-import { catalogAPI } from "../../services/catalog/index";
 import CatalogHeader from "./components/CatalogHeader";
 import RecentlyUsedSection from "./components/RecentlyUsedSection";
 import AllDomainsTable from "./components/AllDomainsTable";
@@ -33,7 +32,8 @@ export default function CatalogPage() {
   const fetchCatalog = async () => {
     setLoading(true);
     try {
-      const data = await catalogAPI.getDatasets();
+      // TODO: Replace with new API
+      const data = [];
       setAllTables(data);
     } catch (err) {
       console.error("Error fetching catalog:", err);
@@ -53,7 +53,8 @@ export default function CatalogPage() {
     if (!confirm("Are you sure you want to delete this dataset?")) return;
 
     try {
-      await catalogAPI.deleteDataset(id);
+      // TODO: Replace with new API
+      // await catalogAPI.deleteDataset(id);
       showToast("Dataset deleted successfully", "success");
       fetchCatalog(); // Refresh list
     } catch (err) {

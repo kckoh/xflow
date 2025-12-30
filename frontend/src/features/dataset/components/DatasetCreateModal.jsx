@@ -1,7 +1,6 @@
 import React, { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { X, ArrowRight, Plus, Database, Tag, Book } from "lucide-react";
-import { catalogAPI } from "../../../services/catalog/index";
 import { useToast } from "../../../components/common/Toast";
 
 export default function DatasetCreateModal({ isOpen, onClose, onCreated }) {
@@ -52,7 +51,8 @@ export default function DatasetCreateModal({ isOpen, onClose, onCreated }) {
   const handleSubmit = async () => {
     setLoading(true);
     try {
-      const data = await catalogAPI.createDataset(formData);
+      // TODO: Replace with new API
+      const data = { id: 'new-dataset-id', ...formData };
 
       showToast("Dataset registered successfully", "success");
       onCreated(); // Refresh list

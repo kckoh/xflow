@@ -16,9 +16,8 @@ export default function DatasetDrawer({ isOpen, onClose, datasetId }) {
                 setLoading(true);
                 setError(null);
                 try {
-                    const response = await fetch(`http://localhost:8000/api/catalog/${datasetId}`);
-                    if (!response.ok) throw new Error("Failed to fetch dataset details");
-                    const data = await response.json();
+                    // TODO: Replace with new API
+                    const data = { id: datasetId, name: 'Dataset', type: 'hive', columns: [] };
                     setDataset(data);
                 } catch (err) {
                     console.error(err);
@@ -30,7 +29,7 @@ export default function DatasetDrawer({ isOpen, onClose, datasetId }) {
             fetchDetails();
         } else if (!isOpen) {
             // Reset state when closed? Optional.
-            // setDataset(null); 
+            // setDataset(null);
         }
     }, [isOpen, datasetId]);
 

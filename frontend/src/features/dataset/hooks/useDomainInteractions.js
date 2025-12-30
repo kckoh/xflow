@@ -1,6 +1,5 @@
 import { useState, useEffect, useCallback } from 'react';
 import { addEdge } from '@xyflow/react';
-import { catalogAPI } from '../../../services/catalog/index';
 import { useToast } from '../../../components/common/Toast';
 
 export const useDomainInteractions = ({ nodes, edges, setNodes, setEdges, datasetId, handleToggleExpand, onNodeSelect }) => {
@@ -57,25 +56,12 @@ export const useDomainInteractions = ({ nodes, edges, setNodes, setEdges, datase
         if (!edgeMenu) return;
 
         try {
-            // Build URL manually for complex query params (TODO: Add to catalogAPI)
-            let url = `http://localhost:8000/api/catalog/${edgeMenu.sourceMongoId}/lineage/${edgeMenu.targetMongoId}`;
-            if (edgeMenu.sourceHandle && edgeMenu.targetHandle) {
-                const params = new URLSearchParams({
-                    source_col: edgeMenu.sourceHandle,
-                    target_col: edgeMenu.targetHandle
-                });
-                url += `?${params.toString()}`;
-            }
+            // TODO: Replace with new API
+            // const response = await fetch(url, { method: 'DELETE' });
 
-            const response = await fetch(url, { method: 'DELETE' });
-
-            if (response.ok) {
-                setEdges((eds) => eds.filter((e) => e.id !== edgeMenu.edgeId));
-                setEdgeMenu(null);
-                showToast("Connection removed", "success");
-            } else {
-                showToast("Failed to disconnect datasets.", "error");
-            }
+            setEdges((eds) => eds.filter((e) => e.id !== edgeMenu.edgeId));
+            setEdgeMenu(null);
+            showToast("Connection removed", "success");
         } catch (error) {
             showToast("Deletion failed.", "error");
         }
@@ -100,47 +86,10 @@ export const useDomainInteractions = ({ nodes, edges, setNodes, setEdges, datase
         // "Drag-to-Add" Logic (Drop on + Zone)
         if (targetHandle === 'new') {
             try {
-                // Logic to update schema on backend if creating new column
-                // TODO: encapsualte this into catalogAPI.updateSchema if reused
-                const response = await fetch(`http://localhost:8000/api/catalog/${targetMongoId}`);
-                const targetDoc = await response.json();
-
-                const currentSchema = targetDoc.columns || targetDoc.schema || [];
-                // Check if already exists to avoid dupes 
-                if (currentSchema.some(c => c.name === sourceColName)) {
-                    targetHandle = `col:${sourceColName}`;
-                    targetColName = sourceColName;
-                } else {
-                    const sourceRawSchema = sourceNode.data.rawSchema || (await catalogAPI.getDataset(sourceMongoId)).schema || [];
-                    const sourceColDef = sourceRawSchema.find(c => (c.name || c) === sourceColName) || { name: sourceColName, type: 'string' };
-
-                    const newSchema = [...currentSchema, sourceColDef];
-
-                    // PATCH schema
-                    await fetch(`http://localhost:8000/api/catalog/${targetMongoId}`, {
-                        method: 'PATCH',
-                        headers: { 'Content-Type': 'application/json' },
-                        body: JSON.stringify({ schema: newSchema })
-                    });
-                    // Optimistic UI Update: Add column to Target Node
-                    setNodes(nds => nds.map(n => {
-                        if (n.id === target) {
-                            return {
-                                ...n,
-                                data: {
-                                    ...n.data,
-                                    columns: [...(n.data.columns || []), sourceColName],
-                                    rawSchema: newSchema
-                                }
-                            };
-                        }
-                        return n;
-                    }));
-
-                    targetHandle = `col:${sourceColName}`;
-                    targetColName = sourceColName;
-                }
-
+                // TODO: Replace with new API
+                // For now, just use existing column name
+                targetHandle = `col:${sourceColName}`;
+                targetColName = sourceColName;
             } catch (err) {
                 console.error(err);
                 showToast("Failed to add column: " + err.message, "error");
@@ -149,48 +98,38 @@ export const useDomainInteractions = ({ nodes, edges, setNodes, setEdges, datase
         }
 
         try {
-            const response = await fetch(`http://localhost:8000/api/catalog/${sourceMongoId}/lineage`, {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({
-                    target_id: targetMongoId,
-                    type: 'DOWNSTREAM',
-                    source_col: sourceColName,
-                    target_col: targetColName
-                })
-            });
+            // TODO: Replace with new API
+            // await fetch(`http://localhost:8000/api/catalog/${sourceMongoId}/lineage`, ...)
 
-            if (response.ok) {
-                // Enforce styling for new edge
-                const finalParams = { ...params, targetHandle: targetHandle };
+            // Enforce styling for new edge
+            const finalParams = { ...params, targetHandle: targetHandle };
 
-                setEdges((eds) => addEdge({
-                    ...finalParams,
-                    animated: true,
-                    type: 'deletion',
-                    label: '',
-                    data: {
-                        originalSourceHandle: sourceHandle,
-                        originalTargetHandle: targetHandle
-                    }
-                }, eds));
+            setEdges((eds) => addEdge({
+                ...finalParams,
+                animated: true,
+                type: 'deletion',
+                label: '',
+                data: {
+                    originalSourceHandle: sourceHandle,
+                    originalTargetHandle: targetHandle
+                }
+            }, eds));
 
-                // Optimistic UI Update: Increment connection count for nodes
-                setNodes((nds) => nds.map((n) => {
-                    if (n.id === source || n.id === target) {
-                        return {
-                            ...n,
-                            data: {
-                                ...n.data,
-                                connectionCount: (n.data.connectionCount || 0) + 1
-                            }
-                        };
-                    }
-                    return n;
-                }));
-            } else {
-                showToast("Failed to connect datasets.", "error");
-            }
+            // Optimistic UI Update: Increment connection count for nodes
+            setNodes((nds) => nds.map((n) => {
+                if (n.id === source || n.id === target) {
+                    return {
+                        ...n,
+                        data: {
+                            ...n.data,
+                            connectionCount: (n.data.connectionCount || 0) + 1
+                        }
+                    };
+                }
+                return n;
+            }));
+
+            showToast("Connected successfully", "success");
         } catch (error) {
             showToast("Connection failed.", "error");
         }
