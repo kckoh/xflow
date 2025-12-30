@@ -27,6 +27,10 @@ neo4j==5.16.0
 neomodel
 boto3
 opensearch-py==2.8.0
+croniter==5.0.1
+pytz==2024.2
+apscheduler==3.10.4
+httpx==0.28.1
 psycopg2-binary==2.9.10
 pydantic==2.12.5
 pydantic_core==2.41.5

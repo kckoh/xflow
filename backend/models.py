@@ -98,7 +98,11 @@ class ETLJob(Document):
     destination: dict = Field(default_factory=dict)
     # Example: {"type": "s3", "path": "s3a://bucket/path", "format": "parquet"}
 
-    schedule: Optional[str] = None  # Cron expression or None for manual trigger
+    # Schedule configuration
+    schedule_enabled: bool = False  # Toggle schedule on/off
+    schedule_cron: Optional[str] = None  # Cron expression (e.g., "0 0 * * *" for daily at midnight)
+    schedule_timezone: str = "UTC"  # Timezone for schedule execution
+
     status: str = "draft"  # draft, active, paused
 
     # Visual Editor state (for UI restoration)

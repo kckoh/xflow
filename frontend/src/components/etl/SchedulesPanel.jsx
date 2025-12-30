@@ -1,50 +1,93 @@
-import { useState } from 'react';
-import { Calendar, Plus, Clock, X } from 'lucide-react';
+import { useState, useEffect } from 'react';
+import { useParams } from 'react-router-dom';
+import { Calendar, Clock, Play, Trash2 } from 'lucide-react';
+import { getSchedule, createSchedule, startSchedule, removeSchedule } from '../../services/schedule';
+import CreateScheduleForm from './CreateScheduleForm';
 
 export default function SchedulesPanel({ schedules = [], onUpdate }) {
+    const { jobId } = useParams();
     const [showCreateForm, setShowCreateForm] = useState(false);
-    const [scheduleName, setScheduleName] = useState('');
-    const [frequency, setFrequency] = useState('');
-    const [description, setDescription] = useState('');
+    const [currentSchedule, setCurrentSchedule] = useState(null);
+    const [loading, setLoading] = useState(false);
+    const [error, setError] = useState(null);
 
-    const frequencyOptions = [
-        { value: '', label: 'Choose one frequency' },
-        { value: 'hourly', label: 'Hourly' },
-        { value: 'daily', label: 'Daily' },
-        { value: 'weekly', label: 'Weekly' },
-        { value: 'monthly', label: 'Monthly' },
-        { value: 'custom', label: 'Custom cron expression' },
-    ];
+    // Fetch schedule on mount
+    useEffect(() => {
+        if (jobId) {
+            fetchSchedule();
+        }
+    }, [jobId]);
 
-    const frequencyToCron = {
-        'hourly': '0 * * * *',
-        'daily': '0 0 * * *',
-        'weekly': '0 0 * * 0',
-        'monthly': '0 0 1 * *',
+    const fetchSchedule = async () => {
+        try {
+            setLoading(true);
+            setError(null);
+            const schedule = await getSchedule(jobId);
+            setCurrentSchedule(schedule);
+        } catch (err) {
+            console.error('Failed to fetch schedule:', err);
+            setError(err.message);
+        } finally {
+            setLoading(false);
+        }
     };
 
-    const handleCreateSchedule = () => {
-        if (!scheduleName || !frequency) return;
+    const handleCreateSchedule = async (scheduleData) => {
+        try {
+            setLoading(true);
+            setError(null);
+            // Note: Backend currently only stores cron, enabled, and timezone
+            // name and description are stored in frontend state for display
+            const updatedSchedule = await createSchedule(jobId, scheduleData.cron, 'UTC');
 
-        const newSchedule = {
-            id: Date.now().toString(),
-            name: scheduleName,
-            frequency: frequency,
-            cron: frequencyToCron[frequency] || frequency,
-            description: description,
-            createdAt: new Date().toISOString(),
-            enabled: true,
-        };
+            // Add name and description to the schedule for display
+            setCurrentSchedule({
+                ...updatedSchedule,
+                name: scheduleData.name,
+                description: scheduleData.description,
+            });
 
-        onUpdate([...schedules, newSchedule]);
-        setShowCreateForm(false);
-        setScheduleName('');
-        setFrequency('');
-        setDescription('');
+            setShowCreateForm(false);
+        } catch (err) {
+            console.error('Failed to create schedule:', err);
+            setError(err.message);
+        } finally {
+            setLoading(false);
+        }
     };
 
-    const handleDeleteSchedule = (id) => {
-        onUpdate(schedules.filter(s => s.id !== id));
+    const handleStartSchedule = async () => {
+        if (!currentSchedule || !currentSchedule.cron) return;
+
+        try {
+            setLoading(true);
+            setError(null);
+            const updatedSchedule = await startSchedule(jobId, currentSchedule.cron, currentSchedule.timezone);
+            setCurrentSchedule(updatedSchedule);
+        } catch (err) {
+            console.error('Failed to start schedule:', err);
+            setError(err.message);
+        } finally {
+            setLoading(false);
+        }
+    };
+
+    const handleRemoveSchedule = async () => {
+        if (!window.confirm('Are you sure you want to remove this schedule?')) {
+            return;
+        }
+
+        try {
+            setLoading(true);
+            setError(null);
+            await removeSchedule(jobId);
+            setCurrentSchedule(null);
+        } catch (err) {
+            console.error('Failed to remove schedule:', err);
+            setError(err.message);
+        } finally {
+            setLoading(false);
+        }
     };
 
     const formatDate = (dateString) => {
@@ -60,92 +103,15 @@ export default function SchedulesPanel({ schedules = [], onUpdate }) {
     // Create Schedule Form
     if (showCreateForm) {
         return (
-            <div className="flex-1 overflow-y-auto bg-gray-50 p-6">
-                <div className="max-w-3xl mx-auto">
-                    <h2 className="text-xl font-semibold text-gray-900 mb-6">Schedule job run</h2>
-
-                    <div className="bg-white rounded-lg border border-gray-200 shadow-sm p-6">
-                        <div className="flex items-center gap-2 mb-6">
-                            <h3 className="text-lg font-medium text-gray-900">Schedule parameters</h3>
-                            <span className="text-xs text-blue-600 cursor-pointer hover:underline">Info</span>
-                        </div>
-
-                        <div className="space-y-6">
-                            {/* Name */}
-                            <div>
-                                <label className="block text-sm font-medium text-gray-700 mb-2">
-                                    Name
-                                </label>
-                                <input
-                                    type="text"
-                                    value={scheduleName}
-                                    onChange={(e) => setScheduleName(e.target.value)}
-                                    className="w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
-                                    placeholder="Enter schedule name"
-                                />
-                                <p className="mt-1 text-xs text-gray-500">
-                                    Name must be unique. It can contain letters (A-Z), numbers (0-9), spaces, hyphens (-), or underscores (_).
-                                </p>
-                            </div>
-
-                            {/* Frequency */}
-                            <div>
-                                <label className="block text-sm font-medium text-gray-700 mb-2">
-                                    Frequency
-                                </label>
-                                <select
-                                    value={frequency}
-                                    onChange={(e) => setFrequency(e.target.value)}
-                                    className="w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white"
-                                >
-                                    {frequencyOptions.map((opt) => (
-                                        <option key={opt.value} value={opt.value}>
-                                            {opt.label}
-                                        </option>
-                                    ))}
-                                </select>
-                            </div>
-
-                            {/* Description */}
-                            <div>
-                                <label className="block text-sm font-medium text-gray-700 mb-1">
-                                    Description - <span className="font-normal italic">optional</span>
-                                </label>
-                                <p className="text-xs text-gray-500 mb-2">
-                                    Enter a schedule description.
-                                </p>
-                                <textarea
-                                    value={description}
-                                    onChange={(e) => setDescription(e.target.value)}
-                                    rows={4}
-                                    className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 resize-none"
-                                    placeholder=""
-                                />
-                                <p className="mt-1 text-xs text-gray-500">
-                                    Descriptions can be up to 2048 characters long.
-                                </p>
-                            </div>
-                        </div>
-
-                        {/* Buttons */}
-                        <div className="flex justify-end gap-3 mt-8 pt-6 border-t border-gray-200">
-                            <button
-                                onClick={() => setShowCreateForm(false)}
-                                className="px-4 py-2 text-blue-600 hover:text-blue-700 font-medium"
-                            >
-                                Cancel
-                            </button>
-                            <button
-                                onClick={handleCreateSchedule}
-                                disabled={!scheduleName || !frequency}
-                                className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed font-medium"
-                            >
-                                Create schedule
-                            </button>
-                        </div>
-                    </div>
-                </div>
-            </div>
+            <CreateScheduleForm
+                onCancel={() => {
+                    setShowCreateForm(false);
+                    setError(null);
+                }}
+                onSubmit={handleCreateSchedule}
+                loading={loading}
+                error={error}
+            />
         );
     }
 
@@ -184,11 +150,22 @@ export default function SchedulesPanel({ schedules = [], onUpdate }) {
 
                     {/* Content */}
                     <div className="p-6">
-                        {schedules.length === 0 ? (
+                        {error && (
+                            <div className="mb-4 p-3 bg-red-50 border border-red-200 rounded-lg">
+                                <p className="text-sm text-red-600">{error}</p>
+                            </div>
+                        )}
+
+                        {loading && !currentSchedule ? (
+                            <div className="text-center py-12">
+                                <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600 mx-auto"></div>
+                                <p className="text-sm text-gray-500 mt-2">Loading schedule...</p>
+                            </div>
+                        ) : !currentSchedule || !currentSchedule.cron ? (
                             <div className="text-center py-12">
                                 <Clock className="w-12 h-12 text-gray-300 mx-auto mb-4" />
-                                <h4 className="text-lg font-medium text-gray-900 mb-2">No schedules</h4>
-                                <p className="text-sm text-gray-500 mb-4">No schedules available</p>
+                                <h4 className="text-lg font-medium text-gray-900 mb-2">No schedule configured</h4>
+                                <p className="text-sm text-gray-500 mb-4">Create a schedule to run this job automatically</p>
                                 <button
                                     onClick={() => setShowCreateForm(true)}
                                     className="px-4 py-2 border border-gray-300 rounded-lg hover:bg-gray-50 text-sm font-medium"
@@ -197,34 +174,74 @@ export default function SchedulesPanel({ schedules = [], onUpdate }) {
                                 </button>
                             </div>
                         ) : (
-                            <div className="space-y-3">
-                                {schedules.map((schedule) => (
-                                    <div
-                                        key={schedule.id}
-                                        className="flex items-center justify-between p-4 border border-gray-200 rounded-lg hover:bg-gray-50"
-                                    >
-                                        <div>
-                                            <h4 className="font-medium text-gray-900">{schedule.name}</h4>
-                                            <p className="text-sm text-gray-500 mt-1">
-                                                {schedule.frequency} • {schedule.cron}
-                                            </p>
-                                            {schedule.description && (
-                                                <p className="text-sm text-gray-400 mt-1">{schedule.description}</p>
+                            <div className="space-y-4">
+                                {/* Schedule Details */}
+                                <div className="p-4 border border-gray-200 rounded-lg bg-white">
+                                    <div className="flex items-start justify-between">
+                                        <div className="flex-1">
+                                            <div className="flex items-center gap-2 mb-2">
+                                                <h4 className="font-medium text-gray-900">
+                                                    {currentSchedule.name || 'Schedule Configuration'}
+                                                </h4>
+                                                <span className={`px-2 py-1 text-xs rounded-full ${
+                                                    currentSchedule.enabled
+                                                        ? 'bg-green-100 text-green-700'
+                                                        : 'bg-gray-100 text-gray-600'
+                                                }`}>
+                                                    {currentSchedule.enabled ? 'Active' : 'Inactive'}
+                                                </span>
+                                            </div>
+                                            {currentSchedule.description && (
+                                                <p className="text-sm text-gray-500 mb-3">{currentSchedule.description}</p>
                                             )}
+                                            <div className="space-y-1">
+                                                <p className="text-sm text-gray-600">
+                                                    <span className="font-medium">Cron:</span> {currentSchedule.cron}
+                                                </p>
+                                                <p className="text-sm text-gray-600">
+                                                    <span className="font-medium">Timezone:</span> {currentSchedule.timezone}
+                                                </p>
+                                                {currentSchedule.next_run && (
+                                                    <p className="text-sm text-gray-600">
+                                                        <span className="font-medium">Next run:</span> {new Date(currentSchedule.next_run).toLocaleString()}
+                                                    </p>
+                                                )}
+                                            </div>
                                         </div>
-                                        <div className="flex items-center gap-4">
-                                            <span className="text-xs text-gray-400">
-                                                Created: {formatDate(schedule.createdAt)}
-                                            </span>
+
+                                        {/* Action Buttons */}
+                                        <div className="flex items-center gap-2 ml-4">
+                                            {!currentSchedule.enabled && (
+                                                <button
+                                                    onClick={handleStartSchedule}
+                                                    disabled={loading}
+                                                    className="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2 text-sm font-medium"
+                                                    title="Start schedule"
+                                                >
+                                                    <Play className="w-4 h-4" />
+                                                    Start
+                                                </button>
+                                            )}
                                             <button
-                                                onClick={() => handleDeleteSchedule(schedule.id)}
-                                                className="p-1 hover:bg-gray-200 rounded"
+                                                onClick={handleRemoveSchedule}
+                                                disabled={loading}
+                                                className="px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2 text-sm font-medium"
+                                                title="Remove schedule"
                                             >
-                                                <X className="w-4 h-4 text-gray-500" />
+                                                <Trash2 className="w-4 h-4" />
+                                                Remove
                                             </button>
                                         </div>
                                     </div>
-                                ))}
+                                </div>
+
+                                {/* Help text */}
+                                <div className="p-3 bg-blue-50 border border-blue-200 rounded-lg">
+                                    <p className="text-xs text-blue-700">
+                                        <strong>Note:</strong> When the schedule is active, this job will run automatically at the specified time.
+                                        Click "Remove" to delete the schedule configuration.
+                                    </p>
+                                </div>
                             </div>
                         )}
                     </div>

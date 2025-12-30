@@ -56,7 +56,9 @@ async def create_etl_job(job: ETLJobCreate):
         source=sources_data[0] if sources_data else {},  # Legacy compatibility
         transforms=[t.model_dump() for t in job.transforms],
         destination=job.destination.model_dump(),
-        schedule=job.schedule,
+        schedule_enabled=False,  # Default: schedule disabled
+        schedule_cron=None,
+        schedule_timezone="UTC",
         status="draft",
         nodes=job.nodes or [],
         edges=job.edges or [],
@@ -74,7 +76,9 @@ async def create_etl_job(job: ETLJobCreate):
         source=new_job.source,
         transforms=new_job.transforms,
         destination=new_job.destination,
-        schedule=new_job.schedule,
+        schedule_enabled=new_job.schedule_enabled,
+        schedule_cron=new_job.schedule_cron,
+        schedule_timezone=new_job.schedule_timezone,
         status=new_job.status,
         nodes=new_job.nodes,
         edges=new_job.edges,
@@ -96,8 +100,12 @@ async def list_etl_jobs():
             source=job.source,
             transforms=job.transforms,
             destination=job.destination,
-            schedule=job.schedule,
+            schedule_enabled=job.schedule_enabled,
+            schedule_cron=job.schedule_cron,
+            schedule_timezone=job.schedule_timezone,
             status=job.status,
+            nodes=job.nodes,
+            edges=job.edges,
             created_at=job.created_at,
             updated_at=job.updated_at,
         )
@@ -124,7 +132,9 @@ async def get_etl_job(job_id: str):
         source=job.source,
         transforms=job.transforms,
         destination=job.destination,
-        schedule=job.schedule,
+        schedule_enabled=job.schedule_enabled,
+        schedule_cron=job.schedule_cron,
+        schedule_timezone=job.schedule_timezone,
         status=job.status,
         nodes=job.nodes,
         edges=job.edges,
@@ -162,8 +172,6 @@ async def update_etl_job(job_id: str, job_update: ETLJobUpdate):
         job.transforms = [t.model_dump() for t in job_update.transforms]
     if job_update.destination is not None:
         job.destination = job_update.destination.model_dump()
-    if job_update.schedule is not None:
-        job.schedule = job_update.schedule
     if job_update.status is not None:
         job.status = job_update.status
     if job_update.nodes is not None:
@@ -182,7 +190,9 @@ async def update_etl_job(job_id: str, job_update: ETLJobUpdate):
         source=job.source,
         transforms=job.transforms,
         destination=job.destination,
-        schedule=job.schedule,
+        schedule_enabled=job.schedule_enabled,
+        schedule_cron=job.schedule_cron,
+        schedule_timezone=job.schedule_timezone,
         status=job.status,
         nodes=job.nodes,
         edges=job.edges,

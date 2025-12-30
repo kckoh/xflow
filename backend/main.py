@@ -2,7 +2,7 @@ import os
 from contextlib import asynccontextmanager
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
-from routers import auth, users, rdb_sources, aws, catalog, rdb_tables, glue, athena, etl_jobs, job_runs, opensearch
+from routers import auth, users, rdb_sources, aws, catalog, rdb_tables, glue, athena, etl_jobs, job_runs, opensearch, etl_schedules
 from routers.transforms import select_fields # 추후 type 추가 예정 (예: join ...)
 from database import init_db, close_db
 
@@ -19,7 +19,15 @@ async def lifespan(app: FastAPI):
     from utils.opensearch_client import initialize_opensearch
     initialize_opensearch()
 
+    # Startup: Initialize ETL Job Scheduler
+    from utils.scheduler import initialize_scheduler
+    await initialize_scheduler()
+
     yield
+
+    # Shutdown: Shutdown scheduler
+    from utils.scheduler import shutdown_scheduler
+    await shutdown_scheduler()
 
     # Shutdown: Close MongoDB connection
     await close_db()
@@ -60,6 +68,7 @@ app.include_router(select_fields.router, prefix="/api/rdb-transform/select-field
 # ETL Jobs and Job Runs
 app.include_router(etl_jobs.router, prefix="/api/etl-jobs", tags=["etl-jobs"])
 app.include_router(job_runs.router, prefix="/api/job-runs", tags=["job-runs"])
+app.include_router(etl_schedules.router, prefix="/api/etl-schedules", tags=["etl-schedules"])
 
 
 
