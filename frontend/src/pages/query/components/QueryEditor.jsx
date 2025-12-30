@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { Play, Loader2, CheckCircle, XCircle, Clock } from "lucide-react";
+import { executeQuery as runDuckDBQuery } from "../../../services/apiDuckDB";
 
 export default function QueryEditor({ selectedTable }) {
     const [query, setQuery] = useState("");
@@ -14,7 +15,31 @@ export default function QueryEditor({ selectedTable }) {
             return;
         }
 
-        setError("Query execution is not available");
+        setExecuting(true);
+        setError(null);
+        setQueryStatus("RUNNING");
+
+        try {
+            // LIMIT 없으면 기본 30 추가
+            let finalQuery = query.trim();
+            if (!/\bLIMIT\b/i.test(finalQuery)) {
+                finalQuery = `${finalQuery.replace(/;$/, "")} LIMIT 30`;
+            }
+
+            const response = await runDuckDBQuery(finalQuery);
+            const columns = response.data.length > 0 ? Object.keys(response.data[0]) : [];
+            setResults({
+                data: response.data,
+                columns,
+                row_count: response.row_count,
+            });
+            setQueryStatus("SUCCEEDED");
+        } catch (err) {
+            setError(err.message);
+            setQueryStatus("FAILED");
+        } finally {
+            setExecuting(false);
+        }
     };
 
     const getStatusIcon = () => {
