@@ -101,7 +101,7 @@ export const useDomainData = ({ datasetId, selectedId, onStreamAnalysis, nodes, 
         } catch (err) {
             console.error(err);
         }
-    }, [datasetId, selectedId, handleToggleExpand, handleExpandWithState, onStreamAnalysis, updateLayout]);
+    }, [datasetId, selectedId, handleToggleExpand, handleExpandWithState, onStreamAnalysis, updateLayout, onDeleteNode]);
 
     // 2. Initial Load Effect
     useEffect(() => {

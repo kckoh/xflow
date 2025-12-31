@@ -6,23 +6,23 @@ import {
     Background,
 } from "@xyflow/react";
 import "@xyflow/react/dist/style.css";
-import React from "react";
+import React, { useMemo } from "react";
 import { SchemaNode } from "./schema-node";
 import { DeletionEdge } from "./CustomEdges";
 import { DomainEdgeMenu } from "./DomainEdgeMenu";
 import { useDomainLogic } from "../hooks/useDomainLogic";
 
-const nodeTypes = {
-    custom: SchemaNode,
-    Table: SchemaNode,
-    Topic: SchemaNode,
-};
-
-const edgeTypes = {
-    deletion: DeletionEdge,
-};
-
 const DomainFlow = React.forwardRef((props, ref) => {
+    const nodeTypes = useMemo(() => ({
+        custom: SchemaNode,
+        Table: SchemaNode,
+        Topic: SchemaNode,
+    }), []);
+
+    const edgeTypes = useMemo(() => ({
+        deletion: DeletionEdge,
+    }), []);
+
     const {
         nodes,
         edges,
