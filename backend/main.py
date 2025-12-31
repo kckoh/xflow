@@ -61,7 +61,7 @@ app.include_router(job_runs.router, prefix="/api/job-runs", tags=["job-runs"])
 # DuckDB Query Engine
 app.include_router(duckdb.router, prefix="/api/duckdb", tags=["duckdb"])
 
-# Domains
+# Domains (CRUD + ETL Job Import)
 app.include_router(domains.router, prefix="/api/domains", tags=["domains"])
 
 

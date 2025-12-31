@@ -57,7 +57,7 @@ export const useDomainLogic = ({ datasetId, selectedId, onStreamAnalysis, onNode
 
     return {
         // Graph State
-        nodes, edges, onNodesChange, onEdgesChange,
+        nodes, edges, setNodes, setEdges, onNodesChange, onEdgesChange,
 
         // Interaction Handlers (Menu, Click, Connect)
         ...interactions,

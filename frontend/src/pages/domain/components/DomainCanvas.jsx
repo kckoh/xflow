@@ -26,6 +26,8 @@ const DomainFlow = React.forwardRef((props, ref) => {
     const {
         nodes,
         edges,
+        setNodes,
+        setEdges,
         onNodesChange,
         onEdgesChange,
         onConnect,
@@ -41,6 +43,22 @@ const DomainFlow = React.forwardRef((props, ref) => {
     // Expose nodes/edges to parent via ref
     React.useImperativeHandle(ref, () => ({
         getGraph: () => ({ nodes, edges }),
+        addNodes: (newNodes, newEdges = []) => {
+            // Add new nodes with position
+            setNodes((prev) => [
+                ...prev,
+                ...newNodes.map((node, idx) => ({
+                    ...node,
+                    position: node.position || {
+                        x: 100 + (idx % 3) * 350,
+                        y: 100 + Math.floor(idx / 3) * 300
+                    },
+                }))
+            ]);
+            if (newEdges.length > 0) {
+                setEdges((prev) => [...prev, ...newEdges]);
+            }
+        },
     }));
 
     return (
