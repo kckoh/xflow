@@ -44,57 +44,8 @@ export const useDomainData = ({ datasetId, selectedId, onStreamAnalysis, nodes, 
                 data.edges || []
             );
 
-            // --- Topology Processing: Collapse Upstream Nodes for Target 1 ---
-            let finalNodes = mergedNodes;
-            let finalEdges = mergedEdges;
-
-            const targetNode = finalNodes.find(n => n.data?.label === 'Target 1');
-            const transformNode = finalNodes.find(n => n.data?.label === 'select-fields');
-            const sourceNode = finalNodes.find(n => n.data?.label === 'orders');
-
-            if (targetNode && transformNode && sourceNode) {
-                // Construct the Job Data from actual nodes
-                const pipelineJob = {
-                    id: 'marketing-pipeline',
-                    name: 'Marketing Pipeline',
-                    steps: [
-                        {
-                            id: sourceNode.id,
-                            type: 'E',
-                            label: sourceNode.data.label,
-                            platform: sourceNode.data.platform,
-                            data: sourceNode.data
-                        },
-                        {
-                            id: transformNode.id,
-                            type: 'T',
-                            label: transformNode.data.label,
-                            platform: transformNode.data.platform || 'Transform',
-                            data: { ...transformNode.data, platform: 'Transform' } // Ensure Transform style
-                        }
-                    ]
-                };
-
-                // Inject into Target Node
-                targetNode.data = {
-                    ...targetNode.data,
-                    jobs: [pipelineJob]
-                };
-
-                // Hide Upstream Nodes
-                finalNodes = finalNodes.filter(n => n.id !== transformNode.id && n.id !== sourceNode.id);
-
-                // Hide Edges connected to hidden nodes
-                // Keep edges connected to Target 1? No, the edge from select-fields to Target 1 should also go.
-                // But we might want to keep the source connections if we were collapsing into a group, 
-                // but here we are completely hiding them inside.
-                const hiddenIds = new Set([transformNode.id, sourceNode.id]);
-                finalEdges = finalEdges.filter(e => !hiddenIds.has(e.source) && !hiddenIds.has(e.target));
-            }
-            // -----------------------------------------------------------------
-
             // Use the graph hook's layout updater
-            const { layoutedNodes, layoutedEdges } = updateLayout(finalNodes, finalEdges);
+            const { layoutedNodes, layoutedEdges } = updateLayout(mergedNodes, mergedEdges);
 
             calculateImpact(datasetId, layoutedNodes, layoutedEdges, onStreamAnalysis);
 

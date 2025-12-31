@@ -1,5 +1,5 @@
 import { memo, useState } from "react";
-import { X, Minus, Plus } from "lucide-react";
+import { X, ChevronLeft, ChevronRight } from "lucide-react";
 import clsx from "clsx";
 import { SchemaNodeHeader, getStyleConfig } from "./SchemaNodeHeader";
 import { SchemaNodeColumns } from "./SchemaNodeColumns";
@@ -52,17 +52,17 @@ const SchemaNodeComponent = ({ id, data, selected }) => {
                 <X className="w-3 h-3" />
             </button>
 
-            {/* ETL Toggle Button (Top-Left) */}
+            {/* ETL Toggle Button (Left Side, Aligned with Columns) */}
             <button
                 onClick={handleEtlToggle}
                 className={clsx(
-                    "absolute -top-2 -left-2 z-50 flex items-center justify-center w-6 h-6 text-white rounded-full opacity-0 group-hover:opacity-100 transition-opacity duration-200 hover:bg-purple-600 hover:scale-110",
-                    etlOpen ? "bg-purple-600" : "bg-gray-400"
+                    "absolute top-[52px] -left-3 z-50 flex items-center justify-center w-6 h-6 rounded-full shadow-sm border border-gray-200",
+                    "bg-gray-50 text-gray-500 transition-all duration-200",
+                    "group-hover:opacity-100 hover:bg-white hover:text-purple-600 hover:scale-110 hover:shadow-md"
                 )}
                 title="ETL Process"
             >
-                {etlOpen ? <Minus className="w-3 h-3" /> : <Plus className="w-3 h-3" />}
-                
+                {etlOpen ? <ChevronRight className="w-4 h-4" /> : <ChevronLeft className="w-4 h-4" />}
             </button>
 
             {/* Header */}
@@ -77,12 +77,16 @@ const SchemaNodeComponent = ({ id, data, selected }) => {
             />
 
             {/* Content Area: Columns (Always render if expanded) */}
-            {schemaExpanded && <SchemaNodeColumns columns={columns} />}
+            {schemaExpanded && (
+                <div id={`main-cols-${id}`}>
+                    <SchemaNodeColumns columns={columns} nodeId={id} />
+                </div>
+            )}
 
-            {/* ETL View: External Popover (Above the Node) */}
+            {/* ETL View: External Popover (Left of the Node) */}
             {etlOpen && (
-                <div className="absolute bottom-full left-0 mb-2 z-[100] min-w-[220px]">
-                    <SchemaEtlView data={data} />
+                <div className="absolute right-full -top-11 mr-5 z-[100] min-w-max">
+                    <SchemaEtlView data={data} parentNodeId={id} />
                 </div>
             )}
         </div>

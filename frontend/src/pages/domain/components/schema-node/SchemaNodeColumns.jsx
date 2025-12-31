@@ -19,7 +19,7 @@ const ColumnHandle = ({ type, position, colId }) => (
     />
 );
 
-export const SchemaNodeColumns = ({ columns = [], withHandles = true }) => {
+export const SchemaNodeColumns = ({ columns = [], withHandles = true, nodeId = null }) => {
     return (
         <div className="bg-gray-50 rounded-b-lg max-h-[300px] overflow-y-auto overflow-x-hidden custom-scrollbar nodrag">
             {/* Column Header */}
@@ -33,6 +33,7 @@ export const SchemaNodeColumns = ({ columns = [], withHandles = true }) => {
                     {columns.map((col, idx) => {
                         const colName = typeof col === 'string' ? col : (col?.name || col?.key || 'unknown');
                         const colType = col?.dataType || col?.type || 'string';
+                        const prefix = nodeId ? `${nodeId}:` : '';
 
                         return (
                             <div
@@ -44,7 +45,7 @@ export const SchemaNodeColumns = ({ columns = [], withHandles = true }) => {
                                     <ColumnHandle
                                         type="target"
                                         position={Position.Left}
-                                        colId={`target-col:${colName}`}
+                                        colId={`target-col:${prefix}${colName}`}
                                     />
                                 )}
 
@@ -60,7 +61,7 @@ export const SchemaNodeColumns = ({ columns = [], withHandles = true }) => {
                                     <ColumnHandle
                                         type="source"
                                         position={Position.Right}
-                                        colId={`source-col:${colName}`}
+                                        colId={`source-col:${prefix}${colName}`}
                                     />
                                 )}
                             </div>
