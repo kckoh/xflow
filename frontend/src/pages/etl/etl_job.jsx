@@ -133,12 +133,17 @@ export default function ETLJobPage() {
 
       // Restore nodes and edges if they exist
       if (data.nodes && data.nodes.length > 0) {
-        // Hydrate icons based on label
+        // Hydrate icons and onMetadataSelect callback based on label
         const hydratedNodes = data.nodes.map((node) => ({
           ...node,
           data: {
             ...node.data,
             icon: iconMap[node.data.label] || Archive, // Fallback to Archive
+            nodeId: node.id, // Ensure nodeId is set
+            // Restore onMetadataSelect callback for metadata editing
+            onMetadataSelect: (item, clickedNodeId) => {
+              setSelectedMetadataItem(item);
+            },
           },
         }));
         setNodes(hydratedNodes);
