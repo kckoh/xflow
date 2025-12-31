@@ -66,7 +66,10 @@ const SchemaNodeComponent = ({ id, data, selected }) => {
 
             {/* Header */}
             <SchemaNodeHeader
-                data={data}
+                data={{
+                    ...data,
+                    label: data.jobs?.[0]?.name || data.label
+                }}
                 expanded={schemaExpanded}
                 onToggle={handleHeaderToggle}
                 id={id}

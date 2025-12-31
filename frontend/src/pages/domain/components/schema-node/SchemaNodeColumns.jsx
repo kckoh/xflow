@@ -11,17 +11,17 @@ const ColumnHandle = ({ type, position, colId }) => (
         className={clsx(
             "!w-3 !h-3 !border-2 !border-white hover:!scale-125 transition-all !bg-indigo-400",
             {
-                "-ml-[5px]": position === Position.Left,
-                "-mr-[5px]": position === Position.Right
+                "!left-1": position === Position.Left,
+                "!right-1": position === Position.Right
             }
         )}
         style={{ zIndex: 50 }}
     />
 );
 
-export const SchemaNodeColumns = ({ columns = [] }) => {
+export const SchemaNodeColumns = ({ columns = [], withHandles = true }) => {
     return (
-        <div className="bg-gray-50 rounded-b-lg max-h-[300px] overflow-y-auto custom-scrollbar">
+        <div className="bg-gray-50 rounded-b-lg max-h-[300px] overflow-y-auto overflow-x-hidden custom-scrollbar">
             {/* Column Header */}
             <div className="flex px-3 py-1.5 border-b border-gray-200 bg-gray-100 text-xs font-medium text-gray-500 uppercase tracking-wider sticky top-0 z-10">
                 <span className="flex-1">Column</span>
@@ -40,11 +40,13 @@ export const SchemaNodeColumns = ({ columns = [] }) => {
                                 className="relative flex items-center px-3 py-1.5 hover:bg-blue-50 cursor-pointer text-xs transition-colors group/row"
                             >
                                 {/* Left Handle */}
-                                <ColumnHandle
-                                    type="target"
-                                    position={Position.Left}
-                                    colId={`col:${colName}`}
-                                />
+                                {withHandles && (
+                                    <ColumnHandle
+                                        type="target"
+                                        position={Position.Left}
+                                        colId={`col:${colName}`}
+                                    />
+                                )}
 
                                 <span className="flex-1 text-gray-800 font-medium truncate pl-2">
                                     {colName}
@@ -54,11 +56,13 @@ export const SchemaNodeColumns = ({ columns = [] }) => {
                                 </span>
 
                                 {/* Right Handle */}
-                                <ColumnHandle
-                                    type="source"
-                                    position={Position.Right}
-                                    colId={`col:${colName}`}
-                                />
+                                {withHandles && (
+                                    <ColumnHandle
+                                        type="source"
+                                        position={Position.Right}
+                                        colId={`col:${colName}`}
+                                    />
+                                )}
                             </div>
                         );
                     })}
