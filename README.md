@@ -200,3 +200,13 @@ docker compose restart airflow-scheduler
 ```bash
 docker compose restart localstack
 ```
+
+### frontend 배포
+npm run build
+vite build
+
+### S3 업로드
+aws s3 sync dist/ s3://xflows --delete
+
+### CloudFront 캐시 무효화
+aws cloudfront create-invalidation --distribution-id E3J1KK599NCLXA --paths "/*"
