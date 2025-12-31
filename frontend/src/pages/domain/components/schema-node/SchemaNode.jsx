@@ -20,7 +20,7 @@ const SchemaNodeComponent = ({ id, data, selected }) => {
     // Handlers
     const handleDelete = (e) => {
         e.stopPropagation();
-        if (data.onDelete) data.onDelete(id);
+        if (data.onDelete) data.onDelete(id, data.mongoId);
     };
 
     const handleEtlToggle = (e) => {
@@ -46,7 +46,7 @@ const SchemaNodeComponent = ({ id, data, selected }) => {
             {/* Delete Button (Top-Right, Hover Only) */}
             <button
                 onClick={handleDelete}
-                className="absolute -top-2 -right-2 z-50 flex items-center justify-center w-6 h-6 bg-red-500 text-white rounded-full shadow-md opacity-0 group-hover:opacity-100 transition-opacity duration-200 hover:bg-red-600 hover:scale-110"
+                className="absolute -top-2 -right-2 z-50 flex items-center justify-center w-6 h-6 bg-red-500 text-white rounded-full opacity-0 group-hover:opacity-100 transition-opacity duration-200 hover:bg-red-600 hover:scale-110"
                 title="Delete Node"
             >
                 <X className="w-3 h-3" />
@@ -56,12 +56,13 @@ const SchemaNodeComponent = ({ id, data, selected }) => {
             <button
                 onClick={handleEtlToggle}
                 className={clsx(
-                    "absolute -top-2 -left-2 z-50 flex items-center justify-center w-6 h-6 text-white rounded-full shadow-md transition-all duration-200 hover:scale-110",
+                    "absolute -top-2 -left-2 z-50 flex items-center justify-center w-6 h-6 text-white rounded-full opacity-0 group-hover:opacity-100 transition-opacity duration-200 hover:bg-purple-600 hover:scale-110",
                     etlOpen ? "bg-purple-600" : "bg-gray-400"
                 )}
                 title="ETL Process"
             >
                 {etlOpen ? <Minus className="w-3 h-3" /> : <Plus className="w-3 h-3" />}
+                
             </button>
 
             {/* Header */}
