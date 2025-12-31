@@ -9,7 +9,7 @@ const ColumnHandle = ({ type, position, colId }) => (
         id={colId}
         isConnectable={true}
         className={clsx(
-            "!w-3 !h-3 !border-2 !border-white hover:!scale-125 transition-all !bg-indigo-400",
+            "absolute !w-3 !h-3 !border-2 !border-white hover:!scale-125 transition-all !bg-indigo-400",
             {
                 "!left-1": position === Position.Left,
                 "!right-1": position === Position.Right
@@ -21,7 +21,7 @@ const ColumnHandle = ({ type, position, colId }) => (
 
 export const SchemaNodeColumns = ({ columns = [], withHandles = true }) => {
     return (
-        <div className="bg-gray-50 rounded-b-lg max-h-[300px] overflow-y-auto overflow-x-hidden custom-scrollbar">
+        <div className="bg-gray-50 rounded-b-lg max-h-[300px] overflow-y-auto overflow-x-hidden custom-scrollbar nodrag">
             {/* Column Header */}
             <div className="flex px-3 py-1.5 border-b border-gray-200 bg-gray-100 text-xs font-medium text-gray-500 uppercase tracking-wider sticky top-0 z-10">
                 <span className="flex-1">Column</span>
@@ -44,7 +44,7 @@ export const SchemaNodeColumns = ({ columns = [], withHandles = true }) => {
                                     <ColumnHandle
                                         type="target"
                                         position={Position.Left}
-                                        colId={`col:${colName}`}
+                                        colId={`target-col:${colName}`}
                                     />
                                 )}
 
@@ -60,7 +60,7 @@ export const SchemaNodeColumns = ({ columns = [], withHandles = true }) => {
                                     <ColumnHandle
                                         type="source"
                                         position={Position.Right}
-                                        colId={`col:${colName}`}
+                                        colId={`source-col:${colName}`}
                                     />
                                 )}
                             </div>
