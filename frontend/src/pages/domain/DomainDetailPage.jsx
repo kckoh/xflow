@@ -195,6 +195,11 @@ export default function DomainDetailPage() {
                     isOpen={showImportModal}
                     onClose={() => setShowImportModal(false)}
                     datasetId={domain?.id}
+                    onImport={(nodes, edges) => {
+                        if (canvasRef.current) {
+                            canvasRef.current.addNodes(nodes, edges);
+                        }
+                    }}
                 />
             )}
             {/* Main Split Layout */}

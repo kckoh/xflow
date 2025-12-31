@@ -3,7 +3,7 @@ import { X, Database, ChevronRight, Loader2, CheckCircle, Table as TableIcon, Ar
 import { useToast } from "../../../components/common/Toast";
 import { getImportReadyJobs, getJobExecution } from "../api/domainApi";
 
-export default function DomainImportModal({ isOpen, onClose, datasetId }) {
+export default function DomainImportModal({ isOpen, onClose, datasetId, onImport }) {
     const { showToast } = useToast();
     const [loading, setLoading] = useState(false);
     const [jobs, setJobs] = useState([]);
@@ -47,20 +47,76 @@ export default function DomainImportModal({ isOpen, onClose, datasetId }) {
     };
 
     const handleImport = async () => {
-        if (!selectedJob) {
+        if (!selectedJob || !executionData) {
             showToast("Please select a job to import", "error");
             return;
         }
 
         setImporting(true);
         try {
-            // TODO: Replace with new API
-            // const response = await fetch(`http://localhost:8000/api/domain/import-from-etl/${selectedJob.id}`, {
-            //     method: 'POST'
-            // });
-            // const result = await response.json();
+            // Convert execution data to React Flow nodes
+            const nodes = [];
+            const edges = [];
+            let nodeIndex = 0;
 
-            showToast(`Imported ${selectedJob.source_count} datasets from ${selectedJob.name}`, "success");
+            // Add source nodes
+            executionData.sources?.forEach((source, idx) => {
+                const nodeId = `import-source-${Date.now()}-${idx}`;
+                nodes.push({
+                    id: nodeId,
+                    type: "custom",
+                    data: {
+                        label: source.config?.tableName || source.config?.sourceName || `Source ${idx + 1}`,
+                        type: "Table",
+                        columns: source.schema?.map(col => col.key || col.name) || [],
+                        expanded: true,
+                        sourceType: "rdb",
+                    },
+                    position: { x: 100, y: 100 + idx * 250 },
+                });
+                nodeIndex++;
+            });
+
+            // Add transform nodes
+            executionData.transforms?.forEach((transform, idx) => {
+                const nodeId = `import-transform-${Date.now()}-${idx}`;
+                nodes.push({
+                    id: nodeId,
+                    type: "custom",
+                    data: {
+                        label: transform.type || `Transform ${idx + 1}`,
+                        type: "Transform",
+                        columns: transform.schema?.map(col => col.key || col.name) || [],
+                        expanded: true,
+                    },
+                    position: { x: 500, y: 100 + idx * 250 },
+                });
+                nodeIndex++;
+            });
+
+            // Add target nodes
+            executionData.targets?.forEach((target, idx) => {
+                const nodeId = `import-target-${Date.now()}-${idx}`;
+                nodes.push({
+                    id: nodeId,
+                    type: "custom",
+                    data: {
+                        label: target.config?.s3Location?.split('/').pop() || `Target ${idx + 1}`,
+                        type: "Table",
+                        columns: target.schema?.map(col => col.key || col.name) || [],
+                        expanded: true,
+                        sourceType: "s3",
+                    },
+                    position: { x: 900, y: 100 + idx * 250 },
+                });
+            });
+
+            // Call onImport to add nodes to canvas
+            if (onImport && nodes.length > 0) {
+                onImport(nodes, edges);
+            }
+
+            showToast(`Imported ${nodes.length} nodes from ${selectedJob.name}`, "success");
             onClose();
         } catch (err) {
             console.error("Import failed:", err);
