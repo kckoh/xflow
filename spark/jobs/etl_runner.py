@@ -15,10 +15,16 @@ from pyspark.sql import SparkSession, DataFrame
 # ============ Transform Registry ============
 
 def transform_select_fields(df: DataFrame, config: dict) -> DataFrame:
-    """Select specific columns from DataFrame"""
+    """Select specific columns from DataFrame. 
+    Dot notation columns are aliased with underscores (e.g., company.name → company_name)
+    """
+    from pyspark.sql.functions import col
+    
     columns = config.get("selectedColumns", [])
     if columns:
-        return df.select(*columns)
+        # Convert dot notation to underscore alias to avoid column name conflicts
+        selections = [col(c).alias(c.replace(".", "_")) for c in columns]
+        return df.select(*selections)
     return df
 
 
@@ -128,6 +134,56 @@ def read_rdb_source(spark: SparkSession, source_config: dict) -> DataFrame:
     return reader.load()
 
 
+def read_nosql_source(spark: SparkSession, source_config: dict) -> DataFrame:
+    """
+    Read data from NoSQL databases using appropriate Spark connectors.
+    Currently supports: MongoDB
+    
+    Preserves nested document structure (structs, arrays).
+    """
+    connection = source_config.get("connection", {})
+    collection = source_config.get("collection")
+    
+    if not collection:
+        raise ValueError("Collection name is required for NoSQL source")
+    
+    # NoSQL type (default: mongodb, future: cassandra, dynamodb, etc.)
+    db_type = connection.get("type", "mongodb")
+    
+    # MongoDB connection details (from DAG enrichment)
+    uri = connection.get("uri")
+    database = connection.get("database")
+    
+    if not uri or not database:
+        raise ValueError(f"{db_type} uri and database are required in connection config")
+    
+    print(f"   Reading from {db_type}: {database}.{collection}")
+    
+    if db_type == "mongodb":
+        # Use base URI with authSource, then set database/collection via options
+        # This ensures authSource is properly handled
+        base_uri = uri  # e.g., mongodb://mongo:mongo@mongodb:27017/?authSource=admin
+        
+        # Read using MongoDB Spark Connector with separate database/collection options
+        df = spark.read \
+            .format("mongodb") \
+            .option("spark.mongodb.read.connection.uri", base_uri) \
+            .option("spark.mongodb.read.database", database) \
+            .option("spark.mongodb.read.collection", collection) \
+            .load()
+    
+    # Future NoSQL support
+    # elif db_type == "dynamodb":
+    #     df = spark.read \
+    #         .format("dynamodb") \
+    #         .option("tableName", collection) \
+    #         .load()
+    
+    else:
+        raise ValueError(f"Unsupported NoSQL database type: {db_type}")
+    
+    return df
+
 # ============ Destination Writers ============
 
 def write_s3_destination(df: DataFrame, dest_config: dict, job_name: str = "output"):
@@ -236,9 +292,11 @@ def run_etl(config: dict):
             node_id = source_config.get("nodeId", f"source_{idx}")
             source_type = source_config.get("type", "rdb")
 
-            print(f"   [{node_id}] Reading from {source_type}: {source_config.get('table', 'query')}")
+            print(f"   [{node_id}] Reading from {source_type}: {source_config.get('table') or source_config.get('collection', 'query')}")
             if source_type == "rdb":
                 df = read_rdb_source(spark, source_config)
+            elif source_type in ["mongodb", "nosql"]:
+                df = read_nosql_source(spark, source_config)
             else:
                 raise ValueError(f"Unsupported source type: {source_type}")
 
