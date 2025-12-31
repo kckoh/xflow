@@ -19,8 +19,7 @@ class ConnectionTester:
         elif conn_type == 's3':
             return ConnectionTester._test_s3(config)
         elif conn_type == 'mongodb':
-            # TODO: Implement MongoDB test
-            return True, "MongoDB connection test mocked (Success)"
+            return ConnectionTester._test_mongodb(config)
         else:
             return False, f"Unsupported connection type: {conn_type}"
 
@@ -68,3 +67,20 @@ class ConnectionTester:
             return False, f"S3 Connection failed: {str(e)}"
         except Exception as e:
             return False, f"Error: {str(e)}"
+
+    @staticmethod
+    def _test_mongodb(config: Dict[str, Any]) -> Tuple[bool, str]:
+        """Test MongoDB connection."""
+        try:
+            from services.mongodb_connector import test_mongodb_connection
+            
+            uri = config.get('uri')
+            database = config.get('database')
+            
+            if not uri or not database:
+                return False, "Missing MongoDB connection parameters (uri or database)"
+            
+            return test_mongodb_connection(uri, database)
+            
+        except Exception as e:
+            return False, f"MongoDB connection test failed: {str(e)}"

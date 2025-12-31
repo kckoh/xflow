@@ -10,11 +10,16 @@ export default function SelectFieldsConfig({ node, transformName, onUpdate, onCl
     useEffect(() => {
         // Load columns from inputSchema (propagated from previous node)
         if (node?.data?.inputSchema) {
-            setAvailableColumns(node.data.inputSchema.map(col => col.key));
+            // Support both RDB (key) and MongoDB (field) formats
+            const columns = node.data.inputSchema.map(col => col.field || col.key);
+            setAvailableColumns(columns);
 
             // Restore previously selected columns from transformConfig
             if (node.data.transformConfig?.selectedColumns) {
                 setSelectedColumns(node.data.transformConfig.selectedColumns);
+            } else {
+                // Default: select all on first load
+                setSelectedColumns(columns);
             }
         }
     }, [node]);
@@ -39,9 +44,10 @@ export default function SelectFieldsConfig({ node, transformName, onUpdate, onCl
         setLoading(true);
         try {
             // Generate output schema (selected columns only)
-            const outputSchema = node.data.inputSchema.filter(col =>
-                selectedColumns.includes(col.key)
-            );
+            const outputSchema = node.data.inputSchema.filter(col => {
+                const fieldName = col.field || col.key;
+                return selectedColumns.includes(fieldName);
+            });
 
             // Update node data
             onUpdate({
@@ -91,21 +97,40 @@ export default function SelectFieldsConfig({ node, transformName, onUpdate, onCl
                 </p>
 
                 {availableColumns.length > 0 ? (
-                    <div className="border border-gray-300 rounded-md p-3 max-h-64 overflow-y-auto space-y-2">
-                        {availableColumns.map((column) => (
-                            <label
-                                key={column}
-                                className="flex items-center gap-2 p-2 hover:bg-gray-50 rounded cursor-pointer"
-                            >
-                                <input
-                                    type="checkbox"
-                                    checked={selectedColumns.includes(column)}
-                                    onChange={() => handleColumnToggle(column)}
-                                    className="w-4 h-4 text-blue-600 border-gray-300 rounded focus:ring-blue-500"
-                                />
-                                <span className="text-sm text-gray-700">{column}</span>
-                            </label>
-                        ))}
+                    <div className="border border-gray-300 rounded-md max-h-64 overflow-y-auto">
+                        {node.data.inputSchema.map((col, idx) => {
+                            const fieldName = col.field || col.key;
+                            const hasOccurrence = col.occurrence !== undefined;
+
+                            return (
+                                <label
+                                    key={idx}
+                                    className="flex items-center gap-2 p-2 hover:bg-gray-50 cursor-pointer border-b border-gray-100 last:border-b-0"
+                                >
+                                    <input
+                                        type="checkbox"
+                                        checked={selectedColumns.includes(fieldName)}
+                                        onChange={() => handleColumnToggle(fieldName)}
+                                        className="w-4 h-4 text-blue-600 border-gray-300 rounded focus:ring-blue-500"
+                                    />
+                                    <div className="flex-1 flex items-center justify-between">
+                                        <div className="flex items-center gap-2">
+                                            <span className="text-sm text-gray-700 font-medium">{fieldName}</span>
+                                            {col.type && (
+                                                <span className="text-xs font-mono text-gray-500 bg-gray-100 px-1.5 py-0.5 rounded">
+                                                    {col.type}
+                                                </span>
+                                            )}
+                                        </div>
+                                        {hasOccurrence && (
+                                            <span className={`text-xs font-medium ${col.occurrence < 1.0 ? 'text-amber-600' : 'text-gray-600'}`}>
+                                                {(col.occurrence * 100).toFixed(0)}%
+                                            </span>
+                                        )}
+                                    </div>
+                                </label>
+                            );
+                        })}
                     </div>
                 ) : (
                     <div className="border border-gray-300 rounded-md p-4 text-center text-sm text-gray-500 italic">
