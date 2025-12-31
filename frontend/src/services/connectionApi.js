@@ -1,4 +1,6 @@
-const API_BASE_URL = 'http://localhost:8000/api';
+import { API_BASE_URL } from '../config/api';
+
+const API_URL = `${API_BASE_URL}/api`;
 
 export const connectionApi = {
     /**
@@ -6,7 +8,7 @@ export const connectionApi = {
      * @returns {Promise<Array>} List of connections
      */
     async fetchConnections() {
-        const response = await fetch(`${API_BASE_URL}/connections/`);
+        const response = await fetch(`${API_URL}/connections/`);
         if (!response.ok) {
             throw new Error('Failed to fetch connections');
         }
@@ -19,7 +21,7 @@ export const connectionApi = {
      * @returns {Promise<Object>} Created connection
      */
     async createConnection(connection) {
-        const response = await fetch(`${API_BASE_URL}/connections/`, {
+        const response = await fetch(`${API_URL}/connections/`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify(connection),
@@ -36,7 +38,7 @@ export const connectionApi = {
      * @param {string} id - Connection ID
      */
     async deleteConnection(id) {
-        const response = await fetch(`${API_BASE_URL}/connections/${id}`, {
+        const response = await fetch(`${API_URL}/connections/${id}`, {
             method: 'DELETE',
         });
         if (!response.ok) {
@@ -50,7 +52,7 @@ export const connectionApi = {
      * @returns {Promise<Object>} { success: true, message: "..." }
      */
     async testConnection(connection) {
-        const response = await fetch(`${API_BASE_URL}/connections/test`, {
+        const response = await fetch(`${API_URL}/connections/test`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify(connection),
@@ -70,7 +72,7 @@ export const connectionApi = {
      * @returns {Promise<Object>} { source_id, tables: [...] }
      */
     async fetchSourceTables(connectionId) {
-        const response = await fetch(`${API_BASE_URL}/metadata/${connectionId}/tables`);
+        const response = await fetch(`${API_URL}/metadata/${connectionId}/tables`);
         if (!response.ok) {
             throw new Error('Failed to fetch tables');
         }
@@ -84,7 +86,7 @@ export const connectionApi = {
      * @returns {Promise<Array>} List of columns
      */
     async fetchTableColumns(connectionId, tableName) {
-        const response = await fetch(`${API_BASE_URL}/metadata/${connectionId}/tables/${tableName}/columns`);
+        const response = await fetch(`${API_URL}/metadata/${connectionId}/tables/${tableName}/columns`);
         if (!response.ok) {
             throw new Error('Failed to fetch columns');
         }

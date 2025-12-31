@@ -29,6 +29,7 @@ import {
 import { SiPostgresql, SiMongodb } from "@icons-pack/react-simple-icons";
 import "./etl_job.css";
 import { useNavigate, useParams } from "react-router-dom";
+import { API_BASE_URL } from "../../config/api";
 import RDBSourcePropertiesPanel from "../../components/etl/RDBSourcePropertiesPanel";
 import TransformPropertiesPanel from "../../components/etl/TransformPropertiesPanel";
 import S3TargetPropertiesPanel from "../../components/etl/S3TargetPropertiesPanel";
@@ -84,7 +85,7 @@ export default function ETLJobPage() {
   const loadJob = async (id) => {
     setIsLoading(true);
     try {
-      const response = await fetch(`http://localhost:8000/api/etl-jobs/${id}`);
+      const response = await fetch(`${API_BASE_URL}/api/etl-jobs/${id}`);
       if (!response.ok) {
         throw new Error("Failed to load job");
       }
@@ -357,14 +358,14 @@ export default function ETLJobPage() {
       let response;
       if (jobId) {
         // Update existing job
-        response = await fetch(`http://localhost:8000/api/etl-jobs/${jobId}`, {
+        response = await fetch(`${API_BASE_URL}/api/etl-jobs/${jobId}`, {
           method: "PUT",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify(payload),
         });
       } else {
         // Create new job
-        response = await fetch("http://localhost:8000/api/etl-jobs", {
+        response = await fetch(`${API_BASE_URL}/api/etl-jobs`, {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify(payload),
@@ -392,7 +393,7 @@ export default function ETLJobPage() {
     if (!jobId) return;
     try {
       const response = await fetch(
-        `http://localhost:8000/api/job-runs?job_id=${jobId}`,
+        `${API_BASE_URL}/api/job-runs?job_id=${jobId}`,
       );
       if (response.ok) {
         const data = await response.json();

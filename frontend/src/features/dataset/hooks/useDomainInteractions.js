@@ -2,6 +2,7 @@ import { useState, useEffect, useCallback } from 'react';
 import { addEdge } from '@xyflow/react';
 import { catalogAPI } from '../../../services/catalog/index';
 import { useToast } from '../../../components/common/Toast';
+import { API_BASE_URL } from '../../../config/api';
 
 export const useDomainInteractions = ({ nodes, edges, setNodes, setEdges, datasetId, handleToggleExpand, onNodeSelect }) => {
     const { showToast } = useToast();
@@ -58,7 +59,7 @@ export const useDomainInteractions = ({ nodes, edges, setNodes, setEdges, datase
 
         try {
             // Build URL manually for complex query params (TODO: Add to catalogAPI)
-            let url = `http://localhost:8000/api/catalog/${edgeMenu.sourceMongoId}/lineage/${edgeMenu.targetMongoId}`;
+            let url = `${API_BASE_URL}/api/catalog/${edgeMenu.sourceMongoId}/lineage/${edgeMenu.targetMongoId}`;
             if (edgeMenu.sourceHandle && edgeMenu.targetHandle) {
                 const params = new URLSearchParams({
                     source_col: edgeMenu.sourceHandle,
@@ -102,7 +103,7 @@ export const useDomainInteractions = ({ nodes, edges, setNodes, setEdges, datase
             try {
                 // Logic to update schema on backend if creating new column
                 // TODO: encapsualte this into catalogAPI.updateSchema if reused
-                const response = await fetch(`http://localhost:8000/api/catalog/${targetMongoId}`);
+                const response = await fetch(`${API_BASE_URL}/api/catalog/${targetMongoId}`);
                 const targetDoc = await response.json();
 
                 const currentSchema = targetDoc.columns || targetDoc.schema || [];
@@ -117,7 +118,7 @@ export const useDomainInteractions = ({ nodes, edges, setNodes, setEdges, datase
                     const newSchema = [...currentSchema, sourceColDef];
 
                     // PATCH schema
-                    await fetch(`http://localhost:8000/api/catalog/${targetMongoId}`, {
+                    await fetch(`${API_BASE_URL}/api/catalog/${targetMongoId}`, {
                         method: 'PATCH',
                         headers: { 'Content-Type': 'application/json' },
                         body: JSON.stringify({ schema: newSchema })
@@ -149,7 +150,7 @@ export const useDomainInteractions = ({ nodes, edges, setNodes, setEdges, datase
         }
 
         try {
-            const response = await fetch(`http://localhost:8000/api/catalog/${sourceMongoId}/lineage`, {
+            const response = await fetch(`${API_BASE_URL}/api/catalog/${sourceMongoId}/lineage`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({

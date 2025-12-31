@@ -2,6 +2,7 @@ import { useState, useEffect } from "react";
 import { X, Database, Table as TableIcon, GitFork, FileText, Tag, Hash, AlignLeft, Users } from "lucide-react";
 import DatasetSchema from "./DatasetSchema";
 import DatasetDomain from "./DatasetDomain";
+import { API_BASE_URL } from "../../../config/api";
 
 export default function DatasetDrawer({ isOpen, onClose, datasetId }) {
     const [dataset, setDataset] = useState(null);
@@ -16,7 +17,7 @@ export default function DatasetDrawer({ isOpen, onClose, datasetId }) {
                 setLoading(true);
                 setError(null);
                 try {
-                    const response = await fetch(`http://localhost:8000/api/catalog/${datasetId}`);
+                    const response = await fetch(`${API_BASE_URL}/api/catalog/${datasetId}`);
                     if (!response.ok) throw new Error("Failed to fetch dataset details");
                     const data = await response.json();
                     setDataset(data);

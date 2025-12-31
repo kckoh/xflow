@@ -1,5 +1,6 @@
+import { API_BASE_URL } from '../../config/api';
 
-const API_BASE_URL = 'http://localhost:8000/api/catalog';
+const API_URL = `${API_BASE_URL}/api/catalog`;
 
 export const catalogAPI = {
     /**
@@ -7,7 +8,7 @@ export const catalogAPI = {
      * @returns {Promise<Array>}
      */
     getDatasets: async () => {
-        const response = await fetch(API_BASE_URL);
+        const response = await fetch(API_URL);
         if (!response.ok) {
             throw new Error(`Failed to fetch catalog data: ${response.statusText} `);
         }
@@ -20,7 +21,7 @@ export const catalogAPI = {
      * @returns {Promise<Object>}
      */
     createDataset: async (data) => {
-        const response = await fetch(API_BASE_URL, {
+        const response = await fetch(API_URL, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify(data)
@@ -38,7 +39,7 @@ export const catalogAPI = {
      * @returns {Promise<Object>}
      */
     getDataset: async (id) => {
-        const response = await fetch(`${API_BASE_URL}/${id}`);
+        const response = await fetch(`${API_URL}/${id}`);
         if (!response.ok) {
             throw new Error(`Failed to load dataset details: ${response.statusText}`);
         }
@@ -51,7 +52,7 @@ export const catalogAPI = {
      * @returns {Promise<boolean>}
      */
     deleteDataset: async (id) => {
-        const response = await fetch(`${API_BASE_URL}/${id}`, {
+        const response = await fetch(`${API_URL}/${id}`, {
             method: 'DELETE'
         });
         if (!response.ok) {
@@ -66,7 +67,7 @@ export const catalogAPI = {
      * @returns {Promise<Object>}
      */
     getLineage: async (id) => {
-        const response = await fetch(`${API_BASE_URL}/${id}/lineage`);
+        const response = await fetch(`${API_URL}/${id}/lineage`);
         if (!response.ok) {
             throw new Error(`Failed to load lineage: ${response.statusText}`);
         }
