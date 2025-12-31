@@ -40,3 +40,16 @@ export const saveDomainGraph = async (id, { nodes, edges }) => {
     if (!response.ok) throw new Error(`Failed to save graph: ${response.status}`);
     return response.json();
 };
+
+// ETL Job Import APIs
+export const getImportReadyJobs = async () => {
+    const response = await fetch(`${BASE_URL}/jobs?import_ready=true`);
+    if (!response.ok) throw new Error(`Failed to fetch import-ready jobs: ${response.status}`);
+    return response.json();
+};
+
+export const getJobExecution = async (jobId) => {
+    const response = await fetch(`${BASE_URL}/jobs/${jobId}/execution`);
+    if (!response.ok) throw new Error(`Failed to fetch job execution: ${response.status}`);
+    return response.json();
+};
