@@ -111,7 +111,7 @@ const DatasetNode = ({ data, selected }) => {
 
             {/* 스키마 테이블 (토글 시 펼침) */}
             {schemaExpanded && (
-                <div className="border-t border-gray-100 bg-gray-50 rounded-b-lg max-h-56 overflow-y-auto">
+                <div className="border-t border-gray-100 bg-gray-50 rounded-b-lg">
                     {/* 테이블명 - 클릭하면 오른쪽 패널에서 편집 */}
                     {data.tableName && (
                         <div
@@ -120,11 +120,13 @@ const DatasetNode = ({ data, selected }) => {
                                 // e.stopPropagation(); 
                                 e.isMetadataClick = true; // Flag to prevent clearing metadata selection in parent
                                 if (data.onMetadataSelect) {
+                                    // Load existing metadata from node data
+                                    const tableMetadata = data.metadata?.table || {};
                                     data.onMetadataSelect({
                                         type: 'table',
                                         name: data.tableName,
-                                        description: data.tableDescription || '',
-                                        tags: data.tableTags || []
+                                        description: tableMetadata.description || '',
+                                        tags: tableMetadata.tags || []
                                     }, data.nodeId);
                                 }
                             }}
@@ -136,7 +138,7 @@ const DatasetNode = ({ data, selected }) => {
                     )}
 
                     {/* 컬럼 헤더 */}
-                    <div className="flex px-3 py-1.5 border-b border-gray-200 bg-gray-100 text-xs font-medium text-gray-500 uppercase tracking-wider sticky top-0">
+                    <div className="flex px-3 py-1.5 border-b border-gray-200 bg-gray-100 text-xs font-medium text-gray-500 uppercase tracking-wider">
                         <span className="flex-1">Column</span>
                         <span className="flex-1 text-right">Type</span>
                     </div>
@@ -144,7 +146,7 @@ const DatasetNode = ({ data, selected }) => {
                     {/* 컬럼들 */}
                     {hasSchema ? (
                         <div className="divide-y divide-gray-100">
-                            {data.schema.slice(0, 10).map((field, idx) => (
+                            {data.schema.map((field, idx) => (
                                 <div
                                     key={idx}
                                     className="flex px-3 py-1.5 hover:bg-blue-50 cursor-pointer text-xs transition-colors"
@@ -152,12 +154,14 @@ const DatasetNode = ({ data, selected }) => {
                                         // e.stopPropagation();
                                         e.isMetadataClick = true; // Flag to prevent clearing metadata selection in parent
                                         if (data.onMetadataSelect) {
+                                            // Load existing metadata from node data
+                                            const columnMetadata = data.metadata?.columns?.[field.key] || {};
                                             data.onMetadataSelect({
                                                 type: 'column',
                                                 name: field.key,
                                                 dataType: field.type,
-                                                description: field.description || '',
-                                                tags: field.tags || []
+                                                description: columnMetadata.description || '',
+                                                tags: columnMetadata.tags || []
                                             }, data.nodeId);
                                         }
                                     }}

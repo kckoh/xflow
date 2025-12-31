@@ -37,6 +37,7 @@ import SchedulesPanel from "../../components/etl/SchedulesPanel";
 import RunsPanel from "../../components/etl/RunsPanel";
 import { applyTransformToSchema } from "../../utils/schemaTransforms";
 import DatasetNode from "../../components/common/nodes/DatasetNode";
+import { useMetadataUpdate } from "../../hooks/useMetadataUpdate";
 
 const initialNodes = [];
 
@@ -74,6 +75,14 @@ export default function ETLJobPage() {
   const reactFlowInstance = useRef(null);
   // 오른쪽 패널 하단에 표시할 메타데이터 아이템 (table 또는 column)
   const [selectedMetadataItem, setSelectedMetadataItem] = useState(null);
+
+  // Custom hook for metadata updates (removes duplicate code)
+  const handleMetadataUpdate = useMetadataUpdate(
+    selectedNode,
+    setNodes,
+    setSelectedNode,
+    setSelectedMetadataItem
+  );
 
   // Icon mappings (defined early so loadJob can use it)
   const iconMap = {
@@ -215,6 +224,14 @@ export default function ETLJobPage() {
             return inputNode?.data?.schema || [];
           });
 
+          // Collect table names from input sources
+          const tableNames = allEdgesToTarget.map((e) => {
+            const inputNode = nds.find((n) => n.id === e.source);
+            return inputNode?.data?.tableName || '';
+          }).filter(name => name); // Remove empty names
+
+          const combinedTableName = tableNames.join('_');
+
           // Merge schemas for union - include all columns
           const unionSchema = mergeSchemas(inputSchemas);
 
@@ -226,6 +243,7 @@ export default function ETLJobPage() {
                   ...n.data,
                   inputSchemas: inputSchemas, // Store array of schemas for Union config
                   schema: unionSchema,
+                  tableName: combinedTableName, // Set combined table name
                 },
               }
               : n,
@@ -272,6 +290,14 @@ export default function ETLJobPage() {
                 const inputNode = nds.find((n) => n.id === e.source);
                 return inputNode?.data?.schema || [];
               });
+
+              // Collect table names from input sources
+              const tableNames = allEdgesToTarget.map((e) => {
+                const inputNode = nds.find((n) => n.id === e.source);
+                return inputNode?.data?.tableName || '';
+              }).filter(name => name);
+
+              const combinedTableName = tableNames.join('_');
               const unionSchema = mergeSchemas(inputSchemas);
 
               setSelectedNode((prev) => ({
@@ -280,6 +306,7 @@ export default function ETLJobPage() {
                   ...prev.data,
                   inputSchemas: inputSchemas,
                   schema: unionSchema,
+                  tableName: combinedTableName,
                 },
               }));
             } else {
@@ -452,12 +479,12 @@ export default function ETLJobPage() {
     if (nodes.length > 0) {
       // 가장 아래에 있는 노드 찾기
       const bottomNode = nodes.reduce((bottom, node) => {
-        return node.position.y > bottom.position.y ? node : bottom;
+        return node.position.x > bottom.position.x ? node : bottom;
       }, nodes[0]);
 
-      // 그 노드 아래에 배치 (150px 간격)
+      // 그 노드 아래에 배치 
       position = {
-        x: bottomNode.position.x + 300,
+        x: bottomNode.position.x + 200,
         y: bottomNode.position.y,
       };
     } else {
@@ -474,10 +501,8 @@ export default function ETLJobPage() {
         color: nodeOption.color,
         nodeCategory: category, // source, transform, target
         transformType: category === "transform" ? nodeOption.id : undefined,
-        
-        // TODO: nodeID 변경 (convention + unique ID)
+
         nodeId: `${nodes.length + 1}`, // 노드 ID 전달
-        nodeId: `${nodes.lengh + 1}`, // 노드 ID 전달
 
         // Table 또는 Column 클릭 시 노드 선택 + 메타데이터 편집
         onMetadataSelect: (item, clickedNodeId) => {
@@ -709,8 +734,7 @@ export default function ETLJobPage() {
                 }}
                 onMetadataUpdate={(updatedItem) => {
                   console.log("Metadata updated:", updatedItem);
-                  setSelectedMetadataItem(updatedItem);
-                  // TODO: 노드 데이터에 반영
+                  handleMetadataUpdate(updatedItem);
                 }}
               />
             )}
@@ -741,10 +765,7 @@ export default function ETLJobPage() {
                       data: { ...prev.data, ...data },
                     }));
                   }}
-                  onMetadataUpdate={(updatedItem) => {
-                    setSelectedMetadataItem(updatedItem);
-                    // TODO: Update node schema metadata
-                  }}
+                  onMetadataUpdate={handleMetadataUpdate}
                 />
               )}
 
@@ -772,10 +793,7 @@ export default function ETLJobPage() {
                     data: { ...prev.data, ...data },
                   }));
                 }}
-                onMetadataUpdate={(updatedItem) => {
-                  setSelectedMetadataItem(updatedItem);
-                  // TODO: Update node schema metadata
-                }}
+                onMetadataUpdate={handleMetadataUpdate}
               />
             )}
           </div>

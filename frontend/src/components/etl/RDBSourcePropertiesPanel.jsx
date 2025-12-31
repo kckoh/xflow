@@ -222,6 +222,17 @@ export default function RDBSourcePropertiesPanel({ node, selectedMetadataItem, o
                     />
                 </div>
 
+                {/* Save & Preview Button */}
+                <div className="flex justify-end">
+                    <button
+                        onClick={handleSave}
+                        disabled={!selectedConnection || !selectedTable}
+                        className="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed"
+                    >
+                        Save & Preview
+                    </button>
+                </div>
+
                 {/* Metadata Edit Section */}
                 {selectedMetadataItem && (
                     <div className="border-t border-gray-200 pt-4 mt-4">
@@ -268,23 +279,6 @@ export default function RDBSourcePropertiesPanel({ node, selectedMetadataItem, o
                         </div>
                     </div>
                 )}
-            </div>
-
-            {/* Footer */}
-            <div className="px-4 py-3 border-t border-gray-200 flex justify-end gap-2">
-                <button
-                    onClick={onClose}
-                    className="px-4 py-2 border border-gray-300 rounded-md text-gray-700 hover:bg-gray-50"
-                >
-                    Cancel
-                </button>
-                <button
-                    onClick={handleSave}
-                    disabled={!selectedConnection || !selectedTable}
-                    className="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed"
-                >
-                    Save & Preview
-                </button>
             </div>
 
             {/* Create Connection Modal */}
