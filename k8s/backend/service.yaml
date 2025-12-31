@@ -2,11 +2,10 @@ apiVersion: v1
 kind: Service
 metadata:
   name: backend
-  namespace: xflow
 spec:
   selector:
     app: backend
   ports:
-    - port: 8000
+    - port: 80
       targetPort: 8000
-  type: NodePort  # minikube에서 외부 접근 가능
+  type: ClusterIP
