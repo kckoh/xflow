@@ -82,9 +82,24 @@ const DomainFlow = React.forwardRef((props, ref) => {
                 connectionMode="loose"
                 connectionLineStyle={{ stroke: "#cbd5e1", strokeWidth: 2 }}
             >
-                <Background color="#f1f5f9" gap={20} />
+                <Background
+                    variant="dots"
+                    gap={12}
+                    size={1}
+                />
                 <Controls />
-                <MiniMap />
+                <MiniMap
+                    nodeColor={(node) => {
+                        const platform = node.data?.platform?.toLowerCase() || "";
+                        if (platform.includes("s3") || platform.includes("archive")) return "#F59E0B"; // Orange for S3/Archive
+                        if (platform.includes("postgres")) return "#3B82F6"; // Blue for Postgres
+                        if (platform.includes("mongo")) return "#10B981"; // Green for Mongo
+                        if (platform.includes("mysql")) return "#0EA5E9"; // Sky for MySQL
+                        if (platform.includes("kafka")) return "#1F2937"; // Dark for Kafka
+                        return "#64748B"; // Default Slate
+                    }}
+                    className="bg-white border border-gray-200"
+                />
 
                 <DomainEdgeMenu
                     menu={edgeMenu}
