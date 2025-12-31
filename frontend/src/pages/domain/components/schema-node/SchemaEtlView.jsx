@@ -18,7 +18,8 @@ const EtlStepNode = ({ step }) => {
             {expanded && (
                 <SchemaNodeColumns
                     columns={step.data?.columns || []}
-                    withHandles={true}
+                    //Domain- ETL toggle box hide input, output = false
+                    withHandles={false}
                 />
             )}
             {!expanded && (
