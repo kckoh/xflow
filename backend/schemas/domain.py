@@ -45,6 +45,10 @@ class JobExecutionResponse(BaseModel):
 class DomainCreate(BaseModel):
     name: str
     type: str
+    owner: Optional[str] = None
+    tags: List[str] = []
+    description: Optional[str] = None
+    job_ids: List[str] = []
 
 class DomainGraphUpdate(BaseModel):
     nodes: List[Dict[str, Any]]

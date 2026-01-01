@@ -118,6 +118,9 @@ class JobRun(Document):
 class Domain(Document):
     name: str
     type: str  # e.g., 'marketing', 'sales'
+    owner: Optional[str] = None
+    tags: List[str] = Field(default_factory=list)
+    description: Optional[str] = None
     nodes: List[Dict[str, Any]] = []
     edges: List[Dict[str, Any]] = []
     created_at: datetime = Field(default_factory=datetime.utcnow)
