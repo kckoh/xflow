@@ -1,10 +1,10 @@
 import React, { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { X, ArrowRight, Plus, Database, Tag, Book } from "lucide-react";
-import { catalogAPI } from "../../../services/catalog/index";
 import { useToast } from "../../../components/common/Toast";
+import { createDomain } from "../api/domainApi";
 
-export default function DatasetCreateModal({ isOpen, onClose, onCreated }) {
+export default function DomainCreateModal({ isOpen, onClose, onCreated }) {
   const navigate = useNavigate();
   const { showToast } = useToast();
   const [loading, setLoading] = useState(false);
@@ -49,16 +49,25 @@ export default function DatasetCreateModal({ isOpen, onClose, onCreated }) {
     }
   };
 
+
+
   const handleSubmit = async () => {
     setLoading(true);
     try {
-      const data = await catalogAPI.createDataset(formData);
+      const data = await createDomain({
+        name: formData.name,
+        type: formData.tags[0] || "custom", // Use first tag as type or default
+      });
 
-      showToast("Dataset registered successfully", "success");
+      showToast("Domain registered successfully", "success");
       onCreated(); // Refresh list
       onClose();
-      // Redirect to the new dataset's lineage/detail page
-      navigate(`/catalog/${data.id}`);
+      // Redirect to the new domain's lineage/detail page
+      // Beanie/Pydantic usually returns 'id' or '_id'. Let's check response.
+      // If Pydantic model response, it usually has 'id' or '_id'.
+      // Let's assume 'id' is standard for frontend usage.
+      const newId = data._id || data.id;
+      navigate(`/domain/${newId}`);
     } catch (e) {
       showToast(e.message, "error");
     } finally {

@@ -37,10 +37,17 @@ import JobDetailsPanel from "../../components/etl/JobDetailsPanel";
 import SchedulesPanel from "../../components/etl/SchedulesPanel";
 import RunsPanel from "../../components/etl/RunsPanel";
 import { applyTransformToSchema } from "../../utils/schemaTransforms";
+import DatasetNode from "../../components/common/nodes/DatasetNode";
+import { useMetadataUpdate } from "../../hooks/useMetadataUpdate";
 
 const initialNodes = [];
 
 const initialEdges = [];
+
+// 커스텀 노드 타입 정의
+const nodeTypes = {
+  datasetNode: DatasetNode,
+};
 
 export default function ETLJobPage() {
   const navigate = useNavigate();
@@ -67,6 +74,32 @@ export default function ETLJobPage() {
   const [isSaving, setIsSaving] = useState(false);
   const [isLoading, setIsLoading] = useState(!!urlJobId);
   const reactFlowInstance = useRef(null);
+  // 오른쪽 패널 하단에 표시할 메타데이터 아이템 (table 또는 column)
+  const [selectedMetadataItem, setSelectedMetadataItem] = useState(null);
+
+  // Custom hook for metadata updates (removes duplicate code)
+  const handleMetadataUpdate = useMetadataUpdate(
+    selectedNode,
+    setNodes,
+    setSelectedNode,
+    setSelectedMetadataItem
+  );
+
+  // Icon mappings (defined early so loadJob can use it)
+  const iconMap = {
+    // Sources
+    "PostgreSQL": SiPostgresql,
+    "MongoDB": SiMongodb,
+    "S3": Archive,
+    // Transforms
+    "Select Fields": Columns,
+    "Filter": Filter,
+    "Union": Combine,
+    "Map": ArrowRightLeft,
+    "Join": GitMerge,
+    "Aggregate": BarChart3,
+    "Sort": ArrowUpDown,
+  };
 
   // Load runs when switching to Runs tab
   useEffect(() => {
@@ -101,7 +134,20 @@ export default function ETLJobPage() {
 
       // Restore nodes and edges if they exist
       if (data.nodes && data.nodes.length > 0) {
-        setNodes(data.nodes);
+        // Hydrate icons and onMetadataSelect callback based on label
+        const hydratedNodes = data.nodes.map((node) => ({
+          ...node,
+          data: {
+            ...node.data,
+            icon: iconMap[node.data.label] || Archive, // Fallback to Archive
+            nodeId: node.id, // Ensure nodeId is set
+            // Restore onMetadataSelect callback for metadata editing
+            onMetadataSelect: (item, clickedNodeId) => {
+              setSelectedMetadataItem(item);
+            },
+          },
+        }));
+        setNodes(hydratedNodes);
       }
       if (data.edges && data.edges.length > 0) {
         setEdges(data.edges);
@@ -184,6 +230,14 @@ export default function ETLJobPage() {
             return inputNode?.data?.schema || [];
           });
 
+          // Collect table names from input sources
+          const tableNames = allEdgesToTarget.map((e) => {
+            const inputNode = nds.find((n) => n.id === e.source);
+            return inputNode?.data?.tableName || '';
+          }).filter(name => name); // Remove empty names
+
+          const combinedTableName = tableNames.join('_');
+
           // Merge schemas for union - include all columns
           const unionSchema = mergeSchemas(inputSchemas);
 
@@ -195,6 +249,7 @@ export default function ETLJobPage() {
                   ...n.data,
                   inputSchemas: inputSchemas, // Store array of schemas for Union config
                   schema: unionSchema,
+                  tableName: combinedTableName, // Set combined table name
                 },
               }
               : n,
@@ -209,6 +264,7 @@ export default function ETLJobPage() {
               data: {
                 ...n.data,
                 inputSchema: sourceNode.data.schema,
+                tableName: sourceNode.data.tableName, // 테이블명도 전파
                 // If transform has config, apply it; otherwise use input as output
                 schema: n.data.transformConfig
                   ? applyTransformToSchema(
@@ -240,6 +296,14 @@ export default function ETLJobPage() {
                 const inputNode = nds.find((n) => n.id === e.source);
                 return inputNode?.data?.schema || [];
               });
+
+              // Collect table names from input sources
+              const tableNames = allEdgesToTarget.map((e) => {
+                const inputNode = nds.find((n) => n.id === e.source);
+                return inputNode?.data?.tableName || '';
+              }).filter(name => name);
+
+              const combinedTableName = tableNames.join('_');
               const unionSchema = mergeSchemas(inputSchemas);
 
               setSelectedNode((prev) => ({
@@ -248,6 +312,7 @@ export default function ETLJobPage() {
                   ...prev.data,
                   inputSchemas: inputSchemas,
                   schema: unionSchema,
+                  tableName: combinedTableName,
                 },
               }));
             } else {
@@ -256,6 +321,7 @@ export default function ETLJobPage() {
                 data: {
                   ...prev.data,
                   inputSchema: sourceNode.data.schema,
+                  tableName: sourceNode.data.tableName, // 테이블명도 전파
                   schema: prev.data.transformConfig
                     ? applyTransformToSchema(
                       sourceNode.data.schema,
@@ -280,12 +346,12 @@ export default function ETLJobPage() {
 
   // Convert nodes to ETL Jobs API format
   const convertNodesToApiFormat = () => {
-    // Find all source nodes (input type) - support multiple sources
-    const sourceNodes = nodes.filter((n) => n.type === "input");
-    // Find transform nodes (default type)
-    const transformNodes = nodes.filter((n) => n.type === "default");
-    // Find target node (output type)
-    const targetNode = nodes.find((n) => n.type === "output");
+    // Find all source nodes
+    const sourceNodes = nodes.filter((n) => n.data?.nodeCategory === "source");
+    // Find transform nodes
+    const transformNodes = nodes.filter((n) => n.data?.nodeCategory === "transform");
+    // Find target node
+    const targetNode = nodes.find((n) => n.data?.nodeCategory === "target");
 
     // Build sources array (multiple sources support)
     const sources = sourceNodes.map((node) => ({
@@ -414,24 +480,18 @@ export default function ETLJobPage() {
   };
 
   const addNode = (category, nodeOption) => {
-    const typeMap = {
-      source: "input",
-      transform: "default",
-      target: "output",
-    };
-
     // 스마트 위치 계산: 기존 노드들 중 가장 아래에 있는 노드 찾기
     let position;
     if (nodes.length > 0) {
       // 가장 아래에 있는 노드 찾기
       const bottomNode = nodes.reduce((bottom, node) => {
-        return node.position.y > bottom.position.y ? node : bottom;
+        return node.position.x > bottom.position.x ? node : bottom;
       }, nodes[0]);
 
-      // 그 노드 아래에 배치 (150px 간격)
+      // 그 노드 아래에 배치 
       position = {
-        x: bottomNode.position.x,
-        y: bottomNode.position.y + 100,
+        x: bottomNode.position.x + 200,
+        y: bottomNode.position.y,
       };
     } else {
       // 첫 번째 노드는 화면 상단 중앙에 배치
@@ -440,11 +500,21 @@ export default function ETLJobPage() {
 
     const newNode = {
       id: `${nodes.length + 1}`,
-      type: typeMap[category],
+      type: "datasetNode", // 커스텀 노드 사용
       data: {
         label: nodeOption.label,
-        // Transform 타입 저장 (확장성 고려)
+        icon: nodeOption.icon,
+        color: nodeOption.color,
+        nodeCategory: category, // source, transform, target
         transformType: category === "transform" ? nodeOption.id : undefined,
+
+        nodeId: `${nodes.length + 1}`, // 노드 ID 전달
+
+        // Table 또는 Column 클릭 시 노드 선택 + 메타데이터 편집
+        onMetadataSelect: (item, clickedNodeId) => {
+          setSelectedMetadataItem(item);
+          // 노드 선택은 propagation을 통해 React Flow가 처리함
+        },
       },
       position,
     };
@@ -463,11 +533,16 @@ export default function ETLJobPage() {
   };
 
   const handleNodeClick = (event, node) => {
+    // 메타데이터(테이블/컬럼) 클릭이 아닐 때만 메타데이터 선택 초기화
+    if (!event.isMetadataClick && selectedNode?.id !== node.id) {
+      setSelectedMetadataItem(null);
+    }
     setSelectedNode(node);
   };
 
   const handlePaneClick = () => {
     setSelectedNode(null);
+    setSelectedMetadataItem(null);
   };
 
   return (
@@ -601,6 +676,7 @@ export default function ETLJobPage() {
               <ReactFlow
                 nodes={nodes}
                 edges={edges}
+                nodeTypes={nodeTypes}
                 onNodesChange={onNodesChange}
                 onEdgesChange={onEdgesChange}
                 onConnect={onConnect}
@@ -616,11 +692,13 @@ export default function ETLJobPage() {
                 <Controls />
                 <MiniMap
                   nodeColor={(node) => {
-                    switch (node.type) {
-                      case "input":
+                    switch (node.data?.nodeCategory) {
+                      case "source":
                         return "#3b82f6";
-                      case "output":
+                      case "target":
                         return "#10b981";
+                      case "transform":
+                        return "#8b5cf6";
                       default:
                         return "#6b7280";
                     }
@@ -633,84 +711,17 @@ export default function ETLJobPage() {
                   size={1}
                 />
               </ReactFlow>
-
-              {/* Bottom Panel (Output Schema) - Show for Source, Transform, and Target nodes */}
-              {selectedNode &&
-                (selectedNode.type === "input" ||
-                  selectedNode.type === "default" ||
-                  selectedNode.type === "output") && (
-                  <div className="h-64 border-t border-gray-200 bg-white flex flex-col transition-all duration-300 ease-in-out">
-                    <div className="flex items-center px-4 py-2 border-b border-gray-200 bg-gray-50">
-                      <span className="text-sm font-semibold text-gray-700">
-                        Output schema
-                      </span>
-                    </div>
-
-                    <div className="flex-1 overflow-auto">
-                      <div className="h-full flex flex-col">
-                        <table className="min-w-full divide-y divide-gray-200">
-                          <thead className="bg-gray-50 sticky top-0">
-                            <tr>
-                              <th
-                                scope="col"
-                                className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider w-1/3"
-                              >
-                                Key
-                              </th>
-                              <th
-                                scope="col"
-                                className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider"
-                              >
-                                Data type
-                              </th>
-                            </tr>
-                          </thead>
-                          <tbody className="bg-white divide-y divide-gray-200">
-                            {/* Schema Data - use inputSchema for Target, schema for others */}
-                            {(() => {
-                              const schemaData =
-                                selectedNode.type === "output"
-                                  ? selectedNode.data?.inputSchema
-                                  : selectedNode.data?.schema;
-                              return schemaData && schemaData.length > 0 ? (
-                                schemaData.map((row, idx) => (
-                                  <tr key={idx} className="hover:bg-gray-50">
-                                    <td className="px-6 py-2 whitespace-nowrap text-sm font-medium text-gray-900">
-                                      {row.key}
-                                    </td>
-                                    <td className="px-6 py-2 whitespace-nowrap text-sm text-gray-500">
-                                      {row.type}
-                                    </td>
-                                  </tr>
-                                ))
-                              ) : (
-                                <tr>
-                                  <td
-                                    colSpan="2"
-                                    className="px-6 py-8 text-center text-sm text-gray-500 italic"
-                                  >
-                                    {selectedNode.type === "input"
-                                      ? "No schema available. Select a table in the Properties panel to load schema."
-                                      : selectedNode.type === "output"
-                                        ? "No schema available. Connect a source or transform node."
-                                        : "No schema available. Configure the transform in the Properties panel."}
-                                  </td>
-                                </tr>
-                              );
-                            })()}
-                          </tbody>
-                        </table>
-                      </div>
-                    </div>
-                  </div>
-                )}
             </div>
 
             {/* Properties Panel - Source */}
-            {selectedNode && selectedNode.type === "input" && (
+            {selectedNode && selectedNode.data?.nodeCategory === "source" && (
               <RDBSourcePropertiesPanel
                 node={selectedNode}
-                onClose={() => setSelectedNode(null)}
+                selectedMetadataItem={selectedMetadataItem}
+                onClose={() => {
+                  setSelectedNode(null);
+                  setSelectedMetadataItem(null);
+                }}
                 onUpdate={(data) => {
                   console.log("Source updated:", data);
                   // Update node data with schema
@@ -721,25 +732,33 @@ export default function ETLJobPage() {
                         : n,
                     ),
                   );
-                  // Update selectedNode to reflect changes in bottom panel
+                  // Update selectedNode to reflect changes
                   setSelectedNode((prev) => ({
                     ...prev,
                     data: { ...prev.data, ...data },
                   }));
                 }}
+                onMetadataUpdate={(updatedItem) => {
+                  console.log("Metadata updated:", updatedItem);
+                  handleMetadataUpdate(updatedItem);
+                }}
               />
             )}
 
-            {/* Properties Panel - Transform (확장성 고려) */}
+            {/* Properties Panel - Transform */}
             {selectedNode &&
-              selectedNode.type === "default" &&
+              selectedNode.data?.nodeCategory === "transform" &&
               selectedNode.data?.transformType && (
                 <TransformPropertiesPanel
                   node={selectedNode}
-                  onClose={() => setSelectedNode(null)}
+                  selectedMetadataItem={selectedMetadataItem}
+                  onClose={() => {
+                    setSelectedNode(null);
+                    setSelectedMetadataItem(null);
+                  }}
                   onUpdate={(data) => {
                     console.log("Transform updated:", data);
-                    // Update node data
+                    // Update node data (schema etc)
                     setNodes((nds) =>
                       nds.map((n) =>
                         n.id === selectedNode.id
@@ -747,23 +766,27 @@ export default function ETLJobPage() {
                           : n,
                       ),
                     );
-                    // Update selectedNode to reflect changes in bottom panel
                     setSelectedNode((prev) => ({
                       ...prev,
                       data: { ...prev.data, ...data },
                     }));
                   }}
+                  onMetadataUpdate={handleMetadataUpdate}
                 />
               )}
 
             {/* S3 Target Properties Panel */}
-            {selectedNode && selectedNode.type === "output" && (
+            {selectedNode && selectedNode.data?.nodeCategory === "target" && (
               <S3TargetPropertiesPanel
                 node={selectedNode}
+                selectedMetadataItem={selectedMetadataItem}
                 nodes={nodes}
-                onClose={() => setSelectedNode(null)}
+                onClose={() => {
+                  setSelectedNode(null);
+                  setSelectedMetadataItem(null);
+                }}
                 onUpdate={(data) => {
-                  console.log("S3 Target updated:", data);
+                  console.log("Target updated:", data);
                   setNodes((nds) =>
                     nds.map((n) =>
                       n.id === selectedNode.id
@@ -776,6 +799,7 @@ export default function ETLJobPage() {
                     data: { ...prev.data, ...data },
                   }));
                 }}
+                onMetadataUpdate={handleMetadataUpdate}
               />
             )}
           </div>

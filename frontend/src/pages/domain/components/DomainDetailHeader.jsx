@@ -1,7 +1,7 @@
 import { ArrowLeft, Database, ExternalLink, MoreVertical } from "lucide-react";
 import { Link, useNavigate } from "react-router-dom";
 
-export default function DatasetHeader({ dataset }) {
+export default function DomainDetailHeader({ domain, actions }) {
   const navigate = useNavigate();
 
   return (
@@ -24,14 +24,21 @@ export default function DatasetHeader({ dataset }) {
             </div>
             <div>
               <h1 className="text-xl font-bold text-gray-900 leading-none">
-                {dataset.name}
+                {domain.name}
               </h1>
               <div className="flex items-center gap-2 mt-1 text-sm text-gray-500">
-                <span className="flex items-center gap-1">{dataset.type}</span>
+                <span className="flex items-center gap-1">{domain.type}</span>
               </div>
             </div>
           </div>
         </div>
+
+        {/* Right side actions */}
+        {actions && (
+          <div className="flex items-center gap-2">
+            {actions}
+          </div>
+        )}
       </div>
     </div>
   );

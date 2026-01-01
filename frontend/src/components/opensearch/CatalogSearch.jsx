@@ -45,7 +45,7 @@ export default function CatalogSearch() {
   // 검색 결과 클릭 핸들러
   const handleResultClick = (result) => {
     // CatalogPage로 이동하면서 resource_name으로 검색
-    navigate(`/catalog?search=${encodeURIComponent(result.resource_name)}`);
+    navigate(`/domain?search=${encodeURIComponent(result.resource_name)}`);
     setIsOpen(false);
     setQuery('');
   };

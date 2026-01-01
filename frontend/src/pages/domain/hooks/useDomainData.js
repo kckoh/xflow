@@ -1,5 +1,4 @@
 import { useState, useEffect, useCallback } from 'react';
-import { catalogAPI } from '../../../services/catalog/index';
 import { mergeGraphData, calculateImpact } from '../utils/domainUtils';
 
 export const useDomainData = ({ datasetId, selectedId, onStreamAnalysis, nodes, edges, setNodes, setEdges, updateLayout, handleToggleExpand, onDeleteNode }) => {
@@ -13,7 +12,8 @@ export const useDomainData = ({ datasetId, selectedId, onStreamAnalysis, nodes, 
     // 1. Fetch & Merge Logic
     const fetchAndMerge = useCallback(async (targetId, currentNodes, currentEdges) => {
         try {
-            const data = await catalogAPI.getLineage(targetId);
+            // TODO: Replace with new API
+            const data = { nodes: [], edges: [] };
 
             // Fetch Connection Counts (Optional optimization: do on backend)
             const connectionCounts = {};
@@ -52,7 +52,7 @@ export const useDomainData = ({ datasetId, selectedId, onStreamAnalysis, nodes, 
         } catch (err) {
             console.error(err);
         }
-    }, [datasetId, selectedId, handleToggleExpand, handleExpandWithState, onStreamAnalysis, updateLayout]);
+    }, [datasetId, selectedId, handleToggleExpand, handleExpandWithState, onStreamAnalysis, updateLayout, onDeleteNode]);
 
     // 2. Initial Load Effect
     useEffect(() => {
@@ -81,6 +81,19 @@ export const useDomainData = ({ datasetId, selectedId, onStreamAnalysis, nodes, 
             }))
         );
     }, [selectedId, setNodes]);
+
+    // 5. Handler Attachment Effect (Ensure all nodes have latest handlers)
+    useEffect(() => {
+        setNodes(nds => nds.map(n => ({
+            ...n,
+            data: {
+                ...n.data,
+                onDelete: onDeleteNode,
+                onToggleExpand: handleToggleExpand,
+                onExpand: handleExpandWithState
+            }
+        })));
+    }, [setNodes, onDeleteNode, handleToggleExpand, handleExpandWithState]);
 
     return {
         fetchAndMerge

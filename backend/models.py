@@ -1,11 +1,7 @@
 from datetime import datetime
-from typing import Optional, List
-from beanie import Document
-from pydantic import Field
-from neomodel import (
-    StructuredNode, StringProperty, RelationshipTo, RelationshipFrom, 
-    UniqueIdProperty, JSONProperty
-)
+from typing import Optional, List, Dict, Any
+from beanie import Document, Link
+from pydantic import Field, BaseModel
 
 class User(Document):
     """
@@ -89,6 +85,9 @@ class ETLJob(Document):
     schedule: Optional[str] = None  # Cron expression or None for manual trigger
     status: str = "draft"  # draft, active, paused
 
+    # Import ready flag - true when job execution is complete and ready to import
+    import_ready: bool = False
+
     # Visual Editor state (for UI restoration)
     nodes: Optional[List[dict]] = Field(default_factory=list)
     edges: Optional[List[dict]] = Field(default_factory=list)
@@ -115,35 +114,55 @@ class JobRun(Document):
         name = "job_runs"
 
 
-# Neo4j Models
-class Column(StructuredNode):
-    """
-    Represents a Column in a Table.
-    """
-    uid = UniqueIdProperty() # Auto-generated or manual unique ID
-    name = StringProperty(required=True)
-    type = StringProperty(default="string")
-    description = StringProperty()
-    
-    # Relationships
-    flows_to = RelationshipTo('Column', 'FLOWS_TO')
-    belongs_to = RelationshipFrom('Table', 'HAS_COLUMN')
 
-class Table(StructuredNode):
-    """
-    Represents a Dataset/Table.
-    """
-    mongo_id = StringProperty(unique_index=True, required=True)
-    name = StringProperty(required=True)
-    platform = StringProperty(default="hive")
-    layer = StringProperty()
-    description = StringProperty()
-    urn = StringProperty()
-    domain = StringProperty()
-    
-    # Dynamic properties payload if needed
-    properties = JSONProperty()
+class Domain(Document):
+    name: str
+    type: str  # e.g., 'marketing', 'sales'
+    nodes: List[Dict[str, Any]] = []
+    edges: List[Dict[str, Any]] = []
+    created_at: datetime = Field(default_factory=datetime.utcnow)
+    updated_at: datetime = Field(default_factory=datetime.utcnow)
 
-    # Relationships
-    has_columns = RelationshipTo(Column, 'HAS_COLUMN')
-    flows_to = RelationshipTo('Table', 'FLOWS_TO') # Table-level lineage
+    class Settings:
+        name = "domains"
+
+
+# Dataset Model (MongoDB - Replaces Neo4j Models)
+class DatasetNode(BaseModel):
+    nodeId: str
+    urn: str # Global Unique Identifier
+    type: str # rdb, s3, filter, etc.
+    schema: List[dict] = Field(default_factory=list)
+    config: dict = Field(default_factory=dict)
+    inputNodeIds: List[str] = Field(default_factory=list)
+
+class Dataset(Document):
+    """
+    MongoDB Document representing a Logical Dataset / Pipeline.
+    Designed to be synced from ETLJob.
+    """
+    name: str # Pipeline Name
+    description: Optional[str] = None # Pipeline Description
+    job_id: Optional[str] = None # Reference to the ETLJob that defined this dataset
+    
+    # 1. Inputs (Sources)
+    sources: List[DatasetNode] = Field(default_factory=list)
+    
+    # 2. Transformations
+    transforms: List[DatasetNode] = Field(default_factory=list)
+    
+    # 3. Outputs (Targets)
+    targets: List[DatasetNode] = Field(default_factory=list)
+    
+    is_active: bool = False
+    
+    created_at: datetime = Field(default_factory=datetime.utcnow)
+    updated_at: datetime = Field(default_factory=datetime.utcnow)
+
+    class Settings:
+        name = "datasets"
+        indexes = [
+            "job_id",
+            "sources.urn",
+            "targets.urn"
+        ]

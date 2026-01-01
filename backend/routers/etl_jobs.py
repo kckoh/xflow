@@ -5,8 +5,9 @@ import httpx
 from beanie import PydanticObjectId
 from fastapi import APIRouter, HTTPException, status
 
-from models import ETLJob, JobRun, Connection
+from models import ETLJob, JobRun, Connection, Dataset
 from schemas.etl_job import ETLJobCreate, ETLJobUpdate, ETLJobResponse
+from services.lineage_service import sync_pipeline_to_dataset
 
 router = APIRouter()
 
@@ -65,6 +66,9 @@ async def create_etl_job(job: ETLJobCreate):
     )
 
     await new_job.insert()
+    
+    # Sync to Dataset (Lineage)
+    await sync_pipeline_to_dataset(new_job)
 
     return ETLJobResponse(
         id=str(new_job.id),
@@ -84,9 +88,18 @@ async def create_etl_job(job: ETLJobCreate):
 
 
 @router.get("/", response_model=List[ETLJobResponse])
-async def list_etl_jobs():
-    """Get all ETL jobs"""
-    jobs = await ETLJob.find_all().to_list()
+async def list_etl_jobs(import_ready: bool = None):
+    """Get all ETL jobs with their active status, optionally filtered by import_ready flag"""
+    # Build query filter
+    if import_ready is not None:
+        jobs = await ETLJob.find(ETLJob.import_ready == import_ready).to_list()
+    else:
+        jobs = await ETLJob.find_all().to_list()
+
+    # Pre-fetch Datasets to map is_active status
+    datasets = await Dataset.find_all().to_list()
+    status_map = {d.job_id: d.is_active for d in datasets if d.job_id}
+
     return [
         ETLJobResponse(
             id=str(job.id),
@@ -98,8 +111,12 @@ async def list_etl_jobs():
             destination=job.destination,
             schedule=job.schedule,
             status=job.status,
+            nodes=job.nodes,
+            edges=job.edges,
             created_at=job.created_at,
             updated_at=job.updated_at,
+            is_active=status_map.get(str(job.id), False),
+            import_ready=getattr(job, 'import_ready', False)
         )
         for job in jobs
     ]
@@ -166,6 +183,8 @@ async def update_etl_job(job_id: str, job_update: ETLJobUpdate):
         job.schedule = job_update.schedule
     if job_update.status is not None:
         job.status = job_update.status
+    if job_update.import_ready is not None:
+        job.import_ready = job_update.import_ready
     if job_update.nodes is not None:
         job.nodes = job_update.nodes
     if job_update.edges is not None:
@@ -173,6 +192,9 @@ async def update_etl_job(job_id: str, job_update: ETLJobUpdate):
 
     job.updated_at = datetime.utcnow()
     await job.save()
+
+    # Sync to Dataset (Lineage)
+    await sync_pipeline_to_dataset(job)
 
     return ETLJobResponse(
         id=str(job.id),

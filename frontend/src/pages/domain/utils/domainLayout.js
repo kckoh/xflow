@@ -1,5 +1,5 @@
 import dagre from 'dagre';
-import { nodeWidth, nodeHeight } from '../components/domain/schema-node';
+import { nodeWidth, nodeHeight } from '../components/schema-node/SchemaNode';
 
 export const getLayoutedElements = (nodes, edges, direction = 'LR') => {
     const dagreGraph = new dagre.graphlib.Graph();

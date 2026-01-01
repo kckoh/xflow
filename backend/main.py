@@ -2,7 +2,7 @@ import os
 from contextlib import asynccontextmanager
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
-from routers import auth, users, connections, catalog, etl_jobs, job_runs, opensearch, duckdb, metadata
+from routers import auth, users, connections, catalog, etl_jobs, job_runs, opensearch, duckdb, metadata, domains
 from routers.transforms import select_fields # 추후 type 추가 예정 (예: join ...)
 from database import init_db, close_db
 
@@ -60,6 +60,9 @@ app.include_router(job_runs.router, prefix="/api/job-runs", tags=["job-runs"])
 
 # DuckDB Query Engine
 app.include_router(duckdb.router, prefix="/api/duckdb", tags=["duckdb"])
+
+# Domains (CRUD + ETL Job Import)
+app.include_router(domains.router, prefix="/api/domains", tags=["domains"])
 
 
 

@@ -51,6 +51,8 @@ export default function SelectFieldsConfig({ node, transformName, onUpdate, onCl
                 schema: outputSchema,  // Output schema
             });
 
+            showToast('Transform configuration saved successfully', 'success');
+
         } catch (err) {
             console.error('Failed to save transform:', err);
             showToast('Failed to save transform. Please try again.', 'error');
@@ -120,12 +122,7 @@ export default function SelectFieldsConfig({ node, transformName, onUpdate, onCl
 
             {/* Footer */}
             <div className="pt-4 border-t border-gray-200 flex justify-end gap-2">
-                <button
-                    onClick={onClose}
-                    className="px-4 py-2 border border-gray-300 rounded-md text-gray-700 hover:bg-gray-50"
-                >
-                    Cancel
-                </button>
+
                 <button
                     onClick={handleSave}
                     disabled={selectedColumns.length === 0 || loading}

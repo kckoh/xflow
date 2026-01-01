@@ -2,8 +2,8 @@ import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
 import Home from "./pages/home";
 import SignUp from "./pages/signup";
 import Login from "./pages/login";
-import CatalogPage from "./pages/catalog/CatalogPage";
-import DatasetDetailPage from "./pages/catalog/DatasetDetailPage";
+import DomainPage from "./pages/domain/DomainPage";
+import DomainDetailPage from "./pages/domain/DomainDetailPage";
 
 import ProtectedRoute from "./components/ProtectedRoute";
 import MainLayout from "./components/layout/MainLayout";
@@ -15,9 +15,6 @@ import QueryPage from "./pages/query/QueryPage";
 import { ToastProvider } from "./components/common/Toast";
 
 // Placeholder components for new routes
-const DomainPage = () => (
-  <div className="p-4 bg-white rounded-lg shadow">Domain Page Content</div>
-);
 const GlossaryPage = () => (
   <div className="p-4 bg-white rounded-lg shadow">Glossary Page Content</div>
 );
@@ -69,34 +66,22 @@ function App() {
           />
 
           <Route
-            path="/catalog"
-            element={
-              <ProtectedRoute>
-                <MainLayout>
-                  <CatalogPage />
-                </MainLayout>
-              </ProtectedRoute>
-            }
-          />
-
-          <Route
-            path="/catalog/:id"
-            element={
-              <ProtectedRoute>
-                <MainLayout>
-                  <DatasetDetailPage />
-                </MainLayout>
-              </ProtectedRoute>
-            }
-          />
-
-
-          <Route
             path="/domain"
             element={
               <ProtectedRoute>
                 <MainLayout>
-                  <CatalogPage />
+                  <DomainPage />
+                </MainLayout>
+              </ProtectedRoute>
+            }
+          />
+
+          <Route
+            path="/domain/:id"
+            element={
+              <ProtectedRoute>
+                <MainLayout>
+                  <DomainDetailPage />
                 </MainLayout>
               </ProtectedRoute>
             }

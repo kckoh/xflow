@@ -1,19 +1,19 @@
 import { useState, useEffect } from "react";
 import { useSearchParams } from "react-router-dom";
 import { useToast } from "../../components/common/Toast";
-import DatasetCreateModal from "../../features/dataset/components/DatasetCreateModal";
-import { catalogAPI } from "../../services/catalog/index";
-import CatalogHeader from "./components/CatalogHeader";
+import DomainCreateModal from "./components/DomainCreateModal";
+import DomainHeader from "./components/DomainHeader";
 import RecentlyUsedSection from "./components/RecentlyUsedSection";
-import AllDomainsTable from "./components/AllDomainsTable";
+import DomainTable from "./components/DomainTable";
+import { getDomains, deleteDomain } from "./api/domainApi";
 
-export default function CatalogPage() {
+export default function DomainPage() {
   const { showToast } = useToast();
   const [searchParams, setSearchParams] = useSearchParams();
   const [searchTerm, setSearchTerm] = useState(
     searchParams.get("search") || "",
   );
-  // Catalog Data
+  // Domain Data
   const [allTables, setAllTables] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
@@ -30,35 +30,32 @@ export default function CatalogPage() {
   // TODO: Recently Used Tables 임의로 구현
   const recentTables = allTables.slice(0, 4);
 
-  const fetchCatalog = async () => {
+
+
+  const fetchDomains = async () => {
     setLoading(true);
     try {
-      const data = await catalogAPI.getDatasets();
+      const data = await getDomains();
       setAllTables(data);
     } catch (err) {
-      console.error("Error fetching catalog:", err);
-      setError(err.message);
+      console.error("Error fetching domains:", err);
+      // setError(err.message); // Don't block UI on error, just log
     } finally {
       setLoading(false);
     }
   };
 
   useEffect(() => {
-    fetchCatalog();
+    fetchDomains();
   }, []);
-
-  const handleDelete = async (e, id) => {
-    e.stopPropagation(); // Prevent row click navigation
-
-    if (!confirm("Are you sure you want to delete this dataset?")) return;
-
+  const handleDelete = async (id) => {
     try {
-      await catalogAPI.deleteDataset(id);
-      showToast("Dataset deleted successfully", "success");
-      fetchCatalog(); // Refresh list
+      await deleteDomain(id);
+      showToast("Domain deleted successfully", "success");
+      fetchDomains();
     } catch (err) {
-      console.error("Error deleting dataset:", err);
-      showToast("Error deleting dataset", "error");
+      console.error("Error deleting domain:", err);
+      showToast("Error deleting domain", "error");
     }
   };
 
@@ -69,14 +66,14 @@ export default function CatalogPage() {
   return (
     <div className="space-y-8 relative">
       {/* Header */}
-      <CatalogHeader onCreateClick={() => setShowCreateModal(true)} />
+      <DomainHeader onCreateClick={() => setShowCreateModal(true)} />
 
       {/* Create Dataset Modal */}
       {showCreateModal && (
-        <DatasetCreateModal
+        <DomainCreateModal
           isOpen={showCreateModal}
           onClose={() => setShowCreateModal(false)}
-          onCreated={fetchCatalog}
+          onCreated={fetchDomains}
         />
       )}
 
@@ -84,7 +81,7 @@ export default function CatalogPage() {
       <RecentlyUsedSection recentTables={recentTables} />
 
       {/* All Domains Table */}
-      <AllDomainsTable
+      <DomainTable
         tables={filteredTables}
         loading={loading}
         error={error}
