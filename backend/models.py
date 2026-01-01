@@ -121,6 +121,7 @@ class Domain(Document):
     owner: Optional[str] = None
     tags: List[str] = Field(default_factory=list)
     description: Optional[str] = None
+    docs: Optional[str] = None
     nodes: List[Dict[str, Any]] = []
     edges: List[Dict[str, Any]] = []
     created_at: datetime = Field(default_factory=datetime.utcnow)

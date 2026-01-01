@@ -48,6 +48,7 @@ class DomainCreate(BaseModel):
     owner: Optional[str] = None
     tags: List[str] = []
     description: Optional[str] = None
+    docs: Optional[str] = None
     job_ids: List[str] = []
     nodes: List[Dict[str, Any]] = []
     edges: List[Dict[str, Any]] = []
@@ -58,6 +59,7 @@ class DomainUpdate(BaseModel):
     owner: Optional[str] = None
     tags: Optional[List[str]] = None
     description: Optional[str] = None
+    docs: Optional[str] = None
 
 class DomainGraphUpdate(BaseModel):
     nodes: List[Dict[str, Any]]
