@@ -186,7 +186,7 @@ def read_nosql_source(spark: SparkSession, source_config: dict) -> DataFrame:
 
 # ============ Destination Writers ============
 
-def write_s3_destination(df: DataFrame, dest_config: dict, job_name: str = "output"):
+def write_s3_destination(df: DataFrame, dest_config: dict, job_name: str = "output", has_nosql_source: bool = False):
     """Write DataFrame to S3 as Parquet"""
     path = dest_config.get("path")
     if not path:
@@ -210,11 +210,22 @@ def write_s3_destination(df: DataFrame, dest_config: dict, job_name: str = "outp
 
     # For large datasets, keep original partitions to avoid shuffle OOM
     if coalesce_num:
-        writer = df.coalesce(coalesce_num).write
+        writer_df = df.coalesce(coalesce_num)
     else:
-        writer = df.write  # Keep original 16 partitions from JDBC read
+        writer_df = df  # Keep original 16 partitions from JDBC read
 
-    writer = writer \
+    # Handle VOID types (all-null columns) - only for NoSQL sources
+    # Parquet doesn't support VOID type, convert to STRING
+    if has_nosql_source:
+        from pyspark.sql.types import StringType
+        
+        for field in writer_df.schema.fields:
+            dtype_str = str(field.dataType)
+            if "VoidType" in dtype_str or "void" in dtype_str.lower():
+                print(f"   Converting VOID column to STRING: {field.name}")
+                writer_df = writer_df.withColumn(field.name, writer_df[field.name].cast(StringType()))
+
+    writer = writer_df.write \
         .mode(mode) \
         .option("compression", compression)
 
@@ -286,6 +297,9 @@ def run_etl(config: dict):
             # Legacy single source - wrap in list
             sources = [config.get("source")]
 
+        # Track if any source is NoSQL (for VOID type handling)
+        has_nosql_source = False
+
         # Read all sources
         print(f"📖 Reading {len(sources)} source(s)...")
         for idx, source_config in enumerate(sources):
@@ -297,6 +311,7 @@ def run_etl(config: dict):
                 df = read_rdb_source(spark, source_config)
             elif source_type in ["mongodb", "nosql"]:
                 df = read_nosql_source(spark, source_config)
+                has_nosql_source = True  # Mark that we have NoSQL source
             else:
                 raise ValueError(f"Unsupported source type: {source_type}")
 
@@ -362,7 +377,7 @@ def run_etl(config: dict):
 
         print(f"💾 Writing to destination: {dest_type}")
         if dest_type == "s3":
-            write_s3_destination(final_df, dest_config, config.get("name", "output"))
+            write_s3_destination(final_df, dest_config, config.get("name", "output"), has_nosql_source)
         else:
             raise ValueError(f"Unsupported destination type: {dest_type}")
 
