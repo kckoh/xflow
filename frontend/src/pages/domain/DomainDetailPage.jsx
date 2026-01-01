@@ -1,60 +1,34 @@
-import { useState, useEffect, useCallback, useRef } from "react";
-import { useParams, useNavigate } from "react-router-dom";
+import { useState, useRef } from "react";
 import { useToast } from "../../components/common/Toast";
-import {
-    FileText,
-    Users,
-    Tag,
-    LayoutGrid,
-    GitFork,
-    Database,
-    Table as TableIcon,
-    ChevronRight,
-    ChevronLeft,
-    BookOpen,
-    ShieldCheck,
-    Download,
-} from "lucide-react";
+import { Download, Database } from "lucide-react";
 import DomainDetailHeader from "./components/DomainDetailHeader";
-import DomainSchema from "./components/DomainSchema";
 import DomainCanvas from "./components/DomainCanvas";
 import DomainImportModal from "./components/DomainImportModal";
 import { RightSidebar } from "./components/RightSideBar/RightSidebar";
 import { SidebarToggle } from "./components/RightSideBar/SidebarToggle";
-import { getDomain, saveDomainGraph } from "./api/domainApi";
-
+import { saveDomainGraph } from "./api/domainApi";
+import { useDomainDetail } from "./hooks/useDomainDetail";
+import { useDomainSidebar } from "./hooks/useDomainSidebar";
 
 export default function DomainDetailPage() {
-    const { id } = useParams();
-    const navigate = useNavigate();
-    const [activeTab, setActiveTab] = useState("columns");
-    const [domain, setDomain] = useState(null);
-    const [loading, setLoading] = useState(true);
-    const [error, setError] = useState(null);
+    const { id, domain, loading, error } = useDomainDetail();
     const [showImportModal, setShowImportModal] = useState(false);
 
     // Ref to access DomainCanvas state
     const canvasRef = useRef(null);
     const { showToast } = useToast();
 
-    useEffect(() => {
-        const fetchDataset = async () => {
-            try {
-                setLoading(true);
-                const data = await getDomain(id);
-                setDomain(data);
-            } catch (err) {
-                console.error(err);
-                setError(err.message);
-            } finally {
-                setLoading(false);
-            }
-        };
-
-        if (id) {
-            fetchDataset();
-        }
-    }, [id]);
+    // Use Sidebar Hook
+    const {
+        isSidebarOpen,
+        setIsSidebarOpen,
+        sidebarTab,
+        handleSidebarTabClick,
+        streamData,
+        handleStreamAnalysis,
+        sidebarDataset,
+        handleNodeSelect
+    } = useDomainSidebar({ domain, canvasRef });
 
     const handleSaveGraph = async () => {
         if (!canvasRef.current) return;
@@ -67,77 +41,6 @@ export default function DomainDetailPage() {
         } catch (err) {
             console.error(err);
             showToast("Failed to save layout", "error");
-        }
-    };
-
-    // Sidebar State
-    const [isSidebarOpen, setIsSidebarOpen] = useState(false);
-    const [sidebarTab, setSidebarTab] = useState("summary"); // 'summary' | 'stream'
-    const [streamData, setStreamData] = useState({
-        upstream: [],
-        downstream: [],
-    });
-    // New: Independent Sidebar Dataset State
-    const [sidebarDataset, setSidebarDataset] = useState(null);
-
-    // Sync sidebar with main dataset initially
-    useEffect(() => {
-        if (domain && !sidebarDataset) {
-            setSidebarDataset(domain);
-        }
-    }, [domain]);
-
-    // Stream Analysis Callback
-    const handleStreamAnalysis = useCallback((data) => {
-        setStreamData(data);
-    }, []);
-
-    // Handle Node Click: Update Sidebar Only
-    const handleNodeSelect = useCallback(
-        async (selectedId) => {
-            try {
-                // Open sidebar if closed
-                setIsSidebarOpen(true);
-                setSidebarTab("summary");
-
-                // If selecting the main dataset again, just revert state
-                if (selectedId === id) {
-                    setSidebarDataset(domain);
-                    return;
-                }
-
-                // Retrieve node data from the Canvas state (loaded via API)
-                const currentGraph = canvasRef.current?.getGraph();
-                const selectedNode = currentGraph?.nodes.find((n) => n.id === selectedId);
-
-                if (selectedNode) {
-                    // Map node data to the structure expected by the sidebar
-                    // Assuming node.data contains { label, type, columns, ... }
-                    const nodeData = {
-                        id: selectedId,
-                        name: selectedNode.data.label || selectedNode.id, // Fallback to ID if label missing
-                        type: selectedNode.data.type || "custom",
-                        columns: selectedNode.data.columns || [],
-                        ...selectedNode.data, // Spread other properties
-                    };
-                    setSidebarDataset(nodeData);
-                } else {
-                    console.warn("Node not found in graph:", selectedId);
-                }
-            } catch (error) {
-                console.error("Failed to load sidebar dataset:", error);
-            }
-        },
-        [id, domain]
-    );
-
-    // Toggle Logic: If clicking active tab, toggle open/close. If clicking new tab, switch and ensure open.
-    const handleSidebarTabClick = (tab) => {
-        if (sidebarTab === tab) {
-            setIsSidebarOpen(!isSidebarOpen);
-        } else {
-            setSidebarTab(tab);
-            setIsSidebarOpen(true);
         }
     };
 
@@ -195,6 +98,44 @@ export default function DomainDetailPage() {
                     isOpen={showImportModal}
                     onClose={() => setShowImportModal(false)}
                     datasetId={domain?.id}
+                    initialPos={() => {
+                        console.log("%c[InitialPos Debug]", "color: cyan");
+                        console.log("SidebarDataset:", sidebarDataset);
+                        console.log("Domain ID:", domain?.id);
+
+                        const currentGraph = canvasRef.current?.getGraph();
+
+                        // 1. If a specific node is selected (and it's not the domain root info)
+                        if (sidebarDataset && sidebarDataset.id !== domain.id) {
+                            // Use direct store lookup for fresh position
+                            const selectedNode = canvasRef.current?.getNode ?
+                                canvasRef.current.getNode(sidebarDataset.id) :
+                                currentGraph?.nodes?.find(n => n.id === sidebarDataset.id);
+
+                            console.log("Selected Node Found in Graph (Fresh):", selectedNode);
+
+                            if (selectedNode) {
+                                console.log(">> Using Node Position:", selectedNode.position);
+                                return {
+                                    x: selectedNode.position.x + 350,
+                                    y: selectedNode.position.y
+                                };
+                            } else {
+                                console.warn(">> Selected node in sidebar NOT found in graph nodes.");
+                            }
+                        } else {
+                            console.log(">> No specific node selected (or Root selected).");
+                        }
+
+                        // 2. Otherwise: Use Camera Center
+                        if (canvasRef.current?.getViewportCenter) {
+                            console.log(">> Using Viewport Center");
+                            return canvasRef.current.getViewportCenter();
+                        }
+
+                        // 3. Fallback
+                        return { x: 100, y: 100 };
+                    }}
                     onImport={(nodes, edges) => {
                         if (canvasRef.current) {
                             canvasRef.current.addNodes(nodes, edges);

@@ -68,6 +68,7 @@ export const useDomainLogic = ({ datasetId, selectedId, onStreamAnalysis, onNode
 
         // Expose fetcher if needed (mostly internal)
         fetchAndMerge,
-        handleDeleteNode
+        handleDeleteNode,
+        handleToggleExpand
     };
 };
