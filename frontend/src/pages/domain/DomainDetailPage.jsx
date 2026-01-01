@@ -63,7 +63,14 @@ export default function DomainDetailPage() {
             // For now, I'll assume I update line 14 in next step or use a separate replacement.
             // But let's write the function first.
             if (setDomain) {
-                setDomain(prev => ({ ...prev, ...updatedDomain }));
+                // Ensure we merge into a fresh object to trigger re-render
+                setDomain(prev => ({
+                    ...prev,
+                    ...updatedDomain,
+                    // Ensure ID persistence if backend returns one format or another
+                    id: updatedDomain.id || prev.id,
+                    _id: updatedDomain._id || prev._id
+                }));
             }
 
             // Sync sidebar dataset if it's currently displaying the updated domain
@@ -129,6 +136,67 @@ export default function DomainDetailPage() {
         }));
     };
 
+
+    const handleEntityUpdate = async (id, updateData) => {
+        const domainId = domain.id || domain._id;
+
+        // 1. Update Domain itself
+        if (id === domainId) {
+            await handleDomainUpdate(id, updateData);
+            return;
+        }
+
+        // 2. Update Node in Domain
+        const targetNodeIndex = domain.nodes.findIndex(n => n.id === id);
+        if (targetNodeIndex !== -1) {
+            const updatedNodes = [...domain.nodes];
+            const node = updatedNodes[targetNodeIndex];
+
+            // Merge updates into multiple locations to ensure consistency
+            const newConfig = {
+                ...(node.data.config || {}),
+                metadata: {
+                    ...(node.data.config?.metadata || {}),
+                    table: {
+                        ...(node.data.config?.metadata?.table || {}),
+                        ...updateData
+                    }
+                }
+            };
+
+            // Update Node properties
+            updatedNodes[targetNodeIndex] = {
+                ...node,
+                description: updateData.description !== undefined ? updateData.description : node.description,
+                tags: updateData.tags !== undefined ? updateData.tags : node.tags,
+                data: {
+                    ...node.data,
+                    description: updateData.description !== undefined ? updateData.description : node.data.description,
+                    tags: updateData.tags !== undefined ? updateData.tags : node.data.tags,
+                    config: newConfig
+                }
+            };
+
+            // Optimistic Update
+            setDomain(prev => ({ ...prev, nodes: updatedNodes }));
+
+            // Update Sidebar if selected
+            if (sidebarDataset && sidebarDataset.id === id) {
+                setSidebarDataset(updatedNodes[targetNodeIndex]);
+            }
+
+            try {
+                // Determine if we should use saveDomainGraph (full graph) or a lighter update
+                // Currently saveDomainGraph is the robust way to save node data
+                await saveDomainGraph(domain.id, { nodes: updatedNodes, edges: domain.edges });
+                showToast("Node updated successfully", "success");
+            } catch (err) {
+                console.error("Failed to update node", err);
+                showToast("Failed to update node", "error");
+                // Revert on failure (could refetch domain)
+            }
+        }
+    };
 
     return (
         <div className="flex flex-col h-[calc(100vh-2rem)] bg-white overflow-hidden relative -m-8">
@@ -237,7 +305,7 @@ export default function DomainDetailPage() {
                     streamData={streamData}
                     dataset={activeSidebarData}
                     onNodeSelect={handleNodeSelect}
-                    onUpdate={handleDomainUpdate}
+                    onUpdate={handleEntityUpdate}
                 />
             </div>
         </div>

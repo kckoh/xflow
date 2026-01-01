@@ -16,70 +16,62 @@ export function SummaryContent({ dataset, isDomainMode, onUpdate }) {
     const [tagsValue, setTagsValue] = useState(dataset.tags || []);
     const [newTagInput, setNewTagInput] = useState("");
 
+    // Determine title and type
+    const title = dataset.name || dataset.label || "Untitled";
+    const type = isDomainMode ? "Domain" : (dataset.type || dataset.platform || "Node");
+
+    // Extract Metadata (Support nested config.metadata from ETL import)
+    // For ReactFlow nodes, config is usually in 'data'
+    const config = dataset.config || dataset.data?.config || {};
+    const metadata = config.metadata?.table || {};
+
+    // Check direct properties first, then data properties, then metadata
+    const description = dataset.description || dataset.data?.description || metadata.description || "No description provided.";
+    const tags = dataset.tags || dataset.data?.tags || metadata.tags || [];
+
+    const owner = dataset.owner || dataset.data?.owner || "Unknown";
+    const updatedAt = dataset.updated_at ? new Date(dataset.updated_at).toLocaleDateString() : "Just now";
+
     // Reset local state only when actual data changes
     React.useEffect(() => {
-        setDescValue(dataset.description || "");
-        setTagsValue(dataset.tags || []);
+        const cfg = dataset.config || dataset.data?.config || {};
+        const meta = cfg.metadata?.table || {};
+        setDescValue(dataset.description || dataset.data?.description || meta.description || "");
+        setTagsValue(dataset.tags || dataset.data?.tags || meta.tags || []);
         // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [dataset.id, dataset._id, dataset.description, JSON.stringify(dataset.tags)]);
+    }, [dataset.id, dataset._id, dataset.description, dataset.data?.description, JSON.stringify(dataset.tags), JSON.stringify(dataset.config)]);
 
-    // Handlers
-    const handleSaveDescription = async () => {
-        if (!onUpdate) return;
-        const id = dataset.id || dataset._id;
-        try {
-            await onUpdate(id, { description: descValue });
-            setIsEditingDesc(false);
-        } catch (e) {
-            console.error("Failed to save description", e);
-        }
-    };
+    // Domain Stats
+    const tableCount = isDomainMode ? (dataset.nodes?.filter(n => n.type !== 'E' && n.type !== 'T')?.length || 0) : 0;
+    const connectionCount = isDomainMode ? (dataset.edges?.length || 0) : 0;
 
-    const handleSaveTags = async () => {
-        if (!onUpdate) return;
-
-        let tagsToSave = [...tagsValue];
-
-        // Auto-add pending tag if user forgot to click +
-        if (newTagInput.trim() && !tagsToSave.includes(newTagInput.trim())) {
-            tagsToSave.push(newTagInput.trim());
-        }
-
-        const id = dataset.id || dataset._id;
-        try {
-            await onUpdate(id, { tags: tagsToSave });
-            setIsEditingTags(false);
-            setNewTagInput("");
-        } catch (e) {
-            console.error("Failed to save tags", e);
-        }
-    };
-
+    // --- Handlers ---
     const addTag = () => {
         if (newTagInput.trim() && !tagsValue.includes(newTagInput.trim())) {
-            const updated = [...tagsValue, newTagInput.trim()];
-            setTagsValue(updated);
+            setTagsValue([...tagsValue, newTagInput.trim()]);
             setNewTagInput("");
         }
     };
 
     const removeTag = (tagToRemove) => {
-        const updated = tagsValue.filter(t => t !== tagToRemove);
-        setTagsValue(updated);
+        setTagsValue(tagsValue.filter(t => t !== tagToRemove));
     };
 
+    const handleSaveDescription = async () => {
+        if (onUpdate) {
+            const id = dataset.id || dataset._id;
+            await onUpdate(id, { description: descValue });
+            setIsEditingDesc(false);
+        }
+    };
 
-    // Determine title and type
-    const title = dataset.name || dataset.label || "Untitled";
-    const type = isDomainMode ? "Domain" : (dataset.type || dataset.platform || "Node");
-    const description = dataset.description || "No description provided.";
-    const owner = dataset.owner || "Unknown";
-    const tags = dataset.tags || [];
-    const updatedAt = dataset.updated_at ? new Date(dataset.updated_at).toLocaleDateString() : "Just now";
-
-    // Domain Stats
-    const tableCount = isDomainMode ? (dataset.nodes?.filter(n => n.type !== 'E' && n.type !== 'T')?.length || 0) : 0;
-    const connectionCount = isDomainMode ? (dataset.edges?.length || 0) : 0;
+    const handleSaveTags = async () => {
+        if (onUpdate) {
+            const id = dataset.id || dataset._id;
+            await onUpdate(id, { tags: tagsValue });
+            setIsEditingTags(false);
+        }
+    };
 
     return (
         <div className="animate-fade-in space-y-6 pb-20">
@@ -164,9 +156,9 @@ export function SummaryContent({ dataset, isDomainMode, onUpdate }) {
                 ) : (
                     <>
                         <p className="text-sm text-gray-700 leading-relaxed whitespace-pre-wrap">
-                            {dataset.description || "No description provided."}
+                            {description}
                         </p>
-                        {!dataset.description && (
+                        {description === "No description provided." && (
                             <div className="text-xs text-gray-400 italic mt-1">Add a description to help others understand this asset.</div>
                         )}
                     </>

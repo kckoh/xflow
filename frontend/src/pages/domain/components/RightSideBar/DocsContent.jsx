@@ -1,33 +1,42 @@
-import React from "react";
-import { FileText, Book, Edit, ExternalLink } from "lucide-react";
+import React, { useState, useEffect } from "react";
+import { FileText, Book, Edit, ExternalLink, Save, X } from "lucide-react";
 import { getPlatformIcon, getStyleConfig } from "../schema-node/SchemaNodeHeader";
 
-export function DocsContent({ dataset, isDomainMode }) {
+export function DocsContent({ dataset, isDomainMode, onUpdate }) {
     // If Domain Mode, dataset is the whole domain object.
     // If Node Mode, dataset is the node object.
 
     const title = isDomainMode ? (dataset.name || "Domain Documentation") : (dataset.label || dataset.name || "Node Documentation");
 
-    // Mock Documentation Content
-    const getDocs = () => {
-        if (isDomainMode) {
-            return {
-                title: "Domain Overview",
-                content: `This domain contains data related to **${dataset.name}**. \n\nIt manages schema definitions and ETL processes for the core business logic. Please ensure all changes are versioned.`
-            };
-        } else {
-            return {
-                title: `Documentation: ${dataset.label || dataset.name}`,
-                content: `## ${dataset.label || dataset.name}\n\nThis node represents a **${dataset.type || 'Table'}** in the **${dataset.platform || 'Database'}**.\n\n### Business Rules\n- Update frequency: Daily\n- Data Retention: 5 Years\n\n### Owner\n- Data Engineering Team`
-            };
+    // State for editing
+    const [isEditing, setIsEditing] = useState(false);
+    const [content, setContent] = useState(dataset.docs || "");
+
+    // Sync content when dataset changes
+    useEffect(() => {
+        setContent(dataset.docs || "");
+    }, [dataset.id, dataset._id, dataset.docs]);
+
+    const handleSave = async () => {
+        if (!onUpdate) return;
+        const id = dataset.id || dataset._id;
+        try {
+            await onUpdate(id, { docs: content });
+            setIsEditing(false);
+        } catch (e) {
+            console.error("Failed to save docs", e);
         }
     };
 
-    const docData = getDocs();
+    const handleCancel = () => {
+        setContent(dataset.docs || "");
+        setIsEditing(false);
+    };
+
+    // Prepare styles
     const platform = !isDomainMode ? (dataset.platform || "PostgreSQL") : "Domain";
     const IconComponent = !isDomainMode ? getPlatformIcon(platform) : Book;
     const styleConfig = !isDomainMode ? getStyleConfig(platform) : { iconColor: "text-purple-600", headerBg: "bg-purple-50", borderColor: "border-purple-200" };
-
 
     return (
         <div className="animate-fade-in h-full flex flex-col">
@@ -51,39 +60,64 @@ export function DocsContent({ dataset, isDomainMode }) {
                                 </span>
                             </div>
                         </div>
-                        <button className="text-gray-400 hover:text-indigo-600 transition-colors">
-                            <Edit className="w-4 h-4" />
-                        </button>
+                        {isDomainMode && !isEditing && (
+                            <button
+                                onClick={() => setIsEditing(true)}
+                                className="text-gray-400 hover:text-indigo-600 transition-colors"
+                                title="Edit Documentation"
+                            >
+                                <Edit className="w-4 h-4" />
+                            </button>
+                        )}
                     </div>
                 </div>
 
-                {/* Markdown Content Area (Mock) */}
-                <div className="prose prose-sm prose-indigo max-w-none text-gray-600 space-y-4">
-                    <div className="whitespace-pre-wrap font-sans text-sm leading-relaxed bg-white rounded-lg">
-                        {docData.content}
+                {/* Content Area */}
+                {isEditing ? (
+                    <div className="space-y-3">
+                        <textarea
+                            className="w-full h-[400px] text-sm p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 outline-none font-mono leading-relaxed"
+                            placeholder="# Write your documentation here...\n\nSupport Markdown."
+                            value={content}
+                            onChange={(e) => setContent(e.target.value)}
+                        />
+                        <div className="flex justify-end gap-2">
+                            <button
+                                onClick={handleCancel}
+                                className="px-3 py-1.5 text-xs text-gray-600 hover:bg-gray-100 rounded-md border border-gray-200"
+                            >
+                                Cancel
+                            </button>
+                            <button
+                                onClick={handleSave}
+                                className="px-3 py-1.5 text-xs bg-indigo-600 text-white hover:bg-indigo-700 rounded-md flex items-center gap-1"
+                            >
+                                <Save className="w-3 h-3" /> Save Changes
+                            </button>
+                        </div>
                     </div>
-                </div>
-
-                {/* Metadata / Footer */}
-                <div className="mt-8 pt-4 border-t border-gray-100">
-                    <h5 className="text-xs font-semibold text-gray-900 mb-2">Resources</h5>
-                    <div className="space-y-2">
-                        <a href="#" className="flex items-center gap-2 text-xs text-blue-600 hover:underline">
-                            <ExternalLink className="w-3 h-3" />
-                            Concurrency Page
-                        </a>
-                        <a href="#" className="flex items-center gap-2 text-xs text-blue-600 hover:underline">
-                            <ExternalLink className="w-3 h-3" />
-                            Data Dictionary
-                        </a>
+                ) : (
+                    <div className="prose prose-sm prose-indigo max-w-none text-gray-600 space-y-4">
+                        {content ? (
+                            <div className="whitespace-pre-wrap font-sans text-sm leading-relaxed bg-white rounded-lg min-h-[100px]">
+                                {content}
+                            </div>
+                        ) : (
+                            <div className="flex flex-col items-center justify-center py-10 text-gray-400 border border-dashed border-gray-200 rounded-lg bg-gray-50">
+                                <FileText className="w-8 h-8 mb-2 opacity-50" />
+                                <span className="text-xs">No documentation available.</span>
+                                {isDomainMode && (
+                                    <button
+                                        onClick={() => setIsEditing(true)}
+                                        className="mt-2 text-indigo-600 hover:underline text-xs"
+                                    >
+                                        Write documentation
+                                    </button>
+                                )}
+                            </div>
+                        )}
                     </div>
-                </div>
-            </div>
-
-            <div className="pt-4 mt-auto border-t border-gray-100">
-                <button className="w-full py-2 bg-indigo-50 text-indigo-600 rounded-md text-xs font-semibold hover:bg-indigo-100 transition-colors">
-                    Edit Documentation
-                </button>
+                )}
             </div>
         </div>
     );
