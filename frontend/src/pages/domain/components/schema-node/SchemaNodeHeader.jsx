@@ -1,9 +1,13 @@
-import { ChevronDown, ChevronUp, Archive, Database } from "lucide-react";
-import { SiPostgresql, SiMongodb, SiMysql, SiApachekafka } from "@icons-pack/react-simple-icons";
+import {
+    ChevronDown, ChevronUp, Archive, Database,
+    Columns, Filter, ArrowRightLeft, GitMerge, BarChart3, ArrowUpDown, Combine, Activity
+} from "lucide-react";
 import clsx from "clsx";
 
 export const getStyleConfig = (platform) => {
     const p = platform?.toLowerCase() || "";
+
+    // S3 / Archive
     if (p.includes("s3") || p.includes("archive")) {
         return {
             bgColor: "bg-orange-50",
@@ -12,6 +16,8 @@ export const getStyleConfig = (platform) => {
             headerColor: "bg-orange-50",
         };
     }
+
+    // Databases (Mongo, Postgres, MySQL)
     if (p.includes("mongo")) {
         return {
             bgColor: "bg-green-50",
@@ -20,7 +26,28 @@ export const getStyleConfig = (platform) => {
             headerColor: "bg-green-50",
         };
     }
-    if (p.includes("transform")) {
+
+    // Kafka
+    if (p.includes("kafka")) {
+        return {
+            bgColor: "bg-gray-50",
+            borderColor: "border-gray-200",
+            iconColor: "text-gray-600",
+            headerColor: "bg-gray-50",
+        };
+    }
+
+    // Transforms (Generic 'transform' or specific types)
+    if (
+        p.includes("transform") ||
+        p.includes("select") ||
+        p.includes("join") ||
+        p.includes("filter") ||
+        p.includes("union") ||
+        p.includes("map") ||
+        p.includes("aggregate") ||
+        p.includes("sort")
+    ) {
         return {
             bgColor: "bg-purple-50",
             borderColor: "border-purple-200",
@@ -28,6 +55,8 @@ export const getStyleConfig = (platform) => {
             headerColor: "bg-purple-50",
         };
     }
+
+    // Default (Postgres etc)
     return {
         bgColor: "bg-blue-50",
         borderColor: "border-blue-200",
@@ -38,11 +67,21 @@ export const getStyleConfig = (platform) => {
 
 export const getPlatformIcon = (platform) => {
     const p = platform?.toLowerCase() || "";
+
+    // Transforms
+    if (p.includes("select")) return Columns;
+    if (p.includes("filter")) return Filter;
+    if (p.includes("union")) return Combine;
+    if (p.includes("map")) return ArrowRightLeft;
+    if (p.includes("join")) return GitMerge;
+    if (p.includes("aggregate")) return BarChart3;
+    if (p.includes("sort")) return ArrowUpDown;
+
+    // Sources
     if (p.includes("s3") || p.includes("archive")) return Archive;
-    if (p.includes("postgres")) return SiPostgresql;
-    if (p.includes("mongo")) return SiMongodb;
-    if (p.includes("mysql")) return SiMysql;
-    if (p.includes("kafka")) return SiApachekafka;
+    if (p.includes("kafka")) return Activity;
+
+    // Default Database for Postgres, Mongo, MySQL
     return Database;
 };
 
