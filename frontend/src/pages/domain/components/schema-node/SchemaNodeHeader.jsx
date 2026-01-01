@@ -2,6 +2,7 @@ import {
     ChevronDown, ChevronUp, Archive, Database,
     Columns, Filter, ArrowRightLeft, GitMerge, BarChart3, ArrowUpDown, Combine, Activity
 } from "lucide-react";
+import { SiMongodb, SiPostgresql, SiMysql } from "@icons-pack/react-simple-icons";
 import clsx from "clsx";
 
 export const getStyleConfig = (platform) => {
@@ -78,16 +79,25 @@ export const getPlatformIcon = (platform) => {
     if (p.includes("sort")) return ArrowUpDown;
 
     // Sources
-    if (p.includes("s3") || p.includes("archive")) return Archive;
+    if (p.includes("s3")) return Archive;
     if (p.includes("kafka")) return Activity;
 
-    // Default Database for Postgres, Mongo, MySQL
+    // Databases
+    if (p.includes("mongo")) return SiMongodb;
+    if (p.includes("postgres")) return SiPostgresql;
+    if (p.includes("mysql")) return SiMysql;
+
+    // Default Database for other DBs
     return Database;
 };
 
 export const SchemaNodeHeader = ({ data, expanded, onToggle, id }) => {
-    const sourcePlatform = data.platform || "PostgreSQL";
+    let sourcePlatform = data.platform || "PostgreSQL";
     const label = data.label || "Unknown Table";
+
+    // Deleted override logic to allow Icon (Source) and Label (Target) to differ
+    // as per user request (e.g. Mongo Icon + (S3) Text)
+
     const config = getStyleConfig(sourcePlatform);
     const IconComponent = getPlatformIcon(sourcePlatform);
 

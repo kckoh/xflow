@@ -69,7 +69,9 @@ const SchemaNodeComponent = ({ id, data, selected }) => {
             <SchemaNodeHeader
                 data={{
                     ...data,
-                    label: data.jobs?.[0]?.name || data.label
+                    // Use the pre-formatted label from domainLayout (e.g. "(S3) Name")
+                    // Fallback to job name only if label is missing
+                    label: data.label || data.jobs?.[0]?.name
                 }}
                 expanded={schemaExpanded}
                 onToggle={handleHeaderToggle}

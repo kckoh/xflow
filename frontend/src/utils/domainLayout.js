@@ -82,13 +82,40 @@ export function calculateDomainLayoutHorizontal(jobExecutionResults, arg2, arg3)
         // 1. Prepare Steps (Source/Transform)
         const steps = [];
         executionData.sources?.forEach((source, idx) => {
+            // Normalize Type
+            let rawType = (source.type || source.config?.type || "unknown").toLowerCase();
+
+            // Enhanced Type Detection (Fix for Unknown Source Type)
+            if (rawType === 'unknown') {
+                if (source.config?.sourceName) rawType = source.config.sourceName.toLowerCase();
+                else if (source.config?.tableName) rawType = 'rdb'; // Default to DB if table exists
+                else if (source.config?.s3Location || source.config?.bucket) rawType = 's3';
+            }
+
+            let typePrefix = rawType.toUpperCase();
+
+            // Icon Platform Mapping
+            let platform = "Database";
+            if (rawType.includes('mongo')) { platform = 'MongoDB'; typePrefix = 'MONGO'; }
+            if (rawType.includes('postgres') || rawType.includes('rdb')) { platform = 'PostgreSQL'; typePrefix = 'POSTGRES'; }
+            if (rawType.includes('mysql')) { platform = 'MySQL'; typePrefix = 'MYSQL'; }
+            if (rawType.includes('kafka')) { platform = 'Kafka'; typePrefix = 'KAFKA'; }
+            if (rawType.includes('s3')) { platform = 'S3'; typePrefix = 'S3'; }
+
+            // Label Logic: TableName -> CollectionName -> Default
+            const label = source.config?.tableName || source.config?.collectionName || source.collection || `Source ${idx + 1}`;
+            // User Request: No prefix for E nodes, just icon
+            const displayLabel = label;
+
             steps.push({
                 id: `step-source-${jobId}-${idx}`,
                 type: 'E',
-                label: source.config?.tableName || `Source`,
+                label: displayLabel,
                 data: {
                     columns: enrichSchema(source.schema, jobId, source.nodeId),
-                    platform: source.platform || source.config?.platform || source.type || source.config?.type || "unknown"
+                    platform: platform,
+                    // Keep original label for reference
+                    originalLabel: label
                 }
             });
         });
@@ -134,17 +161,72 @@ export function calculateDomainLayoutHorizontal(jobExecutionResults, arg2, arg3)
                 const targetNodeDef = jobDef ? jobDef.nodes.find(n => n.id === target.nodeId) : null;
                 const metadata = targetNodeDef?.data?.metadata || targetNodeDef?.data?.config?.metadata || {};
 
+                // Enhance Type Detection
+                let rawType = (target.type || "s3").toLowerCase();
+                if (rawType === 'unknown') {
+                    // Try to infer from config
+                    if (target.config?.s3Location || target.config?.path || target.config?.bucket) {
+                        rawType = 's3';
+                    }
+                }
+
+                let typePrefix = rawType.toUpperCase();
+
+                // Formatting mappings
+                if (rawType === 'mongodb' || rawType === 'mongo') typePrefix = 'MONGO';
+                if (rawType === 'postgresql' || rawType === 'postgres' || rawType === 'rdb') typePrefix = 'POSTGRES';
+                if (rawType === 'mysql') typePrefix = 'MYSQL';
+                if (rawType === 's3' || rawType === 'archive') typePrefix = 'S3';
+
+                // User Request: Icon + (Type) + JobName
+                // If multiple targets exist, we might want to append the table name to distinguish, 
+                // but strictly following "Job Name" preference:
+                let baseName = jobName;
+                if (executionData.targets.length > 1) {
+                    baseName = `${jobName} - ${label}`;
+                }
+
+                const displayLabel = `(${typePrefix}) ${baseName}`;
+
+
+
+                // Icon Logic: User wants Icon to represent the SOURCE type
+                // (e.g. Extract from Mongo -> Icon is Mongo)
+                // Label Prefix represents DESTINATION type (e.g. (S3))
+                let sourceRawType = "database";
+                if (executionData.sources && executionData.sources.length > 0) {
+                    sourceRawType = (executionData.sources[0].type || executionData.sources[0].config?.type || "unknown").toLowerCase();
+
+                    // Enhanced Source Type Detection (Reuse logic)
+                    if (sourceRawType === 'unknown') {
+                        const s = executionData.sources[0];
+                        if (s.config?.sourceName) sourceRawType = s.config.sourceName.toLowerCase();
+                        else if (s.config?.tableName || s.config?.collectionName) sourceRawType = 'rdb';
+                        else if (s.config?.s3Location) sourceRawType = 's3';
+                    }
+                }
+
+                // Normalize Source Platform for Icon
+                let platform = sourceRawType;
+                if (platform.includes('mongo')) platform = 'MongoDB';
+                else if (platform.includes('postgres') || platform.includes('rdb')) platform = 'PostgreSQL';
+                else if (platform.includes('mysql')) platform = 'MySQL';
+                else if (platform.includes('s3')) platform = 'S3';
+                else if (platform.includes('kafka')) platform = 'Kafka';
+                else platform = 'PostgreSQL'; // Default Fallback
+
                 allNodes.push({
                     id: nodeId,
                     type: "custom",
                     position: { x: xPos, y: yPos },
                     data: {
-                        label: label,
+                        label: displayLabel,
+                        originalLabel: label, // Keep original for reference
                         type: "Table",
                         columns: enrichSchema(target.schema, jobId, target.nodeId),
                         expanded: true,
                         sourceType: target.type || "s3",
-                        platform: target.platform || "S3",
+                        platform: platform, // Normalized platform
                         jobs: [jobObj],
                         config: {
                             metadata: metadata
@@ -158,16 +240,22 @@ export function calculateDomainLayoutHorizontal(jobExecutionResults, arg2, arg3)
             const nodeId = `node-fallback-${jobId}-${Date.now()}`;
             const metadata = {};
 
+            // Format label for fallback job node
+            const displayLabel = `(JOB) ${jobName}`;
+
             allNodes.push({
                 id: nodeId,
                 type: "custom",
                 position: { x: currentX, y: startY },
                 data: {
-                    label: jobName,
+                    label: displayLabel,
+                    originalLabel: jobName,
                     type: "Job",
                     columns: [],
                     expanded: true,
+                    // Treat job nodes as generic Database/Postgres for icon
                     sourceType: "job",
+                    platform: "PostgreSQL",
                     jobs: [jobObj],
                     config: {
                         metadata: metadata
