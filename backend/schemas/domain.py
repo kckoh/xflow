@@ -52,6 +52,13 @@ class DomainCreate(BaseModel):
     nodes: List[Dict[str, Any]] = []
     edges: List[Dict[str, Any]] = []
 
+class DomainUpdate(BaseModel):
+    name: Optional[str] = None
+    type: Optional[str] = None
+    owner: Optional[str] = None
+    tags: Optional[List[str]] = None
+    description: Optional[str] = None
+
 class DomainGraphUpdate(BaseModel):
     nodes: List[Dict[str, Any]]
     edges: List[Dict[str, Any]]

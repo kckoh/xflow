@@ -33,11 +33,21 @@ export const SchemaNodeColumns = ({ columns = [], withHandles = true, nodeId = n
                     {columns.map((col, idx) => {
                         const colName = typeof col === 'string' ? col : (col?.name || col?.key || 'unknown');
                         const colType = col?.dataType || col?.type || 'string';
+                        const colDesc = col?.description || '';
+                        const colTags = col?.tags ? col.tags.join(', ') : '';
                         const prefix = nodeId ? `${nodeId}:` : '';
+
+                        const tooltipText = [
+                            `Name: ${colName}`,
+                            `Type: ${colType}`,
+                            colDesc ? `Desc: ${colDesc}` : null,
+                            colTags ? `Tags: ${colTags}` : null
+                        ].filter(Boolean).join('\n');
 
                         return (
                             <div
                                 key={idx}
+                                title={tooltipText}
                                 className="relative flex items-center px-3 py-1.5 hover:bg-blue-50 cursor-pointer text-xs transition-colors group/row"
                             >
                                 {/* Left Handle */}

@@ -22,8 +22,10 @@ export const useDomainDetail = () => {
             }
         };
 
-        if (id) {
+        if (id && id !== "undefined") {
             fetchDataset();
+        } else {
+            setLoading(false);
         }
     }, [id]);
 
