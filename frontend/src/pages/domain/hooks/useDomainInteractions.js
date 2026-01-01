@@ -79,16 +79,16 @@ export const useDomainInteractions = ({ nodes, edges, setNodes, setEdges, datase
         const sourceMongoId = sourceNode.data.mongoId;
         const targetMongoId = targetNode.data.mongoId;
 
-        // Strip 'col:' prefix for logic
-        const sourceColName = sourceHandle.replace('col:', '');
-        let targetColName = targetHandle === 'new' ? 'new' : targetHandle.replace('col:', '');
+        // Strip prefixes for logic to get raw column name
+        const sourceColName = sourceHandle.replace('source-col:', '').replace('col:', ''); // Handle both new and legacy
+        let targetColName = targetHandle === 'new' ? 'new' : targetHandle.replace('target-col:', '').replace('col:', '');
 
         // "Drag-to-Add" Logic (Drop on + Zone)
         if (targetHandle === 'new') {
             try {
                 // TODO: Replace with new API
                 // For now, just use existing column name
-                targetHandle = `col:${sourceColName}`;
+                targetHandle = `target-col:${sourceColName}`;
                 targetColName = sourceColName;
             } catch (err) {
                 console.error(err);

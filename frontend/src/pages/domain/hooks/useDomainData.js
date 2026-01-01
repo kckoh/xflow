@@ -52,7 +52,7 @@ export const useDomainData = ({ datasetId, selectedId, onStreamAnalysis, nodes, 
         } catch (err) {
             console.error(err);
         }
-    }, [datasetId, selectedId, handleToggleExpand, handleExpandWithState, onStreamAnalysis, updateLayout]);
+    }, [datasetId, selectedId, handleToggleExpand, handleExpandWithState, onStreamAnalysis, updateLayout, onDeleteNode]);
 
     // 2. Initial Load Effect
     useEffect(() => {
@@ -81,6 +81,19 @@ export const useDomainData = ({ datasetId, selectedId, onStreamAnalysis, nodes, 
             }))
         );
     }, [selectedId, setNodes]);
+
+    // 5. Handler Attachment Effect (Ensure all nodes have latest handlers)
+    useEffect(() => {
+        setNodes(nds => nds.map(n => ({
+            ...n,
+            data: {
+                ...n.data,
+                onDelete: onDeleteNode,
+                onToggleExpand: handleToggleExpand,
+                onExpand: handleExpandWithState
+            }
+        })));
+    }, [setNodes, onDeleteNode, handleToggleExpand, handleExpandWithState]);
 
     return {
         fetchAndMerge
