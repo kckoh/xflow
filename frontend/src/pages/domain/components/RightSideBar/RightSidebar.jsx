@@ -4,6 +4,7 @@ import { SidebarNavButton } from "./SidebarNavButton";
 import { StreamImpactContent } from "./StreamImpactContent";
 import { SummaryContent } from "./SummaryContent";
 import { ColumnsContent } from "./ColumnsContent";
+import { DocsContent } from "./DocsContent";
 
 export function RightSidebar({
     isSidebarOpen,
@@ -47,18 +48,9 @@ export function RightSidebar({
             case "columns":
                 return <ColumnsContent dataset={dataset} isDomainMode={isDomainMode} onNodeSelect={onNodeSelect} />;
             case "lineage":
-                return <StreamImpactContent streamData={streamData} />;
+                return <StreamImpactContent streamData={streamData} onNodeSelect={onNodeSelect} />;
             case "docs":
-                // Placeholder for Documentation
-                return (
-                    <div className="p-8 text-center text-gray-500">
-                        <div className="mb-2 font-medium text-gray-700">Documentation</div>
-                        <p className="text-xs mb-4 max-w-[200px] mx-auto">Add links, markdown files, or external references to document this asset.</p>
-                        <button className="px-3 py-1.5 bg-blue-50 text-blue-600 rounded-md text-xs font-medium hover:bg-blue-100 transition-colors border border-blue-200">
-                            + Add Document
-                        </button>
-                    </div>
-                );
+                return <DocsContent dataset={dataset} isDomainMode={isDomainMode} />;
             default:
                 return <SummaryContent dataset={dataset} isDomainMode={isDomainMode} />;
         }

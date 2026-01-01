@@ -11,12 +11,18 @@ export const useDomainSidebar = ({ domain, canvasRef }) => {
     // Independent Sidebar Dataset State
     const [sidebarDataset, setSidebarDataset] = useState(null);
 
-    // Sync sidebar with main dataset initially
+    // Sync sidebar with main dataset when it updates
     useEffect(() => {
-        if (domain && !sidebarDataset) {
-            setSidebarDataset(domain);
+        if (domain) {
+            const currentSidebarId = sidebarDataset?.id || sidebarDataset?._id;
+            const domainId = domain.id || domain._id;
+
+            // If uninitialized OR currently viewing the domain root, sync with latest domain state
+            if (!sidebarDataset || currentSidebarId === domainId) {
+                setSidebarDataset(domain);
+            }
         }
-    }, [domain]);
+    }, [domain, sidebarDataset]);
 
     // Stream Analysis Callback
     const handleStreamAnalysis = useCallback((data) => {
@@ -36,15 +42,25 @@ export const useDomainSidebar = ({ domain, canvasRef }) => {
     // Handle Node Click: Update Sidebar Only
     const handleNodeSelect = useCallback(
         async (selectedId) => {
-            console.log("[DomainDetail] handleNodeSelect Called:", selectedId);
             try {
+                // 1. Handle Object Input (ETL Step or direct data)
+                if (typeof selectedId === 'object' && selectedId !== null) {
+                    setIsSidebarOpen(true);
+                    setSidebarTab("columns"); // Default to columns for detailed steps
+                    setSidebarDataset(selectedId);
+
+                    // Clear lineage for sub-nodes (unless we want to calc parent lineage)
+                    setStreamData({ upstream: [], downstream: [] });
+                    return;
+                }
+
+                // 2. Handle ID Input (Graph Node)
                 // Open sidebar if closed
                 setIsSidebarOpen(true);
                 setSidebarTab("summary");
 
                 // If selecting the main dataset again, just revert state
                 if (selectedId === domain?.id) {
-                    console.log("[DomainDetail] Reverting to Main Domain");
                     setSidebarDataset(domain);
                     return;
                 }
@@ -60,7 +76,6 @@ export const useDomainSidebar = ({ domain, canvasRef }) => {
                     selectedNode = currentGraph?.nodes?.find(n => n.id === selectedId);
                 }
 
-                console.log("[DomainDetail] Node Lookup Result:", selectedNode);
 
                 if (selectedNode) {
                     // Map node data to the structure expected by the sidebar
@@ -71,7 +86,6 @@ export const useDomainSidebar = ({ domain, canvasRef }) => {
                         columns: selectedNode.data.columns || [],
                         ...selectedNode.data,
                     };
-                    console.log("[DomainDetail] Setting SidebarDataset:", nodeData);
                     setSidebarDataset(nodeData);
 
                     // --- Calculate Upstream/Downstream (Immediate Dependencies) ---
@@ -87,7 +101,9 @@ export const useDomainSidebar = ({ domain, canvasRef }) => {
                             .filter(n => upstreamIds.includes(n.id))
                             .map(n => ({
                                 id: n.id,
-                                label: n.data.label || n.data.name || n.id
+                                label: n.data.label || n.data.name || n.id,
+                                platform: n.data.platform,
+                                type: n.data.type
                             }));
 
                         // Downstream: Edges where source is this node (Targets are downstream)
@@ -99,7 +115,9 @@ export const useDomainSidebar = ({ domain, canvasRef }) => {
                             .filter(n => downstreamIds.includes(n.id))
                             .map(n => ({
                                 id: n.id,
-                                label: n.data.label || n.data.name || n.id
+                                label: n.data.label || n.data.name || n.id,
+                                platform: n.data.platform,
+                                type: n.data.type
                             }));
 
                         setStreamData({
@@ -107,8 +125,6 @@ export const useDomainSidebar = ({ domain, canvasRef }) => {
                             downstream: downstreamNodes
                         });
                     }
-                } else {
-                    console.warn("Node not found in graph:", selectedId);
                 }
             } catch (error) {
                 console.error("Failed to load sidebar dataset:", error);
@@ -118,7 +134,6 @@ export const useDomainSidebar = ({ domain, canvasRef }) => {
     );
 
     const handleBackgroundClick = useCallback(() => {
-        console.log("[DomainDetail] Background Clicked - Resetting to Domain");
         setSidebarDataset(domain);
         // Ensure tab is valid for domain (e.g. switch back to summary if on columns)
         if (sidebarTab === 'columns') {
