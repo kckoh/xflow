@@ -3,7 +3,6 @@ kind: ConfigMap
 metadata:
   name: backend-config
 data:
-  MONGODB_URL: "mongodb://root:example@mongodb:27017"
   MONGODB_DATABASE: "xflow"
   CORS_ORIGINS: "http://localhost:5173,https://xflows.net"
   # Disable Neo4j and OpenSearch for now

@@ -8,7 +8,7 @@ export const connectionApi = {
      * @returns {Promise<Array>} List of connections
      */
     async fetchConnections() {
-        const response = await fetch(`${API_URL}/connections/`);
+        const response = await fetch(`${API_URL}/connections`);
         if (!response.ok) {
             throw new Error('Failed to fetch connections');
         }
@@ -21,7 +21,7 @@ export const connectionApi = {
      * @returns {Promise<Object>} Created connection
      */
     async createConnection(connection) {
-        const response = await fetch(`${API_URL}/connections/`, {
+        const response = await fetch(`${API_URL}/connections`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify(connection),

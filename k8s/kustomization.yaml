@@ -9,6 +9,7 @@ resources:
   - mongodb/pvc.yaml
   - mongodb/statefulset.yaml
   - mongodb/service.yaml
+  - backend/secret.yaml
   - backend/configmap.yaml
   - backend/deployment.yaml
   - backend/service.yaml
