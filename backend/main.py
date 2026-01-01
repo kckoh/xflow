@@ -29,7 +29,8 @@ async def lifespan(app: FastAPI):
 app = FastAPI(
     title="Jungle Data Structures API",
     version="1.0.0",
-    lifespan=lifespan
+    lifespan=lifespan,
+    redirect_slashes=False
 )
 
 # Get CORS origins from environment

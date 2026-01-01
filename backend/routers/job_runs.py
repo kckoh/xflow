@@ -9,7 +9,7 @@ from schemas.job_run import JobRunResponse, JobRunListResponse
 router = APIRouter()
 
 
-@router.get("/", response_model=List[JobRunListResponse])
+@router.get("", response_model=List[JobRunListResponse])
 async def list_job_runs(job_id: str = None, limit: int = 50):
     """Get all job runs, optionally filtered by job_id"""
     if job_id:

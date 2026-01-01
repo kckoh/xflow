@@ -1,4 +1,6 @@
-const BASE_URL = "http://localhost:8000/api/domains";
+import { API_BASE_URL } from '../../../config/api';
+
+const BASE_URL = `${API_BASE_URL}/api/domains`;
 
 export const getDomains = async () => {
     const response = await fetch(BASE_URL);
