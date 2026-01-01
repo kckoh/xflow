@@ -69,14 +69,16 @@ export const useDomainData = ({ datasetId, selectedId, onStreamAnalysis, nodes, 
         }
     }, [expandTarget, nodes, edges, fetchAndMerge]);
 
-    // 4. Selection Update Effect (Local Data Update)
+    // 4. Selection Update Effect (Visual Selection)
     useEffect(() => {
         setNodes((nds) =>
             nds.map((node) => ({
                 ...node,
+                selected: node.id === selectedId, // Update ReactFlow selection state
+                style: node.id === selectedId ? { ...node.style, zIndex: 1000 } : { ...node.style, zIndex: 1 }, // Bring to front
                 data: {
                     ...node.data,
-                    isSelected: node.data.mongoId === selectedId
+                    isSelected: node.id === selectedId
                 },
             }))
         );
