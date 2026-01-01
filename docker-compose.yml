@@ -27,16 +27,7 @@ services:
       POSTGRES_USER: postgres
       POSTGRES_PASSWORD: postgres
       POSTGRES_DB: mydb
-    command:
-      [
-        "postgres",
-        "-c",
-        "wal_level=logical",
-        "-c",
-        "max_replication_slots=4",
-        "-c",
-        "max_wal_senders=4",
-      ]
+    command: [ "postgres", "-c", "wal_level=logical", "-c", "max_replication_slots=4", "-c", "max_wal_senders=4" ]
     ports:
       - "5433:5432"
     volumes:
@@ -59,9 +50,7 @@ services:
     image: mongo:7
     container_name: mongodb
     restart: unless-stopped
-    environment:
-      MONGO_INITDB_ROOT_USERNAME: mongo
-      MONGO_INITDB_ROOT_PASSWORD: mongo
+    command: [ "--replSet", "rs0", "--bind_ip_all" ]
     ports:
       - "27017:27017"
     volumes:
@@ -78,7 +67,7 @@ services:
     volumes:
       - ./backend:/app
     environment:
-      MONGODB_URL: mongodb://mongo:mongo@mongodb:27017
+      MONGODB_URL: mongodb://mongodb:27017
       MONGODB_DATABASE: mydb
       OPENSEARCH_HOST: opensearch
       OPENSEARCH_PORT: 9200
@@ -178,6 +167,37 @@ services:
     command: /opt/spark/bin/spark-class org.apache.spark.deploy.worker.Worker spark://spark-master:7077
     depends_on:
       - spark-master
+    volumes:
+      - ./spark/jars:/opt/spark/jars/extra
+      - ./spark/jobs:/opt/spark/jobs
+
+  # CDC Streaming Service - Runs Spark Streaming for real-time CDC
+  spark-cdc-streaming:
+    image: apache/spark:3.5.7-python3
+    container_name: spark-cdc-streaming
+    restart: unless-stopped
+    user: "0"
+    environment:
+      SPARK_USER_NAME: spark
+      IVY_CACHE_DIR: /tmp/.ivy2/cache
+      AWS_ACCESS_KEY_ID: test
+      AWS_SECRET_ACCESS_KEY: test
+      AWS_ENDPOINT_URL: http://localstack-main:4566
+    entrypoint: /bin/bash
+    command:
+      - -c
+      - |
+        mkdir -p /tmp/.ivy2/cache /tmp/.ivy2/jars
+        sleep 30  # Wait for Kafka and LocalStack to be ready
+        /opt/spark/bin/spark-submit \
+          --conf spark.driver.extraJavaOptions="-Divy.home=/tmp/.ivy2" \
+          --packages org.apache.spark:spark-sql-kafka-0-10_2.12:3.5.0 \
+          --jars /opt/spark/jars/extra/aws-java-sdk-bundle-1.12.262.jar,/opt/spark/jars/extra/hadoop-aws-3.3.4.jar \
+          /opt/spark/jobs/cdc_universal_runner.py
+    depends_on:
+      - spark-master
+      - kafka
+      - localstack
     volumes:
       - ./spark/jars:/opt/spark/jars/extra
       - ./spark/jobs:/opt/spark/jobs
@@ -286,10 +306,7 @@ services:
       SERVICE_NAME: metastore
       DB_DRIVER: postgres
       SERVICE_OPTS: >-
-        -Djavax.jdo.option.ConnectionDriverName=org.postgresql.Driver
-        -Djavax.jdo.option.ConnectionURL=jdbc:postgresql://postgres:5432/metastore
-        -Djavax.jdo.option.ConnectionUserName=postgres
-        -Djavax.jdo.option.ConnectionPassword=postgres
+        -Djavax.jdo.option.ConnectionDriverName=org.postgresql.Driver -Djavax.jdo.option.ConnectionURL=jdbc:postgresql://postgres:5432/metastore -Djavax.jdo.option.ConnectionUserName=postgres -Djavax.jdo.option.ConnectionPassword=postgres
     ports:
       - "9083:9083"
     volumes:

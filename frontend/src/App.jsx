@@ -12,6 +12,7 @@ import ETLPage from "./pages/etl/etl_main";
 import ConnectionListPage from "./pages/sources/ConnectionListPage";
 import ConnectionCreatePage from "./pages/sources/ConnectionCreatePage";
 import QueryPage from "./pages/query/QueryPage";
+import CDCPage from "./pages/cdc/CDCPage";
 import { ToastProvider } from "./components/common/Toast";
 
 // Placeholder components for new routes
@@ -159,6 +160,17 @@ function App() {
               <ProtectedRoute>
                 <MainLayout>
                   <ConnectionCreatePage />
+                </MainLayout>
+              </ProtectedRoute>
+            }
+          />
+
+          <Route
+            path="/cdc"
+            element={
+              <ProtectedRoute>
+                <MainLayout>
+                  <CDCPage />
                 </MainLayout>
               </ProtectedRoute>
             }

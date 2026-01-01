@@ -9,6 +9,7 @@ import {
   List,
   ChevronLeft,
   ChevronRight,
+  Activity,
 } from "lucide-react";
 import { useAuth } from "../../context/AuthContext";
 import clsx from "clsx";
@@ -22,7 +23,10 @@ export function Sidebar({ isCollapsed, onToggle }) {
   const navSections = [
     {
       title: "DATA CATALOG",
-      items: [{ name: "Dataset", path: "/", icon: List }],
+      items: [
+        { name: "Dataset", path: "/", icon: List },
+        { name: "CDC Streaming", path: "/cdc", icon: Activity },
+      ],
     },
     {
       title: "LINEAGE",
