@@ -91,5 +91,35 @@ export const connectionApi = {
             throw new Error('Failed to fetch columns');
         }
         return response.json();
+    },
+
+    /**
+     * Get MongoDB collections from a connection
+     * @param {string} connectionId 
+     * @returns {Promise<Object>} { collections: [...] }
+     */
+    async fetchMongoDBCollections(connectionId) {
+        const response = await fetch(`${API_URL}/metadata/${connectionId}/collections`);
+        if (!response.ok) {
+            throw new Error('Failed to fetch MongoDB collections');
+        }
+        return response.json();
+    },
+
+    /**
+     * Infer schema from a MongoDB collection by sampling documents
+     * @param {string} connectionId 
+     * @param {string} collectionName 
+     * @param {number} sampleSize - Number of documents to sample (default: 1000)
+     * @returns {Promise<Array>} List of inferred fields with type and occurrence
+     */
+    async fetchCollectionSchema(connectionId, collectionName, sampleSize = 1000) {
+        const response = await fetch(
+            `${API_URL}/metadata/${connectionId}/collections/${collectionName}/schema?sample_size=${sampleSize}`
+        );
+        if (!response.ok) {
+            throw new Error('Failed to infer collection schema');
+        }
+        return response.json();
     }
 };

@@ -5,9 +5,10 @@ from datetime import datetime
 
 class SourceConfig(BaseModel):
     nodeId: Optional[str] = None  # Node ID for graph reference
-    type: str  # rdb
+    type: str  # rdb, mongodb, nosql
     connection_id: str  # Connection ID
-    table: Optional[str] = None
+    table: Optional[str] = None  # For RDB
+    collection: Optional[str] = None  # For NoSQL (MongoDB)
     query: Optional[str] = None  # Custom SQL query
 
 
@@ -51,6 +52,7 @@ class ETLJobUpdate(BaseModel):
     destination: Optional[DestinationConfig] = None
     schedule: Optional[str] = None
     status: Optional[str] = None
+    import_ready: Optional[bool] = None  # Import ready flag
     # Visual Editor state
     nodes: Optional[List[dict]] = None
     edges: Optional[List[dict]] = None

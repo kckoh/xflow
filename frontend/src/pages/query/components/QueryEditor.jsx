@@ -91,11 +91,10 @@ export default function QueryEditor({ selectedTable }) {
                     <button
                         onClick={executeQuery}
                         disabled={executing || !query.trim()}
-                        className={`flex items-center gap-2 px-4 py-2 rounded-lg font-medium transition-colors ${
-                            executing || !query.trim()
+                        className={`flex items-center gap-2 px-4 py-2 rounded-lg font-medium transition-colors ${executing || !query.trim()
                                 ? "bg-gray-100 text-gray-400 cursor-not-allowed"
                                 : "bg-blue-600 text-white hover:bg-blue-700"
-                        }`}
+                            }`}
                     >
                         {executing ? (
                             <>
@@ -166,7 +165,12 @@ export default function QueryEditor({ selectedTable }) {
                                                     key={column}
                                                     className="px-4 py-3 text-gray-900"
                                                 >
-                                                    {row[column] || "-"}
+                                                    {(() => {
+                                                        const value = row[column];
+                                                        if (value === null || value === undefined) return "-";
+                                                        if (typeof value === "object") return JSON.stringify(value);
+                                                        return String(value);
+                                                    })()}
                                                 </td>
                                             ))}
                                         </tr>

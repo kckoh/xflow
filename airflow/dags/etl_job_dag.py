@@ -69,6 +69,18 @@ def fetch_job_config(**context):
                     "user_name": connection.get("user_name"),
                     "password": connection.get("password"),
                 }
+        elif source.get("type") in ["mongodb", "nosql"] and source.get("connection_id"):
+            # NoSQL connection enrichment (MongoDB, future: Cassandra, DynamoDB)
+            connection = db.connections.find_one(
+                {"_id": ObjectId(source["connection_id"])}
+            )
+            if connection:
+                conn_config = connection.get("config", {})
+                source["connection"] = {
+                    "type": connection.get("type", "mongodb"),  # For Spark reader dispatch
+                    "uri": conn_config.get("uri"),
+                    "database": conn_config.get("database"),
+                }
         enriched_sources.append(source)
 
     # Build complete config for Spark
@@ -208,7 +220,7 @@ with DAG(
                 --conf 'spark.sql.shuffle.partitions=16' \
                 --conf 'spark.memory.fraction=0.6' \
                 --name "ETL-{{ dag_run.conf.get('job_id', 'unknown') }}" \
-                --jars /opt/spark/jars/extra/postgresql-42.7.4.jar,/opt/spark/jars/extra/hadoop-aws-3.3.4.jar,/opt/spark/jars/extra/aws-java-sdk-bundle-1.12.262.jar \
+                --jars /opt/spark/jars/extra/postgresql-42.7.4.jar,/opt/spark/jars/extra/hadoop-aws-3.3.4.jar,/opt/spark/jars/extra/aws-java-sdk-bundle-1.12.262.jar,/opt/spark/jars/extra/mongo-spark-connector_2.12-10.3.0.jar,/opt/spark/jars/extra/bson-4.11.1.jar,/opt/spark/jars/extra/mongodb-driver-core-4.11.1.jar,/opt/spark/jars/extra/mongodb-driver-sync-4.11.1.jar \
                 /opt/spark/jobs/etl_runner.py '{{ ti.xcom_pull(task_ids="fetch_job_config") }}'
         """,
     )
