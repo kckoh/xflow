@@ -105,6 +105,31 @@ export default function DomainDetailPage() {
     // Fallback if sidebarDataset is null (shouldn't happen after load)
     const activeSidebarData = sidebarDataset || domain;
 
+    // --- Sync Handlers ---
+    const handleNodesDelete = (deleted) => {
+        if (!deleted || deleted.length === 0) return;
+        setDomain(prev => ({
+            ...prev,
+            nodes: prev.nodes.filter(n => !deleted.some(d => d.id === n.id))
+        }));
+    };
+
+    const handleEdgesDelete = (deleted) => {
+        if (!deleted || deleted.length === 0) return;
+        setDomain(prev => ({
+            ...prev,
+            edges: prev.edges.filter(e => !deleted.some(d => d.id === e.id))
+        }));
+    };
+
+    const handleEdgeCreate = (newEdge) => {
+        setDomain(prev => ({
+            ...prev,
+            edges: [...prev.edges, newEdge]
+        }));
+    };
+
+
     return (
         <div className="flex flex-col h-[calc(100vh-2rem)] bg-white overflow-hidden relative -m-8">
             {/* Top Navigation Wrapper (Header + Tabs) - Highest Z-Index */}
@@ -138,10 +163,6 @@ export default function DomainDetailPage() {
                     onClose={() => setShowImportModal(false)}
                     datasetId={domain?.id}
                     initialPos={() => {
-                        console.log("%c[InitialPos Debug]", "color: cyan");
-                        console.log("SidebarDataset:", sidebarDataset);
-                        console.log("Domain ID:", domain?.id);
-
                         const currentGraph = canvasRef.current?.getGraph();
 
                         // 1. If a specific node is selected (and it's not the domain root info)
@@ -151,24 +172,16 @@ export default function DomainDetailPage() {
                                 canvasRef.current.getNode(sidebarDataset.id) :
                                 currentGraph?.nodes?.find(n => n.id === sidebarDataset.id);
 
-                            console.log("Selected Node Found in Graph (Fresh):", selectedNode);
-
                             if (selectedNode) {
-                                console.log(">> Using Node Position:", selectedNode.position);
                                 return {
                                     x: selectedNode.position.x + 350,
                                     y: selectedNode.position.y
                                 };
-                            } else {
-                                console.warn(">> Selected node in sidebar NOT found in graph nodes.");
                             }
-                        } else {
-                            console.log(">> No specific node selected (or Root selected).");
                         }
 
                         // 2. Otherwise: Use Camera Center
                         if (canvasRef.current?.getViewportCenter) {
-                            console.log(">> Using Viewport Center");
                             return canvasRef.current.getViewportCenter();
                         }
 
@@ -178,6 +191,14 @@ export default function DomainDetailPage() {
                     onImport={(nodes, edges) => {
                         if (canvasRef.current) {
                             canvasRef.current.addNodes(nodes, edges);
+                        }
+                        // Sync with local domain state to update sidebar count immediately
+                        if (setDomain) {
+                            setDomain(prev => ({
+                                ...prev,
+                                nodes: [...(prev.nodes || []), ...nodes],
+                                edges: [...(prev.edges || []), ...edges]
+                            }));
                         }
                     }}
                 />
@@ -194,6 +215,10 @@ export default function DomainDetailPage() {
                         selectedId={activeSidebarData.id}
                         onStreamAnalysis={handleStreamAnalysis}
                         onNodeSelect={handleNodeSelect}
+                        onEtlStepSelect={handleNodeSelect} // Reuse handleNodeSelect for internal steps
+                        onNodesDelete={handleNodesDelete}
+                        onEdgesDelete={handleEdgesDelete}
+                        onEdgeCreate={handleEdgeCreate}
                         onPaneClick={handleBackgroundClick}
                     />
                 </div>

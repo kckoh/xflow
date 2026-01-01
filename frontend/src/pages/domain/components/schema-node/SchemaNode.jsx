@@ -86,7 +86,11 @@ const SchemaNodeComponent = ({ id, data, selected }) => {
             {/* ETL View: External Popover (Left of the Node) */}
             {etlOpen && (
                 <div className="absolute right-full -top-11 mr-5 z-[100] min-w-max">
-                    <SchemaEtlView data={data} parentNodeId={id} />
+                    <SchemaEtlView
+                        data={data}
+                        parentNodeId={id}
+                        onEtlStepSelect={data.onEtlStepSelect} // Pass handler
+                    />
                 </div>
             )}
         </div>

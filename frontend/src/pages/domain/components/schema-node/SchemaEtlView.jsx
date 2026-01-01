@@ -3,7 +3,7 @@ import { SchemaNodeHeader } from "./SchemaNodeHeader";
 import { SchemaNodeColumns } from "./SchemaNodeColumns";
 import { useEtlLineage, groupNodesIntoLayers } from "../../hooks/useEtlLineage";
 
-const EtlStepNode = ({ step, parentId, onExpandChange }) => {
+const EtlStepNode = ({ step, parentId, onExpandChange, onSelect }) => {
     const [expanded, setExpanded] = useState(true);
 
     const handleToggle = (val) => {
@@ -11,12 +11,42 @@ const EtlStepNode = ({ step, parentId, onExpandChange }) => {
         if (onExpandChange) onExpandChange();
     };
 
+    const handleSelect = (e) => {
+        // Prevent event propagation so we don't select the parent node
+        e.stopPropagation();
+        if (onSelect) {
+            // Pass the step data, ensuring it has an ID
+            onSelect({
+                id: step.id || `step-${Math.random()}`,
+                ...step,
+                ...step.data,
+                // Ensure label exists for sidebar title
+                label: step.data?.label || step.name || step.label || "Unknown Step",
+                // Ensure columns exist
+                columns: step.data?.columns || [],
+                // Ensure platform/type exists for icons
+                platform: step.data?.platform || step.platform || (step.type === 'T' ? "Transform" : "Database"),
+                type: step.type || "step"
+            });
+        }
+    };
+
     const namespacedNodeId = `${parentId}-${step.id}`;
 
     return (
-        <div className="w-[200px] border border-gray-200 rounded-lg bg-white/50 shadow-sm overflow-hidden transform origin-left transition-all relative z-10">
+        <div
+            className="w-[200px] border border-gray-200 rounded-lg bg-white/50 shadow-sm overflow-hidden transform origin-left transition-all relative z-10 cursor-pointer hover:border-blue-400 hover:shadow-md"
+            onClick={handleSelect}
+        >
             <SchemaNodeHeader
-                data={step.data}
+                data={{
+                    ...step.data,
+                    // Fallback to step.name or step.label if label is missing in data
+                    label: step.data?.label || step.name || step.label || "Unknown Step",
+                    // Infer platform from type if missing. 
+                    // Use 'Database' as generic default instead of hardcoded 'PostgreSQL'.
+                    platform: step.data?.platform || step.platform || (step.type === 'T' ? "Transform" : "Database")
+                }}
                 expanded={expanded}
                 onToggle={handleToggle}
                 id={step.id}
@@ -39,7 +69,7 @@ const EtlStepNode = ({ step, parentId, onExpandChange }) => {
     );
 };
 
-export const SchemaEtlView = ({ data, parentNodeId }) => {
+export const SchemaEtlView = ({ data, parentNodeId, onEtlStepSelect }) => {
     const jobs = data.jobs || [];
     const containerRef = useRef(null);
 
@@ -48,7 +78,9 @@ export const SchemaEtlView = ({ data, parentNodeId }) => {
 
     return (
         <div ref={containerRef} className="p-5 rounded-xl shadow-2xl border border-gray-200/30 min-w-max relative"
-            style={{ backgroundColor: 'rgba(255, 255, 255, 0.4)', backdropFilter: 'blur(8px)' }}>
+            style={{ backgroundColor: 'rgba(255, 255, 255, 0.4)', backdropFilter: 'blur(8px)' }}
+            onClick={(e) => e.stopPropagation()} // Prevent closing/selecting parent when clicking background of ETL view
+        >
 
             <div className="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-4 relative z-10 flex items-center">
                 <span>{jobs[0]?.name || 'ETL Job'}</span>
@@ -89,6 +121,7 @@ export const SchemaEtlView = ({ data, parentNodeId }) => {
                                                     step={step}
                                                     parentId={parentNodeId}
                                                     onExpandChange={refreshLines}
+                                                    onSelect={onEtlStepSelect}
                                                 />
                                             </div>
                                         ))}

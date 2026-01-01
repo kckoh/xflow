@@ -64,7 +64,9 @@ const DomainFlow = React.forwardRef((props, ref) => {
                     data: {
                         ...node.data,
                         onDelete: handleDeleteNode,
-                        onToggleExpand: handleToggleExpand
+                        onDelete: handleDeleteNode,
+                        onToggleExpand: handleToggleExpand,
+                        onEtlStepSelect: props.onEtlStepSelect // Inject handler
                     }
                 }));
                 // Trust the positions calculated by the utility
@@ -84,11 +86,14 @@ const DomainFlow = React.forwardRef((props, ref) => {
                 edges={edges}
                 onNodesChange={onNodesChange}
                 onEdgesChange={onEdgesChange}
+                onNodesDelete={props.onNodesDelete}
+                onEdgesDelete={props.onEdgesDelete}
                 onConnect={onConnect}
                 onConnectEnd={onConnectEnd}
                 onEdgeClick={onEdgeClick}
                 onNodeClick={onNodeClick}
                 onNodeDragStart={onNodeClick}
+                onPaneClick={props.onPaneClick}
                 onNodeContextMenu={onNodeContextMenu}
                 nodeTypes={nodeTypes}
                 edgeTypes={edgeTypes}
