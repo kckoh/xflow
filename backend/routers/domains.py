@@ -6,6 +6,7 @@ from beanie import PydanticObjectId
 from models import Domain, ETLJob, Dataset
 from schemas.domain import (
     DomainCreate,
+    DomainUpdate,
     DomainGraphUpdate,
     DomainJobListResponse,
     JobExecutionResponse,
@@ -137,6 +138,28 @@ async def delete_domain(id: str):
         raise HTTPException(status_code=404, detail="Domain not found")
     
     await domain.delete()
+
+@router.put("/{id}", response_model=Domain)
+async def update_domain(id: str, update_data: DomainUpdate):
+    """
+    Update domain metadata (name, description, tags, etc.).
+    """
+    domain = await Domain.get(id)
+    if not domain:
+        raise HTTPException(status_code=404, detail="Domain not found")
+
+    # Update fields that are provided
+    update_dict = update_data.model_dump(exclude_unset=True)
+    
+    if not update_dict:
+        return domain
+
+    for key, value in update_dict.items():
+        setattr(domain, key, value)
+    
+    domain.updated_at = datetime.utcnow()
+    await domain.save()
+    return domain
 
 @router.post("/{id}/graph", response_model=Domain)
 async def save_domain_graph(id: str, graph_data: DomainGraphUpdate):
