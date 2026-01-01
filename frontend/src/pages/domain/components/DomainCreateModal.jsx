@@ -2,7 +2,7 @@ import React, { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { X, ArrowRight, Book, ArrowLeft, Database, Tag } from "lucide-react";
 import { useToast } from "../../../components/common/Toast";
-import { createDomain, getJobExecution } from "../api/domainApi";
+import { createDomain, getJobExecution, getEtlJob } from "../api/domainApi";
 import { calculateDomainLayoutHorizontal } from "../../../utils/domainLayout";
 import JobSelector from "./JobSelector";
 
@@ -87,9 +87,20 @@ export default function DomainCreateModal({ isOpen, onClose, onCreated }) {
 
       if (formData.job_ids.length > 0) {
         try {
+          // Fetch Execution Results (for structure) AND Job Definitions (for manual metadata)
           const executionPromises = formData.job_ids.map(id => getJobExecution(id));
-          const results = await Promise.all(executionPromises);
-          const layout = calculateDomainLayoutHorizontal(results); // Changed from calculateLayoutFromJobs
+          const jobPromises = formData.job_ids.map(id => getEtlJob(id));
+
+          const [results, jobs] = await Promise.all([
+            Promise.all(executionPromises),
+            Promise.all(jobPromises)
+          ]);
+
+          // Map definitions by ID
+          const jobMap = {};
+          jobs.forEach(j => { jobMap[j.id] = j; });
+
+          const layout = calculateDomainLayoutHorizontal(results, jobMap);
           nodes = layout.nodes;
           edges = layout.edges;
         } catch (err) {

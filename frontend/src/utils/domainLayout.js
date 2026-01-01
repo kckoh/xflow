@@ -4,29 +4,72 @@
  * Shared between DomainCreateModal and DomainImportModal.
  */
 
-export function calculateDomainLayoutHorizontal(jobExecutionResults, initialX = 100, initialY = 100) {
+export function calculateDomainLayoutHorizontal(jobExecutionResults, arg2, arg3) {
+    // Argument Handling to support optional jobDefinitions
+    let jobDefinitions = {};
+    let initialX = 100;
+    let initialY = 100;
+
+    // Check if arg2 is the jobDefinitions map (object, not number)
+    if (arg2 && typeof arg2 === 'object') {
+        jobDefinitions = arg2;
+        if (typeof arg3 === 'number') initialX = arg3;
+    } else {
+        if (typeof arg2 === 'number') initialX = arg2;
+        if (typeof arg3 === 'number') initialY = arg3;
+    }
+
     let allNodes = [];
     let allEdges = [];
 
     // Layout config
-    const TARGET_X_OFFSET = 300; // Spacing between targets (width of a node)
-    const JOB_GAP = 50;          // Gap between jobs
+    const TARGET_X_OFFSET = 300;
+    const JOB_GAP = 50;
 
     let currentX = initialX;
     const startY = initialY;
 
+    // Helper: Merge schema from Job Definition (if available) to enrich missing metadata
+    const enrichSchema = (execSchema, jobId, nodeId) => {
+        const jobDef = jobDefinitions[jobId];
+        if (!jobDef || !jobDef.nodes) return execSchema || [];
+
+        const nodeDef = jobDef.nodes.find(n => n.id === nodeId);
+        if (!nodeDef || !nodeDef.data || !nodeDef.data.schema) return execSchema || [];
+
+        const defSchema = nodeDef.data.schema;
+
+        return (execSchema || []).map(col => {
+            // Handle various key formats
+            const colName = col.name || col.column_name || col.key;
+            const defCol = defSchema.find(d => (d.name || d.key) === colName);
+
+            if (defCol) {
+                return {
+                    ...col,
+                    description: col.description || defCol.description,
+                    tags: col.tags || defCol.tags
+                };
+            }
+            return col;
+        });
+    };
+
     jobExecutionResults.forEach((executionData, jobIdx) => {
         const jobName = executionData.name || `Job ${jobIdx}`;
-        const jobId = executionData.job_id;
+        const jobId = executionData.job_id || executionData.id; // Fallback
 
-        // 1. Prepare Steps (Source/Transform) info for the node's internal state
+        // 1. Prepare Steps (Source/Transform)
         const steps = [];
         executionData.sources?.forEach((source, idx) => {
             steps.push({
                 id: `step-source-${jobId}-${idx}`,
                 type: 'E',
                 label: source.config?.tableName || `Source`,
-                data: { columns: source.schema || [] }
+                data: {
+                    columns: enrichSchema(source.schema, jobId, source.nodeId),
+                    platform: source.platform || source.config?.platform || source.type || source.config?.type || "unknown"
+                }
             });
         });
         executionData.transforms?.forEach((transform, idx) => {
@@ -34,7 +77,10 @@ export function calculateDomainLayoutHorizontal(jobExecutionResults, initialX = 
                 id: `step-transform-${jobId}-${idx}`,
                 type: 'T',
                 label: transform.type || `Transform`,
-                data: { columns: transform.schema || [] }
+                data: {
+                    columns: enrichSchema(transform.schema, jobId, transform.nodeId),
+                    platform: transform.type || "Transform"
+                }
             });
         });
 
@@ -45,10 +91,6 @@ export function calculateDomainLayoutHorizontal(jobExecutionResults, initialX = 
         };
 
         // 2. Create Target Nodes
-        // Layout Strategy: Horizontal Flow
-        // Place all targets of this job horizontally.
-        // Then move currentX for the next job.
-
         let jobTargetCount = 0;
 
         if (executionData.targets && executionData.targets.length > 0) {
@@ -56,13 +98,9 @@ export function calculateDomainLayoutHorizontal(jobExecutionResults, initialX = 
 
             executionData.targets.forEach((target, targetIdx) => {
                 const nodeId = `node-${jobId}-${targetIdx}-${Date.now()}`;
-
-                // Position: Current Job Start X + (Target Index * Width)
                 const xPos = currentX + (targetIdx * TARGET_X_OFFSET);
                 const yPos = startY;
-                console.log(`[LayoutCalc] Node ${nodeId}: x=${xPos}, y=${yPos} (Horizontal Offset: ${targetIdx * TARGET_X_OFFSET})`);
 
-                // Determine Label
                 let label = target.config?.tableName;
                 if (!label && target.config?.s3Location) {
                     label = target.config.s3Location.split('/').pop();
@@ -78,29 +116,25 @@ export function calculateDomainLayoutHorizontal(jobExecutionResults, initialX = 
                     data: {
                         label: label,
                         type: "Table",
-                        columns: target.schema?.map(col => col.key || col.name) || [],
-                        // Backend schema might have 'key' or 'name'. 
-                        // The DatasetNodeResponse schema has 'schema: List[dict]'.
-
+                        columns: enrichSchema(target.schema, jobId, target.nodeId),
                         expanded: true,
                         sourceType: target.type || "s3",
-                        platform: "S3",
+                        platform: target.platform || "S3",
                         jobs: [jobObj]
                     }
                 });
             });
         } else {
-            // Fallback Node if no targets
+            // Fallback Node
             jobTargetCount = 1;
             const nodeId = `node-fallback-${jobId}-${Date.now()}`;
-
             allNodes.push({
                 id: nodeId,
                 type: "custom",
                 position: { x: currentX, y: startY },
                 data: {
                     label: jobName,
-                    type: "Job", // Special type? or just Table with no columns
+                    type: "Job",
                     columns: [],
                     expanded: true,
                     sourceType: "job",
@@ -109,9 +143,6 @@ export function calculateDomainLayoutHorizontal(jobExecutionResults, initialX = 
             });
         }
 
-        // Advance X for the next job
-        // Width of this job = (numTargets * TARGET_X_OFFSET)
-        // Add JOB_GAP
         currentX += (jobTargetCount * TARGET_X_OFFSET) + JOB_GAP;
     });
 

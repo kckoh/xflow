@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { X, Database, ChevronRight, Loader2 } from "lucide-react";
 import { useToast } from "../../../components/common/Toast";
-import { getImportReadyJobs, getJobExecution } from "../api/domainApi";
+import { getImportReadyJobs, getJobExecution, getEtlJob } from "../api/domainApi";
 import { calculateDomainLayoutHorizontal } from "../../../utils/domainLayout";
 import JobSelector from "./JobSelector";
 
@@ -28,9 +28,17 @@ export default function DomainImportModal({ isOpen, onClose, datasetId, onImport
 
         setImporting(true);
         try {
-            // Fetch execution data for ALL selected jobs
+            // Fetch execution data AND Job Definitions
             const executionPromises = selectedJobIds.map(id => getJobExecution(id));
-            const results = await Promise.all(executionPromises);
+            const jobPromises = selectedJobIds.map(id => getEtlJob(id));
+
+            const [results, jobs] = await Promise.all([
+                Promise.all(executionPromises),
+                Promise.all(jobPromises)
+            ]);
+
+            const jobMap = {};
+            jobs.forEach(j => { jobMap[j.id] = j; });
 
             // Resolve initialPos if it's a function (as passed from DomainDetailPage)
             let startPos = initialPos;
@@ -39,7 +47,7 @@ export default function DomainImportModal({ isOpen, onClose, datasetId, onImport
             }
 
             // Use Shared Utility for Layout
-            const { nodes, edges } = calculateDomainLayoutHorizontal(results, startPos.x, startPos.y);
+            const { nodes, edges } = calculateDomainLayoutHorizontal(results, jobMap, startPos.x, startPos.y);
 
             if (onImport && nodes.length > 0) {
                 onImport(nodes, edges);

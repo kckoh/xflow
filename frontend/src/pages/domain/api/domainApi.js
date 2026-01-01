@@ -33,6 +33,16 @@ export const deleteDomain = async (id) => {
     return response.json();
 };
 
+export const updateDomain = async (id, updateData) => {
+    const response = await fetch(`${BASE_URL}/${id}`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(updateData),
+    });
+    if (!response.ok) throw new Error(`Failed to update domain: ${response.status}`);
+    return response.json();
+};
+
 export const saveDomainGraph = async (id, { nodes, edges }) => {
     const response = await fetch(`${BASE_URL}/${id}/graph`, {
         method: "POST",
@@ -53,5 +63,11 @@ export const getImportReadyJobs = async () => {
 export const getJobExecution = async (jobId) => {
     const response = await fetch(`${BASE_URL}/jobs/${jobId}/execution`);
     if (!response.ok) throw new Error(`Failed to fetch job execution: ${response.status}`);
+    return response.json();
+};
+
+export const getEtlJob = async (jobId) => {
+    const response = await fetch(`${API_BASE_URL}/api/etl-jobs/${jobId}`);
+    if (!response.ok) throw new Error(`Failed to fetch ETL Job: ${response.status}`);
     return response.json();
 };
