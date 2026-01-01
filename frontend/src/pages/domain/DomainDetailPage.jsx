@@ -6,12 +6,13 @@ import DomainCanvas from "./components/DomainCanvas";
 import DomainImportModal from "./components/DomainImportModal";
 import { RightSidebar } from "./components/RightSideBar/RightSidebar";
 import { SidebarToggle } from "./components/RightSideBar/SidebarToggle";
-import { saveDomainGraph } from "./api/domainApi";
+import { saveDomainGraph, updateDomain } from "./api/domainApi";
 import { useDomainDetail } from "./hooks/useDomainDetail";
 import { useDomainSidebar } from "./hooks/useDomainSidebar";
 
 export default function DomainDetailPage() {
-    const { id, domain, loading, error } = useDomainDetail();
+    const { id, domain, loading, error, setDomain } = useDomainDetail();
+
     const [showImportModal, setShowImportModal] = useState(false);
 
     // Ref to access DomainCanvas state
@@ -27,7 +28,9 @@ export default function DomainDetailPage() {
         streamData,
         handleStreamAnalysis,
         sidebarDataset,
-        handleNodeSelect
+        handleNodeSelect,
+        handleBackgroundClick,
+        setSidebarDataset
     } = useDomainSidebar({ domain, canvasRef });
 
     const handleSaveGraph = async () => {
@@ -41,6 +44,42 @@ export default function DomainDetailPage() {
         } catch (err) {
             console.error(err);
             showToast("Failed to save layout", "error");
+        }
+    };
+
+    const handleDomainUpdate = async (domainId, updateData) => {
+        try {
+            const updatedDomain = await updateDomain(domainId, updateData);
+            // Update local state (optimistic or actual)
+            // If the updated object is returning the full domain, we can set it directly.
+            // Since we extracted setDomain from useDomainDetail call, we can use it.
+            // Wait, useDomainDetail returns { ... setDomain ... }.
+
+            // Assuming setDomain is passed from hook result:
+            // const { id, domain, loading, error, setDomain } = useDomainDetail(); 
+            // Checking line 14: const { id, domain, loading, error } = useDomainDetail();
+            // I need to update line 14 first to destructure setDomain.
+
+            // For now, I'll assume I update line 14 in next step or use a separate replacement.
+            // But let's write the function first.
+            if (setDomain) {
+                setDomain(prev => ({ ...prev, ...updatedDomain }));
+            }
+
+            // Sync sidebar dataset if it's currently displaying the updated domain
+            if (sidebarDataset) {
+                const currentSidebarId = sidebarDataset.id || sidebarDataset._id;
+                const updatedId = updatedDomain.id || updatedDomain._id;
+
+                if (currentSidebarId === updatedId) {
+                    setSidebarDataset(updatedDomain);
+                }
+            }
+
+            showToast("Domain updated successfully", "success");
+        } catch (err) {
+            console.error("Failed to update domain", err);
+            showToast("Failed to update domain", "error");
         }
     };
 
@@ -155,6 +194,7 @@ export default function DomainDetailPage() {
                         selectedId={activeSidebarData.id}
                         onStreamAnalysis={handleStreamAnalysis}
                         onNodeSelect={handleNodeSelect}
+                        onPaneClick={handleBackgroundClick}
                     />
                 </div>
 
@@ -171,6 +211,8 @@ export default function DomainDetailPage() {
                     handleSidebarTabClick={handleSidebarTabClick}
                     streamData={streamData}
                     dataset={activeSidebarData}
+                    onNodeSelect={handleNodeSelect}
+                    onUpdate={handleDomainUpdate}
                 />
             </div>
         </div>

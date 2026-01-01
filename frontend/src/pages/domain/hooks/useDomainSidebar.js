@@ -66,13 +66,47 @@ export const useDomainSidebar = ({ domain, canvasRef }) => {
                     // Map node data to the structure expected by the sidebar
                     const nodeData = {
                         id: selectedId,
-                        name: selectedNode.data.label || selectedNode.id,
+                        name: selectedNode.data.jobs?.[0]?.name || selectedNode.data.label || selectedNode.id,
                         type: selectedNode.data.type || "custom",
                         columns: selectedNode.data.columns || [],
                         ...selectedNode.data,
                     };
                     console.log("[DomainDetail] Setting SidebarDataset:", nodeData);
                     setSidebarDataset(nodeData);
+
+                    // --- Calculate Upstream/Downstream (Immediate Dependencies) ---
+                    if (currentGraph && currentGraph.nodes && currentGraph.edges) {
+                        const { nodes, edges } = currentGraph;
+
+                        // Upstream: Edges where target is this node (Sources are upstream)
+                        const upstreamIds = edges
+                            .filter(e => e.target === selectedId)
+                            .map(e => e.source);
+
+                        const upstreamNodes = nodes
+                            .filter(n => upstreamIds.includes(n.id))
+                            .map(n => ({
+                                id: n.id,
+                                label: n.data.label || n.data.name || n.id
+                            }));
+
+                        // Downstream: Edges where source is this node (Targets are downstream)
+                        const downstreamIds = edges
+                            .filter(e => e.source === selectedId)
+                            .map(e => e.target);
+
+                        const downstreamNodes = nodes
+                            .filter(n => downstreamIds.includes(n.id))
+                            .map(n => ({
+                                id: n.id,
+                                label: n.data.label || n.data.name || n.id
+                            }));
+
+                        setStreamData({
+                            upstream: upstreamNodes,
+                            downstream: downstreamNodes
+                        });
+                    }
                 } else {
                     console.warn("Node not found in graph:", selectedId);
                 }
@@ -82,6 +116,15 @@ export const useDomainSidebar = ({ domain, canvasRef }) => {
         },
         [domain, canvasRef]
     );
+
+    const handleBackgroundClick = useCallback(() => {
+        console.log("[DomainDetail] Background Clicked - Resetting to Domain");
+        setSidebarDataset(domain);
+        // Ensure tab is valid for domain (e.g. switch back to summary if on columns)
+        if (sidebarTab === 'columns') {
+            setSidebarTab('summary');
+        }
+    }, [domain, sidebarTab]);
 
     return {
         isSidebarOpen,
@@ -93,6 +136,7 @@ export const useDomainSidebar = ({ domain, canvasRef }) => {
         handleStreamAnalysis,
         sidebarDataset,
         setSidebarDataset,
-        handleNodeSelect
+        handleNodeSelect,
+        handleBackgroundClick
     };
 };
