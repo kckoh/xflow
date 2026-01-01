@@ -22,7 +22,7 @@ async def test_connection_config(connection: ConnectionCreate):
     
     return {"success": True, "message": message}
 
-@router.post("/", response_model=ConnectionResponse, status_code=status.HTTP_201_CREATED)
+@router.post("", response_model=ConnectionResponse, status_code=status.HTTP_201_CREATED)
 async def create_connection(connection: ConnectionCreate):
     """Create a new connection"""
     # Check for duplicate configuration based on core identity fields
@@ -80,7 +80,7 @@ async def create_connection(connection: ConnectionCreate):
         updated_at=new_conn.updated_at
     )
 
-@router.get("/", response_model=List[ConnectionResponse])
+@router.get("", response_model=List[ConnectionResponse])
 async def list_connections():
     """List all connections"""
     conns = await Connection.find_all().to_list()

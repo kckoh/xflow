@@ -3,7 +3,7 @@
  * 데이터 카탈로그 검색 및 인덱싱 관리
  */
 
-const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8000';
+import { API_BASE_URL } from '../config/api';
 
 /**
  * 카탈로그 검색

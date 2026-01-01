@@ -1,7 +1,8 @@
 import { useState, useEffect } from "react";
 import { X, Database, Table as TableIcon, GitFork, FileText, Tag, Hash, AlignLeft, Users } from "lucide-react";
-import DomainSchema from "./DomainSchema";
-import DomainCanvas from "./DomainCanvas";
+import DatasetSchema from "./DatasetSchema";
+import DatasetDomain from "./DatasetDomain";
+import { API_BASE_URL } from "../../../config/api";
 
 export default function DomainDrawer({ isOpen, onClose, datasetId }) {
     const [dataset, setDataset] = useState(null);

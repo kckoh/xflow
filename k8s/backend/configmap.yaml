@@ -1,0 +1,10 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: backend-config
+data:
+  MONGODB_DATABASE: "xflow"
+  CORS_ORIGINS: "http://localhost:5173,https://xflows.net"
+  # Disable Neo4j and OpenSearch for now
+  NEO4J_URI: ""
+  OPENSEARCH_HOST: ""

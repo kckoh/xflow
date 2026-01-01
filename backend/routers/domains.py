@@ -16,7 +16,7 @@ router = APIRouter()
 
 # --- Domain CRUD Endpoints ---
 
-@router.get("/", response_model=List[Domain])
+@router.get("", response_model=List[Domain])
 async def get_all_domains():
     """
     Get all domains (list view).
@@ -99,7 +99,7 @@ async def get_domain(id: str):
         raise HTTPException(status_code=404, detail="Domain not found")
     return domain
 
-@router.post("/", response_model=Domain, status_code=status.HTTP_201_CREATED)
+@router.post("", response_model=Domain, status_code=status.HTTP_201_CREATED)
 async def create_domain(domain_data: DomainCreate):
     """
     Create a new domain.

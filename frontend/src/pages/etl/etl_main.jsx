@@ -13,6 +13,7 @@ import {
 } from "lucide-react";
 import ConfirmationModal from "../../components/common/ConfirmationModal";
 import { useToast } from "../../components/common/Toast";
+import { API_BASE_URL } from "../../config/api";
 
 const ITEMS_PER_PAGE = 10;
 
@@ -52,7 +53,7 @@ export default function ETLMain() {
   const fetchJobs = async () => {
     setIsLoading(true);
     try {
-      const response = await fetch("http://localhost:8000/api/etl-jobs");
+      const response = await fetch(`${API_BASE_URL}/api/etl-jobs`);
       if (response.ok) {
         const data = await response.json();
         setJobs(data);
@@ -67,7 +68,7 @@ export default function ETLMain() {
   const handleRun = async (jobId) => {
     try {
       const response = await fetch(
-        `http://localhost:8000/api/etl-jobs/${jobId}/run`,
+        `${API_BASE_URL}/api/etl-jobs/${jobId}/run`,
         {
           method: "POST",
           headers: { "Content-Type": "application/json" },
@@ -93,7 +94,7 @@ export default function ETLMain() {
 
     try {
       const response = await fetch(
-        `http://localhost:8000/api/etl-jobs/${jobId}`,
+        `${API_BASE_URL}/api/etl-jobs/${jobId}`,
         {
           method: "DELETE",
         },

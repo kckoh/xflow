@@ -12,7 +12,7 @@ from schemas.transforms.select_fields import SelectFieldsCreate, SelectFieldsRes
 router = APIRouter()
 
 
-@router.post("/", response_model=SelectFieldsResponse, status_code=status.HTTP_201_CREATED)
+@router.post("", response_model=SelectFieldsResponse, status_code=status.HTTP_201_CREATED)
 async def create_select_fields_transform(transform: SelectFieldsCreate):
     """
     Create a new select-fields transform configuration
