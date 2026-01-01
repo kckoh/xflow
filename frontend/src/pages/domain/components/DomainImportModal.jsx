@@ -57,44 +57,48 @@ export default function DomainImportModal({ isOpen, onClose, datasetId, onImport
             // Convert execution data to React Flow nodes
             const nodes = [];
             const edges = [];
-            let nodeIndex = 0;
 
-            // Add source nodes
+            // 1. Prepare Steps for the Job (Sources + Transforms)
+            const steps = [];
+
+            // Process Sources (Extract)
             executionData.sources?.forEach((source, idx) => {
-                const nodeId = `import-source-${Date.now()}-${idx}`;
-                nodes.push({
-                    id: nodeId,
-                    type: "custom",
+                steps.push({
+                    id: `step-source-${idx}`,
+                    type: 'E',
+                    label: source.config?.tableName || source.config?.sourceName || `Source ${idx + 1}`,
+                    platform: 'PostgreSQL', // Defaulting to Postgres for now, ideally derived from source type
                     data: {
                         label: source.config?.tableName || source.config?.sourceName || `Source ${idx + 1}`,
-                        type: "Table",
-                        columns: source.schema?.map(col => col.key || col.name) || [],
-                        expanded: true,
-                        sourceType: "rdb",
-                    },
-                    position: { x: 100, y: 100 + idx * 250 },
+                        platform: 'PostgreSQL',
+                        columns: source.schema?.map(col => col.key || col.name) || []
+                    }
                 });
-                nodeIndex++;
             });
 
-            // Add transform nodes
+            // Process Transforms (Transform)
             executionData.transforms?.forEach((transform, idx) => {
-                const nodeId = `import-transform-${Date.now()}-${idx}`;
-                nodes.push({
-                    id: nodeId,
-                    type: "custom",
+                steps.push({
+                    id: `step-transform-${idx}`,
+                    type: 'T',
+                    label: transform.type || `Transform ${idx + 1}`,
+                    platform: 'Transform',
                     data: {
                         label: transform.type || `Transform ${idx + 1}`,
-                        type: "Transform",
-                        columns: transform.schema?.map(col => col.key || col.name) || [],
-                        expanded: true,
-                    },
-                    position: { x: 500, y: 100 + idx * 250 },
+                        platform: 'Transform',
+                        columns: transform.schema?.map(col => col.key || col.name) || []
+                    }
                 });
-                nodeIndex++;
             });
 
-            // Add target nodes
+            // Create the Job Object
+            const job = {
+                id: selectedJob.id,
+                name: selectedJob.name,
+                steps: steps
+            };
+
+            // 2. Create ONLY Target Nodes (Load)
             executionData.targets?.forEach((target, idx) => {
                 const nodeId = `import-target-${Date.now()}-${idx}`;
                 nodes.push({
@@ -106,8 +110,12 @@ export default function DomainImportModal({ isOpen, onClose, datasetId, onImport
                         columns: target.schema?.map(col => col.key || col.name) || [],
                         expanded: true,
                         sourceType: "s3",
+                        platform: "S3", // Metadata for icon (S3 Target)
+                        // Attach the Lineage Job here
+                        jobs: [job]
                     },
-                    position: { x: 900, y: 100 + idx * 250 },
+                    // Position them nicely
+                    position: { x: 100 + (idx * 400), y: 100 },
                 });
             });
 
@@ -165,40 +173,40 @@ export default function DomainImportModal({ isOpen, onClose, datasetId, onImport
                         <div className="grid grid-cols-2 gap-4">
                             {/* Left: Job List */}
                             <div className="space-y-2 pr-4 border-r border-gray-200 overflow-y-auto max-h-[400px]">
-                            {jobs.map((job) => (
-                                <div
-                                    key={job.id}
-                                    onClick={() => handleJobSelect(job)}
-                                    className={`
+                                {jobs.map((job) => (
+                                    <div
+                                        key={job.id}
+                                        onClick={() => handleJobSelect(job)}
+                                        className={`
                                         relative border rounded-lg p-3 cursor-pointer transition-all
                                         ${selectedJob?.id === job.id
-                                            ? 'border-blue-500 bg-blue-50 shadow-sm'
-                                            : 'border-gray-200 hover:border-gray-300 hover:bg-gray-50'
-                                        }
+                                                ? 'border-blue-500 bg-blue-50 shadow-sm'
+                                                : 'border-gray-200 hover:border-gray-300 hover:bg-gray-50'
+                                            }
                                     `}
-                                >
-                                    {selectedJob?.id === job.id && (
-                                        <div className="absolute top-2 right-2">
-                                            <CheckCircle className="w-4 h-4 text-blue-600" />
-                                        </div>
-                                    )}
+                                    >
+                                        {selectedJob?.id === job.id && (
+                                            <div className="absolute top-2 right-2">
+                                                <CheckCircle className="w-4 h-4 text-blue-600" />
+                                            </div>
+                                        )}
 
-                                    <div className="pr-6">
-                                        <h3 className="font-semibold text-sm text-gray-900 mb-1">
-                                            {job.name}
-                                        </h3>
-                                        <p className="text-xs text-gray-600 mb-2 line-clamp-2">
-                                            {job.description || "No description"}
-                                        </p>
-                                        <div className="flex items-center gap-2 text-xs text-gray-500">
-                                            <span className="flex items-center gap-1">
-                                                <TableIcon size={10} />
-                                                {job.source_count} source{job.source_count !== 1 ? 's' : ''}
-                                            </span>
+                                        <div className="pr-6">
+                                            <h3 className="font-semibold text-sm text-gray-900 mb-1">
+                                                {job.name}
+                                            </h3>
+                                            <p className="text-xs text-gray-600 mb-2 line-clamp-2">
+                                                {job.description || "No description"}
+                                            </p>
+                                            <div className="flex items-center gap-2 text-xs text-gray-500">
+                                                <span className="flex items-center gap-1">
+                                                    <TableIcon size={10} />
+                                                    {job.source_count} source{job.source_count !== 1 ? 's' : ''}
+                                                </span>
+                                            </div>
                                         </div>
                                     </div>
-                                </div>
-                            ))}
+                                ))}
                             </div>
 
                             {/* Right: Execution Details */}

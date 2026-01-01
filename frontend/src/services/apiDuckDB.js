@@ -1,4 +1,6 @@
-const API_BASE = "http://localhost:8000/api/duckdb";
+import { API_BASE_URL } from '../config/api';
+
+const API_BASE = `${API_BASE_URL}/api/duckdb`;
 
 export const executeQuery = async (sql) => {
     const response = await fetch(`${API_BASE}/query`, {

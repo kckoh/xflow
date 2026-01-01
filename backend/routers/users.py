@@ -5,7 +5,7 @@ from schemas.user import UserResponse
 router = APIRouter()
 
 
-@router.get("/", response_model=list[UserResponse])
+@router.get("", response_model=list[UserResponse])
 async def get_users():
     """Get all users"""
     users = []

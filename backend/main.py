@@ -29,7 +29,8 @@ async def lifespan(app: FastAPI):
 app = FastAPI(
     title="Jungle Data Structures API",
     version="1.0.0",
-    lifespan=lifespan
+    lifespan=lifespan,
+    redirect_slashes=False
 )
 
 # Get CORS origins from environment
@@ -70,3 +71,9 @@ app.include_router(domains.router, prefix="/api/domains", tags=["domains"])
 @app.get("/")
 def read_root():
     return {"message": "Connected to FastAPI + MongoDB"}
+
+
+# Health check for Kubernetes
+@app.get("/health")
+def health_check():
+    return {"status": "healthy"}

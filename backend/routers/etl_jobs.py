@@ -15,7 +15,7 @@ AIRFLOW_BASE_URL = "http://airflow-webserver:8080/api/v1"
 AIRFLOW_AUTH = ("admin", "admin")
 
 
-@router.post("/", response_model=ETLJobResponse, status_code=status.HTTP_201_CREATED)
+@router.post("", response_model=ETLJobResponse, status_code=status.HTTP_201_CREATED)
 async def create_etl_job(job: ETLJobCreate):
     """Create a new ETL job configuration"""
     # Check if job name exists
@@ -87,7 +87,7 @@ async def create_etl_job(job: ETLJobCreate):
     )
 
 
-@router.get("/", response_model=List[ETLJobResponse])
+@router.get("", response_model=List[ETLJobResponse])
 async def list_etl_jobs(import_ready: bool = None):
     """Get all ETL jobs with their active status, optionally filtered by import_ready flag"""
     # Build query filter

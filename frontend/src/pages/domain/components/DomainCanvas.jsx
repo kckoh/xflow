@@ -6,23 +6,23 @@ import {
     Background,
 } from "@xyflow/react";
 import "@xyflow/react/dist/style.css";
-import React from "react";
+import React, { useMemo } from "react";
 import { SchemaNode } from "./schema-node";
 import { DeletionEdge } from "./CustomEdges";
 import { DomainEdgeMenu } from "./DomainEdgeMenu";
 import { useDomainLogic } from "../hooks/useDomainLogic";
 
-const nodeTypes = {
-    custom: SchemaNode,
-    Table: SchemaNode,
-    Topic: SchemaNode,
-};
-
-const edgeTypes = {
-    deletion: DeletionEdge,
-};
-
 const DomainFlow = React.forwardRef((props, ref) => {
+    const nodeTypes = useMemo(() => ({
+        custom: SchemaNode,
+        Table: SchemaNode,
+        Topic: SchemaNode,
+    }), []);
+
+    const edgeTypes = useMemo(() => ({
+        deletion: DeletionEdge,
+    }), []);
+
     const {
         nodes,
         edges,
@@ -39,22 +39,37 @@ const DomainFlow = React.forwardRef((props, ref) => {
         handleDeleteEdge,
         setEdgeMenu,
     } = useDomainLogic(props);
-
+    // import node position logic
     // Expose nodes/edges to parent via ref
     React.useImperativeHandle(ref, () => ({
         getGraph: () => ({ nodes, edges }),
         addNodes: (newNodes, newEdges = []) => {
-            // Add new nodes with position
-            setNodes((prev) => [
-                ...prev,
-                ...newNodes.map((node, idx) => ({
-                    ...node,
-                    position: node.position || {
-                        x: 100 + (idx % 3) * 350,
-                        y: 100 + Math.floor(idx / 3) * 300
-                    },
-                }))
-            ]);
+            setNodes((prev) => {
+                // Smart Append: Calculate Max X of existing nodes to place new ones to the RIGHT
+                let offsetX = 0;
+                if (prev.length > 0) {
+                    const maxX = Math.max(...prev.map(n => n.position?.x || 0));
+                    offsetX = maxX + 250; // Add margin to the right (Node width + gap)
+                }
+
+                const positionedNewNodes = newNodes.map((node, idx) => {
+                    const defaultX = 100;
+                    const defaultY = 100 + idx * 350; // Force vertical stacking for new batch
+
+                    // Place new column to the right of existing graph
+                    // Ignore the imported X (which spreads horizontally) to keep it compact
+                    const posX = (offsetX > 0 ? offsetX : 100);
+                    const posY = (node.position?.y && offsetX === 0) ? node.position.y : defaultY;
+
+                    return {
+                        ...node,
+                        position: { x: posX, y: posY },
+                    };
+                });
+
+                return [...prev, ...positionedNewNodes];
+            });
+
             if (newEdges.length > 0) {
                 setEdges((prev) => [...prev, ...newEdges]);
             }

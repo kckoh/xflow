@@ -17,22 +17,25 @@ export const useDomainLogic = ({ datasetId, selectedId, onStreamAnalysis, onNode
 
     // 2. Data Fetching & Sync Logic
     // Depends on graph state to merge new data into it
-    const handleDeleteNode = useCallback(async (nodeId) => {
-        const node = nodes.find(n => n.id === nodeId);
-        if (!node || !node.data.mongoId) return;
-
-        try {
-            await deleteDomain(node.data.mongoId);
-
-            // Optimistic UI Update
-            setNodes((nds) => nds.filter((n) => n.id !== nodeId));
-            setEdges((eds) => eds.filter((e) => e.source !== nodeId && e.target !== nodeId));
-            showToast("Dataset deleted successfully", "success");
-        } catch (e) {
-            console.error(e);
-            showToast("Failed to delete dataset.", "error");
+    const handleDeleteNode = useCallback(async (nodeId, mongoId) => {
+        // 1. If persisted, delete from backend
+        if (mongoId) {
+            try {
+                await deleteDomain(mongoId);
+                showToast("Dataset deleted successfully", "success");
+            } catch (e) {
+                console.error(e);
+                showToast("Failed to delete dataset.", "error");
+                return; // Stop if API fails
+            }
         }
-    }, [nodes, setNodes, setEdges, showToast]);
+
+        // 2. Remove from UI (Works for both persisted and temporary nodes)
+        setNodes((nds) => nds.filter((n) => n.id !== nodeId));
+        setEdges((eds) => eds.filter((e) => e.source !== nodeId && e.target !== nodeId));
+
+        if (!mongoId) showToast("Node removed from canvas", "success");
+    }, [setNodes, setEdges, showToast]);
 
     const { fetchAndMerge } = useDomainData({
         datasetId,
