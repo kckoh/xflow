@@ -1,0 +1,166 @@
+# Airflow Helm Chart Values
+# https://airflow.apache.org/docs/helm-chart/stable/index.html
+
+# Use existing service account with IRSA
+serviceAccount:
+  create: false
+  name: airflow-sa
+
+# Executor type
+executor: LocalExecutor
+
+# Custom Airflow image (built from airflow/Dockerfile)
+images:
+  airflow:
+    repository: 134059028370.dkr.ecr.ap-northeast-2.amazonaws.com/xflow-airflow
+    tag: latest
+    pullPolicy: Always
+
+# Disable default image check
+defaultAirflowRepository: ""
+defaultAirflowTag: ""
+
+# Webserver configuration
+webserver:
+  replicas: 1
+  resources:
+    requests:
+      memory: "512Mi"
+      cpu: "250m"
+    limits:
+      memory: "1Gi"
+      cpu: "500m"
+  service:
+    type: ClusterIP
+
+# Scheduler configuration
+scheduler:
+  replicas: 1
+  resources:
+    requests:
+      memory: "512Mi"
+      cpu: "250m"
+    limits:
+      memory: "1Gi"
+      cpu: "500m"
+
+# Triggerer (for deferrable operators)
+triggerer:
+  enabled: true
+  replicas: 1
+  persistence:
+    enabled: false
+    storageClassName: gp2
+  resources:
+    requests:
+      memory: "256Mi"
+      cpu: "100m"
+    limits:
+      memory: "512Mi"
+      cpu: "250m"
+
+# Workers persistence (controls scheduler StatefulSet behavior too)
+workers:
+  persistence:
+    enabled: false
+
+# PostgreSQL - use built-in
+postgresql:
+  enabled: true
+  image:
+    registry: docker.io
+    repository: bitnami/postgresql
+    tag: "latest"
+  auth:
+    postgresPassword: postgres
+    password: postgres
+  primary:
+    persistence:
+      enabled: true
+      size: 5Gi
+      storageClass: gp2
+
+# Redis - not needed for LocalExecutor
+redis:
+  enabled: false
+
+# Disable git-sync (DAGs are baked into image)
+dags:
+  gitSync:
+    enabled: false
+  persistence:
+    enabled: false
+
+# Environment variables
+env:
+  - name: AIRFLOW__CORE__LOAD_EXAMPLES
+    value: "false"
+  - name: AIRFLOW__WEBSERVER__EXPOSE_CONFIG
+    value: "true"
+  - name: AIRFLOW__API__AUTH_BACKENDS
+    value: "airflow.api.auth.backend.basic_auth,airflow.api.auth.backend.session"
+  # Spark configuration
+  - name: SPARK_MASTER_URL
+    value: "spark://spark-master:7077"
+  # MongoDB configuration
+  - name: MONGODB_URL
+    value: "mongodb://root:example@mongodb:27017"
+  - name: MONGODB_DATABASE
+    value: "xflow"
+  # Backend API
+  - name: BACKEND_API_URL
+    value: "http://backend:8000"
+  # AWS/S3 configuration (for production, use real AWS)
+  - name: AWS_REGION
+    value: "ap-northeast-2"
+
+# Extra secrets - removed empty ones
+
+# Create admin user
+createUserJob:
+  useHelmHooks: false
+  applyCustomEnv: false
+
+# Migrate database
+migrateDatabaseJob:
+  useHelmHooks: false
+
+# Flower - not needed for LocalExecutor
+flower:
+  enabled: false
+
+# StatsD - disable for now
+statsd:
+  enabled: false
+
+# Logs - disable persistence, use S3 remote logging only
+logs:
+  persistence:
+    enabled: false
+
+# S3 Remote Logging
+config:
+  logging:
+    remote_logging: 'True'
+    remote_base_log_folder: 's3://xflow-airflow-logs/logs'
+    remote_log_conn_id: 'aws_default'
+  core:
+    colored_console_log: 'False'
+
+# Ingress (optional - can use ALB Ingress)
+ingress:
+  web:
+    enabled: false
+    # Uncomment and configure for ALB
+    # annotations:
+    #   kubernetes.io/ingress.class: alb
+    #   alb.ingress.kubernetes.io/scheme: internet-facing
+    #   alb.ingress.kubernetes.io/target-type: ip
+    # hosts:
+    #   - name: airflow.xflows.net
+    #     tls:
+    #       enabled: true
+    #       secretName: airflow-tls
+
+# Web server secret key (generate with: python -c "import secrets; print(secrets.token_hex(16))")
+webserverSecretKey: "change-me-to-a-secure-random-string"

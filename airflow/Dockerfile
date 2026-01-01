@@ -20,5 +20,13 @@ RUN apt-get update && \
 
 USER airflow
 
-RUN --mount=type=cache,target=/home/airflow/.cache/pip \
-    pip install apache-airflow-providers-apache-spark pymongo boto3 requests
+# Install Python dependencies
+RUN pip install --no-cache-dir \
+    apache-airflow-providers-apache-spark \
+    apache-airflow-providers-http \
+    pymongo \
+    boto3 \
+    requests
+
+# Copy DAGs into image
+COPY --chown=airflow:root dags/ /opt/airflow/dags/
