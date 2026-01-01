@@ -6,10 +6,18 @@ function ColumnItem({ col }) {
     const [isOpen, setIsOpen] = useState(false);
 
     const isObj = typeof col === 'object';
-    const name = isObj ? (col.name || col.column_name || col.key) : col;
-    const type = isObj ? (col.type || col.data_type || 'String') : 'String';
-    const description = isObj ? col.description : null;
-    const tags = isObj ? col.tags : [];
+    let name = isObj ? (col.name || col.column_name || col.key) : col;
+    let type = isObj ? (col.type || col.data_type || 'String') : 'String';
+    let description = isObj ? col.description : null;
+    let tags = isObj ? col.tags : [];
+
+    // Metadata injection from context (passed as prop or derived)
+    // We expect the parent to pass the full dataset or node so we can look up metadata.
+    // However, ColumnItem currently only receives 'col'. 
+    // We will rely on ColumnsContent to merge this data BEFORE passing it to ColumnItem,
+    // OR we change ColumnItem to accept metadata.
+    // Let's assume ColumnsContent prepares the data.
+
 
     // Check if content exists
     const hasContent = description || (tags && tags.length > 0);
@@ -136,7 +144,15 @@ export function ColumnsContent({ dataset, isDomainMode, onNodeSelect }) {
                                 </div>
                                 <div className="p-3 bg-gray-50/30">
                                     {(node.data?.columns || []).length > 0 ? (
-                                        (node.data?.columns || []).map((col, idx) => <ColumnItem key={idx} col={col} />)
+                                        (node.data?.columns || []).map((col, idx) => {
+                                            // Enrich column with metadata
+                                            const metadata = node.data?.config?.metadata?.columns;
+                                            const colName = typeof col === 'object' ? (col.name || col.column_name || col.key) : col;
+                                            const meta = metadata?.[colName] || {};
+                                            const enrichedCol = typeof col === 'object' ? { ...col, ...meta } : { name: col, type: 'String', ...meta };
+
+                                            return <ColumnItem key={idx} col={enrichedCol} />;
+                                        })
                                     ) : (
                                         <div className="text-xs text-gray-400 italic text-center py-2">No columns</div>
                                     )}
@@ -151,10 +167,19 @@ export function ColumnsContent({ dataset, isDomainMode, onNodeSelect }) {
 
     // Node Mode (Single Table)
     const columns = dataset?.schema || dataset?.columns || [];
-    const filteredColumns = columns.filter(col => {
+
+    // Helper to enrich columns
+    const enrichedColumns = columns.map(col => {
+        const metadata = dataset?.config?.metadata?.columns;
+        const colName = typeof col === 'object' ? (col.name || col.column_name || col.key) : col;
+        const meta = metadata?.[colName] || {};
+        return typeof col === 'object' ? { ...col, ...meta } : { name: col, type: 'String', ...meta };
+    });
+
+    const filteredColumns = enrichedColumns.filter(col => {
         if (!searchTerm) return true;
-        const name = typeof col === 'object' ? (col.name || col.column_name || col.key) : col;
-        return name.toLowerCase().includes(searchTerm.toLowerCase());
+        const name = col.name || col.column_name || col.key;
+        return name && name.toLowerCase().includes(searchTerm.toLowerCase());
     });
 
 

@@ -35,20 +35,39 @@ export function calculateDomainLayoutHorizontal(jobExecutionResults, arg2, arg3)
         if (!jobDef || !jobDef.nodes) return execSchema || [];
 
         const nodeDef = jobDef.nodes.find(n => n.id === nodeId);
-        if (!nodeDef || !nodeDef.data || !nodeDef.data.schema) return execSchema || [];
 
-        const defSchema = nodeDef.data.schema;
+        let metadataMap = {};
+
+        // Strategy 1: Check config.metadata.columns (User Spec)
+        // Structure: { "colName": { description: "...", tags: [...] } }
+        if (nodeDef?.data?.config?.metadata?.columns) {
+            metadataMap = nodeDef.data.config.metadata.columns;
+        }
+        // Strategy 2: Check schema array (Fallback)
+        else if (nodeDef?.data?.schema && Array.isArray(nodeDef.data.schema)) {
+            nodeDef.data.schema.forEach(col => {
+                const name = col.name || col.column_name || col.key;
+                if (name) {
+                    metadataMap[name] = {
+                        description: col.description,
+                        tags: col.tags
+                    };
+                }
+            });
+        }
+
+        if (Object.keys(metadataMap).length === 0) return execSchema || [];
 
         return (execSchema || []).map(col => {
             // Handle various key formats
             const colName = col.name || col.column_name || col.key;
-            const defCol = defSchema.find(d => (d.name || d.key) === colName);
+            const meta = metadataMap[colName];
 
-            if (defCol) {
+            if (meta) {
                 return {
                     ...col,
-                    description: col.description || defCol.description,
-                    tags: col.tags || defCol.tags
+                    description: col.description || meta.description,
+                    tags: (col.tags && col.tags.length > 0) ? col.tags : meta.tags
                 };
             }
             return col;
@@ -58,6 +77,7 @@ export function calculateDomainLayoutHorizontal(jobExecutionResults, arg2, arg3)
     jobExecutionResults.forEach((executionData, jobIdx) => {
         const jobName = executionData.name || `Job ${jobIdx}`;
         const jobId = executionData.job_id || executionData.id; // Fallback
+        const jobDef = jobDefinitions[jobId];
 
         // 1. Prepare Steps (Source/Transform)
         const steps = [];
@@ -109,6 +129,11 @@ export function calculateDomainLayoutHorizontal(jobExecutionResults, arg2, arg3)
                     label = `Target ${targetIdx + 1}`;
                 }
 
+                // Find the target node definition in the job to get metadata
+                // Note: target in executionData has 'nodeId' which matches the definition
+                const targetNodeDef = jobDef ? jobDef.nodes.find(n => n.id === target.nodeId) : null;
+                const metadata = targetNodeDef?.data?.metadata || targetNodeDef?.data?.config?.metadata || {};
+
                 allNodes.push({
                     id: nodeId,
                     type: "custom",
@@ -120,7 +145,10 @@ export function calculateDomainLayoutHorizontal(jobExecutionResults, arg2, arg3)
                         expanded: true,
                         sourceType: target.type || "s3",
                         platform: target.platform || "S3",
-                        jobs: [jobObj]
+                        jobs: [jobObj],
+                        config: {
+                            metadata: metadata
+                        }
                     }
                 });
             });
@@ -128,6 +156,8 @@ export function calculateDomainLayoutHorizontal(jobExecutionResults, arg2, arg3)
             // Fallback Node
             jobTargetCount = 1;
             const nodeId = `node-fallback-${jobId}-${Date.now()}`;
+            const metadata = {};
+
             allNodes.push({
                 id: nodeId,
                 type: "custom",
@@ -138,7 +168,10 @@ export function calculateDomainLayoutHorizontal(jobExecutionResults, arg2, arg3)
                     columns: [],
                     expanded: true,
                     sourceType: "job",
-                    jobs: [jobObj]
+                    jobs: [jobObj],
+                    config: {
+                        metadata: metadata
+                    }
                 }
             });
         }
