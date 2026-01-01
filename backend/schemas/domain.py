@@ -49,6 +49,8 @@ class DomainCreate(BaseModel):
     tags: List[str] = []
     description: Optional[str] = None
     job_ids: List[str] = []
+    nodes: List[Dict[str, Any]] = []
+    edges: List[Dict[str, Any]] = []
 
 class DomainGraphUpdate(BaseModel):
     nodes: List[Dict[str, Any]]

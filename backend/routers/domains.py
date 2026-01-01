@@ -105,9 +105,8 @@ async def get_domain(id: str):
 async def create_domain(domain_data: DomainCreate):
     """
     Create a new domain.
+    now expects the frontend to provide the initial graph layout (nodes/edges).
     """
-    # Check if domain with same name exists? (Optional, maybe allow dupes for now)
-    
     # 1. Base Domain Data
     domain_dict = {
         "name": domain_data.name,
@@ -115,39 +114,14 @@ async def create_domain(domain_data: DomainCreate):
         "owner": domain_data.owner,
         "tags": domain_data.tags,
         "description": domain_data.description,
-        "nodes": [],
-        "edges": []
+        "nodes": domain_data.nodes or [],
+        "edges": domain_data.edges or []
     }
 
-    # 2. Logic to hydrate nodes/edges from job_ids
-    if domain_data.job_ids:
-        jobs = await ETLJob.find({"_id": {"$in": [PydanticObjectId(jid) for jid in domain_data.job_ids]}}).to_list()
-        
-        # Simple hydration strategy: Add Job nodes. 
-        # For a full graph, we might need to verify what the frontend expects.
-        # Based on DomainImportModal, it usually adds SchemaNodes (tables) and EtlStepNodes (jobs).
-        # For MVP, let's assume we simply link the jobs or create nodes representing these jobs/tables.
-        # However, without shared logic, it's hard to replicate exact frontend graph positioning.
-        # We will add them as nodes with a default layout or just data.
-        
-        current_y = 50
-        for job in jobs:
-            # Add Job Node
-            job_node = {
-                "id": str(job.id),
-                "type": "etlStepNode", # Assuming this is the node type for jobs
-                "position": {"x": 250, "y": current_y},
-                "data": {
-                    "label": job.name,
-                    "jobId": str(job.id),
-                    "status": "active" # dummy
-                }
-            }
-            domain_dict["nodes"].append(job_node)
-            
-            # We could also add Source/Target nodes if we want to show the lineage
-            # But let's keep it simple for now: "Domain has Jobs"
-            current_y += 150
+    # 2. Logic to hydrate nodes/edges from job_ids (Legacy/Fallback)
+    # If frontend sends job_ids but NO nodes, we might ideally warn or just do nothing.
+    # For now, we assume frontend sends the calculated nodes.
+    # If both are empty, it's just an empty domain.
 
     new_domain = Domain(**domain_dict)
     await new_domain.insert()
