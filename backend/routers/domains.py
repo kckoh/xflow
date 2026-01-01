@@ -62,15 +62,6 @@ async def get_job_execution(job_id: str):
     )
 
 
-@router.get("/{id}", response_model=Domain)
-async def get_domain(id: str):
-    """
-    Get a specific domain by ID (detail view).
-    """
-    domain = await Domain.get(id)
-    if not domain:
-        raise HTTPException(status_code=404, detail="Domain not found")
-    return domain
 
 
 @router.get("/jobs", response_model=List[DomainJobListResponse])
@@ -98,6 +89,17 @@ async def list_domain_jobs(import_ready: bool = Query(True)):
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"Failed to fetch jobs: {str(e)}"
         )
+
+@router.get("/{id}", response_model=Domain)
+async def get_domain(id: str):
+    """
+    Get a specific domain by ID (detail view).
+    """
+    domain = await Domain.get(id)
+    if not domain:
+        raise HTTPException(status_code=404, detail="Domain not found")
+    return domain
+
 
 @router.post("", response_model=Domain, status_code=status.HTTP_201_CREATED)
 async def create_domain(domain_data: DomainCreate):
