@@ -99,7 +99,7 @@ export const connectionApi = {
      * @returns {Promise<Object>} { collections: [...] }
      */
     async fetchMongoDBCollections(connectionId) {
-        const response = await fetch(`${API_BASE_URL}/metadata/${connectionId}/collections`);
+        const response = await fetch(`${API_URL}/metadata/${connectionId}/collections`);
         if (!response.ok) {
             throw new Error('Failed to fetch MongoDB collections');
         }
@@ -115,7 +115,7 @@ export const connectionApi = {
      */
     async fetchCollectionSchema(connectionId, collectionName, sampleSize = 1000) {
         const response = await fetch(
-            `${API_BASE_URL}/metadata/${connectionId}/collections/${collectionName}/schema?sample_size=${sampleSize}`
+            `${API_URL}/metadata/${connectionId}/collections/${collectionName}/schema?sample_size=${sampleSize}`
         );
         if (!response.ok) {
             throw new Error('Failed to infer collection schema');
