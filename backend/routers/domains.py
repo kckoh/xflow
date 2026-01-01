@@ -27,33 +27,6 @@ async def get_all_domains():
 
 # --- ETL Job Import Endpoints (must be before /{id} to avoid route conflict) ---
 
-@router.get("/jobs", response_model=List[DomainJobListResponse])
-async def list_domain_jobs(import_ready: bool = Query(True)):
-    """Get ETL jobs that are ready to be imported into domain (import_ready=true by default)"""
-    try:
-        jobs = await ETLJob.find(ETLJob.import_ready == import_ready).to_list()
-
-        return [
-            DomainJobListResponse(
-                id=str(job.id),
-                name=job.name,
-                description=job.description,
-                source_count=len(job.sources) if job.sources else 0,
-                created_at=job.created_at,
-                updated_at=job.updated_at,
-            )
-            for job in jobs
-        ]
-    except Exception as e:
-        print(f"Error in list_domain_jobs: {str(e)}")
-        import traceback
-        traceback.print_exc()
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Failed to fetch jobs: {str(e)}"
-        )
-
-
 @router.get("/jobs/{job_id}/execution", response_model=JobExecutionResponse)
 async def get_job_execution(job_id: str):
     """Get the latest execution result (Dataset) for a specific ETL job"""
@@ -99,6 +72,33 @@ async def get_domain(id: str):
         raise HTTPException(status_code=404, detail="Domain not found")
     return domain
 
+
+@router.get("/jobs", response_model=List[DomainJobListResponse])
+async def list_domain_jobs(import_ready: bool = Query(True)):
+    """Get ETL jobs that are ready to be imported into domain (import_ready=true by default)"""
+    try:
+        jobs = await ETLJob.find(ETLJob.import_ready == import_ready).to_list()
+
+        return [
+            DomainJobListResponse(
+                id=str(job.id),
+                name=job.name,
+                description=job.description,
+                source_count=len(job.sources) if job.sources else 0,
+                created_at=job.created_at,
+                updated_at=job.updated_at,
+            )
+            for job in jobs
+        ]
+    except Exception as e:
+        print(f"Error in list_domain_jobs: {str(e)}")
+        import traceback
+        traceback.print_exc()
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to fetch jobs: {str(e)}"
+        )
+
 @router.post("", response_model=Domain, status_code=status.HTTP_201_CREATED)
 async def create_domain(domain_data: DomainCreate):
     """
@@ -106,12 +106,48 @@ async def create_domain(domain_data: DomainCreate):
     """
     # Check if domain with same name exists? (Optional, maybe allow dupes for now)
     
-    new_domain = Domain(
-        name=domain_data.name,
-        type=domain_data.type,
-        nodes=[],
-        edges=[]
-    )
+    # 1. Base Domain Data
+    domain_dict = {
+        "name": domain_data.name,
+        "type": domain_data.type,
+        "owner": domain_data.owner,
+        "tags": domain_data.tags,
+        "description": domain_data.description,
+        "nodes": [],
+        "edges": []
+    }
+
+    # 2. Logic to hydrate nodes/edges from job_ids
+    if domain_data.job_ids:
+        jobs = await ETLJob.find({"_id": {"$in": [PydanticObjectId(jid) for jid in domain_data.job_ids]}}).to_list()
+        
+        # Simple hydration strategy: Add Job nodes. 
+        # For a full graph, we might need to verify what the frontend expects.
+        # Based on DomainImportModal, it usually adds SchemaNodes (tables) and EtlStepNodes (jobs).
+        # For MVP, let's assume we simply link the jobs or create nodes representing these jobs/tables.
+        # However, without shared logic, it's hard to replicate exact frontend graph positioning.
+        # We will add them as nodes with a default layout or just data.
+        
+        current_y = 50
+        for job in jobs:
+            # Add Job Node
+            job_node = {
+                "id": str(job.id),
+                "type": "etlStepNode", # Assuming this is the node type for jobs
+                "position": {"x": 250, "y": current_y},
+                "data": {
+                    "label": job.name,
+                    "jobId": str(job.id),
+                    "status": "active" # dummy
+                }
+            }
+            domain_dict["nodes"].append(job_node)
+            
+            # We could also add Source/Target nodes if we want to show the lineage
+            # But let's keep it simple for now: "Domain has Jobs"
+            current_y += 150
+
+    new_domain = Domain(**domain_dict)
     await new_domain.insert()
     return new_domain
 
