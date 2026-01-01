@@ -4,6 +4,7 @@ import {
     MiniMap,
     Controls,
     Background,
+    useReactFlow,
 } from "@xyflow/react";
 import "@xyflow/react/dist/style.css";
 import React, { useMemo } from "react";
@@ -23,6 +24,8 @@ const DomainFlow = React.forwardRef((props, ref) => {
         deletion: DeletionEdge,
     }), []);
 
+    const { screenToFlowPosition, getNodes, getEdges, getNode } = useReactFlow();
+
     const {
         nodes,
         edges,
@@ -38,43 +41,41 @@ const DomainFlow = React.forwardRef((props, ref) => {
         edgeMenu,
         handleDeleteEdge,
         setEdgeMenu,
+        handleDeleteNode,
+        handleToggleExpand,
     } = useDomainLogic(props);
     // import node position logic
     // Expose nodes/edges to parent via ref
     React.useImperativeHandle(ref, () => ({
-        getGraph: () => ({ nodes, edges }),
+        getGraph: () => ({ nodes: getNodes(), edges: getEdges() }),
+        getNode: (id) => getNode(id),
+        getViewportCenter: () => {
+            // Center of the window (approximate for the canvas center)
+            // We can refine this if we have a ref to the container, but window center is a safe default for "camera view"
+            const centerX = window.innerWidth / 2;
+            const centerY = window.innerHeight / 2;
+            return screenToFlowPosition({ x: centerX, y: centerY });
+        },
         addNodes: (newNodes, newEdges = []) => {
             setNodes((prev) => {
-                // Smart Append: Calculate Max X of existing nodes to place new ones to the RIGHT
-                let offsetX = 0;
-                if (prev.length > 0) {
-                    const maxX = Math.max(...prev.map(n => n.position?.x || 0));
-                    offsetX = maxX + 250; // Add margin to the right (Node width + gap)
-                }
-
-                const positionedNewNodes = newNodes.map((node, idx) => {
-                    const defaultX = 100;
-                    const defaultY = 100 + idx * 350; // Force vertical stacking for new batch
-
-                    // Place new column to the right of existing graph
-                    // Ignore the imported X (which spreads horizontally) to keep it compact
-                    const posX = (offsetX > 0 ? offsetX : 100);
-                    const posY = (node.position?.y && offsetX === 0) ? node.position.y : defaultY;
-
-                    return {
-                        ...node,
-                        position: { x: posX, y: posY },
-                    };
-                });
-
-                return [...prev, ...positionedNewNodes];
+                // Attach handlers to new nodes
+                const enrichedNodes = newNodes.map(node => ({
+                    ...node,
+                    data: {
+                        ...node.data,
+                        onDelete: handleDeleteNode,
+                        onToggleExpand: handleToggleExpand
+                    }
+                }));
+                // Trust the positions calculated by the utility
+                return [...prev, ...enrichedNodes];
             });
 
             if (newEdges.length > 0) {
                 setEdges((prev) => [...prev, ...newEdges]);
             }
         },
-    }));
+    }), [getNodes, getEdges, getNode, setNodes, setEdges, screenToFlowPosition]);
 
     return (
         <div style={{ width: "100%", height: "100%" }}>
@@ -87,6 +88,7 @@ const DomainFlow = React.forwardRef((props, ref) => {
                 onConnectEnd={onConnectEnd}
                 onEdgeClick={onEdgeClick}
                 onNodeClick={onNodeClick}
+                onNodeDragStart={onNodeClick}
                 onNodeContextMenu={onNodeContextMenu}
                 nodeTypes={nodeTypes}
                 edgeTypes={edgeTypes}

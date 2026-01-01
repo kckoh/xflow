@@ -45,8 +45,9 @@ export const useDomainInteractions = ({ nodes, edges, setNodes, setEdges, datase
     }, [nodes]);
 
     const onNodeClick = useCallback((event, node) => {
-        if (onNodeSelect && node.data.mongoId) {
-            onNodeSelect(node.data.mongoId);
+        console.log("[Interaction] Node Clicked:", node.id);
+        if (onNodeSelect && node.id) {
+            onNodeSelect(node.id);
         }
     }, [onNodeSelect]);
 
