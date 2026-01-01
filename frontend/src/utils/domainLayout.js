@@ -46,7 +46,7 @@ export function calculateDomainLayoutHorizontal(jobExecutionResults, arg2, arg3)
         // Strategy 2: Check schema array (Fallback)
         else if (nodeDef?.data?.schema && Array.isArray(nodeDef.data.schema)) {
             nodeDef.data.schema.forEach(col => {
-                const name = col.name || col.column_name || col.key;
+                const name = col.name || col.column_name || col.key || col.field;
                 if (name) {
                     metadataMap[name] = {
                         description: col.description,
@@ -60,7 +60,7 @@ export function calculateDomainLayoutHorizontal(jobExecutionResults, arg2, arg3)
 
         return (execSchema || []).map(col => {
             // Handle various key formats
-            const colName = col.name || col.column_name || col.key;
+            const colName = col.name || col.column_name || col.key || col.field;
             const meta = metadataMap[colName];
 
             if (meta) {

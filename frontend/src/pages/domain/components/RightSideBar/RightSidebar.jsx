@@ -28,7 +28,6 @@ export function RightSidebar({
             { id: "summary", label: "Overview", icon: Book, color: "purple" },
             { id: "columns", label: "Schema", icon: Columns, color: "blue" },
             { id: "lineage", label: "Lineage", icon: GitFork, color: "orange" },
-            { id: "docs", label: "Documentation", icon: FileText, color: "indigo" },
         ];
 
     // Reset tab if current tab is invalid for the new mode
@@ -50,7 +49,7 @@ export function RightSidebar({
             case "lineage":
                 return <StreamImpactContent streamData={streamData} onNodeSelect={onNodeSelect} />;
             case "docs":
-                return <DocsContent dataset={dataset} isDomainMode={isDomainMode} />;
+                return <DocsContent dataset={dataset} isDomainMode={isDomainMode} onUpdate={onUpdate} />;
             default:
                 return <SummaryContent dataset={dataset} isDomainMode={isDomainMode} />;
         }

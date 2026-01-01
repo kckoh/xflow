@@ -1,4 +1,4 @@
-import { Handle, Position } from "@xyflow/react";
+import { Handle, Position, useUpdateNodeInternals } from "@xyflow/react";
 import clsx from "clsx";
 
 // Column Handle Logic
@@ -19,9 +19,23 @@ const ColumnHandle = ({ type, position, colId }) => (
     />
 );
 
-export const SchemaNodeColumns = ({ columns = [], withHandles = true, nodeId = null }) => {
+export const SchemaNodeColumns = ({ columns = [], withHandles = true, nodeId = null, onScroll }) => {
+    const updateNodeInternals = useUpdateNodeInternals();
+
+    const handleScroll = (e) => {
+        if (nodeId) {
+            updateNodeInternals(nodeId);
+        }
+        if (onScroll) {
+            onScroll(e);
+        }
+    };
+
     return (
-        <div className="bg-gray-50 rounded-b-lg max-h-[300px] overflow-y-auto overflow-x-hidden custom-scrollbar nodrag">
+        <div
+            className="bg-gray-50 rounded-b-lg max-h-[300px] overflow-y-auto overflow-x-hidden custom-scrollbar nodrag"
+            onScroll={handleScroll}
+        >
             {/* Column Header */}
             <div className="flex px-3 py-1.5 border-b border-gray-200 bg-gray-100 text-xs font-medium text-gray-500 uppercase tracking-wider sticky top-0 z-10">
                 <span className="flex-1">Column</span>
@@ -31,7 +45,7 @@ export const SchemaNodeColumns = ({ columns = [], withHandles = true, nodeId = n
             {columns.length > 0 ? (
                 <div className="divide-y divide-gray-100">
                     {columns.map((col, idx) => {
-                        const colName = typeof col === 'string' ? col : (col?.name || col?.key || 'unknown');
+                        const colName = typeof col === 'string' ? col : (col?.name || col?.key || col?.field || 'unknown');
                         const colType = col?.dataType || col?.type || 'string';
                         const colDesc = col?.description || '';
                         const colTags = col?.tags ? col.tags.join(', ') : '';

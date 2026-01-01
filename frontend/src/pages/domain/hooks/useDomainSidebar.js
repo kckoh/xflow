@@ -43,14 +43,86 @@ export const useDomainSidebar = ({ domain, canvasRef }) => {
     const handleNodeSelect = useCallback(
         async (selectedId) => {
             try {
-                // 1. Handle Object Input (ETL Step or direct data)
+                // 1. Handle Object Input (ETL Step)
                 if (typeof selectedId === 'object' && selectedId !== null) {
                     setIsSidebarOpen(true);
-                    setSidebarTab("columns"); // Default to columns for detailed steps
+                    setSidebarTab("stream"); // Auto-switch to Stream Impact for lineage
                     setSidebarDataset(selectedId);
 
-                    // Clear lineage for sub-nodes (unless we want to calc parent lineage)
-                    setStreamData({ upstream: [], downstream: [] });
+                    const currentGraph = canvasRef.current?.getGraph();
+                    const parentNodeId = selectedId.parentId;
+                    let upstreamNodes = [];
+                    let downstreamNodes = [];
+
+                    // Find the parent node and the specific job/step index
+                    const parentNode = currentGraph?.nodes?.find(n => n.id === parentNodeId);
+                    if (parentNode && parentNode.data.jobs) {
+                        const job = parentNode.data.jobs[0]; // Assuming single job for now
+                        const steps = job?.steps || [];
+                        const currentIndex = steps.findIndex(s => s.id === selectedId.id);
+
+                        if (currentIndex !== -1) {
+                            // --- UPSTREAM CALCULATION ---
+                            if (currentIndex > 0) {
+                                // Internal Upstream: Previous Step
+                                const prevStep = steps[currentIndex - 1];
+                                upstreamNodes.push({
+                                    id: prevStep.id,
+                                    label: `(Step) ${prevStep.data?.label || prevStep.name}`,
+                                    platform: prevStep.data?.platform || (prevStep.type === 'T' ? 'Transform' : 'Database'),
+                                    type: 'step'
+                                });
+                            } else {
+                                // External Upstream: Parent Node's Sources (Only for First Step)
+                                if (currentGraph?.edges) {
+                                    const sourceIds = currentGraph.edges
+                                        .filter(e => e.target === parentNodeId)
+                                        .map(e => e.source);
+
+                                    const sources = currentGraph.nodes
+                                        .filter(n => sourceIds.includes(n.id))
+                                        .map(n => ({
+                                            id: n.id,
+                                            label: n.data.label || n.data.name || n.id,
+                                            platform: n.data.platform,
+                                            type: n.data.type
+                                        }));
+                                    upstreamNodes = [...upstreamNodes, ...sources];
+                                }
+                            }
+
+                            // --- DOWNSTREAM CALCULATION ---
+                            if (currentIndex < steps.length - 1) {
+                                // Internal Downstream: Next Step
+                                const nextStep = steps[currentIndex + 1];
+                                downstreamNodes.push({
+                                    id: nextStep.id,
+                                    label: `(Step) ${nextStep.data?.label || nextStep.name}`,
+                                    platform: nextStep.data?.platform || (nextStep.type === 'T' ? 'Transform' : 'Database'),
+                                    type: 'step'
+                                });
+                            } else {
+                                // External Downstream: Parent Node's Targets (Only for Last Step)
+                                if (currentGraph?.edges) {
+                                    const targetIds = currentGraph.edges
+                                        .filter(e => e.source === parentNodeId)
+                                        .map(e => e.target);
+
+                                    const targets = currentGraph.nodes
+                                        .filter(n => targetIds.includes(n.id))
+                                        .map(n => ({
+                                            id: n.id,
+                                            label: n.data.label || n.data.name || n.id,
+                                            platform: n.data.platform,
+                                            type: n.data.type
+                                        }));
+                                    downstreamNodes = [...downstreamNodes, ...targets];
+                                }
+                            }
+                        }
+                    }
+
+                    setStreamData({ upstream: upstreamNodes, downstream: downstreamNodes });
                     return;
                 }
 

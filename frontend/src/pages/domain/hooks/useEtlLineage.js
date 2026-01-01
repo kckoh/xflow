@@ -44,6 +44,22 @@ export const useEtlLineage = (containerRef, jobs, parentNodeId, dataColumns) => 
 
             const mainNodeCols = dataColumns || [];
 
+            // Helper to check if element is visible in its scroll container
+            const isVisible = (el, containerWrapper) => {
+                if (!el || !containerWrapper) return false;
+                const scrollContainer = containerWrapper.firstElementChild; // The div with overflow-y-auto
+                if (!scrollContainer) return true; // Fallback if structure changes
+
+                const elRect = el.getBoundingClientRect();
+                const containerRect = scrollContainer.getBoundingClientRect();
+
+                // Check vertical overlap
+                return (
+                    elRect.top >= containerRect.top &&
+                    elRect.bottom <= containerRect.bottom
+                );
+            };
+
             jobs.forEach(job => {
                 const steps = job.steps || [];
                 const layers = groupNodesIntoLayers(steps);
@@ -65,9 +81,9 @@ export const useEtlLineage = (containerRef, jobs, parentNodeId, dataColumns) => 
 
                             if (sourceContainer && targetContainer) {
                                 sourceCols.forEach(col => {
-                                    const colName = typeof col === 'string' ? col : (col.name || col.key);
+                                    const colName = typeof col === 'string' ? col : (col.name || col.key || col.field);
                                     const match = targetCols.find(tCol => {
-                                        const tName = typeof tCol === 'string' ? tCol : (tCol.name || tCol.key);
+                                        const tName = typeof tCol === 'string' ? tCol : (tCol.name || tCol.key || tCol.field);
                                         return tName === colName;
                                     });
 
@@ -80,7 +96,7 @@ export const useEtlLineage = (containerRef, jobs, parentNodeId, dataColumns) => 
                                         const targetEl = targetContainer.querySelector(`[data-handleid="${targetId}"]`)
                                             || targetContainer.querySelector(`[id="${targetId}"]`);
 
-                                        if (sourceEl && targetEl) {
+                                        if (sourceEl && targetEl && isVisible(sourceEl, sourceContainer) && isVisible(targetEl, targetContainer)) {
                                             const sRect = sourceEl.getBoundingClientRect();
                                             const tRect = targetEl.getBoundingClientRect();
 
@@ -112,9 +128,9 @@ export const useEtlLineage = (containerRef, jobs, parentNodeId, dataColumns) => 
 
                         if (sourceContainer) {
                             sourceCols.forEach(col => {
-                                const colName = typeof col === 'string' ? col : (col.name || col.key);
+                                const colName = typeof col === 'string' ? col : (col.name || col.key || col.field);
                                 const match = mainNodeCols.find(tCol => {
-                                    const tName = typeof tCol === 'string' ? tCol : (tCol.name || tCol.key);
+                                    const tName = typeof tCol === 'string' ? tCol : (tCol.name || tCol.key || tCol.field);
                                     return tName === colName;
                                 });
 
@@ -134,7 +150,9 @@ export const useEtlLineage = (containerRef, jobs, parentNodeId, dataColumns) => 
                                             || document.getElementById(tId1);
                                     }
 
-                                    if (sourceEl && targetEl) {
+                                    if (sourceEl && targetEl && isVisible(sourceEl, sourceContainer)) {
+                                        // Note: We might want isVisible check for targetEl too if main node scrolls, 
+                                        // but for now focus on ETL step scrolling which is the main issue.
                                         const sRect = sourceEl.getBoundingClientRect();
                                         const tRect = targetEl.getBoundingClientRect();
 
@@ -152,7 +170,7 @@ export const useEtlLineage = (containerRef, jobs, parentNodeId, dataColumns) => 
                 }
             });
             setLines(newLines);
-        }, 200);
+        }, 10);
 
         return () => clearTimeout(timer);
     }, [jobs, redrawCount, dataColumns, parentNodeId, containerRef]);

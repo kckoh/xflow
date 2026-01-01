@@ -3,7 +3,7 @@ import { SchemaNodeHeader } from "./SchemaNodeHeader";
 import { SchemaNodeColumns } from "./SchemaNodeColumns";
 import { useEtlLineage, groupNodesIntoLayers } from "../../hooks/useEtlLineage";
 
-const EtlStepNode = ({ step, parentId, onExpandChange, onSelect }) => {
+const EtlStepNode = ({ step, parentId, onExpandChange, onSelect, onScroll }) => {
     const [expanded, setExpanded] = useState(true);
 
     const handleToggle = (val) => {
@@ -18,6 +18,7 @@ const EtlStepNode = ({ step, parentId, onExpandChange, onSelect }) => {
             // Pass the step data, ensuring it has an ID
             onSelect({
                 id: step.id || `step-${Math.random()}`,
+                parentId: parentId, // Context for upstream/downstream calculation
                 ...step,
                 ...step.data,
                 // Ensure label exists for sidebar title
@@ -57,6 +58,7 @@ const EtlStepNode = ({ step, parentId, onExpandChange, onSelect }) => {
                         columns={step.data?.columns || []}
                         withHandles={true}
                         nodeId={namespacedNodeId}
+                        onScroll={onScroll}
                     />
                 </div>
             )}
@@ -122,6 +124,7 @@ export const SchemaEtlView = ({ data, parentNodeId, onEtlStepSelect }) => {
                                                     parentId={parentNodeId}
                                                     onExpandChange={refreshLines}
                                                     onSelect={onEtlStepSelect}
+                                                    onScroll={refreshLines}
                                                 />
                                             </div>
                                         ))}

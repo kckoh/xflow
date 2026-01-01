@@ -43,7 +43,7 @@ const applySelectFields = (inputSchema, config) => {
     }
 
     return inputSchema.filter(col =>
-        config.selectedColumns.includes(col.key)
+        config.selectedColumns.includes(col.key || col.field)
     );
 };
 

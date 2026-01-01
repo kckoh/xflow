@@ -6,7 +6,7 @@ function ColumnItem({ col }) {
     const [isOpen, setIsOpen] = useState(false);
 
     const isObj = typeof col === 'object';
-    let name = isObj ? (col.name || col.column_name || col.key) : col;
+    let name = isObj ? (col.name || col.column_name || col.key || col.field) : col;
     let type = isObj ? (col.type || col.data_type || 'String') : 'String';
     let description = isObj ? col.description : null;
     let tags = isObj ? col.tags : [];
