@@ -34,9 +34,33 @@ def get_duckdb_connection():
 
 def execute_query(sql: str) -> list[dict]:
     """SQL 쿼리 실행 후 결과 반환"""
+    import json
+    
     conn = get_duckdb_connection()
-    result = conn.execute(sql).fetchdf()
-    return result.to_dict(orient="records")
+    
+    # Wrap query to convert structs to JSON strings
+    # This handles MongoDB nested structures properly
+    result = conn.execute(sql)
+    columns = [desc[0] for desc in result.description]
+    rows = result.fetchall()
+    
+    # Convert each row to dict, handling DuckDB special types
+    data = []
+    for row in rows:
+        row_dict = {}
+        for col, val in zip(columns, row):
+            # DuckDB returns struct as dict-like objects
+            # Convert to native Python types
+            if hasattr(val, 'keys'):  # dict-like struct
+                row_dict[col] = dict(val)
+            elif isinstance(val, (list, tuple)) and len(val) > 0 and hasattr(val[0], 'keys'):
+                # List of structs
+                row_dict[col] = [dict(v) if hasattr(v, 'keys') else v for v in val]
+            else:
+                row_dict[col] = val
+        data.append(row_dict)
+    
+    return data
 
 
 def get_schema(s3_path: str) -> list[dict]:

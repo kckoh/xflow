@@ -48,7 +48,7 @@ export default function ConnectionForm({ onSuccess, onCancel }) {
                 };
             case 'mongodb':
                 return {
-                    uri: 'mongodb://localhost:27017',
+                    uri: 'mongodb://mongo:mongo@mongodb:27017', 
                     database: ''
                 };
             default:
@@ -224,6 +224,36 @@ export default function ConnectionForm({ onSuccess, onCancel }) {
                             className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:ring-blue-500 focus:border-blue-500 sm:text-sm"
                             value={config.secret_key || ''}
                             onChange={(e) => handleConfigChange('secret_key', e.target.value)}
+                        />
+                    </div>
+                </div>
+            );
+        } else if (type === 'mongodb') {
+            return (
+                <div className="space-y-4">
+                    <div>
+                        <label className="block text-sm font-medium text-gray-700">Connection URI</label>
+                        <input
+                            type="text"
+                            required
+                            placeholder="mongodb://localhost:27017"
+                            className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:ring-blue-500 focus:border-blue-500 sm:text-sm font-mono"
+                            value={config.uri || ''}
+                            onChange={(e) => handleConfigChange('uri', e.target.value)}
+                        />
+                        <p className="mt-1 text-xs text-gray-500">
+                            Example: mongodb://user:pass@host:port
+                        </p>
+                    </div>
+                    <div>
+                        <label className="block text-sm font-medium text-gray-700">Database Name</label>
+                        <input
+                            type="text"
+                            required
+                            placeholder="my_database"
+                            className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:ring-blue-500 focus:border-blue-500 sm:text-sm"
+                            value={config.database || ''}
+                            onChange={(e) => handleConfigChange('database', e.target.value)}
                         />
                     </div>
                 </div>

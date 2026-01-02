@@ -31,6 +31,7 @@ import "./etl_job.css";
 import { useNavigate, useParams } from "react-router-dom";
 import { API_BASE_URL } from "../../config/api";
 import RDBSourcePropertiesPanel from "../../components/etl/RDBSourcePropertiesPanel";
+import MongoDBSourcePropertiesPanel from "../../components/etl/MongoDBSourcePropertiesPanel";
 import TransformPropertiesPanel from "../../components/etl/TransformPropertiesPanel";
 import S3TargetPropertiesPanel from "../../components/etl/S3TargetPropertiesPanel";
 import JobDetailsPanel from "../../components/etl/JobDetailsPanel";
@@ -74,6 +75,8 @@ export default function ETLJobPage() {
   const [isSaving, setIsSaving] = useState(false);
   const [isLoading, setIsLoading] = useState(!!urlJobId);
   const reactFlowInstance = useRef(null);
+  // Track if a metadata item was clicked (to prevent clearing selection)
+  const isMetadataClickRef = useRef(false);
   // 오른쪽 패널 하단에 표시할 메타데이터 아이템 (table 또는 column)
   const [selectedMetadataItem, setSelectedMetadataItem] = useState(null);
 
@@ -143,6 +146,7 @@ export default function ETLJobPage() {
             nodeId: node.id, // Ensure nodeId is set
             // Restore onMetadataSelect callback for metadata editing
             onMetadataSelect: (item, clickedNodeId) => {
+              isMetadataClickRef.current = true; // Mark as metadata click
               setSelectedMetadataItem(item);
             },
           },
@@ -264,7 +268,8 @@ export default function ETLJobPage() {
               data: {
                 ...n.data,
                 inputSchema: sourceNode.data.schema,
-                tableName: sourceNode.data.tableName, // 테이블명도 전파
+                tableName: sourceNode.data.tableName, // RDB 테이블명 전파
+                collectionName: sourceNode.data.collectionName, // MongoDB 컬렉션명 전파
                 // If transform has config, apply it; otherwise use input as output
                 schema: n.data.transformConfig
                   ? applyTransformToSchema(
@@ -321,7 +326,8 @@ export default function ETLJobPage() {
                 data: {
                   ...prev.data,
                   inputSchema: sourceNode.data.schema,
-                  tableName: sourceNode.data.tableName, // 테이블명도 전파
+                  tableName: sourceNode.data.tableName, // RDB 테이블명 전파
+                  collectionName: sourceNode.data.collectionName, // MongoDB 컬렉션명 전파
                   schema: prev.data.transformConfig
                     ? applyTransformToSchema(
                       sourceNode.data.schema,
@@ -356,9 +362,10 @@ export default function ETLJobPage() {
     // Build sources array (multiple sources support)
     const sources = sourceNodes.map((node) => ({
       nodeId: node.id,
-      type: "rdb",
+      type: node.data?.sourceType || "rdb", // Support both rdb and mongodb
       connection_id: node.data?.sourceId || "",
       table: node.data?.tableName || "",
+      collection: node.data?.collectionName || "", // For MongoDB
     }));
 
     // Build transforms array with nodeId and inputNodeIds
@@ -490,7 +497,7 @@ export default function ETLJobPage() {
 
       // 그 노드 아래에 배치 
       position = {
-        x: bottomNode.position.x + 200,
+        x: bottomNode.position.x + 300,
         y: bottomNode.position.y,
       };
     } else {
@@ -498,8 +505,11 @@ export default function ETLJobPage() {
       position = { x: 250, y: 100 };
     }
 
+    // Generate unique ID using timestamp + random number
+    const uniqueId = `node_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+
     const newNode = {
-      id: `${nodes.length + 1}`,
+      id: uniqueId,
       type: "datasetNode", // 커스텀 노드 사용
       data: {
         label: nodeOption.label,
@@ -508,10 +518,11 @@ export default function ETLJobPage() {
         nodeCategory: category, // source, transform, target
         transformType: category === "transform" ? nodeOption.id : undefined,
 
-        nodeId: `${nodes.length + 1}`, // 노드 ID 전달
+        nodeId: uniqueId, // 노드 ID 전달
 
         // Table 또는 Column 클릭 시 노드 선택 + 메타데이터 편집
         onMetadataSelect: (item, clickedNodeId) => {
+          isMetadataClickRef.current = true; // Mark as metadata click
           setSelectedMetadataItem(item);
           // 노드 선택은 propagation을 통해 React Flow가 처리함
         },
@@ -534,9 +545,12 @@ export default function ETLJobPage() {
 
   const handleNodeClick = (event, node) => {
     // 메타데이터(테이블/컬럼) 클릭이 아닐 때만 메타데이터 선택 초기화
-    if (!event.isMetadataClick && selectedNode?.id !== node.id) {
+    // Use ref instead of event property (React event properties may not propagate through ReactFlow)
+    if (!isMetadataClickRef.current && selectedNode?.id !== node.id) {
       setSelectedMetadataItem(null);
     }
+    // Reset the ref for next click
+    isMetadataClickRef.current = false;
     setSelectedNode(node);
   };
 
@@ -715,34 +729,65 @@ export default function ETLJobPage() {
 
             {/* Properties Panel - Source */}
             {selectedNode && selectedNode.data?.nodeCategory === "source" && (
-              <RDBSourcePropertiesPanel
-                node={selectedNode}
-                selectedMetadataItem={selectedMetadataItem}
-                onClose={() => {
-                  setSelectedNode(null);
-                  setSelectedMetadataItem(null);
-                }}
-                onUpdate={(data) => {
-                  console.log("Source updated:", data);
-                  // Update node data with schema
-                  setNodes((nds) =>
-                    nds.map((n) =>
-                      n.id === selectedNode.id
-                        ? { ...n, data: { ...n.data, ...data } }
-                        : n,
-                    ),
-                  );
-                  // Update selectedNode to reflect changes
-                  setSelectedNode((prev) => ({
-                    ...prev,
-                    data: { ...prev.data, ...data },
-                  }));
-                }}
-                onMetadataUpdate={(updatedItem) => {
-                  console.log("Metadata updated:", updatedItem);
-                  handleMetadataUpdate(updatedItem);
-                }}
-              />
+              <>
+                {/* MongoDB Source Panel */}
+                {selectedNode.data?.label === "MongoDB" ? (
+                  <MongoDBSourcePropertiesPanel
+                    node={selectedNode}
+                    selectedMetadataItem={selectedMetadataItem}
+                    onClose={() => {
+                      setSelectedNode(null);
+                      setSelectedMetadataItem(null);
+                    }}
+                    onUpdate={(data) => {
+                      console.log("MongoDB Source updated:", data);
+                      setNodes((nds) =>
+                        nds.map((n) =>
+                          n.id === selectedNode.id
+                            ? { ...n, data: { ...n.data, ...data } }
+                            : n,
+                        ),
+                      );
+                      setSelectedNode((prev) => ({
+                        ...prev,
+                        data: { ...prev.data, ...data },
+                      }));
+                    }}
+                    onMetadataUpdate={(updatedItem) => {
+                      console.log("Metadata updated:", updatedItem);
+                      handleMetadataUpdate(updatedItem);
+                    }}
+                  />
+                ) : (
+                  /* RDB Source Panel */
+                  <RDBSourcePropertiesPanel
+                    node={selectedNode}
+                    selectedMetadataItem={selectedMetadataItem}
+                    onClose={() => {
+                      setSelectedNode(null);
+                      setSelectedMetadataItem(null);
+                    }}
+                    onUpdate={(data) => {
+                      console.log("Source updated:", data);
+                      setNodes((nds) =>
+                        nds.map((n) =>
+                          n.id === selectedNode.id
+                            ? { ...n, data: { ...n.data, ...data } }
+                            : n,
+                        ),
+                      );
+                      setSelectedNode((prev) => ({
+                        ...prev,
+                        data: { ...prev.data, ...data },
+                      }));
+                    }}
+                    onMetadataUpdate={(updatedItem) => {
+                      console.log("Metadata updated:", updatedItem);
+                      handleMetadataUpdate(updatedItem);
+                    }}
+                  />
+                )}
+              </>
             )}
 
             {/* Properties Panel - Transform */}
