@@ -127,13 +127,25 @@ export const useDomainDetail = (canvasRef) => {
                                     deepConfig.metadata.columns[colName] = meta;
                                 });
                             }
-                            // Re-assign config back to possible locations
-                            step.config = rootConfig;
-                            step.data.config = rootConfig;
+                            // Create new object references for React state update
+                            const newStep = {
+                                ...step,
+                                config: rootConfig,
+                                data: { ...step.data, config: rootConfig }
+                            };
 
-                            updatedJob.steps[stepIndex] = step;
-                            node.data.jobs[j] = updatedJob;
-                            updatedNodes[targetNodeIndex] = node;
+                            const newSteps = [...updatedJob.steps];
+                            newSteps[stepIndex] = newStep;
+
+                            const newJob = { ...updatedJob, steps: newSteps };
+
+                            const newJobs = [...node.data.jobs];
+                            newJobs[j] = newJob;
+
+                            updatedNodes[targetNodeIndex] = {
+                                ...node,
+                                data: { ...node.data, jobs: newJobs }
+                            };
 
                             // Optimistic Update
                             setDomain(prev => ({ ...prev, nodes: updatedNodes }));

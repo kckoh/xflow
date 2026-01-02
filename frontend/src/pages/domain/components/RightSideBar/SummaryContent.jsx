@@ -133,7 +133,7 @@ export function SummaryContent({ dataset, isDomainMode, onUpdate }) {
                     <h4 className="text-xs font-bold text-gray-500 uppercase tracking-wider flex items-center gap-1">
                         <FileText className="w-3 h-3" /> About
                     </h4>
-                    {isDomainMode && !isEditingDesc && (
+                    {onUpdate && !isEditingDesc && (
                         <button
                             onClick={() => setIsEditingDesc(true)}
                             className="p-1 hover:bg-white rounded-full text-gray-400 hover:text-blue-600 transition opacity-0 group-hover:opacity-100"
@@ -186,7 +186,7 @@ export function SummaryContent({ dataset, isDomainMode, onUpdate }) {
                     <h4 className="text-xs font-bold text-gray-500 uppercase tracking-wider flex items-center gap-1">
                         <Tag className="w-3 h-3" /> Tags
                     </h4>
-                    {isDomainMode && !isEditingTags && (
+                    {onUpdate && !isEditingTags && (
                         <button
                             onClick={() => setIsEditingTags(true)}
                             className="p-1 hover:bg-gray-100 rounded-full text-gray-400 hover:text-blue-600 transition opacity-0 group-hover:opacity-100"
@@ -244,7 +244,7 @@ export function SummaryContent({ dataset, isDomainMode, onUpdate }) {
                                 {tag}
                             </span>
                         ))}
-                        {isDomainMode && (
+                        {onUpdate && (
                             <button
                                 onClick={() => setIsEditingTags(true)}
                                 className="px-2 py-1 bg-gray-50 border border-dashed border-gray-300 rounded-md text-xs text-gray-400 hover:text-blue-500 hover:border-blue-300 transition block"

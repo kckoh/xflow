@@ -17,12 +17,57 @@ export const useDomainSidebar = ({ domain, canvasRef }) => {
             const currentSidebarId = sidebarDataset?.id || sidebarDataset?._id;
             const domainId = domain.id || domain._id;
 
-            // If uninitialized OR currently viewing the domain root, sync with latest domain state
+            // 1. If viewing Domain Root
             if (!sidebarDataset || currentSidebarId === domainId) {
                 setSidebarDataset(domain);
             }
+            // 2. If viewing a Graph Node
+            else if (sidebarDataset?.type !== 'step' && !sidebarDataset?.parentId) {
+                // Try to find the node in the new domain nodes
+                const updatedNode = domain.nodes?.find(n => n.id === currentSidebarId);
+                if (updatedNode) {
+                    setSidebarDataset({
+                        id: updatedNode.id,
+                        name: updatedNode.data.jobs?.[0]?.name || updatedNode.data.label || updatedNode.id,
+                        type: updatedNode.data.type || "custom",
+                        columns: updatedNode.data.columns || [],
+                        ...updatedNode.data,
+                    });
+                }
+            }
+            // 3. If viewing an ETL Step (nested in a node)
+            else if (sidebarDataset?.parentId) {
+                const parentNode = domain.nodes?.find(n => n.id === sidebarDataset.parentId);
+                if (parentNode && parentNode.data.jobs) {
+                    // Try to find the step in the updated jobs
+                    // We need to match by ID. If ID is generated, we rely on it being stable or matching logic.
+                    // SchemaEtlView generates IDs, hopefully they are stable enough or persisted in data.
+                    // Actually, useDomainDetail updates the step in place (or replacement with same ID).
+
+                    // Search all jobs/steps
+                    let foundStep = null;
+                    parentNode.data.jobs.forEach(job => {
+                        const step = job.steps?.find(s => s.id === currentSidebarId);
+                        if (step) foundStep = step;
+                    });
+
+                    if (foundStep) {
+                        // Must replicate enrichment done in SchemaEtlView handleSelect
+                        setSidebarDataset({
+                            id: foundStep.id,
+                            parentId: sidebarDataset.parentId,
+                            ...foundStep,
+                            ...foundStep.data,
+                            label: foundStep.data?.label || foundStep.name || foundStep.label || "Unknown Step",
+                            columns: foundStep.data?.columns || [],
+                            platform: foundStep.data?.platform || foundStep.platform || (foundStep.type === 'T' ? "Transform" : "Database"),
+                            type: foundStep.type || "step"
+                        });
+                    }
+                }
+            }
         }
-    }, [domain, sidebarDataset]);
+    }, [domain, sidebarDataset?.id, sidebarDataset?.parentId]); // Depend on ID/ParentID, not full object to avoid loops if we are careful
 
     // Stream Analysis Callback
     const handleStreamAnalysis = useCallback((data) => {
