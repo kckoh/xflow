@@ -318,7 +318,7 @@ from utils.limiter import limiter
 # ... (Previous code)
 
 @router.get("/{id}/files/{file_id}/download")
-@limiter.limit("5/minute")
+@limiter.limit("30/minute")
 async def get_attachment_url(id: str, file_id: str, request: Request):
     """
     Generate a presigned URL for downloading the attachment.
