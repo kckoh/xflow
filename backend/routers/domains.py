@@ -176,3 +176,158 @@ async def save_domain_graph(id: str, graph_data: DomainGraphUpdate):
 
     await domain.save()
     return domain
+
+
+# --- Attachment Endpoints ---
+
+from fastapi import UploadFile, File
+from models import Attachment
+import uuid
+from utils.aws_client import get_aws_client
+
+@router.post("/{id}/files", response_model=Domain)
+async def upload_attachment(id: str, file: UploadFile = File(...)):
+    """
+    Upload a file to S3 and attach it to the domain.
+    """
+    domain = await Domain.get(id)
+    if not domain:
+        raise HTTPException(status_code=404, detail="Domain not found")
+
+    try:
+        s3 = get_aws_client("s3")
+        bucket_name = "xflow-data" # ToDo: Move to config
+        
+        # Ensure bucket exists (First time setup for LocalStack)
+        try:
+            s3.head_bucket(Bucket=bucket_name)
+        except Exception:
+            try:
+                # Create bucket if it doesn't exist
+                region = s3.meta.region_name
+                if region and region != 'us-east-1':
+                    s3.create_bucket(
+                        Bucket=bucket_name,
+                        CreateBucketConfiguration={'LocationConstraint': region}
+                    )
+                else:
+                    s3.create_bucket(Bucket=bucket_name)
+                    
+                print(f"Created bucket: {bucket_name}")
+            except Exception as e:
+                print(f"Failed to create bucket: {e}")
+                # Fallthrough to let upload try (or fail with specific error)
+
+        file_ext = file.filename.split('.')[-1] if '.' in file.filename else ""
+        file_uuid = str(uuid.uuid4())
+        s3_key = f"domains/{id}/docs/{file_uuid}_{file.filename}"
+        
+        # Upload to S3
+        s3.upload_fileobj(
+            file.file,
+            bucket_name,
+            s3_key,
+            ExtraArgs={'ContentType': file.content_type}
+        )
+        
+        # Construct S3 URL (virtual-hosted style)
+        # s3_url = f"https://{bucket_name}.s3.{s3.meta.region_name}.amazonaws.com/{s3_key}"
+        # Or simple s3:// style for internal use, but frontend might need http url.
+        # Let's verify if user wants presigned url or direct access.
+        # For now, let's store the s3:// path mostly or a constructed public URL if public.
+        # Assuming private bucket, let's store the key or s3 uri.
+        # But UI needs to download it. So generating a presigned URL on GET would be best,
+        # but for simplicity, let's store the s3 URI and maybe generate presigned link on frontend request?
+        # Actually, simpler: return the S3 key, and have a 'download' endpoint.
+        # But user asked for S3 attachment.
+        # Let's store the full S3 URI.
+        s3_uri = f"s3://{bucket_name}/{s3_key}"
+
+        # Create Attachment Metadata
+        attachment = Attachment(
+            id=file_uuid,
+            name=file.filename,
+            url=s3_uri,
+            size=file.size if file.size else 0, # UploadFile might not have size set immediately
+            type=file.content_type or "application/octet-stream",
+            uploaded_at=datetime.utcnow()
+        )
+        
+        # Add to Domain
+        if domain.attachments is None:
+            domain.attachments = []
+        domain.attachments.append(attachment)
+        domain.updated_at = datetime.utcnow()
+        
+        await domain.save()
+        return domain
+
+    except Exception as e:
+        print(f"Upload failed: {e}")
+        raise HTTPException(status_code=500, detail=f"File upload failed: {str(e)}")
+
+@router.delete("/{id}/files/{file_id}", response_model=Domain)
+async def delete_attachment(id: str, file_id: str):
+    """
+    Delete an attachment from S3 and the domain.
+    """
+    domain = await Domain.get(id)
+    if not domain:
+        raise HTTPException(status_code=404, detail="Domain not found")
+
+    # Find attachment
+    attachment = next((a for a in domain.attachments if a.id == file_id), None)
+    if not attachment:
+        raise HTTPException(status_code=404, detail="File attachment not found")
+
+    try:
+        # Delete from S3
+        # Extract Key from s3://bucket/key
+        # url: s3://xflow-data/domains/...
+        if attachment.url.startswith("s3://"):
+            bucket_name = attachment.url.split("/")[2]
+            key = "/".join(attachment.url.split("/")[3:])
+            
+            s3 = get_aws_client("s3")
+            s3.delete_object(Bucket=bucket_name, Key=key)
+        
+        # Remove from List
+        domain.attachments = [a for a in domain.attachments if a.id != file_id]
+        domain.updated_at = datetime.utcnow()
+        
+        await domain.save()
+        return domain
+
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"File deletion failed: {str(e)}")
+
+@router.get("/{id}/files/{file_id}/download")
+async def get_attachment_url(id: str, file_id: str):
+    """
+    Generate a presigned URL for downloading the attachment.
+    """
+    domain = await Domain.get(id)
+    if not domain:
+        raise HTTPException(status_code=404, detail="Domain not found")
+
+    attachment = next((a for a in domain.attachments if a.id == file_id), None)
+    if not attachment:
+        raise HTTPException(status_code=404, detail="File attachment not found")
+        
+    try:
+        if attachment.url.startswith("s3://"):
+            bucket_name = attachment.url.split("/")[2]
+            key = "/".join(attachment.url.split("/")[3:])
+            
+            s3 = get_aws_client("s3")
+            url = s3.generate_presigned_url(
+                'get_object',
+                Params={'Bucket': bucket_name, 'Key': key},
+                ExpiresIn=3600 # 1 hour
+            )
+            return {"url": url}
+        else:
+            return {"url": attachment.url} # Return as is if not S3 (e.g. http link)
+            
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Failed to generate download URL: {str(e)}")

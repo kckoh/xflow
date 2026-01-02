@@ -42,6 +42,14 @@ class JobExecutionResponse(BaseModel):
     class Config:
         from_attributes = True
 
+class AttachmentSchema(BaseModel):
+    id: str
+    name: str
+    url: str
+    size: int
+    type: str
+    uploaded_at: datetime
+
 class DomainCreate(BaseModel):
     name: str
     type: str
@@ -49,6 +57,7 @@ class DomainCreate(BaseModel):
     tags: List[str] = []
     description: Optional[str] = None
     docs: Optional[str] = None
+    attachments: List[AttachmentSchema] = []
     job_ids: List[str] = []
     nodes: List[Dict[str, Any]] = []
     edges: List[Dict[str, Any]] = []
@@ -60,6 +69,7 @@ class DomainUpdate(BaseModel):
     tags: Optional[List[str]] = None
     description: Optional[str] = None
     docs: Optional[str] = None
+    attachments: Optional[List[AttachmentSchema]] = None
 
 class DomainGraphUpdate(BaseModel):
     nodes: List[Dict[str, Any]]

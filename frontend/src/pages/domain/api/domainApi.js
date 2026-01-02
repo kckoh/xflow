@@ -71,3 +71,29 @@ export const getEtlJob = async (jobId) => {
     if (!response.ok) throw new Error(`Failed to fetch ETL Job: ${response.status}`);
     return response.json();
 };
+// File Attachment APIs
+export const uploadDomainFile = async (id, file) => {
+    const formData = new FormData();
+    formData.append("file", file);
+
+    const response = await fetch(`${BASE_URL}/${id}/files`, {
+        method: "POST",
+        body: formData,
+    });
+    if (!response.ok) throw new Error(`Failed to upload file: ${response.status}`);
+    return response.json();
+};
+
+export const deleteDomainFile = async (id, fileId) => {
+    const response = await fetch(`${BASE_URL}/${id}/files/${fileId}`, {
+        method: "DELETE",
+    });
+    if (!response.ok) throw new Error(`Failed to delete file: ${response.status}`);
+    return response.json();
+};
+
+export const getDomainFileDownloadUrl = async (id, fileId) => {
+    const response = await fetch(`${BASE_URL}/${id}/files/${fileId}/download`);
+    if (!response.ok) throw new Error(`Failed to get download URL: ${response.status}`);
+    return response.json();
+};
