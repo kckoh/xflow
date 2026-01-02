@@ -469,10 +469,17 @@ def transform_apache_logs(
             if 'status_code_max' in filters and filters['status_code_max'] is not None:
                 df = df[df['status_code'] <= filters['status_code_max']]
 
-            # Filter by IP patterns
-            if 'ip_patterns' in filters and filters['ip_patterns']:
-                ip_mask = df['client_ip'].str.contains('|'.join(filters['ip_patterns']), regex=True, na=False)
-                df = df[ip_mask]
+            # Filter by timestamp range (Apache format)
+            if filters.get('timestamp_from') or filters.get('timestamp_to'):
+                parsed_ts = pd.to_datetime(
+                    df['timestamp'],
+                    format='%d/%b/%Y:%H:%M:%S %z',
+                    errors='coerce'
+                )
+                if filters.get('timestamp_from'):
+                    df = df[parsed_ts >= pd.to_datetime(filters['timestamp_from'])]
+                if filters.get('timestamp_to'):
+                    df = df[parsed_ts <= pd.to_datetime(filters['timestamp_to'])]
 
             # Filter by path pattern
             if 'path_pattern' in filters and filters['path_pattern']:
@@ -516,11 +523,7 @@ def transform_apache_logs(
                 storage_options=storage_options
             )
         else:
-            # 로컬에 저장
-            local_output = Path(LOCAL_LOG_DIR) / target_path / "data.parquet"
-            local_output.parent.mkdir(parents=True, exist_ok=True)
-            df.to_parquet(str(local_output), compression='snappy', index=False)
-            output_path = str(local_output)
+            raise Exception("Local output is disabled. Please enable S3 or configure S3 settings.")
 
         return {
             "status": "success",

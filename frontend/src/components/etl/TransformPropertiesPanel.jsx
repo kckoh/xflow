@@ -2,7 +2,6 @@ import { useState, useEffect } from 'react';
 import { X } from 'lucide-react';
 import SelectFieldsConfig from './SelectFieldsConfig';
 import UnionConfig from './UnionConfig';
-import FilterConfig from './FilterConfig';
 
 export default function TransformPropertiesPanel({ node, selectedMetadataItem, onClose, onUpdate, onMetadataUpdate }) {
     const [transformName, setTransformName] = useState('');
@@ -55,12 +54,9 @@ export default function TransformPropertiesPanel({ node, selectedMetadataItem, o
                 )}
 
                 {transformType === 'filter' && (
-                    <FilterConfig
-                        node={node}
-                        transformName={transformName}
-                        onUpdate={onUpdate}
-                        onClose={onClose}
-                    />
+                    <div className="text-sm text-gray-500 italic">
+                        Filter settings are available for S3 sources only. Connect an S3 source to use the S3 filter panel.
+                    </div>
                 )}
 
                 {transformType === 'union' && (

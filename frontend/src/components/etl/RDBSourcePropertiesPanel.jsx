@@ -279,11 +279,14 @@ export default function RDBSourcePropertiesPanel({ node, selectedMetadataItem, o
                             className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 font-mono text-xs"
                             rows={5}
                         />
-                        <p className="text-xs text-blue-600 mt-1">
-                            💡 Use named groups: <code className="bg-gray-100 px-1 rounded">(?P&lt;field_name&gt;pattern)</code>
+                        <p className="text-xs text-gray-500 mt-1">
+                            Example log: <code className="bg-gray-100 px-1 rounded">127.0.0.1 - - [10/Oct/2000:13:55:36 -0700] "GET /index.html HTTP/1.0" 200 2326</code>
                         </p>
                         <p className="text-xs text-gray-500 mt-1">
-                            Named groups will become field names (e.g., client_ip, timestamp, status_code)
+                            Pattern guide: <code className="bg-gray-100 px-1 rounded">^</code> = line start, <code className="bg-gray-100 px-1 rounded">(?P&lt;name&gt;...)</code> = named field, <code className="bg-gray-100 px-1 rounded">\S+</code> = non-space, <code className="bg-gray-100 px-1 rounded">[^\]]+</code> = anything until <code className="bg-gray-100 px-1 rounded">]</code>.
+                        </p>
+                        <p className="text-xs text-gray-500 mt-1">
+                            Example pattern: <code className="bg-gray-100 px-1 rounded">^(?P&lt;client_ip&gt;\S+) .* \[(?P&lt;timestamp&gt;[^\]]+)\] "(?P&lt;http_method&gt;\S+) (?P&lt;path&gt;\S+) (?P&lt;http_version&gt;[^"]+)" (?P&lt;status_code&gt;\d+) (?P&lt;bytes_sent&gt;\S+)</code>
                         </p>
                     </div>
                 )}

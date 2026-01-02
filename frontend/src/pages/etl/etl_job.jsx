@@ -68,9 +68,6 @@ const normalizeTransformTypeForSource = (sourceType, transformType) => {
   if (sourceType === "s3") {
     if (transformType === "select-fields") return "s3-select-fields";
     if (transformType === "filter") return "s3-filter";
-  } else {
-    if (transformType === "s3-select-fields") return "select-fields";
-    if (transformType === "s3-filter") return "filter";
   }
   return transformType;
 };
@@ -263,14 +260,6 @@ export default function ETLJobPage() {
       { id: "join", label: "Join", icon: GitMerge },
       { id: "aggregate", label: "Aggregate", icon: BarChart3 },
       { id: "sort", label: "Sort", icon: ArrowUpDown },
-      // S3 Transforms
-      {
-        id: "s3-select-fields",
-        label: "Select Fields (S3)",
-        icon: Columns,
-        color: "#FF9900",
-      },
-      { id: "s3-filter", label: "Filter (S3)", icon: Filter, color: "#FF9900" },
     ],
     target: [{ id: "s3-target", label: "S3", icon: Archive, color: "#FF9900" }],
   };

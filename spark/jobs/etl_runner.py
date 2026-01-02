@@ -67,10 +67,11 @@ def transform_s3_filter(df: DataFrame, config: dict) -> DataFrame:
             "statusCodeField": "status",        # User's field name for status code
             "statusCodeMin": 400,
             "statusCodeMax": 599,
-            "ipField": "ip_client",             # User's field name for IP
-            "ipPatterns": "192.168.*",
             "pathField": "request_path",        # User's field name for path
-            "pathPattern": "/api/.*"
+            "pathPattern": "/api/.*",
+            "timestampField": "timestamp",      # User's field name for timestamp
+            "timestampFrom": "2026-01-02T10:00",
+            "timestampTo": "2026-01-02T12:00"
         }
     }
     """
@@ -95,23 +96,23 @@ def transform_s3_filter(df: DataFrame, config: dict) -> DataFrame:
             filtered_df = filtered_df.filter(F.col(status_field) <= max_code)
             print(f"   Filter: {status_field} <= {max_code}")
 
-    # IP patterns filter (with configurable field name)
-    ip_field = filters_config.get("ipField")
-    if ip_field and ip_field in df.columns:
-        if "ipPatterns" in filters_config and filters_config["ipPatterns"]:
-            ip_patterns = filters_config["ipPatterns"]
-            # Support both string and list
-            if isinstance(ip_patterns, str):
-                patterns = [p.strip() for p in ip_patterns.split(",") if p.strip()]
-            else:
-                patterns = ip_patterns
-
-            if patterns:
-                # Convert wildcard patterns to regex
-                regex_patterns = [p.replace("*", ".*").replace(".", r"\.") for p in patterns]
-                combined_pattern = "|".join(regex_patterns)
-                filtered_df = filtered_df.filter(F.col(ip_field).rlike(combined_pattern))
-                print(f"   Filter: {ip_field} matches pattern: {combined_pattern}")
+    # Timestamp range filter (with configurable field name)
+    timestamp_field = filters_config.get("timestampField")
+    if timestamp_field and timestamp_field in df.columns:
+        timestamp_from = filters_config.get("timestampFrom")
+        timestamp_to = filters_config.get("timestampTo")
+        if timestamp_from or timestamp_to:
+            parsed_ts = F.to_timestamp(F.col(timestamp_field), "dd/MMM/yyyy:HH:mm:ss Z")
+            if timestamp_from:
+                filtered_df = filtered_df.filter(
+                    parsed_ts >= F.to_timestamp(F.lit(timestamp_from), "yyyy-MM-dd'T'HH:mm")
+                )
+                print(f"   Filter: {timestamp_field} >= {timestamp_from}")
+            if timestamp_to:
+                filtered_df = filtered_df.filter(
+                    parsed_ts <= F.to_timestamp(F.lit(timestamp_to), "yyyy-MM-dd'T'HH:mm")
+                )
+                print(f"   Filter: {timestamp_field} <= {timestamp_to}")
 
     # Path pattern filter (with configurable field name)
     path_field = filters_config.get("pathField")
