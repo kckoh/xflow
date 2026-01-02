@@ -75,6 +75,8 @@ export default function ETLJobPage() {
   const [isSaving, setIsSaving] = useState(false);
   const [isLoading, setIsLoading] = useState(!!urlJobId);
   const reactFlowInstance = useRef(null);
+  // Track if a metadata item was clicked (to prevent clearing selection)
+  const isMetadataClickRef = useRef(false);
   // 오른쪽 패널 하단에 표시할 메타데이터 아이템 (table 또는 column)
   const [selectedMetadataItem, setSelectedMetadataItem] = useState(null);
 
@@ -144,6 +146,7 @@ export default function ETLJobPage() {
             nodeId: node.id, // Ensure nodeId is set
             // Restore onMetadataSelect callback for metadata editing
             onMetadataSelect: (item, clickedNodeId) => {
+              isMetadataClickRef.current = true; // Mark as metadata click
               setSelectedMetadataItem(item);
             },
           },
@@ -519,6 +522,7 @@ export default function ETLJobPage() {
 
         // Table 또는 Column 클릭 시 노드 선택 + 메타데이터 편집
         onMetadataSelect: (item, clickedNodeId) => {
+          isMetadataClickRef.current = true; // Mark as metadata click
           setSelectedMetadataItem(item);
           // 노드 선택은 propagation을 통해 React Flow가 처리함
         },
@@ -541,9 +545,12 @@ export default function ETLJobPage() {
 
   const handleNodeClick = (event, node) => {
     // 메타데이터(테이블/컬럼) 클릭이 아닐 때만 메타데이터 선택 초기화
-    if (!event.isMetadataClick && selectedNode?.id !== node.id) {
+    // Use ref instead of event property (React event properties may not propagate through ReactFlow)
+    if (!isMetadataClickRef.current && selectedNode?.id !== node.id) {
       setSelectedMetadataItem(null);
     }
+    // Reset the ref for next click
+    isMetadataClickRef.current = false;
     setSelectedNode(node);
   };
 

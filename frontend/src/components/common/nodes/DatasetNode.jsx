@@ -124,7 +124,8 @@ const DatasetNode = ({ data, selected }) => {
                                     const hasOccurrence = data.schema?.[0]?.occurrence !== undefined;
                                     const itemType = hasOccurrence ? 'collection' : 'table';
                                     const itemName = data.collectionName || data.tableName;
-                                    const itemMetadata = data.metadata?.[itemType] || {};
+                                    // Both table and collection metadata are stored under 'table' key
+                                    const itemMetadata = data.metadata?.table || {};
 
                                     data.onMetadataSelect({
                                         type: itemType,
