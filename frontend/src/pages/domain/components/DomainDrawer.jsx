@@ -35,12 +35,11 @@ export default function DomainDrawer({ isOpen, onClose, datasetId }) {
     }, [isOpen, datasetId]);
 
     // Update handlers (for future implementation)
-    const handleUpdate = async (field, value) => {
-        // Implement PATCH request here
-        console.log("Update", field, value);
-    };
-
-    if (!isOpen) return null;
+    const handleUpdate = (field, value) => {
+        if (onChange) {
+            onChange(field, value);
+        }
+    }; if (!isOpen) return null;
 
     return (
         <div className="fixed inset-0 z-50 flex justify-end">

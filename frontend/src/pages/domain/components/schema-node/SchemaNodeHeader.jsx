@@ -1,9 +1,14 @@
-import { ChevronDown, ChevronUp, Archive, Database } from "lucide-react";
-import { SiPostgresql, SiMongodb, SiMysql, SiApachekafka } from "@icons-pack/react-simple-icons";
+import {
+    ChevronDown, ChevronUp, Archive, Database,
+    Columns, Filter, ArrowRightLeft, GitMerge, BarChart3, ArrowUpDown, Combine, Activity
+} from "lucide-react";
+import { SiMongodb, SiPostgresql, SiMysql } from "@icons-pack/react-simple-icons";
 import clsx from "clsx";
 
 export const getStyleConfig = (platform) => {
     const p = platform?.toLowerCase() || "";
+
+    // S3 / Archive
     if (p.includes("s3") || p.includes("archive")) {
         return {
             bgColor: "bg-orange-50",
@@ -12,6 +17,8 @@ export const getStyleConfig = (platform) => {
             headerColor: "bg-orange-50",
         };
     }
+
+    // Databases (Mongo, Postgres, MySQL)
     if (p.includes("mongo")) {
         return {
             bgColor: "bg-green-50",
@@ -20,7 +27,28 @@ export const getStyleConfig = (platform) => {
             headerColor: "bg-green-50",
         };
     }
-    if (p.includes("transform")) {
+
+    // Kafka
+    if (p.includes("kafka")) {
+        return {
+            bgColor: "bg-gray-50",
+            borderColor: "border-gray-200",
+            iconColor: "text-gray-600",
+            headerColor: "bg-gray-50",
+        };
+    }
+
+    // Transforms (Generic 'transform' or specific types)
+    if (
+        p.includes("transform") ||
+        p.includes("select") ||
+        p.includes("join") ||
+        p.includes("filter") ||
+        p.includes("union") ||
+        p.includes("map") ||
+        p.includes("aggregate") ||
+        p.includes("sort")
+    ) {
         return {
             bgColor: "bg-purple-50",
             borderColor: "border-purple-200",
@@ -28,6 +56,8 @@ export const getStyleConfig = (platform) => {
             headerColor: "bg-purple-50",
         };
     }
+
+    // Default (Postgres etc)
     return {
         bgColor: "bg-blue-50",
         borderColor: "border-blue-200",
@@ -38,17 +68,36 @@ export const getStyleConfig = (platform) => {
 
 export const getPlatformIcon = (platform) => {
     const p = platform?.toLowerCase() || "";
-    if (p.includes("s3") || p.includes("archive")) return Archive;
-    if (p.includes("postgres")) return SiPostgresql;
+
+    // Transforms
+    if (p.includes("select")) return Columns;
+    if (p.includes("filter")) return Filter;
+    if (p.includes("union")) return Combine;
+    if (p.includes("map")) return ArrowRightLeft;
+    if (p.includes("join")) return GitMerge;
+    if (p.includes("aggregate")) return BarChart3;
+    if (p.includes("sort")) return ArrowUpDown;
+
+    // Sources
+    if (p.includes("s3")) return Archive;
+    if (p.includes("kafka")) return Activity;
+
+    // Databases
     if (p.includes("mongo")) return SiMongodb;
+    if (p.includes("postgres")) return SiPostgresql;
     if (p.includes("mysql")) return SiMysql;
-    if (p.includes("kafka")) return SiApachekafka;
+
+    // Default Database for other DBs
     return Database;
 };
 
 export const SchemaNodeHeader = ({ data, expanded, onToggle, id }) => {
-    const sourcePlatform = data.platform || "PostgreSQL";
+    let sourcePlatform = data.platform || "PostgreSQL";
     const label = data.label || "Unknown Table";
+
+    // Deleted override logic to allow Icon (Source) and Label (Target) to differ
+    // as per user request (e.g. Mongo Icon + (S3) Text)
+
     const config = getStyleConfig(sourcePlatform);
     const IconComponent = getPlatformIcon(sourcePlatform);
 
