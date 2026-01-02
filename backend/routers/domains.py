@@ -301,8 +301,17 @@ async def delete_attachment(id: str, file_id: str):
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"File deletion failed: {str(e)}")
 
+from fastapi import UploadFile, File, Request
+from models import Attachment
+import uuid
+from utils.aws_client import get_aws_client
+from utils.limiter import limiter
+
+# ... (Previous code)
+
 @router.get("/{id}/files/{file_id}/download")
-async def get_attachment_url(id: str, file_id: str):
+@limiter.limit("5/minute")
+async def get_attachment_url(id: str, file_id: str, request: Request):
     """
     Generate a presigned URL for downloading the attachment.
     """
