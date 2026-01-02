@@ -94,6 +94,7 @@ export const deleteDomainFile = async (id, fileId) => {
 
 export const getDomainFileDownloadUrl = async (id, fileId) => {
     const response = await fetch(`${BASE_URL}/${id}/files/${fileId}/download`);
-    if (!response.ok) throw new Error(`Failed to get download URL: ${response.status}`);
-    return response.json();
+    if (!response.ok) throw new Error(`Failed to download file: ${response.status}`);
+    const blob = await response.blob();
+    return { url: window.URL.createObjectURL(blob) };
 };

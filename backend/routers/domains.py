@@ -306,10 +306,10 @@ from utils.limiter import limiter
 # ... (Previous code)
 
 @router.get("/{id}/files/{file_id}/download")
-@limiter.limit("30/minute")
+@limiter.limit("30/minute") # Team Lead Directive: 30 downloads per minute
 async def get_attachment_url(id: str, file_id: str, request: Request):
     """
-    Generate a presigned URL for downloading the attachment.
+    Download attachment directly (Proxied to bypass 403/CORS issues)
     """
     domain = await Domain.get(id)
     if not domain:
@@ -320,19 +320,37 @@ async def get_attachment_url(id: str, file_id: str, request: Request):
         raise HTTPException(status_code=404, detail="File attachment not found")
         
     try:
+        from fastapi.responses import StreamingResponse
+        import mimetypes
+
         if attachment.url.startswith("s3://"):
             bucket_name = attachment.url.split("/")[2]
             key = "/".join(attachment.url.split("/")[3:])
             
             s3 = get_aws_client("s3")
-            url = s3.generate_presigned_url(
-                'get_object',
-                Params={'Bucket': bucket_name, 'Key': key},
-                ExpiresIn=3600 # 1 hour
+            response = s3.get_object(Bucket=bucket_name, Key=key)
+            
+            # Use generator to stream content
+            def iterfile():
+                yield from response['Body']
+
+            filename = attachment.name or "download"
+            # URL encode filename for Content-Disposition header
+            from urllib.parse import quote
+            encoded_filename = quote(filename)
+
+            return StreamingResponse(
+                iterfile(),
+                media_type=attachment.type or "application/octet-stream",
+                headers={
+                    "Content-Disposition": f"attachment; filename*=UTF-8''{encoded_filename}"
+                }
             )
-            return {"url": url}
         else:
-            return {"url": attachment.url} # Return as is if not S3 (e.g. http link)
+            # If not S3, just redirect (fallback)
+            from fastapi.responses import RedirectResponse
+            return RedirectResponse(url=attachment.url)
             
     except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Failed to generate download URL: {str(e)}")
+        print(f"Download Proxy Failed: {e}")
+        raise HTTPException(status_code=500, detail=f"Failed to download file: {str(e)}")
