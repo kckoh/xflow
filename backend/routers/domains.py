@@ -206,25 +206,13 @@ async def upload_attachment(id: str, file: UploadFile = File(...)):
         s3 = get_aws_client("s3")
         bucket_name = "xflow-data" # ToDo: Move to config
         
-        # Ensure bucket exists (First time setup for LocalStack)
+        # Ensure bucket exists
         try:
             s3.head_bucket(Bucket=bucket_name)
-        except Exception:
-            try:
-                # Create bucket if it doesn't exist
-                region = s3.meta.region_name
-                if region and region != 'us-east-1':
-                    s3.create_bucket(
-                        Bucket=bucket_name,
-                        CreateBucketConfiguration={'LocationConstraint': region}
-                    )
-                else:
-                    s3.create_bucket(Bucket=bucket_name)
-                    
-                print(f"Created bucket: {bucket_name}")
-            except Exception as e:
-                print(f"Failed to create bucket: {e}")
-                # Fallthrough to let upload try (or fail with specific error)
+        except Exception as e:
+            # Team Lead Directive: Do not auto-create bucket. Raise error if missing.
+            print(f"S3 Bucket '{bucket_name}' not found or inaccessible: {e}")
+            raise HTTPException(status_code=500, detail="Server Configuration Error: S3 Storage not ready.")
 
         file_ext = file.filename.split('.')[-1] if '.' in file.filename else ""
         file_uuid = str(uuid.uuid4())
