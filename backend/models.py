@@ -115,9 +115,22 @@ class JobRun(Document):
 
 
 
+class Attachment(BaseModel):
+    id: str  # UUID
+    name: str  # Original filename
+    url: str  # S3 URL or Path
+    size: int  # Bytes
+    type: str  # MIME type
+    uploaded_at: datetime = Field(default_factory=datetime.utcnow)
+
 class Domain(Document):
     name: str
     type: str  # e.g., 'marketing', 'sales'
+    owner: Optional[str] = None
+    tags: List[str] = Field(default_factory=list)
+    description: Optional[str] = None
+    docs: Optional[str] = None
+    attachments: List[Attachment] = Field(default_factory=list)
     nodes: List[Dict[str, Any]] = []
     edges: List[Dict[str, Any]] = []
     created_at: datetime = Field(default_factory=datetime.utcnow)

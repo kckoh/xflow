@@ -5,9 +5,10 @@ from datetime import datetime
 
 class SourceConfig(BaseModel):
     nodeId: Optional[str] = None  # Node ID for graph reference
-    type: str  # rdb
+    type: str  # rdb, mongodb, nosql
     connection_id: str  # Connection ID
-    table: Optional[str] = None
+    table: Optional[str] = None  # For RDB
+    collection: Optional[str] = None  # For NoSQL (MongoDB)
     query: Optional[str] = None  # Custom SQL query
 
 

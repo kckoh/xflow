@@ -5,7 +5,7 @@ import { useDomainInteractions } from './useDomainInteractions';
 import { useToast } from '../../../components/common/Toast';
 import { deleteDomain } from '../api/domainApi';
 
-export const useDomainLogic = ({ datasetId, selectedId, onStreamAnalysis, onNodeSelect, initialNodes, initialEdges }) => {
+export const useDomainLogic = ({ datasetId, selectedId, onStreamAnalysis, onNodeSelect, initialNodes, initialEdges, onNodesDelete, onEdgesDelete, onEdgeCreate }) => {
     const { showToast } = useToast();
 
     // 1. Graph State & Layout Logic
@@ -35,7 +35,12 @@ export const useDomainLogic = ({ datasetId, selectedId, onStreamAnalysis, onNode
         setEdges((eds) => eds.filter((e) => e.source !== nodeId && e.target !== nodeId));
 
         if (!mongoId) showToast("Node removed from canvas", "success");
-    }, [setNodes, setEdges, showToast]);
+
+        // Notify Parent of deletion (to sync counters)
+        if (onNodesDelete) {
+            onNodesDelete([{ id: nodeId }]);
+        }
+    }, [setNodes, setEdges, showToast, onNodesDelete]);
 
     const { fetchAndMerge } = useDomainData({
         datasetId,
@@ -53,7 +58,9 @@ export const useDomainLogic = ({ datasetId, selectedId, onStreamAnalysis, onNode
         nodes, edges, setNodes, setEdges,
         datasetId,
         handleToggleExpand,
-        onNodeSelect
+        onNodeSelect,
+        onEdgesDelete,
+        onEdgeCreate
     });
 
     const onConnectEnd = useCallback(() => { }, []);
@@ -68,6 +75,7 @@ export const useDomainLogic = ({ datasetId, selectedId, onStreamAnalysis, onNode
 
         // Expose fetcher if needed (mostly internal)
         fetchAndMerge,
-        handleDeleteNode
+        handleDeleteNode,
+        handleToggleExpand
     };
 };

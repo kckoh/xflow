@@ -25,6 +25,11 @@ async def lifespan(app: FastAPI):
     await close_db()
 
 
+from slowapi import _rate_limit_exceeded_handler
+from slowapi.errors import RateLimitExceeded
+from slowapi.middleware import SlowAPIMiddleware
+from utils.limiter import limiter
+
 # Create FastAPI app with lifespan
 app = FastAPI(
     title="Jungle Data Structures API",
@@ -32,6 +37,10 @@ app = FastAPI(
     lifespan=lifespan,
     redirect_slashes=False
 )
+
+app.state.limiter = limiter
+app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
+app.add_middleware(SlowAPIMiddleware)
 
 # Get CORS origins from environment
 CORS_ORIGINS = os.getenv("CORS_ORIGINS", "http://localhost:5173").split(",")
