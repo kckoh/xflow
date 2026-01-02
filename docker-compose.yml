@@ -90,6 +90,7 @@ services:
     depends_on:
       - mongodb
       - opensearch
+      - localstack
 
   airflow-db-init:
     image: postgres:16-alpine

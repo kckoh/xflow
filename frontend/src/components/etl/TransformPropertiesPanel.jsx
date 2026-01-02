@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import { X } from 'lucide-react';
 import SelectFieldsConfig from './SelectFieldsConfig';
 import UnionConfig from './UnionConfig';
+import FilterConfig from './FilterConfig';
 
 export default function TransformPropertiesPanel({ node, selectedMetadataItem, onClose, onUpdate, onMetadataUpdate }) {
     const [transformName, setTransformName] = useState('');
@@ -54,9 +55,12 @@ export default function TransformPropertiesPanel({ node, selectedMetadataItem, o
                 )}
 
                 {transformType === 'filter' && (
-                    <div className="text-sm text-gray-500 italic">
-                        Filter configuration coming soon...
-                    </div>
+                    <FilterConfig
+                        node={node}
+                        transformName={transformName}
+                        onUpdate={onUpdate}
+                        onClose={onClose}
+                    />
                 )}
 
                 {transformType === 'union' && (

@@ -81,6 +81,24 @@ def fetch_job_config(**context):
                     "uri": conn_config.get("uri"),
                     "database": conn_config.get("database"),
                 }
+        elif source.get("type") == "s3" and source.get("connection_id"):
+            # S3 connection enrichment (for custom regex log parsing)
+            connection = db.connections.find_one(
+                {"_id": ObjectId(source["connection_id"])}
+            )
+            if connection:
+                conn_config = connection.get("config", {})
+                source["connection"] = {
+                    "type": "s3",
+                    "bucket": conn_config.get("bucket"),
+                    "path": conn_config.get("path"),
+                    "endpoint": Variable.get("S3_ENDPOINT", default_var="http://localstack-main:4566"),
+                    "access_key": Variable.get("S3_ACCESS_KEY", default_var="test"),
+                    "secret_key": Variable.get("S3_SECRET_KEY", default_var="test"),
+                }
+                # Add customRegex if present (for log parsing)
+                if source.get("customRegex"):
+                    source["customRegex"] = source.get("customRegex")
         enriched_sources.append(source)
 
     # Build complete config for Spark

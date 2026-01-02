@@ -33,6 +33,8 @@ import { API_BASE_URL } from "../../config/api";
 import RDBSourcePropertiesPanel from "../../components/etl/RDBSourcePropertiesPanel";
 import MongoDBSourcePropertiesPanel from "../../components/etl/MongoDBSourcePropertiesPanel";
 import TransformPropertiesPanel from "../../components/etl/TransformPropertiesPanel";
+import S3TransformPanel from "../../components/etl/S3TransformPanel";
+import FieldMappingPanel from "../../components/etl/FieldMappingPanel";
 import S3TargetPropertiesPanel from "../../components/etl/S3TargetPropertiesPanel";
 import JobDetailsPanel from "../../components/etl/JobDetailsPanel";
 import SchedulesPanel from "../../components/etl/SchedulesPanel";
@@ -48,6 +50,62 @@ const initialEdges = [];
 // 커스텀 노드 타입 정의
 const nodeTypes = {
   datasetNode: DatasetNode,
+};
+
+const normalizeSourceType = (value) => {
+  if (!value) return null;
+  const normalized = value.toLowerCase();
+  if (normalized === "amazon s3") return "s3";
+  if (normalized === "postgresql") return "postgres";
+  return normalized;
+};
+
+const getNodeSourceType = (node) => {
+  return normalizeSourceType(node?.data?.sourceType || node?.data?.label);
+};
+
+const normalizeTransformTypeForSource = (sourceType, transformType) => {
+  if (!sourceType || !transformType) return transformType;
+  if (sourceType === "s3") {
+    if (transformType === "select-fields") return "s3-select-fields";
+    if (transformType === "filter") return "s3-filter";
+  } else {
+    if (transformType === "s3-select-fields") return "select-fields";
+    if (transformType === "s3-filter") return "filter";
+  }
+  return transformType;
+};
+
+const resolveSourceTypesForNode = (nodeId, nodes, edges) => {
+  const types = new Set();
+  const queue = [nodeId];
+  const visited = new Set();
+
+  while (queue.length > 0) {
+    const currentId = queue.shift();
+    if (!currentId || visited.has(currentId)) continue;
+    visited.add(currentId);
+
+    const incomingEdges = edges.filter((e) => e.target === currentId);
+    for (const edge of incomingEdges) {
+      const sourceNode = nodes.find((n) => n.id === edge.source);
+      if (!sourceNode) continue;
+
+      if (sourceNode.data?.nodeCategory === "source") {
+        const sourceType = getNodeSourceType(sourceNode);
+        if (sourceType) types.add(sourceType);
+      } else {
+        const sourceType = getNodeSourceType(sourceNode);
+        if (sourceType) {
+          types.add(sourceType);
+        } else {
+          queue.push(sourceNode.id);
+        }
+      }
+    }
+  }
+
+  return types;
 };
 
 export default function ETLJobPage() {
@@ -136,18 +194,26 @@ export default function ETLJobPage() {
       // Restore nodes and edges if they exist
       if (data.nodes && data.nodes.length > 0) {
         // Hydrate icons and onMetadataSelect callback based on label
-        const hydratedNodes = data.nodes.map((node) => ({
-          ...node,
-          data: {
-            ...node.data,
-            icon: iconMap[node.data.label] || Archive, // Fallback to Archive
-            nodeId: node.id, // Ensure nodeId is set
-            // Restore onMetadataSelect callback for metadata editing
-            onMetadataSelect: (item, clickedNodeId) => {
-              setSelectedMetadataItem(item);
+        const hydratedNodes = data.nodes.map((node) => {
+          const inferredSourceType =
+            node.data?.nodeCategory === "source"
+              ? getNodeSourceType(node)
+              : normalizeSourceType(node.data?.sourceType);
+
+          return {
+            ...node,
+            data: {
+              ...node.data,
+              sourceType: node.data?.sourceType || inferredSourceType || undefined,
+              icon: iconMap[node.data.label] || Archive, // Fallback to Archive
+              nodeId: node.id, // Ensure nodeId is set
+              // Restore onMetadataSelect callback for metadata editing
+              onMetadataSelect: (item, clickedNodeId) => {
+                setSelectedMetadataItem(item);
+              },
             },
-          },
-        }));
+          };
+        });
         setNodes(hydratedNodes);
       }
       if (data.edges && data.edges.length > 0) {
@@ -180,6 +246,7 @@ export default function ETLJobPage() {
       { id: "mongodb", label: "MongoDB", icon: SiMongodb, color: "#47A248" },
     ],
     transform: [
+      // RDB Transforms
       { id: "select-fields", label: "Select Fields", icon: Columns },
       { id: "filter", label: "Filter", icon: Filter },
       { id: "union", label: "Union", icon: Combine },
@@ -187,6 +254,10 @@ export default function ETLJobPage() {
       { id: "join", label: "Join", icon: GitMerge },
       { id: "aggregate", label: "Aggregate", icon: BarChart3 },
       { id: "sort", label: "Sort", icon: ArrowUpDown },
+      // S3 Transforms
+      { id: "field-mapping", label: "Field Mapping", icon: ArrowRightLeft, color: "#FF9900" },
+      { id: "s3-select-fields", label: "Select Fields (S3)", icon: Columns, color: "#FF9900" },
+      { id: "s3-filter", label: "Filter (S3)", icon: Filter, color: "#FF9900" },
     ],
     target: [{ id: "s3-target", label: "S3", icon: Archive, color: "#FF9900" }],
   };
@@ -218,7 +289,64 @@ export default function ETLJobPage() {
         const sourceNode = nds.find((n) => n.id === params.source);
         const targetNode = nds.find((n) => n.id === params.target);
 
-        if (!sourceNode?.data?.schema) return nds;
+        if (!sourceNode || !targetNode) return nds;
+
+        const directSourceType = getNodeSourceType(sourceNode);
+        const applySourceType = (data) => {
+          if (!directSourceType) return data;
+          return { ...data, sourceType: directSourceType };
+        };
+        const nextTransformType =
+          targetNode.data?.nodeCategory === "transform"
+            ? normalizeTransformTypeForSource(
+              directSourceType,
+              targetNode.data?.transformType,
+            )
+            : targetNode.data?.transformType;
+
+        if (!sourceNode?.data?.schema) {
+          if (targetNode?.data?.transformType === "union") {
+            const allEdgesToTarget = [...edges, params].filter(
+              (e) => e.target === params.target,
+            );
+            const inputSourceTypes = new Set(
+              allEdgesToTarget
+                .map((e) => {
+                  const inputNode = nds.find((n) => n.id === e.source);
+                  return getNodeSourceType(inputNode);
+                })
+                .filter(Boolean),
+            );
+            const unionSourceType =
+              inputSourceTypes.size === 1
+                ? Array.from(inputSourceTypes)[0]
+                : "mixed";
+
+            return nds.map((n) =>
+              n.id === params.target
+                ? {
+                  ...n,
+                  data: {
+                    ...n.data,
+                    sourceType: unionSourceType,
+                  },
+                }
+                : n,
+            );
+          }
+
+          return nds.map((n) =>
+            n.id === params.target
+              ? {
+                ...n,
+                data: {
+                  ...applySourceType(n.data),
+                  transformType: nextTransformType || n.data.transformType,
+                },
+              }
+              : n,
+          );
+        }
 
         // Special handling for Union transform - collect all input schemas
         if (targetNode?.data?.transformType === "union") {
@@ -241,6 +369,18 @@ export default function ETLJobPage() {
 
           // Merge schemas for union - include all columns
           const unionSchema = mergeSchemas(inputSchemas);
+          const inputSourceTypes = new Set(
+            allEdgesToTarget
+              .map((e) => {
+                const inputNode = nds.find((n) => n.id === e.source);
+                return getNodeSourceType(inputNode);
+              })
+              .filter(Boolean),
+          );
+          const unionSourceType =
+            inputSourceTypes.size === 1
+              ? Array.from(inputSourceTypes)[0]
+              : "mixed";
 
           return nds.map((n) =>
             n.id === params.target
@@ -251,6 +391,7 @@ export default function ETLJobPage() {
                   inputSchemas: inputSchemas, // Store array of schemas for Union config
                   schema: unionSchema,
                   tableName: combinedTableName, // Set combined table name
+                  sourceType: unionSourceType,
                 },
               }
               : n,
@@ -264,6 +405,7 @@ export default function ETLJobPage() {
               ...n,
               data: {
                 ...n.data,
+                transformType: nextTransformType || n.data.transformType,
                 inputSchema: sourceNode.data.schema,
                 tableName: sourceNode.data.tableName, // RDB 테이블명 전파
                 collectionName: sourceNode.data.collectionName, // MongoDB 컬렉션명 전파
@@ -271,10 +413,11 @@ export default function ETLJobPage() {
                 schema: n.data.transformConfig
                   ? applyTransformToSchema(
                     sourceNode.data.schema,
-                    n.data.transformType,
+                    nextTransformType || n.data.transformType,
                     n.data.transformConfig,
                   )
                   : sourceNode.data.schema,
+                sourceType: directSourceType || n.data.sourceType,
               },
             }
             : n,
@@ -307,6 +450,18 @@ export default function ETLJobPage() {
 
               const combinedTableName = tableNames.join('_');
               const unionSchema = mergeSchemas(inputSchemas);
+              const inputSourceTypes = new Set(
+                allEdgesToTarget
+                  .map((e) => {
+                    const inputNode = nds.find((n) => n.id === e.source);
+                    return getNodeSourceType(inputNode);
+                  })
+                  .filter(Boolean),
+              );
+              const unionSourceType =
+                inputSourceTypes.size === 1
+                  ? Array.from(inputSourceTypes)[0]
+                  : "mixed";
 
               setSelectedNode((prev) => ({
                 ...prev,
@@ -315,23 +470,45 @@ export default function ETLJobPage() {
                   inputSchemas: inputSchemas,
                   schema: unionSchema,
                   tableName: combinedTableName,
+                  sourceType: unionSourceType,
                 },
               }));
             } else {
+              const directSourceType = getNodeSourceType(sourceNode);
+              const nextTransformType = normalizeTransformTypeForSource(
+                directSourceType,
+                targetNode?.data?.transformType,
+              );
               setSelectedNode((prev) => ({
                 ...prev,
                 data: {
                   ...prev.data,
+                  transformType: nextTransformType || prev.data.transformType,
                   inputSchema: sourceNode.data.schema,
                   tableName: sourceNode.data.tableName, // RDB 테이블명 전파
                   collectionName: sourceNode.data.collectionName, // MongoDB 컬렉션명 전파
                   schema: prev.data.transformConfig
                     ? applyTransformToSchema(
                       sourceNode.data.schema,
-                      prev.data.transformType,
+                      nextTransformType || prev.data.transformType,
                       prev.data.transformConfig,
                     )
                     : sourceNode.data.schema,
+                  sourceType: directSourceType || prev.data.sourceType,
+                },
+              }));
+            }
+          } else if (
+            selectedNode.id === params.target &&
+            !sourceNode?.data?.schema
+          ) {
+            const directSourceType = getNodeSourceType(sourceNode);
+            if (directSourceType) {
+              setSelectedNode((prev) => ({
+                ...prev,
+                data: {
+                  ...prev.data,
+                  sourceType: directSourceType,
                 },
               }));
             }
@@ -359,10 +536,11 @@ export default function ETLJobPage() {
     // Build sources array (multiple sources support)
     const sources = sourceNodes.map((node) => ({
       nodeId: node.id,
-      type: node.data?.sourceType || "rdb", // Support both rdb and mongodb
+      type: node.data?.sourceType || "rdb", // Support both rdb, mongodb, s3
       connection_id: node.data?.sourceId || "",
       table: node.data?.tableName || "",
       collection: node.data?.collectionName || "", // For MongoDB
+      customRegex: node.data?.customRegex || null, // For S3 log parsing
     }));
 
     // Build transforms array with nodeId and inputNodeIds
@@ -514,6 +692,7 @@ export default function ETLJobPage() {
         color: nodeOption.color,
         nodeCategory: category, // source, transform, target
         transformType: category === "transform" ? nodeOption.id : undefined,
+        sourceType: category === "source" ? normalizeSourceType(nodeOption.id) : undefined,
 
         nodeId: uniqueId, // 노드 ID 전달
 
@@ -786,32 +965,119 @@ export default function ETLJobPage() {
             {/* Properties Panel - Transform */}
             {selectedNode &&
               selectedNode.data?.nodeCategory === "transform" &&
-              selectedNode.data?.transformType && (
-                <TransformPropertiesPanel
-                  node={selectedNode}
-                  selectedMetadataItem={selectedMetadataItem}
-                  onClose={() => {
-                    setSelectedNode(null);
-                    setSelectedMetadataItem(null);
-                  }}
-                  onUpdate={(data) => {
-                    console.log("Transform updated:", data);
-                    // Update node data (schema etc)
-                    setNodes((nds) =>
-                      nds.map((n) =>
-                        n.id === selectedNode.id
-                          ? { ...n, data: { ...n.data, ...data } }
-                          : n,
-                      ),
-                    );
-                    setSelectedNode((prev) => ({
-                      ...prev,
-                      data: { ...prev.data, ...data },
-                    }));
-                  }}
-                  onMetadataUpdate={handleMetadataUpdate}
-                />
-              )}
+              selectedNode.data?.transformType && (() => {
+                const nodeSourceType =
+                  normalizeSourceType(selectedNode.data?.sourceType) || null;
+                const sourceTypes = nodeSourceType
+                  ? new Set([nodeSourceType])
+                  : resolveSourceTypesForNode(selectedNode.id, nodes, edges);
+
+                // Check if this is a field-mapping transform
+                if (selectedNode.data?.transformType === 'field-mapping') {
+                  return (
+                    <FieldMappingPanel
+                      node={selectedNode}
+                      onClose={() => {
+                        setSelectedNode(null);
+                        setSelectedMetadataItem(null);
+                      }}
+                      onUpdate={(data) => {
+                        console.log("Field Mapping updated:", data);
+                        setNodes((nds) =>
+                          nds.map((n) =>
+                            n.id === selectedNode.id
+                              ? { ...n, data: { ...n.data, ...data } }
+                              : n,
+                          ),
+                        );
+                        setSelectedNode((prev) => ({
+                          ...prev,
+                          data: { ...prev.data, ...data },
+                        }));
+                      }}
+                    />
+                  );
+                }
+
+                // Check if source is S3
+                const isS3Source = sourceTypes.has("s3");
+
+                // Render appropriate panel based on source type
+                if (isS3Source) {
+                  // Find incoming node to get schema and source info
+                  const incomingEdge = edges.find((e) => e.target === selectedNode.id);
+                  const incomingNode = incomingEdge ? nodes.find((n) => n.id === incomingEdge.source) : null;
+
+                  // For Select Fields: get source bucket/path
+                  // For Filter: get schema from previous transform
+                  const sourceBucket = incomingNode?.data?.config?.bucket || null;
+                  const sourcePath = incomingNode?.data?.config?.path || null;
+
+                  return (
+                    <S3TransformPanel
+                      node={selectedNode}
+                      sourceBucket={sourceBucket}
+                      sourcePath={sourcePath}
+                      onClose={() => {
+                        setSelectedNode(null);
+                        setSelectedMetadataItem(null);
+                      }}
+                      onUpdate={(data) => {
+                        console.log("S3 Transform updated:", data);
+
+                        // Update schema based on selected fields
+                        let updatedSchema = selectedNode.data.schema;
+                        if (data.selectedFields && selectedNode.data.transformType === 's3-select-fields') {
+                          // Find source node to get schema
+                          const edge = edges.find((e) => e.target === selectedNode.id);
+                          const sourceN = edge ? nodes.find((n) => n.id === edge.source) : null;
+                          const sourceSchema = sourceN?.data?.schema || [];
+                          // Filter to only selected fields
+                          updatedSchema = sourceSchema.filter(s => data.selectedFields.includes(s.key));
+                        }
+
+                        setNodes((nds) =>
+                          nds.map((n) =>
+                            n.id === selectedNode.id
+                              ? { ...n, data: { ...n.data, ...data, schema: updatedSchema } }
+                              : n,
+                          ),
+                        );
+                        setSelectedNode((prev) => ({
+                          ...prev,
+                          data: { ...prev.data, ...data, schema: updatedSchema },
+                        }));
+                      }}
+                    />
+                  );
+                } else {
+                  return (
+                    <TransformPropertiesPanel
+                      node={selectedNode}
+                      selectedMetadataItem={selectedMetadataItem}
+                      onClose={() => {
+                        setSelectedNode(null);
+                        setSelectedMetadataItem(null);
+                      }}
+                      onUpdate={(data) => {
+                        console.log("Transform updated:", data);
+                        setNodes((nds) =>
+                          nds.map((n) =>
+                            n.id === selectedNode.id
+                              ? { ...n, data: { ...n.data, ...data } }
+                              : n,
+                          ),
+                        );
+                        setSelectedNode((prev) => ({
+                          ...prev,
+                          data: { ...prev.data, ...data },
+                        }));
+                      }}
+                      onMetadataUpdate={handleMetadataUpdate}
+                    />
+                  );
+                }
+              })()}
 
             {/* S3 Target Properties Panel */}
             {selectedNode && selectedNode.data?.nodeCategory === "target" && (

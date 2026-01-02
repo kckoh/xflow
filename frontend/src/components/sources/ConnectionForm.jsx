@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import { connectionApi } from '../../services/connectionApi';
+import { s3LogApi } from '../../services/s3LogApi';
 
 // Connection Type Definitions
 const CONNECTION_TYPES = [
@@ -42,9 +43,8 @@ export default function ConnectionForm({ onSuccess, onCancel }) {
             case 's3':
                 return {
                     bucket: '',
-                    region: 'ap-northeast-2',
-                    access_key: '',
-                    secret_key: ''
+                    path: '',
+                    storageType: 's3'
                 };
             case 'mongodb':
                 return {
@@ -84,15 +84,35 @@ export default function ConnectionForm({ onSuccess, onCancel }) {
         setError(null);
 
         try {
-            const payload = {
-                name: name || 'Test Connection', // Name is required by schema but not used for test
-                description,
-                type,
-                config
-            };
-            const result = await connectionApi.testConnection(payload);
-            setTested(true);
-            setTestMessage({ type: 'success', text: result.message });
+            let result;
+
+            // S3 Apache Log connection test
+            if (type === 's3') {
+                result = await s3LogApi.testConnection({
+                    bucket: config.bucket,
+                    path: config.path
+                });
+
+                if (result.connection_valid) {
+                    setTested(true);
+                    setTestMessage({ type: 'success', text: result.message });
+                } else {
+                    setTested(false);
+                    setTestMessage({ type: 'error', text: result.message });
+                }
+            }
+            // RDB and other connection types
+            else {
+                const payload = {
+                    name: name || 'Test Connection',
+                    description,
+                    type,
+                    config
+                };
+                result = await connectionApi.testConnection(payload);
+                setTested(true);
+                setTestMessage({ type: 'success', text: result.message });
+            }
         } catch (err) {
             setTested(false);
             setTestMessage({ type: 'error', text: err.message });
@@ -191,40 +211,28 @@ export default function ConnectionForm({ onSuccess, onCancel }) {
                         <input
                             type="text"
                             required
+                            placeholder="e.g., user-logs"
                             className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:ring-blue-500 focus:border-blue-500 sm:text-sm"
                             value={config.bucket || ''}
                             onChange={(e) => handleConfigChange('bucket', e.target.value)}
                         />
+                        <p className="mt-1 text-xs text-gray-500">
+                            The S3 bucket where your Apache logs are stored
+                        </p>
                     </div>
                     <div>
-                        <label className="block text-sm font-medium text-gray-700">Region</label>
+                        <label className="block text-sm font-medium text-gray-700">Path (Prefix)</label>
                         <input
                             type="text"
                             required
+                            placeholder="e.g., logs or 2025/01/logs"
                             className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:ring-blue-500 focus:border-blue-500 sm:text-sm"
-                            value={config.region || ''}
-                            onChange={(e) => handleConfigChange('region', e.target.value)}
+                            value={config.path || ''}
+                            onChange={(e) => handleConfigChange('path', e.target.value)}
                         />
-                    </div>
-                    <div>
-                        <label className="block text-sm font-medium text-gray-700">Access Key ID</label>
-                        <input
-                            type="text"
-                            required
-                            className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:ring-blue-500 focus:border-blue-500 sm:text-sm"
-                            value={config.access_key || ''}
-                            onChange={(e) => handleConfigChange('access_key', e.target.value)}
-                        />
-                    </div>
-                    <div>
-                        <label className="block text-sm font-medium text-gray-700">Secret Access Key</label>
-                        <input
-                            type="password"
-                            required
-                            className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:ring-blue-500 focus:border-blue-500 sm:text-sm"
-                            value={config.secret_key || ''}
-                            onChange={(e) => handleConfigChange('secret_key', e.target.value)}
-                        />
+                        <p className="mt-1 text-xs text-gray-500">
+                            The folder path within the bucket (without leading/trailing slashes)
+                        </p>
                     </div>
                 </div>
             );
