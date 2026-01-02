@@ -115,7 +115,9 @@ export function calculateDomainLayoutHorizontal(jobExecutionResults, arg2, arg3)
                     columns: enrichSchema(source.schema, jobId, source.nodeId),
                     platform: platform,
                     // Keep original label for reference
-                    originalLabel: label
+                    originalLabel: label,
+                    config: source.config || {},
+                    nodeId: source.nodeId // For dual-write matching
                 }
             });
         });
@@ -126,7 +128,9 @@ export function calculateDomainLayoutHorizontal(jobExecutionResults, arg2, arg3)
                 label: transform.type || `Transform`,
                 data: {
                     columns: enrichSchema(transform.schema, jobId, transform.nodeId),
-                    platform: transform.type || "Transform"
+                    platform: transform.type || "Transform",
+                    config: transform.config || {},
+                    nodeId: transform.nodeId
                 }
             });
         });

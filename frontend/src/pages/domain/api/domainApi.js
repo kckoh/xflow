@@ -71,6 +71,17 @@ export const getEtlJob = async (jobId) => {
     if (!response.ok) throw new Error(`Failed to fetch ETL Job: ${response.status}`);
     return response.json();
 };
+
+export const updateEtlJob = async (jobId, jobData) => {
+    const response = await fetch(`${API_BASE_URL}/api/etl-jobs/${jobId}`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(jobData),
+    });
+    if (!response.ok) throw new Error(`Failed to update ETL Job: ${response.status}`);
+    return response.json();
+};
+
 // File Attachment APIs
 export const uploadDomainFile = async (id, file) => {
     const formData = new FormData();

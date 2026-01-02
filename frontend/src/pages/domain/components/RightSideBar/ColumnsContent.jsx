@@ -1,25 +1,55 @@
-import React, { useState } from "react";
-import { LayoutGrid, Search, AlignLeft, Hash, MoreHorizontal, Table as TableIcon, ChevronDown, ChevronRight } from "lucide-react";
+import React, { useState, useEffect } from "react";
+import { LayoutGrid, Search, AlignLeft, Hash, Edit2, Save, X, Plus, ChevronDown, ChevronRight } from "lucide-react";
 import { getPlatformIcon, getStyleConfig } from "../schema-node/SchemaNodeHeader";
 
-function ColumnItem({ col }) {
+function ColumnItem({ col, onSave }) {
     const [isOpen, setIsOpen] = useState(false);
+    const [isEditing, setIsEditing] = useState(false);
 
+    // Parse initial values
     const isObj = typeof col === 'object';
-    let name = isObj ? (col.name || col.column_name || col.key || col.field) : col;
-    let type = isObj ? (col.type || col.data_type || 'String') : 'String';
-    let description = isObj ? col.description : null;
-    let tags = isObj ? col.tags : [];
+    const name = isObj ? (col.name || col.column_name || col.key || col.field) : col;
+    const type = isObj ? (col.type || col.data_type || col.dataType || 'String') : 'String';
 
-    // Metadata injection from context (passed as prop or derived)
-    // We expect the parent to pass the full dataset or node so we can look up metadata.
-    // However, ColumnItem currently only receives 'col'. 
-    // We will rely on ColumnsContent to merge this data BEFORE passing it to ColumnItem,
-    // OR we change ColumnItem to accept metadata.
-    // Let's assume ColumnsContent prepares the data.
+    // Editable state
+    const [description, setDescription] = useState(isObj ? (col.description || "") : "");
+    const [tags, setTags] = useState(isObj ? (col.tags || []) : []);
+    const [newTag, setNewTag] = useState("");
 
+    // Sync state if prop changes (and not editing)
+    useEffect(() => {
+        if (!isEditing) {
+            setDescription(isObj ? (col.description || "") : "");
+            setTags(isObj ? (col.tags || []) : []);
+        }
+    }, [col, isEditing]);
 
-    // Check if content exists
+    const handleSave = (e) => {
+        e.stopPropagation();
+        if (onSave) {
+            onSave(name, { description, tags });
+        }
+        setIsEditing(false);
+    };
+
+    const handleCancel = (e) => {
+        e.stopPropagation();
+        setDescription(isObj ? (col.description || "") : "");
+        setTags(isObj ? (col.tags || []) : []);
+        setIsEditing(false);
+    };
+
+    const handleAddTag = () => {
+        if (newTag && !tags.includes(newTag)) {
+            setTags([...tags, newTag]);
+            setNewTag("");
+        }
+    };
+
+    const removeTag = (tToRemove) => {
+        setTags(tags.filter(t => t !== tToRemove));
+    };
+
     const hasContent = description || (tags && tags.length > 0);
 
     return (
@@ -37,41 +67,104 @@ function ColumnItem({ col }) {
                         {name}
                     </span>
                 </div>
-                <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded bg-gray-50 text-gray-500 text-[10px] uppercase font-bold tracking-wider border border-gray-100">
-                    {type === 'String' ? <AlignLeft className="w-2.5 h-2.5" /> : <Hash className="w-2.5 h-2.5" />}
-                    {type}
-                </span>
+
+                <div className="flex items-center gap-2">
+                    <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded bg-gray-50 text-gray-500 text-[10px] uppercase font-bold tracking-wider border border-gray-100">
+                        {type === 'String' || type === 'varchar' ? <AlignLeft className="w-2.5 h-2.5" /> : <Hash className="w-2.5 h-2.5" />}
+                        {type}
+                    </span>
+                    {/* Edit Button (Visible on Hover or Open) */}
+                    {!isEditing && onSave && (
+                        <button
+                            onClick={(e) => { e.stopPropagation(); setIsEditing(true); setIsOpen(true); }}
+                            className="p-1 text-gray-400 hover:text-blue-600 hover:bg-blue-50 rounded opacity-0 group-hover:opacity-100 transition-opacity"
+                            title="Edit Metadata"
+                        >
+                            <Edit2 className="w-3 h-3" />
+                        </button>
+                    )}
+                </div>
             </div>
 
             {isOpen && (
                 <div className="px-3 pb-3 pt-0 animate-fade-in-down">
-                    {hasContent ? (
-                        <>
-                            {description && (
-                                <div className="mt-2 pl-5">
-                                    <div className="text-[10px] font-semibold text-gray-400 uppercase tracking-wider mb-1">Description</div>
-                                    <p className="text-xs text-gray-600 leading-relaxed">
-                                        {description}
-                                    </p>
-                                </div>
-                            )}
+                    {isEditing ? (
+                        <div className="mt-2 space-y-3 bg-gray-50 p-3 rounded-md border border-gray-200">
+                            {/* Description Edit */}
+                            <div>
+                                <label className="text-[10px] font-bold text-gray-500 uppercase tracking-wider block mb-1">Description</label>
+                                <textarea
+                                    className="w-full text-xs p-2 border border-gray-300 rounded focus:ring-1 focus:ring-blue-500 outline-none"
+                                    rows={2}
+                                    value={description}
+                                    onChange={(e) => setDescription(e.target.value)}
+                                    placeholder="Enter description..."
+                                />
+                            </div>
 
-                            {tags && tags.length > 0 && (
-                                <div className="mt-3 pl-5">
-                                    <div className="flex flex-wrap gap-1">
-                                        {tags.map((tag, tIdx) => (
-                                            <span key={tIdx} className="px-1.5 py-0.5 bg-purple-50 text-purple-600 text-[10px] rounded border border-purple-100 font-medium">
-                                                {tag}
-                                            </span>
-                                        ))}
-                                    </div>
+                            {/* Tags Edit */}
+                            <div>
+                                <label className="text-[10px] font-bold text-gray-500 uppercase tracking-wider block mb-1">Tags</label>
+                                <div className="flex flex-wrap gap-1 mb-2">
+                                    {tags.map((tag, idx) => (
+                                        <span key={idx} className="flex items-center gap-1 px-1.5 py-0.5 bg-purple-100 text-purple-700 text-[10px] rounded border border-purple-200">
+                                            {tag}
+                                            <X className="w-2.5 h-2.5 cursor-pointer hover:text-red-500" onClick={() => removeTag(tag)} />
+                                        </span>
+                                    ))}
                                 </div>
-                            )}
-                        </>
-                    ) : (
-                        <div className="pl-5 mt-2 text-xs text-gray-400 italic">
-                            No description or tags available
+                                <div className="flex gap-1">
+                                    <input
+                                        type="text"
+                                        className="flex-1 text-xs p-1.5 border border-gray-300 rounded focus:ring-1 focus:ring-purple-500 outline-none"
+                                        placeholder="Add tag..."
+                                        value={newTag}
+                                        onChange={(e) => setNewTag(e.target.value)}
+                                        onKeyDown={(e) => e.key === 'Enter' && handleAddTag()}
+                                    />
+                                    <button onClick={handleAddTag} className="p-1.5 bg-gray-200 text-gray-600 rounded hover:bg-gray-300">
+                                        <Plus className="w-3 h-3" />
+                                    </button>
+                                </div>
+                            </div>
+
+                            {/* Actions */}
+                            <div className="flex justify-end gap-2 pt-1">
+                                <button onClick={handleCancel} className="px-2 py-1 text-xs text-gray-600 hover:bg-gray-200 rounded">Cancel</button>
+                                <button onClick={handleSave} className="px-2 py-1 text-xs bg-blue-600 text-white hover:bg-blue-700 rounded flex items-center gap-1">
+                                    <Save className="w-3 h-3" /> Save
+                                </button>
+                            </div>
                         </div>
+                    ) : (
+                        hasContent ? (
+                            <>
+                                {description && (
+                                    <div className="mt-2 pl-5">
+                                        <div className="text-[10px] font-semibold text-gray-400 uppercase tracking-wider mb-1">Description</div>
+                                        <p className="text-xs text-gray-600 leading-relaxed">
+                                            {description}
+                                        </p>
+                                    </div>
+                                )}
+
+                                {tags && tags.length > 0 && (
+                                    <div className="mt-3 pl-5">
+                                        <div className="flex flex-wrap gap-1">
+                                            {tags.map((tag, tIdx) => (
+                                                <span key={tIdx} className="px-1.5 py-0.5 bg-purple-50 text-purple-600 text-[10px] rounded border border-purple-100 font-medium">
+                                                    {tag}
+                                                </span>
+                                            ))}
+                                        </div>
+                                    </div>
+                                )}
+                            </>
+                        ) : (
+                            <div className="pl-5 mt-2 text-xs text-gray-400 italic">
+                                No description or tags available
+                            </div>
+                        )
                     )}
                 </div>
             )}
@@ -79,15 +172,54 @@ function ColumnItem({ col }) {
     );
 }
 
-export function ColumnsContent({ dataset, isDomainMode, onNodeSelect }) {
+export function ColumnsContent({ dataset, isDomainMode, onNodeSelect, onUpdate }) {
     const [searchTerm, setSearchTerm] = useState("");
+
+    // Helper to enrich columns with metadata
+    const enrichColumns = (cols, metadataSource) => {
+        if (!cols) return [];
+        // Support deep nesting from ETL jobs
+        const rootConfig = metadataSource?.config || metadataSource?.data?.config || {};
+        const deepConfig = rootConfig.config || rootConfig;
+        const metadata = deepConfig.metadata?.columns || {};
+
+        return cols.map(col => {
+            const colName = typeof col === 'object' ? (col.name || col.column_name || col.key || col.field) : col;
+            const meta = metadata[colName] || {};
+            // If col is string, make object. If object, merge.
+            return typeof col === 'object'
+                ? { ...col, ...meta }
+                : { name: col, type: 'String', ...meta };
+        });
+    };
+
+    // Update Handler
+    const handleColumnUpdate = async (updatedNodeId, colName, newMeta) => {
+        if (!onUpdate) return;
+
+        if (isDomainMode && updatedNodeId !== dataset.id) {
+            // We are updating a CHILD node in domain mode
+            await onUpdate(updatedNodeId, {
+                columnsUpdate: {
+                    [colName]: newMeta
+                }
+            });
+        } else {
+            // We are updating the root dataset
+            await onUpdate(dataset.id || dataset._id, {
+                columnsUpdate: {
+                    [colName]: newMeta
+                }
+            });
+        }
+    };
 
 
     if (isDomainMode) {
         // Domain Mode: List Nodes and their Columns
         const nodes = dataset?.nodes || [];
 
-        // Filter: Show nodes that match search OR have columns that match search
+        // Filter logic
         const filteredNodes = nodes.filter(node => {
             if (!searchTerm) return true;
             const nodeName = node.data?.label || node.id;
@@ -123,6 +255,10 @@ export function ColumnsContent({ dataset, isDomainMode, onNodeSelect }) {
                         const IconComponent = getPlatformIcon(platform);
                         const styleConfig = getStyleConfig(platform);
 
+                        // Enrich columns
+                        const rawCols = node.data?.columns || [];
+                        const enrichedCols = enrichColumns(rawCols, node.data);
+
                         return (
                             <div key={node.id} className="bg-white rounded-lg border border-gray-200 overflow-hidden shadow-sm">
                                 <div
@@ -139,20 +275,18 @@ export function ColumnsContent({ dataset, isDomainMode, onNodeSelect }) {
                                         </span>
                                     )}
                                     <span className="text-[10px] px-2 py-0.5 bg-white border rounded-full text-gray-500">
-                                        {(node.data?.columns || []).length} cols
+                                        {rawCols.length} cols
                                     </span>
                                 </div>
                                 <div className="p-3 bg-gray-50/30">
-                                    {(node.data?.columns || []).length > 0 ? (
-                                        (node.data?.columns || []).map((col, idx) => {
-                                            // Enrich column with metadata
-                                            const metadata = node.data?.config?.metadata?.columns;
-                                            const colName = typeof col === 'object' ? (col.name || col.column_name || col.key) : col;
-                                            const meta = metadata?.[colName] || {};
-                                            const enrichedCol = typeof col === 'object' ? { ...col, ...meta } : { name: col, type: 'String', ...meta };
-
-                                            return <ColumnItem key={idx} col={enrichedCol} />;
-                                        })
+                                    {enrichedCols.length > 0 ? (
+                                        enrichedCols.map((col, idx) => (
+                                            <ColumnItem
+                                                key={idx}
+                                                col={col}
+                                                onSave={(name, meta) => handleColumnUpdate(node.id, name, meta)}
+                                            />
+                                        ))
                                     ) : (
                                         <div className="text-xs text-gray-400 italic text-center py-2">No columns</div>
                                     )}
@@ -165,16 +299,10 @@ export function ColumnsContent({ dataset, isDomainMode, onNodeSelect }) {
         );
     }
 
-    // Node Mode (Single Table)
+    // --- NON-DOMAIN MODE (Single Dataset/Node) ---
+    // This is used for ETL steps or single selected nodes
     const columns = dataset?.schema || dataset?.columns || [];
-
-    // Helper to enrich columns
-    const enrichedColumns = columns.map(col => {
-        const metadata = dataset?.config?.metadata?.columns;
-        const colName = typeof col === 'object' ? (col.name || col.column_name || col.key) : col;
-        const meta = metadata?.[colName] || {};
-        return typeof col === 'object' ? { ...col, ...meta } : { name: col, type: 'String', ...meta };
-    });
+    const enrichedColumns = enrichColumns(columns, dataset);
 
     const filteredColumns = enrichedColumns.filter(col => {
         if (!searchTerm) return true;
@@ -182,19 +310,27 @@ export function ColumnsContent({ dataset, isDomainMode, onNodeSelect }) {
         return name && name.toLowerCase().includes(searchTerm.toLowerCase());
     });
 
+    const handleSingleDatasetUpdate = (colName, newMeta) => {
+        if (!onUpdate) return;
+        const id = dataset.id || dataset._id;
+
+        onUpdate(id, {
+            columnsUpdate: {
+                [colName]: newMeta
+            }
+        });
+    };
 
     if (!dataset) return <div className="p-5 text-gray-400">No data available</div>;
 
     return (
         <div className="animate-fade-in flex flex-col h-full">
-            {/* Header */}
             <div className="p-5 pb-0">
                 <h3 className="font-semibold text-gray-900 border-b border-gray-100 pb-3 mb-4 flex items-center gap-2">
                     <LayoutGrid className="w-4 h-4 text-blue-500" />
                     Columns ({columns.length})
                 </h3>
 
-                {/* Search */}
                 <div className="relative mb-4">
                     <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-gray-400" />
                     <input
@@ -207,10 +343,15 @@ export function ColumnsContent({ dataset, isDomainMode, onNodeSelect }) {
                 </div>
             </div>
 
-            {/* List */}
             <div className="flex-1 overflow-y-auto p-5 pt-0 space-y-2">
                 {filteredColumns.length > 0 ? (
-                    filteredColumns.map((col, idx) => <ColumnItem key={idx} col={col} />)
+                    filteredColumns.map((col, idx) => (
+                        <ColumnItem
+                            key={idx}
+                            col={col}
+                            onSave={(name, meta) => handleSingleDatasetUpdate(name, meta)}
+                        />
+                    ))
                 ) : (
                     <div className="text-center py-8 text-gray-400 text-sm italic">
                         No columns found matching "{searchTerm}"

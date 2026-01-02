@@ -22,24 +22,39 @@ export function SummaryContent({ dataset, isDomainMode, onUpdate }) {
 
     // Extract Metadata (Support nested config.metadata from ETL import)
     // For ReactFlow nodes, config is usually in 'data'
-    const config = dataset.config || dataset.data?.config || {};
-    const metadata = config.metadata?.table || {};
+    // For raw ETL steps, config might be at root
+    const rootConfig = dataset.config || dataset.data?.config || {};
+    // Handle double nesting (config.config) and metadata location (metadata.table or just metadata)
+    const deepConfig = rootConfig.config || rootConfig;
+    const metadata = deepConfig.metadata?.table || deepConfig.metadata || {};
 
     // Check direct properties first, then data properties, then metadata
-    const description = dataset.description || dataset.data?.description || metadata.description || "No description provided.";
-    const tags = dataset.tags || dataset.data?.tags || metadata.tags || [];
+    const description = dataset.description
+        || dataset.data?.description
+        || metadata.description
+        || "No description provided.";
+
+    const tags = dataset.tags
+        || dataset.data?.tags
+        || metadata.tags
+        || [];
 
     const owner = dataset.owner || dataset.data?.owner || "Unknown";
     const updatedAt = dataset.updated_at ? new Date(dataset.updated_at).toLocaleDateString() : "Just now";
 
     // Reset local state only when actual data changes
     React.useEffect(() => {
-        const cfg = dataset.config || dataset.data?.config || {};
-        const meta = cfg.metadata?.table || {};
-        setDescValue(dataset.description || dataset.data?.description || meta.description || "");
-        setTagsValue(dataset.tags || dataset.data?.tags || meta.tags || []);
+        const rConfig = dataset.config || dataset.data?.config || {};
+        const dConfig = rConfig.config || rConfig;
+        const meta = dConfig.metadata?.table || dConfig.metadata || {};
+
+        const nextDesc = dataset.description || dataset.data?.description || meta.description || "";
+        const nextTags = dataset.tags || dataset.data?.tags || meta.tags || [];
+
+        setDescValue(nextDesc);
+        setTagsValue(nextTags);
         // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [dataset.id, dataset._id, dataset.description, dataset.data?.description, JSON.stringify(dataset.tags), JSON.stringify(dataset.config)]);
+    }, [dataset.id, dataset._id, dataset.description, dataset.data?.description, JSON.stringify(dataset.tags), JSON.stringify(dataset.config), JSON.stringify(dataset.data?.config)]);
 
     // Domain Stats
     const tableCount = isDomainMode ? (dataset.nodes?.filter(n => n.type !== 'E' && n.type !== 'T')?.length || 0) : 0;

@@ -8,12 +8,22 @@ import { deleteDomain } from '../api/domainApi';
 export const useDomainLogic = ({ datasetId, selectedId, onStreamAnalysis, onNodeSelect, initialNodes, initialEdges, onNodesDelete, onEdgesDelete, onEdgeCreate }) => {
     const { showToast } = useToast();
 
+    // Enrich initial nodes with handlers
+    // We do this here (logic layer) so the graph state initializes with functional nodes
+    const enrichedInitialNodes = initialNodes.map(node => ({
+        ...node,
+        data: {
+            ...node.data,
+            onEtlStepSelect: onNodeSelect // Inject handler for ETL steps
+        }
+    }));
+
     // 1. Graph State & Layout Logic
     const {
         nodes, edges, setNodes, setEdges,
         onNodesChange, onEdgesChange,
         handleToggleExpand, updateLayout, fitView
-    } = useDomainGraph({ initialNodes, initialEdges });
+    } = useDomainGraph({ initialNodes: enrichedInitialNodes, initialEdges });
 
     // 2. Data Fetching & Sync Logic
     // Depends on graph state to merge new data into it
