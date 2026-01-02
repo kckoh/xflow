@@ -52,7 +52,7 @@ class ETLJobUpdate(BaseModel):
     destination: Optional[DestinationConfig] = None
     schedule: Optional[str] = None
     status: Optional[str] = None
-    import_ready: Optional[bool] = None  # Import ready flag
+    import_ready: Optional[bool] = None
     # Visual Editor state
     nodes: Optional[List[dict]] = None
     edges: Optional[List[dict]] = None
@@ -76,6 +76,7 @@ class ETLJobResponse(BaseModel):
     nodes: Optional[List[dict]] = None
     edges: Optional[List[dict]] = None
     is_active: bool = False  # Derived from Dataset model
+    import_ready: bool = False
 
     class Config:
         from_attributes = True
