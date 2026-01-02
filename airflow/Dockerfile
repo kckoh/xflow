@@ -24,6 +24,7 @@ USER airflow
 RUN pip install --no-cache-dir \
     apache-airflow-providers-apache-spark \
     apache-airflow-providers-http \
+    apache-airflow-providers-cncf-kubernetes \
     pymongo \
     boto3 \
     requests
