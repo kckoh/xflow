@@ -1,3 +1,4 @@
+import os
 from datetime import datetime
 from typing import List
 
@@ -11,8 +12,10 @@ from services.lineage_service import sync_pipeline_to_dataset
 
 router = APIRouter()
 
-AIRFLOW_BASE_URL = "http://airflow-webserver:8080/api/v1"
+AIRFLOW_BASE_URL = os.getenv("AIRFLOW_BASE_URL", "http://airflow-webserver.airflow:8080/api/v1")
 AIRFLOW_AUTH = ("admin", "admin")
+# DAG ID: "etl_job_dag" for local, "etl_job_dag_k8s" for production (EKS)
+AIRFLOW_DAG_ID = os.getenv("AIRFLOW_DAG_ID", "etl_job_dag")
 
 
 @router.post("", response_model=ETLJobResponse, status_code=status.HTTP_201_CREATED)
@@ -84,6 +87,7 @@ async def create_etl_job(job: ETLJobCreate):
         edges=new_job.edges,
         created_at=new_job.created_at,
         updated_at=new_job.updated_at,
+        import_ready=False,
     )
 
 
@@ -147,6 +151,7 @@ async def get_etl_job(job_id: str):
         edges=job.edges,
         created_at=job.created_at,
         updated_at=job.updated_at,
+        import_ready=getattr(job, 'import_ready', False),
     )
 
 
@@ -210,6 +215,7 @@ async def update_etl_job(job_id: str, job_update: ETLJobUpdate):
         edges=job.edges,
         created_at=job.created_at,
         updated_at=job.updated_at,
+        import_ready=getattr(job, 'import_ready', False),
     )
 
 
@@ -251,7 +257,7 @@ async def run_etl_job(job_id: str):
     try:
         async with httpx.AsyncClient() as client:
             response = await client.post(
-                f"{AIRFLOW_BASE_URL}/dags/etl_job_dag/dagRuns",
+                f"{AIRFLOW_BASE_URL}/dags/{AIRFLOW_DAG_ID}/dagRuns",
                 json={
                     "conf": {"job_id": job_id},
                     "dag_run_id": f"job_{job_id}_{job_run.id}",

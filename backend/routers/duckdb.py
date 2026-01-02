@@ -59,13 +59,22 @@ async def preview_table(path: str, limit: int = 100):
 def get_s3_client():
     import boto3
     import os
-    return boto3.client(
-        "s3",
-        endpoint_url=os.getenv("AWS_ENDPOINT", "http://localstack-main:4566"),
-        aws_access_key_id=os.getenv("AWS_ACCESS_KEY_ID", "test"),
-        aws_secret_access_key=os.getenv("AWS_SECRET_ACCESS_KEY", "test"),
-        region_name=os.getenv("AWS_REGION", "ap-northeast-2"),
-    )
+
+    environment = os.getenv("ENVIRONMENT", "local")
+    region = os.getenv("AWS_REGION", "ap-northeast-2")
+
+    if environment == "production":
+        # Production: Use IAM role credentials (no explicit keys needed)
+        return boto3.client("s3", region_name=region)
+    else:
+        # Local: Use LocalStack
+        return boto3.client(
+            "s3",
+            endpoint_url=os.getenv("AWS_ENDPOINT", "http://localstack-main:4566"),
+            aws_access_key_id=os.getenv("AWS_ACCESS_KEY_ID", "test"),
+            aws_secret_access_key=os.getenv("AWS_SECRET_ACCESS_KEY", "test"),
+            region_name=region,
+        )
 
 
 @router.get("/buckets")

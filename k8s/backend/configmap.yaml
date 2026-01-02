@@ -5,6 +5,11 @@ metadata:
 data:
   MONGODB_DATABASE: "xflow"
   CORS_ORIGINS: "http://localhost:5173,https://xflows.net"
+  # Airflow DAG ID: etl_job_dag_k8s for production (EKS with Spark on K8s)
+  AIRFLOW_DAG_ID: "etl_job_dag_k8s"
   # Disable Neo4j and OpenSearch for now
   NEO4J_URI: ""
   OPENSEARCH_HOST: ""
+  # AWS/S3 configuration
+  ENVIRONMENT: "production"
+  AWS_REGION: "ap-northeast-2"

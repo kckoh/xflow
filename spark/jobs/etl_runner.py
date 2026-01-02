@@ -413,22 +413,35 @@ def create_spark_session(config: dict) -> SparkSession:
 
     builder = SparkSession.builder.appName(f"ETL: {config.get('name', 'Unknown')}")
 
-    # S3 configuration for LocalStack/MinIO
+    # S3 configuration
     if dest.get("type") == "s3":
         s3_config = dest.get("s3_config", {})
-        endpoint = s3_config.get("endpoint", "http://localstack-main:4566")
-        access_key = s3_config.get("access_key", "test")
-        secret_key = s3_config.get("secret_key", "test")
 
-        builder = builder \
-            .config("spark.hadoop.fs.s3a.endpoint", endpoint) \
-            .config("spark.hadoop.fs.s3a.access.key", access_key) \
-            .config("spark.hadoop.fs.s3a.secret.key", secret_key) \
-            .config("spark.hadoop.fs.s3a.path.style.access", "true") \
-            .config("spark.hadoop.fs.s3a.impl", "org.apache.hadoop.fs.s3a.S3AFileSystem") \
-            .config("spark.hadoop.fs.s3a.fast.upload", "true") \
-            .config("spark.hadoop.fs.s3a.fast.upload.buffer", "disk") \
-            .config("spark.hadoop.fs.s3a.multipart.size", "5M")
+        # Check if using IAM role (production) or explicit credentials (local)
+        if s3_config.get("use_iam_role"):
+            # Production: Use IAM role from ServiceAccount (IRSA)
+            region = s3_config.get("region", "ap-northeast-2")
+            builder = builder \
+                .config("spark.hadoop.fs.s3a.impl", "org.apache.hadoop.fs.s3a.S3AFileSystem") \
+                .config("spark.hadoop.fs.s3a.aws.credentials.provider",
+                       "com.amazonaws.auth.WebIdentityTokenCredentialsProvider") \
+                .config("spark.hadoop.fs.s3a.endpoint", f"s3.{region}.amazonaws.com") \
+                .config("spark.hadoop.fs.s3a.fast.upload", "true")
+        else:
+            # Local: Use LocalStack/MinIO with explicit credentials
+            endpoint = s3_config.get("endpoint", "http://localstack-main:4566")
+            access_key = s3_config.get("access_key", "test")
+            secret_key = s3_config.get("secret_key", "test")
+
+            builder = builder \
+                .config("spark.hadoop.fs.s3a.endpoint", endpoint) \
+                .config("spark.hadoop.fs.s3a.access.key", access_key) \
+                .config("spark.hadoop.fs.s3a.secret.key", secret_key) \
+                .config("spark.hadoop.fs.s3a.path.style.access", "true") \
+                .config("spark.hadoop.fs.s3a.impl", "org.apache.hadoop.fs.s3a.S3AFileSystem") \
+                .config("spark.hadoop.fs.s3a.fast.upload", "true") \
+                .config("spark.hadoop.fs.s3a.fast.upload.buffer", "disk") \
+                .config("spark.hadoop.fs.s3a.multipart.size", "5M")
 
     return builder.getOrCreate()
 
