@@ -1,0 +1,26 @@
+# RBAC for Airflow to create SparkApplications
+# This allows the airflow-scheduler ServiceAccount to manage Spark jobs
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: airflow-spark-operator
+rules:
+  - apiGroups: ["sparkoperator.k8s.io"]
+    resources: ["sparkapplications", "sparkapplications/status", "scheduledsparkapplications"]
+    verbs: ["*"]
+  - apiGroups: [""]
+    resources: ["pods", "pods/log", "services", "events"]
+    verbs: ["get", "list", "watch", "create", "delete"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: airflow-spark-operator-binding
+subjects:
+  - kind: ServiceAccount
+    name: airflow-scheduler
+    namespace: airflow
+roleRef:
+  kind: ClusterRole
+  name: airflow-spark-operator
+  apiGroup: rbac.authorization.k8s.io

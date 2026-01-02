@@ -215,6 +215,9 @@ minio-data/
 trino/jars/
 hive/lib/
 
+# Log data files (ETL logs stored in S3/local)
+backend/data/logs/
+
 #frontend
 frontend/node_modules/
 .claude/settings.local.json

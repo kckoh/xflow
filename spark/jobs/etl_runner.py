@@ -15,11 +15,11 @@ from pyspark.sql import SparkSession, DataFrame
 # ============ Transform Registry ============
 
 def transform_select_fields(df: DataFrame, config: dict) -> DataFrame:
-    """Select specific columns from DataFrame. 
+    """Select specific columns from DataFrame.
     Dot notation columns are aliased with underscores (e.g., company.name → company_name)
     """
     from pyspark.sql.functions import col
-    
+
     columns = config.get("selectedColumns", [])
     if columns:
         # Convert dot notation to underscore alias to avoid column name conflicts
@@ -44,11 +44,93 @@ def transform_filter(df: DataFrame, config: dict) -> DataFrame:
     return df
 
 
+def transform_s3_select_fields(df: DataFrame, config: dict) -> DataFrame:
+    """Select specific fields from S3 logs"""
+    selected_fields = config.get("selected_fields", [])
+    if selected_fields and len(selected_fields) > 0:
+        # Validate fields exist
+        available_fields = df.columns
+        invalid_fields = [f for f in selected_fields if f not in available_fields]
+        if invalid_fields:
+            raise ValueError(f"Invalid fields: {invalid_fields}. Available: {available_fields}")
+        return df.select(*selected_fields)
+    return df
+
+
+def transform_s3_filter(df: DataFrame, config: dict) -> DataFrame:
+    """
+    Filter S3 log rows based on conditions with user-defined field names.
+
+    Config example:
+    {
+        "filters": {
+            "statusCodeField": "status",        # User's field name for status code
+            "statusCodeMin": 400,
+            "statusCodeMax": 599,
+            "pathField": "request_path",        # User's field name for path
+            "pathPattern": "/api/.*",
+            "timestampField": "timestamp",      # User's field name for timestamp
+            "timestampFrom": "2026-01-02T10:00",
+            "timestampTo": "2026-01-02T12:00"
+        }
+    }
+    """
+    from pyspark.sql import functions as F
+
+    filters_config = config.get("filters", {})
+    if not filters_config:
+        return df
+
+    filtered_df = df
+
+    # Status code range filter (with configurable field name)
+    status_field = filters_config.get("statusCodeField")
+    if status_field and status_field in df.columns:
+        if "statusCodeMin" in filters_config and filters_config["statusCodeMin"]:
+            min_code = int(filters_config["statusCodeMin"])
+            filtered_df = filtered_df.filter(F.col(status_field) >= min_code)
+            print(f"   Filter: {status_field} >= {min_code}")
+
+        if "statusCodeMax" in filters_config and filters_config["statusCodeMax"]:
+            max_code = int(filters_config["statusCodeMax"])
+            filtered_df = filtered_df.filter(F.col(status_field) <= max_code)
+            print(f"   Filter: {status_field} <= {max_code}")
+
+    # Timestamp range filter (with configurable field name)
+    timestamp_field = filters_config.get("timestampField")
+    if timestamp_field and timestamp_field in df.columns:
+        timestamp_from = filters_config.get("timestampFrom")
+        timestamp_to = filters_config.get("timestampTo")
+        if timestamp_from or timestamp_to:
+            parsed_ts = F.to_timestamp(F.col(timestamp_field), "dd/MMM/yyyy:HH:mm:ss Z")
+            if timestamp_from:
+                filtered_df = filtered_df.filter(
+                    parsed_ts >= F.to_timestamp(F.lit(timestamp_from), "yyyy-MM-dd'T'HH:mm")
+                )
+                print(f"   Filter: {timestamp_field} >= {timestamp_from}")
+            if timestamp_to:
+                filtered_df = filtered_df.filter(
+                    parsed_ts <= F.to_timestamp(F.lit(timestamp_to), "yyyy-MM-dd'T'HH:mm")
+                )
+                print(f"   Filter: {timestamp_field} <= {timestamp_to}")
+
+    # Path pattern filter (with configurable field name)
+    path_field = filters_config.get("pathField")
+    if path_field and path_field in df.columns:
+        if "pathPattern" in filters_config and filters_config["pathPattern"]:
+            path_pattern = filters_config["pathPattern"]
+            filtered_df = filtered_df.filter(F.col(path_field).rlike(path_pattern))
+            print(f"   Filter: {path_field} matches pattern: {path_pattern}")
+
+    return filtered_df
+
 # Single-input transforms
 TRANSFORMS = {
     "select-fields": transform_select_fields,
     "drop-columns": transform_drop_columns,
     "filter": transform_filter,
+    "s3-select-fields": transform_s3_select_fields,
+    "s3-filter": transform_s3_filter,
 }
 
 
@@ -181,8 +263,96 @@ def read_nosql_source(spark: SparkSession, source_config: dict) -> DataFrame:
     
     else:
         raise ValueError(f"Unsupported NoSQL database type: {db_type}")
-    
+
     return df
+
+
+def read_s3_logs_source(spark: SparkSession, source_config: dict) -> DataFrame:
+    """
+    Read log files from S3 and parse using custom regex pattern with named groups
+
+    Args:
+        spark: SparkSession
+        source_config: Source configuration with connection details
+            - connection.bucket: S3 bucket name
+            - connection.path: S3 path/prefix
+            - connection.endpoint: S3 endpoint (for LocalStack)
+            - connection.access_key: S3 access key
+            - connection.secret_key: S3 secret key
+            - customRegex: Custom regex pattern with Python named groups
+              e.g., r'^(?P<client_ip>\S+) .* \[(?P<timestamp>.*?)\] (?P<status_code>\d+)'
+
+    Returns:
+        DataFrame with fields matching regex named groups
+    """
+    import re
+    from pyspark.sql import functions as F
+
+    connection = source_config.get("connection", {})
+    bucket = connection.get("bucket")
+    path = connection.get("path")
+    custom_regex = source_config.get("customRegex")
+
+    if not bucket or not path:
+        raise ValueError("S3 bucket and path are required for S3 log source")
+
+    if not custom_regex:
+        raise ValueError("Custom regex pattern is required for parsing logs. Please define a pattern with named groups.")
+
+    # Configure S3 access
+    endpoint = connection.get("endpoint", "http://localstack-main:4566")
+    access_key = connection.get("access_key", "test")
+    secret_key = connection.get("secret_key", "test")
+
+    spark.conf.set("spark.hadoop.fs.s3a.endpoint", endpoint)
+    spark.conf.set("spark.hadoop.fs.s3a.access.key", access_key)
+    spark.conf.set("spark.hadoop.fs.s3a.secret.key", secret_key)
+
+    # Read log files from S3
+    s3_path = f"s3a://{bucket}/{path}"
+    print(f"   Reading logs from: {s3_path}")
+    print(f"   Using custom regex pattern with named groups")
+
+    # Read as text
+    raw_df = spark.read.text(s3_path)
+
+    # Extract named groups from Python regex pattern
+    # Python regex: (?P<name>pattern) -> extract group names
+    try:
+        compiled_pattern = re.compile(custom_regex)
+        named_groups = list(compiled_pattern.groupindex.keys())
+        if not named_groups:
+            raise ValueError("Regex pattern must contain at least one named group (?P<field_name>pattern)")
+        print(f"   Detected fields from regex: {named_groups}")
+    except re.error as e:
+        raise ValueError(f"Invalid regex pattern: {str(e)}")
+
+    # Convert Python named group regex to Spark regex (remove ?P<name>)
+    # Python: (?P<field>\S+) -> Spark: (\S+)
+    spark_regex = re.sub(r'\?P<[^>]+>', '', custom_regex)
+
+    # Build select expressions for each named group
+    select_exprs = []
+    for idx, field_name in enumerate(named_groups, start=1):
+        select_exprs.append(
+            F.regexp_extract('value', spark_regex, idx).alias(field_name)
+        )
+
+    # Extract fields using regex
+    parsed_df = raw_df.select(*select_exprs)
+
+    # Filter out failed parsing (if first field is empty, parsing likely failed)
+    if named_groups:
+        first_field = named_groups[0]
+        parsed_df = parsed_df.filter(F.col(first_field) != '')
+
+    record_count = parsed_df.count()
+    print(f"   ✅ Parsed {record_count} log records")
+    print(f"   Schema:")
+    parsed_df.printSchema()
+
+    return parsed_df
+
 
 # ============ Destination Writers ============
 
@@ -244,22 +414,35 @@ def create_spark_session(config: dict) -> SparkSession:
 
     builder = SparkSession.builder.appName(f"ETL: {config.get('name', 'Unknown')}")
 
-    # S3 configuration for LocalStack/MinIO
+    # S3 configuration
     if dest.get("type") == "s3":
         s3_config = dest.get("s3_config", {})
-        endpoint = s3_config.get("endpoint", "http://localstack-main:4566")
-        access_key = s3_config.get("access_key", "test")
-        secret_key = s3_config.get("secret_key", "test")
 
-        builder = builder \
-            .config("spark.hadoop.fs.s3a.endpoint", endpoint) \
-            .config("spark.hadoop.fs.s3a.access.key", access_key) \
-            .config("spark.hadoop.fs.s3a.secret.key", secret_key) \
-            .config("spark.hadoop.fs.s3a.path.style.access", "true") \
-            .config("spark.hadoop.fs.s3a.impl", "org.apache.hadoop.fs.s3a.S3AFileSystem") \
-            .config("spark.hadoop.fs.s3a.fast.upload", "true") \
-            .config("spark.hadoop.fs.s3a.fast.upload.buffer", "disk") \
-            .config("spark.hadoop.fs.s3a.multipart.size", "5M")
+        # Check if using IAM role (production) or explicit credentials (local)
+        if s3_config.get("use_iam_role"):
+            # Production: Use IAM role from ServiceAccount (IRSA)
+            region = s3_config.get("region", "ap-northeast-2")
+            builder = builder \
+                .config("spark.hadoop.fs.s3a.impl", "org.apache.hadoop.fs.s3a.S3AFileSystem") \
+                .config("spark.hadoop.fs.s3a.aws.credentials.provider",
+                       "com.amazonaws.auth.WebIdentityTokenCredentialsProvider") \
+                .config("spark.hadoop.fs.s3a.endpoint", f"s3.{region}.amazonaws.com") \
+                .config("spark.hadoop.fs.s3a.fast.upload", "true")
+        else:
+            # Local: Use LocalStack/MinIO with explicit credentials
+            endpoint = s3_config.get("endpoint", "http://localstack-main:4566")
+            access_key = s3_config.get("access_key", "test")
+            secret_key = s3_config.get("secret_key", "test")
+
+            builder = builder \
+                .config("spark.hadoop.fs.s3a.endpoint", endpoint) \
+                .config("spark.hadoop.fs.s3a.access.key", access_key) \
+                .config("spark.hadoop.fs.s3a.secret.key", secret_key) \
+                .config("spark.hadoop.fs.s3a.path.style.access", "true") \
+                .config("spark.hadoop.fs.s3a.impl", "org.apache.hadoop.fs.s3a.S3AFileSystem") \
+                .config("spark.hadoop.fs.s3a.fast.upload", "true") \
+                .config("spark.hadoop.fs.s3a.fast.upload.buffer", "disk") \
+                .config("spark.hadoop.fs.s3a.multipart.size", "5M")
 
     return builder.getOrCreate()
 
@@ -306,12 +489,14 @@ def run_etl(config: dict):
             node_id = source_config.get("nodeId", f"source_{idx}")
             source_type = source_config.get("type", "rdb")
 
-            print(f"   [{node_id}] Reading from {source_type}: {source_config.get('table') or source_config.get('collection', 'query')}")
+            print(f"   [{node_id}] Reading from {source_type}: {source_config.get('table') or source_config.get('collection') or source_config.get('connection', {}).get('bucket', 'unknown')}")
             if source_type == "rdb":
                 df = read_rdb_source(spark, source_config)
             elif source_type in ["mongodb", "nosql"]:
                 df = read_nosql_source(spark, source_config)
                 has_nosql_source = True  # Mark that we have NoSQL source
+            elif source_type == "s3":
+                df = read_s3_logs_source(spark, source_config)
             else:
                 raise ValueError(f"Unsupported source type: {source_type}")
 

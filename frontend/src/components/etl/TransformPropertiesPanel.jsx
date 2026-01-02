@@ -55,7 +55,7 @@ export default function TransformPropertiesPanel({ node, selectedMetadataItem, o
 
                 {transformType === 'filter' && (
                     <div className="text-sm text-gray-500 italic">
-                        Filter configuration coming soon...
+                        Filter settings are available for S3 sources only. Connect an S3 source to use the S3 filter panel.
                     </div>
                 )}
 

@@ -17,8 +17,10 @@ export const applyTransformToSchema = (inputSchema, transformType, transformConf
 
     switch (transformType) {
         case 'select-fields':
+        case 's3-select-fields':
             return applySelectFields(inputSchema, transformConfig);
         case 'filter':
+        case 's3-filter':
             return applyFilter(inputSchema, transformConfig);
         case 'union':
             return applyUnion(inputSchema, transformConfig);
@@ -38,12 +40,13 @@ export const applyTransformToSchema = (inputSchema, transformType, transformConf
  * Select Fields: Filter columns based on selected columns
  */
 const applySelectFields = (inputSchema, config) => {
-    if (!config?.selectedColumns || config.selectedColumns.length === 0) {
+    const selectedColumns = config?.selectedColumns || config?.selected_fields;
+    if (!selectedColumns || selectedColumns.length === 0) {
         return inputSchema; // No columns selected yet - return all
     }
 
-    return inputSchema.filter(col =>
-        config.selectedColumns.includes(col.key || col.field)
+    return inputSchema.filter((col) =>
+        selectedColumns.includes(col.key || col.field)
     );
 };
 

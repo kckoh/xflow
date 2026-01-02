@@ -5,11 +5,12 @@ from datetime import datetime
 
 class SourceConfig(BaseModel):
     nodeId: Optional[str] = None  # Node ID for graph reference
-    type: str  # rdb, mongodb, nosql
+    type: str  # rdb, mongodb, nosql, s3
     connection_id: str  # Connection ID
     table: Optional[str] = None  # For RDB
     collection: Optional[str] = None  # For NoSQL (MongoDB)
     query: Optional[str] = None  # Custom SQL query
+    customRegex: Optional[str] = None  # For S3 log parsing with named groups
 
 
 class TransformConfig(BaseModel):
@@ -54,7 +55,7 @@ class ETLJobUpdate(BaseModel):
     destination: Optional[DestinationConfig] = None
     schedule: Optional[str] = None
     status: Optional[str] = None
-    import_ready: Optional[bool] = None  # Import ready flag
+    import_ready: Optional[bool] = None
     # Visual Editor state
     nodes: Optional[List[dict]] = None
     edges: Optional[List[dict]] = None
@@ -79,6 +80,7 @@ class ETLJobResponse(BaseModel):
     nodes: Optional[List[dict]] = None
     edges: Optional[List[dict]] = None
     is_active: bool = False  # Derived from Dataset model
+    import_ready: bool = False
 
     class Config:
         from_attributes = True
