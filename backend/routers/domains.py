@@ -195,6 +195,14 @@ async def upload_attachment(id: str, file: UploadFile = File(...)):
         raise HTTPException(status_code=404, detail="Domain not found")
 
     try:
+        # Check File Size (Limit 10MB)
+        file.file.seek(0, 2)
+        file_size = file.file.tell()
+        file.file.seek(0)
+        
+        if file_size > 10 * 1024 * 1024:
+            raise HTTPException(status_code=413, detail="File size exceeds 10MB limit")
+
         s3 = get_aws_client("s3")
         bucket_name = "xflow-data" # ToDo: Move to config
         

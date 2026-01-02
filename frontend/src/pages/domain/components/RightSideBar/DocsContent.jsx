@@ -41,6 +41,14 @@ export function DocsContent({ dataset, isDomainMode, onUpdate }) {
         const file = e.target.files?.[0];
         if (!file || !isDomainMode) return;
 
+        // File Size Limit (10MB)
+        const MAX_SIZE = 10 * 1024 * 1024;
+        if (file.size > MAX_SIZE) {
+            alert("File size exceeds 10MB limit.");
+            if (fileInputRef.current) fileInputRef.current.value = "";
+            return;
+        }
+
         setIsUploading(true);
         try {
             const updatedDomain = await uploadDomainFile(domainId, file);
