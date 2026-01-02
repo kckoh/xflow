@@ -78,6 +78,7 @@ class ETLJob(Document):
     # Example: {"type": "rdb", "connection_id": "...", "table": "products"}
 
     transforms: List[dict] = Field(default_factory=list)
+    targets: List[dict] = Field(default_factory=list)
     # Example: [{"nodeId": "3", "type": "union", "config": {}, "inputNodeIds": ["1", "2"]}]
 
     destination: dict = Field(default_factory=dict)

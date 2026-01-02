@@ -23,13 +23,14 @@ class SparkService:
         return cls.CLIENT
     
     @classmethod
-    def submit_job(cls, config: dict, app_name: str) -> str:
+    def submit_job(cls, config: dict, app_name: str, script_path: str = "/opt/spark/jobs/dataset_cdc_runner.py") -> str:
         """
         Spark Streaming Job 실행
         
         Args:
             config: Dataset 설정 (sources, transforms, targets)
             app_name: Spark 애플리케이션 이름
+            script_path: 실행할 파이썬 스크립트 경로
         """
         config_json = json.dumps(config).replace('"', '\\"')
         
@@ -40,7 +41,7 @@ class SparkService:
             --packages org.apache.spark:spark-sql-kafka-0-10_2.12:3.5.0 \
             --conf spark.driver.extraJavaOptions=-Divy.home=/tmp/.ivy2 \
             --jars /opt/spark/jars/extra/aws-java-sdk-bundle-1.12.262.jar,/opt/spark/jars/extra/hadoop-aws-3.3.4.jar \
-            /opt/spark/jobs/dataset_cdc_runner.py \
+            {script_path} \
             "{config_json}"
         '''
         

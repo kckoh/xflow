@@ -60,6 +60,7 @@ async def create_etl_job(job: ETLJobCreate):
         sources=sources_data,
         source=sources_data[0] if sources_data else {},  # Legacy compatibility
         transforms=[t.model_dump() for t in job.transforms],
+        targets=job.targets or [],
         destination=job.destination.model_dump(),
         schedule=job.schedule,
         status="draft",
@@ -82,6 +83,7 @@ async def create_etl_job(job: ETLJobCreate):
         sources=new_job.sources,
         source=new_job.source,
         transforms=new_job.transforms,
+        targets=new_job.targets,
         destination=new_job.destination,
         schedule=new_job.schedule,
         status=new_job.status,
@@ -115,6 +117,7 @@ async def list_etl_jobs(import_ready: bool = None):
             sources=job.sources,
             source=job.source,
             transforms=job.transforms,
+            targets=getattr(job, 'targets', []),
             destination=job.destination,
             schedule=job.schedule,
             status=job.status,
@@ -148,6 +151,7 @@ async def get_etl_job(job_id: str):
         sources=job.sources,
         source=job.source,
         transforms=job.transforms,
+        targets=getattr(job, 'targets', []),
         destination=job.destination,
         schedule=job.schedule,
         status=job.status,
@@ -186,6 +190,8 @@ async def update_etl_job(job_id: str, job_update: ETLJobUpdate):
 
     if job_update.transforms is not None:
         job.transforms = [t.model_dump() for t in job_update.transforms]
+    if job_update.targets is not None:
+        job.targets = job_update.targets
     if job_update.destination is not None:
         job.destination = job_update.destination.model_dump()
     if job_update.schedule is not None:
@@ -215,6 +221,7 @@ async def update_etl_job(job_id: str, job_update: ETLJobUpdate):
         sources=job.sources,
         source=job.source,
         transforms=job.transforms,
+        targets=job.targets,
         destination=job.destination,
         schedule=job.schedule,
         status=job.status,

@@ -63,22 +63,26 @@ class CDCService:
         database: str,
         user: str,
         password: str,
-        table: str,
+        table_list: List[str],
         schema: str = "public"
     ) -> Dict:
-        """PostgreSQL 커넥터 설정 생성"""
+        """
+        PostgreSQL 커넥터 설정 생성
+        table_list: ["schema.table1", "schema.table2", ...]
+        """
         return {
             "connector.class": "io.debezium.connector.postgresql.PostgresConnector",
+            "plugin.name": "pgoutput",
             "database.hostname": host,
             "database.port": str(port),
             "database.user": user,
             "database.password": password,
             "database.dbname": database,
+            "database.server.name": connector_name,
             "topic.prefix": connector_name,
-            "table.include.list": f"{schema}.{table}",
-            "plugin.name": "pgoutput",
+            "table.include.list": ",".join(table_list),
             "slot.name": connector_name.replace("-", "_"),
-            "snapshot.mode": "never",  # Postgres: 스냅샷 없이 WAL부터 읽기 (MySQL의 schema_only 대응)
+            "snapshot.mode": "never",  # Postgres: 스냅샷 없이 WAL부터 읽기 (변경사항만)
             "key.converter": "org.apache.kafka.connect.json.JsonConverter",
             "value.converter": "org.apache.kafka.connect.json.JsonConverter",
             "key.converter.schemas.enable": "false",

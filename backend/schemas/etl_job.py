@@ -36,6 +36,7 @@ class ETLJobCreate(BaseModel):
     # Legacy single source (backward compatibility)
     source: Optional[SourceConfig] = None
     transforms: List[TransformConfig] = []
+    targets: Optional[List[dict]] = None
     destination: DestinationConfig
     schedule: Optional[str] = None  # Cron expression or None for manual
     # Visual Editor state
@@ -52,6 +53,7 @@ class ETLJobUpdate(BaseModel):
     # Legacy single source (backward compatibility)
     source: Optional[SourceConfig] = None
     transforms: Optional[List[TransformConfig]] = None
+    targets: Optional[List[dict]] = None
     destination: Optional[DestinationConfig] = None
     schedule: Optional[str] = None
     status: Optional[str] = None
@@ -61,19 +63,8 @@ class ETLJobUpdate(BaseModel):
     edges: Optional[List[dict]] = None
 
 
-class ETLJobResponse(BaseModel):
+class ETLJobResponse(ETLJobCreate):
     id: str
-    name: str
-    description: Optional[str] = None
-    job_type: str = "batch"  # "batch" or "cdc"
-    # Multiple sources support (new)
-    sources: Optional[List[dict]] = None
-    # Legacy single source (backward compatibility)
-    source: Optional[dict] = None
-    transforms: List[dict]
-    destination: dict
-    schedule: Optional[str] = None
-    status: str
     created_at: datetime
     updated_at: datetime
     # Visual Editor state
