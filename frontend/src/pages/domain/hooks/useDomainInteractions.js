@@ -2,7 +2,7 @@ import { useState, useEffect, useCallback } from 'react';
 import { addEdge } from '@xyflow/react';
 import { useToast } from '../../../components/common/Toast';
 
-export const useDomainInteractions = ({ nodes, edges, setNodes, setEdges, datasetId, handleToggleExpand, onNodeSelect }) => {
+export const useDomainInteractions = ({ nodes, edges, setNodes, setEdges, datasetId, handleToggleExpand, onNodeSelect, onEdgesDelete, onEdgeCreate }) => {
     const { showToast } = useToast();
 
     // UI States
@@ -45,8 +45,10 @@ export const useDomainInteractions = ({ nodes, edges, setNodes, setEdges, datase
     }, [nodes]);
 
     const onNodeClick = useCallback((event, node) => {
-        if (onNodeSelect && node.data.mongoId) {
-            onNodeSelect(node.data.mongoId);
+        // Prevent event propagation if handling edge cases for interaction
+        // but React flow might need this.
+        if (onNodeSelect) {
+            onNodeSelect(node.id); // Triggers sidebar logic
         }
     }, [onNodeSelect]);
 
@@ -60,6 +62,12 @@ export const useDomainInteractions = ({ nodes, edges, setNodes, setEdges, datase
             // const response = await fetch(url, { method: 'DELETE' });
 
             setEdges((eds) => eds.filter((e) => e.id !== edgeMenu.edgeId));
+
+            // Notify Parent
+            if (onEdgesDelete) {
+                onEdgesDelete([{ id: edgeMenu.edgeId }]);
+            }
+
             setEdgeMenu(null);
             showToast("Connection removed", "success");
         } catch (error) {
@@ -102,10 +110,12 @@ export const useDomainInteractions = ({ nodes, edges, setNodes, setEdges, datase
             // await fetch(`http://localhost:8000/api/catalog/${sourceMongoId}/lineage`, ...)
 
             // Enforce styling for new edge
+            // Enforce styling for new edge
             const finalParams = { ...params, targetHandle: targetHandle };
 
-            setEdges((eds) => addEdge({
+            const newEdge = {
                 ...finalParams,
+                id: `e-${params.source}-${params.target}-${Date.now()}`,
                 animated: true,
                 type: 'deletion',
                 label: '',
@@ -113,7 +123,14 @@ export const useDomainInteractions = ({ nodes, edges, setNodes, setEdges, datase
                     originalSourceHandle: sourceHandle,
                     originalTargetHandle: targetHandle
                 }
-            }, eds));
+            };
+
+            setEdges((eds) => addEdge(newEdge, eds));
+
+            // Notify Parent
+            if (onEdgeCreate) {
+                onEdgeCreate(newEdge);
+            }
 
             // Optimistic UI Update: Increment connection count for nodes
             setNodes((nds) => nds.map((n) => {

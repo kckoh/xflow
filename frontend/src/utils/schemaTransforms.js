@@ -45,8 +45,8 @@ const applySelectFields = (inputSchema, config) => {
         return inputSchema; // No columns selected yet - return all
     }
 
-    return inputSchema.filter(col =>
-        selectedColumns.includes(col.key)
+    return inputSchema.filter((col) =>
+        selectedColumns.includes(col.key || col.field)
     );
 };
 

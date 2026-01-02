@@ -12,12 +12,13 @@ export const useMetadataUpdate = (selectedNode, setNodes, setSelectedNode, setSe
                 if (n.id === selectedNode.id) {
                     const metadata = n.data.metadata || { columns: {}, table: {} };
 
-                    if (updatedItem.type === 'column') {
+                    // Support both RDB (column/table) and MongoDB (field/collection) types
+                    if (updatedItem.type === 'column' || updatedItem.type === 'field') {
                         metadata.columns[updatedItem.name] = {
                             description: updatedItem.description || '',
                             tags: updatedItem.tags || []
                         };
-                    } else if (updatedItem.type === 'table') {
+                    } else if (updatedItem.type === 'table' || updatedItem.type === 'collection') {
                         metadata.table = {
                             description: updatedItem.description || '',
                             tags: updatedItem.tags || []
@@ -37,12 +38,13 @@ export const useMetadataUpdate = (selectedNode, setNodes, setSelectedNode, setSe
         setSelectedNode((prev) => {
             const metadata = prev.data.metadata || { columns: {}, table: {} };
 
-            if (updatedItem.type === 'column') {
+            // Support both RDB (column/table) and MongoDB (field/collection) types
+            if (updatedItem.type === 'column' || updatedItem.type === 'field') {
                 metadata.columns[updatedItem.name] = {
                     description: updatedItem.description || '',
                     tags: updatedItem.tags || []
                 };
-            } else if (updatedItem.type === 'table') {
+            } else if (updatedItem.type === 'table' || updatedItem.type === 'collection') {
                 metadata.table = {
                     description: updatedItem.description || '',
                     tags: updatedItem.tags || []
