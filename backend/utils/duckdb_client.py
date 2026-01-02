@@ -14,7 +14,17 @@ def get_duckdb_connection():
     conn.execute("INSTALL httpfs; LOAD httpfs;")
 
     if ENVIRONMENT == "production":
-        # Production: Use AWS S3 with IAM credentials
+        # Production: Use AWS S3 with IRSA credentials
+        # Get credentials from boto3 (which handles IRSA properly)
+        import boto3
+        session = boto3.Session()
+        credentials = session.get_credentials()
+        creds = credentials.get_frozen_credentials()
+
+        conn.execute(f"SET s3_access_key_id='{creds.access_key}';")
+        conn.execute(f"SET s3_secret_access_key='{creds.secret_key}';")
+        if creds.token:
+            conn.execute(f"SET s3_session_token='{creds.token}';")
         conn.execute(f"SET s3_region='{S3_REGION}';")
         conn.execute("SET s3_use_ssl=true;")
     else:
