@@ -92,6 +92,7 @@ services:
     depends_on:
       - mongodb
       - opensearch
+      - localstack
       - airflow-webserver
 
   airflow-db-init:

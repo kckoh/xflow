@@ -49,7 +49,7 @@ with DAG(
             docker exec spark-master /opt/spark/bin/spark-submit \
                 --master 'local[2]' \
                 --driver-memory 4g \
-                --conf 'spark.sql.shuffle.partitions=16' \
+                --conf 'spark.sql.shuffle.partitions=100' \
                 --conf 'spark.memory.fraction=0.6' \
                 --name "ETL-{{ dag_run.conf.get('job_id', 'unknown') }}" \
                 --jars /opt/spark/jars/extra/postgresql-42.7.4.jar,/opt/spark/jars/extra/hadoop-aws-3.3.4.jar,/opt/spark/jars/extra/aws-java-sdk-bundle-1.12.262.jar,/opt/spark/jars/extra/mongo-spark-connector_2.12-10.3.0.jar,/opt/spark/jars/extra/bson-4.11.1.jar,/opt/spark/jars/extra/mongodb-driver-core-4.11.1.jar,/opt/spark/jars/extra/mongodb-driver-sync-4.11.1.jar \

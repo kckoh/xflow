@@ -1,11 +1,16 @@
 import os
+from dotenv import load_dotenv
+
+# ⚠️ 중요: 다른 import보다 먼저 .env 파일 로드해야 함!
+# routers.logs → utils.log_utils → os.getenv() 순서로 실행되기 때문
+load_dotenv()
+
 from contextlib import asynccontextmanager
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
-from routers import auth, users, connections, catalog, etl_jobs, job_runs, opensearch, duckdb, metadata, domains
+from routers import auth, users, connections, catalog, etl_jobs, job_runs, opensearch, duckdb, metadata, domains, logs
 from routers.transforms import select_fields # 추후 type 추가 예정 (예: join ...)
 from database import init_db, close_db
-
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
@@ -73,6 +78,9 @@ app.include_router(duckdb.router, prefix="/api/duckdb", tags=["duckdb"])
 
 # Domains (CRUD + ETL Job Import)
 app.include_router(domains.router, prefix="/api/domains", tags=["domains"])
+
+# Logs (Event logging to S3/Local)
+app.include_router(logs.router)
 
 
 
