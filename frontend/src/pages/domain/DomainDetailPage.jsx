@@ -1,23 +1,30 @@
 import { useState, useRef } from "react";
-import { useToast } from "../../components/common/Toast";
+// import { useToast } from "../../components/common/Toast"; // Moved to Hook
 import { Download, Database } from "lucide-react";
 import DomainDetailHeader from "./components/DomainDetailHeader";
 import DomainCanvas from "./components/DomainCanvas";
 import DomainImportModal from "./components/DomainImportModal";
 import { RightSidebar } from "./components/RightSideBar/RightSidebar";
 import { SidebarToggle } from "./components/RightSideBar/SidebarToggle";
-import { saveDomainGraph, updateDomain } from "./api/domainApi";
+// import { saveDomainGraph, updateDomain } from "./api/domainApi"; // Moved to Hook
 import { useDomainDetail } from "./hooks/useDomainDetail";
 import { useDomainSidebar } from "./hooks/useDomainSidebar";
 
 export default function DomainDetailPage() {
-    const { id, domain, loading, error, setDomain } = useDomainDetail();
+    // Ref to access DomainCanvas state (Passed to hook)
+    const canvasRef = useRef(null);
+
+    const {
+        id,
+        domain,
+        loading,
+        error,
+        setDomain,
+        handleSaveGraph,
+        handleEntityUpdate
+    } = useDomainDetail(canvasRef);
 
     const [showImportModal, setShowImportModal] = useState(false);
-
-    // Ref to access DomainCanvas state
-    const canvasRef = useRef(null);
-    const { showToast } = useToast();
 
     // Use Sidebar Hook
     const {
@@ -33,86 +40,20 @@ export default function DomainDetailPage() {
         setSidebarDataset
     } = useDomainSidebar({ domain, canvasRef });
 
-    const handleSaveGraph = async () => {
-        if (!canvasRef.current) return;
+    // Sync Sidebar dataset when domain updates (if viewing updated entity)
+    // Note: We might need a useEffect here or improved logic in useDomainSidebar, 
+    // but strict syncing logic was partly inline before. 
+    // Ideally useDomainSidebar should handle this Observation.
+    // For now keeping it minimal as the hook handles optimistic updates on `domain` object.
 
-        const { nodes, edges } = canvasRef.current.getGraph();
-
-        try {
-            await saveDomainGraph(id, { nodes, edges });
-            showToast("Layout saved successfully", "success");
-        } catch (err) {
-            console.error(err);
-            showToast("Failed to save layout", "error");
-        }
-    };
-
-    const handleDomainUpdate = async (domainId, updateData) => {
-        try {
-            const updatedDomain = await updateDomain(domainId, updateData);
-            // Update local state (optimistic or actual)
-            // If the updated object is returning the full domain, we can set it directly.
-            // Since we extracted setDomain from useDomainDetail call, we can use it.
-            // Wait, useDomainDetail returns { ... setDomain ... }.
-
-            // Assuming setDomain is passed from hook result:
-            // const { id, domain, loading, error, setDomain } = useDomainDetail(); 
-            // Checking line 14: const { id, domain, loading, error } = useDomainDetail();
-            // I need to update line 14 first to destructure setDomain.
-
-            // For now, I'll assume I update line 14 in next step or use a separate replacement.
-            // But let's write the function first.
-            if (setDomain) {
-                // Ensure we merge into a fresh object to trigger re-render
-                setDomain(prev => ({
-                    ...prev,
-                    ...updatedDomain,
-                    // Ensure ID persistence if backend returns one format or another
-                    id: updatedDomain.id || prev.id,
-                    _id: updatedDomain._id || prev._id
-                }));
-            }
-
-            // Sync sidebar dataset if it's currently displaying the updated domain
-            if (sidebarDataset) {
-                const currentSidebarId = sidebarDataset.id || sidebarDataset._id;
-                const updatedId = updatedDomain.id || updatedDomain._id;
-
-                if (currentSidebarId === updatedId) {
-                    setSidebarDataset(updatedDomain);
-                }
-            }
-
-            showToast("Domain updated successfully", "success");
-        } catch (err) {
-            console.error("Failed to update domain", err);
-            showToast("Failed to update domain", "error");
-        }
-    };
-
-    if (loading)
-        return (
-            <div className="flex items-center justify-center h-screen">
-                Loading...
-            </div>
-        );
-    if (error)
-        return (
-            <div className="flex items-center justify-center h-screen text-red-500">
-                Error: {error}
-            </div>
-        );
-    if (!domain)
-        return (
-            <div className="flex items-center justify-center h-screen">
-                Dataset not found
-            </div>
-        );
+    if (loading) return <div className="flex items-center justify-center h-screen">Loading...</div>;
+    if (error) return <div className="flex items-center justify-center h-screen text-red-500">Error: {error}</div>;
+    if (!domain) return <div className="flex items-center justify-center h-screen">Dataset not found</div>;
 
     // Fallback if sidebarDataset is null (shouldn't happen after load)
     const activeSidebarData = sidebarDataset || domain;
 
-    // --- Sync Handlers ---
+    // --- Sync Handlers (Still needed for Canvas props) ---
     const handleNodesDelete = (deleted) => {
         if (!deleted || deleted.length === 0) return;
         setDomain(prev => ({
@@ -134,68 +75,6 @@ export default function DomainDetailPage() {
             ...prev,
             edges: [...prev.edges, newEdge]
         }));
-    };
-
-
-    const handleEntityUpdate = async (id, updateData) => {
-        const domainId = domain.id || domain._id;
-
-        // 1. Update Domain itself
-        if (id === domainId) {
-            await handleDomainUpdate(id, updateData);
-            return;
-        }
-
-        // 2. Update Node in Domain
-        const targetNodeIndex = domain.nodes.findIndex(n => n.id === id);
-        if (targetNodeIndex !== -1) {
-            const updatedNodes = [...domain.nodes];
-            const node = updatedNodes[targetNodeIndex];
-
-            // Merge updates into multiple locations to ensure consistency
-            const newConfig = {
-                ...(node.data.config || {}),
-                metadata: {
-                    ...(node.data.config?.metadata || {}),
-                    table: {
-                        ...(node.data.config?.metadata?.table || {}),
-                        ...updateData
-                    }
-                }
-            };
-
-            // Update Node properties
-            updatedNodes[targetNodeIndex] = {
-                ...node,
-                description: updateData.description !== undefined ? updateData.description : node.description,
-                tags: updateData.tags !== undefined ? updateData.tags : node.tags,
-                data: {
-                    ...node.data,
-                    description: updateData.description !== undefined ? updateData.description : node.data.description,
-                    tags: updateData.tags !== undefined ? updateData.tags : node.data.tags,
-                    config: newConfig
-                }
-            };
-
-            // Optimistic Update
-            setDomain(prev => ({ ...prev, nodes: updatedNodes }));
-
-            // Update Sidebar if selected
-            if (sidebarDataset && sidebarDataset.id === id) {
-                setSidebarDataset(updatedNodes[targetNodeIndex]);
-            }
-
-            try {
-                // Determine if we should use saveDomainGraph (full graph) or a lighter update
-                // Currently saveDomainGraph is the robust way to save node data
-                await saveDomainGraph(domain.id, { nodes: updatedNodes, edges: domain.edges });
-                showToast("Node updated successfully", "success");
-            } catch (err) {
-                console.error("Failed to update node", err);
-                showToast("Failed to update node", "error");
-                // Revert on failure (could refetch domain)
-            }
-        }
     };
 
     return (
