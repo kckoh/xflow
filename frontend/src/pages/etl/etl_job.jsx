@@ -16,6 +16,7 @@ import {
   ArrowLeft,
   Save,
   Play,
+  Pause,
   Plus,
   Columns,
   Filter,
@@ -77,6 +78,7 @@ export default function ETLJobPage() {
   const reactFlowInstance = useRef(null);
   // 오른쪽 패널 하단에 표시할 메타데이터 아이템 (table 또는 column)
   const [selectedMetadataItem, setSelectedMetadataItem] = useState(null);
+  const [isCdcActive, setIsCdcActive] = useState(false);
 
   // Custom hook for metadata updates (removes duplicate code)
   const handleMetadataUpdate = useMetadataUpdate(
@@ -131,7 +133,12 @@ export default function ETLJobPage() {
       setJobDetails((prev) => ({
         ...prev,
         description: data.description || "",
+        jobType: data.job_type || "batch",
       }));
+
+      if (data.job_type === "cdc") {
+        checkCdcStatus(id);
+      }
 
       // Restore nodes and edges if they exist
       if (data.nodes && data.nodes.length > 0) {
@@ -416,7 +423,8 @@ export default function ETLJobPage() {
     const payload = {
       name: jobName,
       description: jobDetails.description || "",
-      sources, // Multiple sources support
+      job_type: jobDetails.jobType || "batch",
+      sources,
       transforms,
       destination,
       schedule: schedules.length > 0 ? schedules[0].cron : null,
@@ -427,14 +435,12 @@ export default function ETLJobPage() {
     try {
       let response;
       if (jobId) {
-        // Update existing job
         response = await fetch(`${API_BASE_URL}/api/etl-jobs/${jobId}`, {
           method: "PUT",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify(payload),
         });
       } else {
-        // Create new job
         response = await fetch(`${API_BASE_URL}/api/etl-jobs`, {
           method: "POST",
           headers: { "Content-Type": "application/json" },
@@ -456,6 +462,81 @@ export default function ETLJobPage() {
       alert(`Save failed: ${error.message}`);
     } finally {
       setIsSaving(false);
+    }
+  };
+
+  // Run job - Batch 또는 CDC 실행
+  const handleRun = async () => {
+    if (!jobId) {
+      alert("먼저 Job을 저장하세요.");
+      return;
+    }
+
+    try {
+      if (jobDetails.jobType === 'cdc') {
+        // CDC 타입: CDC 활성화
+        const response = await fetch(`${API_BASE_URL}/api/cdc/job/${jobId}/activate`, {
+          method: "POST",
+        });
+
+        if (response.ok) {
+          alert("CDC 파이프라인이 활성화되었습니다! 실시간 동기화가 시작됩니다.");
+          setIsCdcActive(true);
+        } else {
+          const error = await response.json();
+          alert(`CDC 활성화 실패: ${error.detail || 'Unknown error'}`);
+        }
+      } else {
+        // Batch 타입: 기존 배치 실행
+        const response = await fetch(`${API_BASE_URL}/api/etl-jobs/${jobId}/run`, {
+          method: "POST",
+        });
+
+        if (response.ok) {
+          const data = await response.json();
+          alert(`Batch Job 실행 시작! Run ID: ${data.run_id}`);
+        } else {
+          const error = await response.json();
+          alert(`실행 실패: ${error.detail || 'Unknown error'}`);
+        }
+      }
+    } catch (error) {
+      console.error("Run failed:", error);
+      alert(`실행 실패: ${error.message}`);
+    }
+  };
+
+  const handleStop = async () => {
+    if (!jobId) return;
+
+    if (confirm("CDC 파이프라인을 중지하시겠습니까? (커넥터와 Job이 종료됩니다)")) {
+      try {
+        const stopRes = await fetch(
+          `${API_BASE_URL}/api/cdc/job/${jobId}/deactivate`,
+          { method: "POST" }
+        );
+        if (!stopRes.ok) {
+          const errorData = await stopRes.json();
+          throw new Error(errorData.detail || "Failed to stop CDC");
+        }
+        alert("CDC 파이프라인이 중지되었습니다.");
+        setIsCdcActive(false);
+      } catch (error) {
+        console.error("CDC Stop Error:", error);
+        alert(`CDC 중지 실패: ${error.message}`);
+      }
+    }
+  };
+
+  const checkCdcStatus = async (id) => {
+    try {
+      const res = await fetch(`${API_BASE_URL}/api/cdc/job/${id}/status`);
+      if (res.ok) {
+        const data = await res.json();
+        setIsCdcActive(data.is_active);
+      }
+    } catch (error) {
+      console.error("Failed to check CDC status:", error);
     }
   };
 
@@ -580,6 +661,28 @@ export default function ETLJobPage() {
           >
             <Save className="w-4 h-4" />
             Save
+          </button>
+          <button
+            onClick={jobDetails.jobType === "cdc" && isCdcActive ? handleStop : handleRun}
+            disabled={!jobId || isSaving}
+            className={`px-4 py-2 rounded-md transition-colors flex items-center gap-2 ${!jobId || isSaving
+                ? 'bg-gray-200 text-gray-400 cursor-not-allowed'
+                : jobDetails.jobType === "cdc" && isCdcActive
+                  ? 'bg-red-600 text-white hover:bg-red-700'
+                  : 'bg-green-600 text-white hover:bg-green-700'
+              }`}
+          >
+            {jobDetails.jobType === "cdc" && isCdcActive ? (
+              <>
+                <Pause className="w-4 h-4" />
+                Stop
+              </>
+            ) : (
+              <>
+                <Play className="w-4 h-4" />
+                Run
+              </>
+            )}
           </button>
         </div>
       </div>
@@ -854,6 +957,7 @@ export default function ETLJobPage() {
       ) : mainTab === "Job details" ? (
         <JobDetailsPanel
           jobDetails={jobDetails}
+          jobId={jobId}
           onUpdate={(details) => {
             console.log("Job details updated:", details);
             setJobDetails(details);

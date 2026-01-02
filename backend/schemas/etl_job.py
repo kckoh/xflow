@@ -29,6 +29,7 @@ class DestinationConfig(BaseModel):
 class ETLJobCreate(BaseModel):
     name: str
     description: Optional[str] = None
+    job_type: str = "batch"  # "batch" or "cdc"
     # Multiple sources support (new)
     sources: Optional[List[SourceConfig]] = None
     # Legacy single source (backward compatibility)
@@ -44,6 +45,7 @@ class ETLJobCreate(BaseModel):
 class ETLJobUpdate(BaseModel):
     name: Optional[str] = None
     description: Optional[str] = None
+    job_type: Optional[str] = None  # "batch" or "cdc"
     # Multiple sources support (new)
     sources: Optional[List[SourceConfig]] = None
     # Legacy single source (backward compatibility)
@@ -62,6 +64,7 @@ class ETLJobResponse(BaseModel):
     id: str
     name: str
     description: Optional[str] = None
+    job_type: str = "batch"  # "batch" or "cdc"
     # Multiple sources support (new)
     sources: Optional[List[dict]] = None
     # Legacy single source (backward compatibility)

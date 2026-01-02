@@ -67,6 +67,7 @@ class ETLJob(Document):
     """
     name: str
     description: Optional[str] = None
+    job_type: str = "batch"  # "batch" or "cdc"
 
     # Multiple sources support (new)
     sources: List[dict] = Field(default_factory=list)
