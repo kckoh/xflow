@@ -2,10 +2,12 @@ import React, { useState, useEffect, useRef } from "react";
 import { FileText, Book, Edit, Save, Paperclip, Trash2, Download, Loader2, Plus } from "lucide-react";
 import { getPlatformIcon, getStyleConfig } from "../schema-node/SchemaNodeHeader";
 import { uploadDomainFile, deleteDomainFile, getDomainFileDownloadUrl } from "../../api/domainApi";
+import { useToast } from "../../../../components/common/Toast";
 
 export function DocsContent({ dataset, isDomainMode, onUpdate }) {
     const title = isDomainMode ? (dataset.name || "Domain Documentation") : (dataset.label || dataset.name || "Node Documentation");
     const domainId = dataset.id || dataset._id;
+    const { showToast } = useToast();
 
     // State
     const [isEditing, setIsEditing] = useState(false);
@@ -26,8 +28,10 @@ export function DocsContent({ dataset, isDomainMode, onUpdate }) {
         try {
             await onUpdate(domainId, { docs: content });
             setIsEditing(false);
+            showToast("Documentation saved", "success");
         } catch (e) {
             console.error("Failed to save docs", e);
+            showToast("Failed to save documentation", "error");
         }
     };
 
@@ -44,7 +48,7 @@ export function DocsContent({ dataset, isDomainMode, onUpdate }) {
         // File Size Limit (10MB)
         const MAX_SIZE = 10 * 1024 * 1024;
         if (file.size > MAX_SIZE) {
-            alert("File size exceeds 10MB limit.");
+            showToast("File size exceeds 10MB limit", "error");
             if (fileInputRef.current) fileInputRef.current.value = "";
             return;
         }
@@ -53,9 +57,10 @@ export function DocsContent({ dataset, isDomainMode, onUpdate }) {
         try {
             const updatedDomain = await uploadDomainFile(domainId, file);
             setAttachments(updatedDomain.attachments || []);
+            showToast("File uploaded successfully", "success");
         } catch (error) {
             console.error("Upload error:", error);
-            alert(`Failed to upload file: ${error.message}`);
+            showToast(`Failed to upload file: ${error.message}`, "error");
         } finally {
             setIsUploading(false);
             if (fileInputRef.current) fileInputRef.current.value = "";
@@ -68,9 +73,10 @@ export function DocsContent({ dataset, isDomainMode, onUpdate }) {
         try {
             const updatedDomain = await deleteDomainFile(domainId, fileId);
             setAttachments(updatedDomain.attachments || []);
+            showToast("File deleted successfully", "success");
         } catch (error) {
             console.error("Delete error:", error);
-            alert(`Failed to delete file: ${error.message}`);
+            showToast(`Failed to delete file: ${error.message}`, "error");
         }
     };
 
@@ -88,7 +94,11 @@ export function DocsContent({ dataset, isDomainMode, onUpdate }) {
             document.body.removeChild(link);
         } catch (error) {
             console.error("Download error:", error);
-            alert(`Download failed: ${error.message}`);
+            if (error.message?.includes("429")) {
+                showToast("Download limit exceeded. Please try again later.", "error");
+            } else {
+                showToast(`Download failed: ${error.message}`, "error");
+            }
         }
     };
 
