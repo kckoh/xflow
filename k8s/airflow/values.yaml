@@ -1,10 +1,11 @@
 # Airflow Helm Chart Values
 # https://airflow.apache.org/docs/helm-chart/stable/index.html
 
-# Use existing service account with IRSA
+# Service accounts with IRSA for S3 access
 serviceAccount:
-  create: false
-  name: airflow-sa
+  create: true
+  annotations:
+    eks.amazonaws.com/role-arn: "arn:aws:iam::134059028370:role/eksctl-xflow-cluster-addon-iamserviceaccount--Role1-bLIJeAhC8jWI"
 
 # Executor type
 executor: LocalExecutor
@@ -23,12 +24,15 @@ defaultAirflowTag: ""
 # Webserver configuration
 webserver:
   replicas: 1
+  serviceAccount:
+    annotations:
+      eks.amazonaws.com/role-arn: "arn:aws:iam::134059028370:role/eksctl-xflow-cluster-addon-iamserviceaccount--Role1-bLIJeAhC8jWI"
   resources:
     requests:
-      memory: "512Mi"
+      memory: "1Gi"
       cpu: "250m"
     limits:
-      memory: "1Gi"
+      memory: "2Gi"
       cpu: "500m"
   service:
     type: ClusterIP
@@ -36,18 +40,24 @@ webserver:
 # Scheduler configuration
 scheduler:
   replicas: 1
+  serviceAccount:
+    annotations:
+      eks.amazonaws.com/role-arn: "arn:aws:iam::134059028370:role/eksctl-xflow-cluster-addon-iamserviceaccount--Role1-bLIJeAhC8jWI"
   resources:
     requests:
-      memory: "512Mi"
+      memory: "1Gi"
       cpu: "250m"
     limits:
-      memory: "1Gi"
+      memory: "2Gi"
       cpu: "500m"
 
 # Triggerer (for deferrable operators)
 triggerer:
   enabled: true
   replicas: 1
+  serviceAccount:
+    annotations:
+      eks.amazonaws.com/role-arn: "arn:aws:iam::134059028370:role/eksctl-xflow-cluster-addon-iamserviceaccount--Role1-bLIJeAhC8jWI"
   persistence:
     enabled: false
     storageClassName: gp2
@@ -102,19 +112,20 @@ env:
   # Spark configuration
   - name: SPARK_MASTER_URL
     value: "spark://spark-master:7077"
-  # MongoDB configuration
+  # MongoDB configuration (cross-namespace: mongodb.default)
   - name: MONGODB_URL
-    value: "mongodb://root:example@mongodb:27017"
+    value: "mongodb://root:example@mongodb.default:27017"
   - name: MONGODB_DATABASE
     value: "xflow"
-  # Backend API
+  # Backend API (cross-namespace: backend.default)
   - name: BACKEND_API_URL
-    value: "http://backend:8000"
-  # AWS/S3 configuration (for production, use real AWS)
+    value: "http://backend.default:8000"
+  # Environment
+  - name: ENVIRONMENT
+    value: "production"
+  # AWS/S3 configuration
   - name: AWS_REGION
     value: "ap-northeast-2"
-
-# Extra secrets - removed empty ones
 
 # Create admin user
 createUserJob:
@@ -151,16 +162,6 @@ config:
 ingress:
   web:
     enabled: false
-    # Uncomment and configure for ALB
-    # annotations:
-    #   kubernetes.io/ingress.class: alb
-    #   alb.ingress.kubernetes.io/scheme: internet-facing
-    #   alb.ingress.kubernetes.io/target-type: ip
-    # hosts:
-    #   - name: airflow.xflows.net
-    #     tls:
-    #       enabled: true
-    #       secretName: airflow-tls
 
-# Web server secret key (generate with: python -c "import secrets; print(secrets.token_hex(16))")
+# Web server secret key
 webserverSecretKey: "change-me-to-a-secure-random-string"

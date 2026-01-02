@@ -14,6 +14,7 @@ spec:
       labels:
         app: backend
     spec:
+      serviceAccountName: backend-sa
       containers:
         - name: backend
           image: 134059028370.dkr.ecr.ap-northeast-2.amazonaws.com/xflow-backend:latest
