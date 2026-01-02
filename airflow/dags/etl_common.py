@@ -56,6 +56,12 @@ def fetch_job_config(**context):
                     "user_name": config.get("user_name"),
                     "password": config.get("password"),
                 }
+        if source.get("type") == "s3" and source.get("connection_id"):
+            connection = db.connections.find_one(
+                {"_id": ObjectId(source["connection_id"])}
+            )
+            if connection:
+                source["connection"] = connection.get("config", {})
         enriched_sources.append(source)
 
     # Build complete config for Spark

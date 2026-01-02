@@ -557,6 +557,7 @@ export default function ETLJobPage() {
       nodeId: node.id,
       type: node.data?.sourceType || "rdb", // Support both rdb, mongodb, s3
       connection_id: node.data?.sourceId || "",
+      config: node.data?.config || {}, // Include source config (e.g., S3 bucket/path)
       table: node.data?.tableName || "",
       collection: node.data?.collectionName || "", // For MongoDB
       customRegex: node.data?.customRegex || null, // For S3 log parsing
