@@ -18,6 +18,20 @@ const S3_LOG_SCHEMA = [
     { key: 'user_agent', type: 'string' }
 ];
 
+// Map connection type to Spark-compatible source type
+const mapToSparkSourceType = (connectionType) => {
+    if (!connectionType) return null;
+    // All relational DBs map to 'rdb'
+    if (['postgres', 'postgresql', 'mysql', 'mariadb'].includes(connectionType.toLowerCase())) {
+        return 'rdb';
+    }
+    // Keep mongodb and s3 as-is
+    if (connectionType.toLowerCase() === 'mongodb') return 'mongodb';
+    if (connectionType.toLowerCase() === 's3') return 's3';
+    // Fallback (should not happen)
+    return 'rdb';
+};
+
 export default function RDBSourcePropertiesPanel({ node, selectedMetadataItem, onClose, onUpdate, onMetadataUpdate }) {
     const { showToast } = useToast();
     const [connections, setConnections] = useState([]);
@@ -152,7 +166,7 @@ export default function RDBSourcePropertiesPanel({ node, selectedMetadataItem, o
                     sourceName: selectedConnection.name,
                     tableName: selectedTable,
                     schema: columns.map(col => ({ key: col.name, type: col.type })),
-                    sourceType: selectedConnection.type || null
+                    sourceType: mapToSparkSourceType(selectedConnection.type)
                 });
                 showToast('Dataset info saved successfully', 'success');
             } catch (err) {
@@ -164,7 +178,7 @@ export default function RDBSourcePropertiesPanel({ node, selectedMetadataItem, o
                     sourceName: selectedConnection.name,
                     tableName: selectedTable,
                     schema: [],
-                    sourceType: selectedConnection.type || null
+                    sourceType: mapToSparkSourceType(selectedConnection.type)
                 });
             }
         }
@@ -241,7 +255,7 @@ export default function RDBSourcePropertiesPanel({ node, selectedMetadataItem, o
                                 sourceName: conn?.name || null,
                                 tableName: '',
                                 schema: conn?.type === 's3' ? S3_LOG_SCHEMA : [],
-                                sourceType: conn?.type || null,
+                                sourceType: mapToSparkSourceType(conn?.type),
                                 config: conn?.config || null  // Add config for S3
                             });
                         }}
