@@ -199,7 +199,7 @@ export default function DomainDetailPage() {
     };
 
     return (
-        <div className="flex flex-col h-[calc(100vh-2rem)] bg-white overflow-hidden relative -m-8">
+        <div className="flex flex-col h-[calc(100vh-4rem)] bg-white overflow-hidden relative -m-8">
             {/* Top Navigation Wrapper (Header + Tabs) - Highest Z-Index */}
             <div className="relative z-[110] bg-white shadow-sm">
                 <DomainDetailHeader
@@ -274,7 +274,7 @@ export default function DomainDetailPage() {
             {/* Main Split Layout */}
             <div className="flex flex-1 overflow-hidden relative z-0">
                 {/* Main Content Area: mr-12 to ensure scrollbar separation */}
-                <div className="flex-1 overflow-y-auto p-6 bg-gray-50 custom-scrollbar relative z-0">
+                <div className="flex-1 overflow-hidden p-0 bg-gray-50 relative z-0">
                     <DomainCanvas
                         ref={canvasRef}
                         datasetId={domain.id}
