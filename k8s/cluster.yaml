@@ -17,3 +17,29 @@ nodeGroups:
     iam:
       withAddonPolicies:
         ebs: true
+
+  - name: spark-spot
+    instancesDistribution:
+      instanceTypes:
+        - m5.2xlarge
+        - m5a.2xlarge
+        - m5d.2xlarge
+      onDemandBaseCapacity: 0
+      onDemandPercentageAboveBaseCapacity: 0
+      spotAllocationStrategy: capacity-optimized
+    desiredCapacity: 0
+    minSize: 0
+    maxSize: 5
+    volumeSize: 50
+    ssh:
+      allow: false
+    labels:
+      node-type: spark
+      lifecycle: spot
+    taints:
+      - key: spark-only
+        value: "true"
+        effect: NoSchedule
+    iam:
+      withAddonPolicies:
+        ebs: true
