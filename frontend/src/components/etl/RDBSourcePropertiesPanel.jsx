@@ -6,6 +6,18 @@ import ConnectionCombobox from '../sources/ConnectionCombobox';
 import Combobox from '../common/Combobox';
 import { useToast } from '../common/Toast/ToastContext';
 
+const S3_LOG_SCHEMA = [
+    { key: 'client_ip', type: 'string' },
+    { key: 'timestamp', type: 'string' },
+    { key: 'http_method', type: 'string' },
+    { key: 'path', type: 'string' },
+    { key: 'http_version', type: 'string' },
+    { key: 'status_code', type: 'integer' },
+    { key: 'bytes_sent', type: 'integer' },
+    { key: 'referrer', type: 'string' },
+    { key: 'user_agent', type: 'string' }
+];
+
 export default function RDBSourcePropertiesPanel({ node, selectedMetadataItem, onClose, onUpdate, onMetadataUpdate }) {
     const { showToast } = useToast();
     const [connections, setConnections] = useState([]);
@@ -16,6 +28,9 @@ export default function RDBSourcePropertiesPanel({ node, selectedMetadataItem, o
     const [isConnectionsLoading, setIsConnectionsLoading] = useState(false);
     const [showCreateModal, setShowCreateModal] = useState(false);
 
+    // S3 Custom regex configuration
+    const [customRegex, setCustomRegex] = useState('');
+
     // Load connections and restore node-specific data when node changes
     useEffect(() => {
         loadConnections();
@@ -23,7 +38,11 @@ export default function RDBSourcePropertiesPanel({ node, selectedMetadataItem, o
 
     useEffect(() => {
         if (selectedConnection) {
-            loadTables(selectedConnection.id);
+            if (selectedConnection.type !== 's3') {
+                loadTables(selectedConnection.id);
+            } else {
+                setTables([]);
+            }
         }
     }, [selectedConnection]);
 
@@ -33,7 +52,12 @@ export default function RDBSourcePropertiesPanel({ node, selectedMetadataItem, o
             const prevConn = connections.find(c => c.id === node.data.sourceId);
             if (prevConn) {
                 setSelectedConnection(prevConn);
-                setSelectedTable(node.data.tableName || '');
+                setSelectedTable(prevConn.type === 's3' ? '' : (node.data.tableName || ''));
+
+                // Restore S3 custom regex
+                if (prevConn.type === 's3' && node.data.customRegex) {
+                    setCustomRegex(node.data.customRegex);
+                }
             } else {
                 // Node has no saved source or source was deleted
                 setSelectedConnection(null);
@@ -44,6 +68,7 @@ export default function RDBSourcePropertiesPanel({ node, selectedMetadataItem, o
             setSelectedConnection(null);
             setSelectedTable('');
             setTables([]);
+            setCustomRegex('');
         }
     }, [node?.id, connections]);  // When node changes OR connections finish loading
 
@@ -74,6 +99,50 @@ export default function RDBSourcePropertiesPanel({ node, selectedMetadataItem, o
     };
 
     const handleSave = async () => {
+        if (selectedConnection?.type === 's3') {
+            // Validate custom regex
+            if (!customRegex.trim()) {
+                showToast('Please provide a regex pattern for parsing logs', 'error');
+                return;
+            }
+
+            // Extract field names from regex named groups
+            const extractFieldNamesFromRegex = (regexPattern) => {
+                const namedGroupPattern = /\(\?P<([^>]+)>/g;
+                const fieldNames = [];
+                let match;
+                while ((match = namedGroupPattern.exec(regexPattern)) !== null) {
+                    fieldNames.push(match[1]);
+                }
+                return fieldNames;
+            };
+
+            const fieldNames = extractFieldNamesFromRegex(customRegex.trim());
+
+            if (fieldNames.length === 0) {
+                showToast('Regex pattern must contain at least one named group (?P<field_name>pattern)', 'error');
+                return;
+            }
+
+            // Create schema from extracted field names
+            const schema = fieldNames.map(fieldName => ({
+                key: fieldName,
+                type: 'string' // Default to string, Spark will infer actual types
+            }));
+
+            onUpdate({
+                sourceId: selectedConnection.id,
+                sourceName: selectedConnection.name,
+                tableName: '',
+                schema: schema, // Schema extracted from regex named groups
+                sourceType: selectedConnection.type || 's3',
+                config: selectedConnection.config,  // bucket, path, credentials
+                customRegex: customRegex.trim()
+            });
+            showToast(`S3 source saved successfully. Extracted ${fieldNames.length} fields: ${fieldNames.join(', ')}`, 'success');
+            return;
+        }
+
         if (selectedConnection && selectedTable) {
             try {
                 // Fetch column schema from API
@@ -82,7 +151,8 @@ export default function RDBSourcePropertiesPanel({ node, selectedMetadataItem, o
                     sourceId: selectedConnection.id,
                     sourceName: selectedConnection.name,
                     tableName: selectedTable,
-                    schema: columns.map(col => ({ key: col.name, type: col.type }))
+                    schema: columns.map(col => ({ key: col.name, type: col.type })),
+                    sourceType: selectedConnection.type || null
                 });
                 showToast('Dataset info saved successfully', 'success');
             } catch (err) {
@@ -93,7 +163,8 @@ export default function RDBSourcePropertiesPanel({ node, selectedMetadataItem, o
                     sourceId: selectedConnection.id,
                     sourceName: selectedConnection.name,
                     tableName: selectedTable,
-                    schema: []
+                    schema: [],
+                    sourceType: selectedConnection.type || null
                 });
             }
         }
@@ -169,7 +240,9 @@ export default function RDBSourcePropertiesPanel({ node, selectedMetadataItem, o
                                 sourceId: conn?.id || null,
                                 sourceName: conn?.name || null,
                                 tableName: '',
-                                schema: []
+                                schema: conn?.type === 's3' ? S3_LOG_SCHEMA : [],
+                                sourceType: conn?.type || null,
+                                config: conn?.config || null  // Add config for S3
                             });
                         }}
                         onCreate={() => setShowCreateModal(true)}
@@ -190,46 +263,76 @@ export default function RDBSourcePropertiesPanel({ node, selectedMetadataItem, o
                     />
                 </div>
 
+                {/* S3 Custom Regex Configuration */}
+                {selectedConnection?.type === 's3' && (
+                    <div>
+                        <label className="block text-sm font-medium text-gray-700 mb-1">
+                            Log Parsing Pattern <span className="text-red-500">*</span>
+                        </label>
+                        <p className="text-xs text-gray-500 mb-2">
+                            Define a regex pattern with named groups to extract fields from your logs
+                        </p>
+                        <textarea
+                            value={customRegex}
+                            onChange={(e) => setCustomRegex(e.target.value)}
+                            placeholder="Example:&#10;^(?P<client_ip>\S+) .* \[(?P<timestamp>.*?)\] &quot;(?P<method>\S+) (?P<path>\S+).*&quot; (?P<status_code>\d+)"
+                            className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 font-mono text-xs"
+                            rows={5}
+                        />
+                        <p className="text-xs text-gray-500 mt-1">
+                            Example log: <code className="bg-gray-100 px-1 rounded">127.0.0.1 - - [10/Oct/2000:13:55:36 -0700] "GET /index.html HTTP/1.0" 200 2326</code>
+                        </p>
+                        <p className="text-xs text-gray-500 mt-1">
+                            Pattern guide: <code className="bg-gray-100 px-1 rounded">^</code> = line start, <code className="bg-gray-100 px-1 rounded">(?P&lt;name&gt;...)</code> = named field, <code className="bg-gray-100 px-1 rounded">\S+</code> = non-space, <code className="bg-gray-100 px-1 rounded">[^\]]+</code> = anything until <code className="bg-gray-100 px-1 rounded">]</code>.
+                        </p>
+                        <p className="text-xs text-gray-500 mt-1">
+                            Example pattern: <code className="bg-gray-100 px-1 rounded">^(?P&lt;client_ip&gt;\S+) .* \[(?P&lt;timestamp&gt;[^\]]+)\] "(?P&lt;http_method&gt;\S+) (?P&lt;path&gt;\S+) (?P&lt;http_version&gt;[^"]+)" (?P&lt;status_code&gt;\d+) (?P&lt;bytes_sent&gt;\S+)</code>
+                        </p>
+                    </div>
+                )}
+
                 {/* Table / Dataset */}
-                <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">
-                        Dataset / Table <span className="text-red-500">*</span>
-                    </label>
-                    <p className="text-xs text-gray-500 mb-2">
-                        Select the table or dataset to process.
-                    </p>
-                    <Combobox
-                        options={tables}
-                        value={selectedTable}
-                        onChange={(table) => {
-                            setSelectedTable(table);
-                            // Auto-save table selection
-                            if (selectedConnection && table) {
-                                onUpdate({
-                                    sourceId: selectedConnection.id,
-                                    sourceName: selectedConnection.name,
-                                    tableName: table,
-                                    schema: node?.data?.schema || []
-                                });
-                            }
-                        }}
-                        getKey={(table) => table}
-                        getLabel={(table) => table}
-                        placeholder="Select a table"
-                        isLoading={loading}
-                        disabled={!selectedConnection}
-                        emptyMessage="No tables available"
-                    />
-                </div>
+                {selectedConnection?.type !== 's3' && (
+                    <div>
+                        <label className="block text-sm font-medium text-gray-700 mb-1">
+                            Dataset / Table <span className="text-red-500">*</span>
+                        </label>
+                        <p className="text-xs text-gray-500 mb-2">
+                            Select the table or dataset to process.
+                        </p>
+                        <Combobox
+                            options={tables}
+                            value={selectedTable}
+                            onChange={(table) => {
+                                setSelectedTable(table);
+                                // Auto-save table selection
+                                if (selectedConnection && table) {
+                                    onUpdate({
+                                        sourceId: selectedConnection.id,
+                                        sourceName: selectedConnection.name,
+                                        tableName: table,
+                                        schema: node?.data?.schema || []
+                                    });
+                                }
+                            }}
+                            getKey={(table) => table}
+                            getLabel={(table) => table}
+                            placeholder="Select a table"
+                            isLoading={loading}
+                            disabled={!selectedConnection}
+                            emptyMessage="No tables available"
+                        />
+                    </div>
+                )}
 
                 {/* Save & Preview Button */}
                 <div className="flex justify-end">
                     <button
                         onClick={handleSave}
-                        disabled={!selectedConnection || !selectedTable}
+                        disabled={!selectedConnection || (selectedConnection?.type !== 's3' && !selectedTable)}
                         className="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed"
                     >
-                        Save & Preview
+                        {selectedConnection?.type === 's3' ? 'Save Source' : 'Save & Preview'}
                     </button>
                 </div>
 

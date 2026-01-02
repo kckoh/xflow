@@ -5,11 +5,12 @@ from datetime import datetime
 
 class SourceConfig(BaseModel):
     nodeId: Optional[str] = None  # Node ID for graph reference
-    type: str  # rdb, mongodb, nosql
+    type: str  # rdb, mongodb, nosql, s3
     connection_id: str  # Connection ID
     table: Optional[str] = None  # For RDB
     collection: Optional[str] = None  # For NoSQL (MongoDB)
     query: Optional[str] = None  # Custom SQL query
+    customRegex: Optional[str] = None  # For S3 log parsing with named groups
 
 
 class TransformConfig(BaseModel):

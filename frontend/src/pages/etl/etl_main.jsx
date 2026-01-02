@@ -14,7 +14,6 @@ import {
 import ConfirmationModal from "../../components/common/ConfirmationModal";
 import { useToast } from "../../components/common/Toast";
 import { API_BASE_URL } from "../../config/api";
-
 const ITEMS_PER_PAGE = 10;
 
 export default function ETLMain() {
@@ -36,7 +35,7 @@ export default function ETLMain() {
     (job) =>
       job.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
       (job.description &&
-        job.description.toLowerCase().includes(searchQuery.toLowerCase())),
+        job.description.toLowerCase().includes(searchQuery.toLowerCase()))
   );
 
   // Pagination calculations (based on filtered jobs)
@@ -72,7 +71,7 @@ export default function ETLMain() {
         {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-        },
+        }
       );
 
       if (!response.ok) {
@@ -82,7 +81,10 @@ export default function ETLMain() {
 
       const data = await response.json();
       console.log("Job run triggered:", data);
-      showToast(`Job started! Run ID: ${data.run_id}`, "success");
+      showToast(
+        `Job started! Run ID: ${data.run_id}. Processing via Airflow + Spark...`,
+        "success"
+      );
     } catch (error) {
       console.error("Run failed:", error);
       showToast(`Run failed: ${error.message}`, "error");
@@ -93,12 +95,9 @@ export default function ETLMain() {
     const { jobId } = deleteModal;
 
     try {
-      const response = await fetch(
-        `${API_BASE_URL}/api/etl-jobs/${jobId}`,
-        {
-          method: "DELETE",
-        },
-      );
+      const response = await fetch(`${API_BASE_URL}/api/etl-jobs/${jobId}`, {
+        method: "DELETE",
+      });
 
       if (!response.ok) {
         const error = await response.json();
@@ -242,10 +241,11 @@ export default function ETLMain() {
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap text-sm">
                       <span
-                        className={`px-2 py-1 text-xs font-semibold rounded-full ${job.is_active
+                        className={`px-2 py-1 text-xs font-semibold rounded-full ${
+                          job.is_active
                             ? "bg-green-100 text-green-800"
                             : "bg-gray-100 text-gray-800"
-                          }`}
+                        }`}
                       >
                         {job.is_active ? "Active" : "Inactive"}
                       </span>
