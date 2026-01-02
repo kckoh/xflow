@@ -31,20 +31,7 @@ class ApacheLogSchema(BaseModel):
     referrer: Optional[str] = Field(None, description="Referer 헤더")
     user_agent: Optional[str] = Field(None, description="User-Agent 헤더")
 
-    class Config:
-        json_schema_extra = {
-            "example": {
-                "client_ip": "178.128.69.202",
-                "timestamp": "31/Dec/2025:10:15:23 +0000",
-                "http_method": "POST",
-                "path": "/api/logs/test-connection?bucket=xflow-datalake&path=S3",
-                "http_version": "HTTP/1.1",
-                "status_code": 200,
-                "bytes_sent": 1234,
-                "referrer": "http://localhost:5173/etl/job/123",
-                "user_agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7)"
-            }
-        }
+
 
 
 class LogFormatGuide(BaseModel):

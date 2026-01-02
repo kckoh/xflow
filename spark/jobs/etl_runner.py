@@ -123,54 +123,11 @@ def transform_s3_filter(df: DataFrame, config: dict) -> DataFrame:
 
     return filtered_df
 
-
-
-
-def transform_field_mapping(df: DataFrame, config: dict) -> DataFrame:
-    """
-    Rename columns based on user-defined field mapping.
-    Maps user's custom field names to standard field names.
-
-    Example config:
-    {
-        "field_mappings": {
-            "client_ip": "ip_client",      # Standard: user's field
-            "timestamp": "request_time",
-            "status_code": "http_status"
-        }
-    }
-
-    Only renames fields that are provided (non-empty).
-    """
-    field_mappings = config.get("field_mappings", {})
-    if not field_mappings:
-        return df
-
-    renamed_df = df
-
-    # Build rename mapping: user_field -> standard_field
-    # field_mappings format: {"standard_field": "user_field"}
-    # We need to reverse it for withColumnRenamed: user_field -> standard_field
-    for standard_field, user_field in field_mappings.items():
-        # Only rename if user provided a field name (non-empty)
-        if user_field and user_field.strip():
-            user_field = user_field.strip()
-            # Check if user's field exists in DataFrame
-            if user_field in renamed_df.columns:
-                print(f"   Renaming: {user_field} → {standard_field}")
-                renamed_df = renamed_df.withColumnRenamed(user_field, standard_field)
-            else:
-                print(f"   ⚠️ Warning: Field '{user_field}' not found in DataFrame, skipping...")
-
-    return renamed_df
-
-
 # Single-input transforms
 TRANSFORMS = {
     "select-fields": transform_select_fields,
     "drop-columns": transform_drop_columns,
     "filter": transform_filter,
-    "field-mapping": transform_field_mapping,
     "s3-select-fields": transform_s3_select_fields,
     "s3-filter": transform_s3_filter,
 }

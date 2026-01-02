@@ -34,7 +34,6 @@ import RDBSourcePropertiesPanel from "../../components/etl/RDBSourcePropertiesPa
 import MongoDBSourcePropertiesPanel from "../../components/etl/MongoDBSourcePropertiesPanel";
 import TransformPropertiesPanel from "../../components/etl/TransformPropertiesPanel";
 import S3TransformPanel from "../../components/etl/S3TransformPanel";
-import FieldMappingPanel from "../../components/etl/FieldMappingPanel";
 import S3TargetPropertiesPanel from "../../components/etl/S3TargetPropertiesPanel";
 import JobDetailsPanel from "../../components/etl/JobDetailsPanel";
 import SchedulesPanel from "../../components/etl/SchedulesPanel";
@@ -255,7 +254,6 @@ export default function ETLJobPage() {
       { id: "aggregate", label: "Aggregate", icon: BarChart3 },
       { id: "sort", label: "Sort", icon: ArrowUpDown },
       // S3 Transforms
-      { id: "field-mapping", label: "Field Mapping", icon: ArrowRightLeft, color: "#FF9900" },
       { id: "s3-select-fields", label: "Select Fields (S3)", icon: Columns, color: "#FF9900" },
       { id: "s3-filter", label: "Filter (S3)", icon: Filter, color: "#FF9900" },
     ],
@@ -971,33 +969,6 @@ export default function ETLJobPage() {
                 const sourceTypes = nodeSourceType
                   ? new Set([nodeSourceType])
                   : resolveSourceTypesForNode(selectedNode.id, nodes, edges);
-
-                // Check if this is a field-mapping transform
-                if (selectedNode.data?.transformType === 'field-mapping') {
-                  return (
-                    <FieldMappingPanel
-                      node={selectedNode}
-                      onClose={() => {
-                        setSelectedNode(null);
-                        setSelectedMetadataItem(null);
-                      }}
-                      onUpdate={(data) => {
-                        console.log("Field Mapping updated:", data);
-                        setNodes((nds) =>
-                          nds.map((n) =>
-                            n.id === selectedNode.id
-                              ? { ...n, data: { ...n.data, ...data } }
-                              : n,
-                          ),
-                        );
-                        setSelectedNode((prev) => ({
-                          ...prev,
-                          data: { ...prev.data, ...data },
-                        }));
-                      }}
-                    />
-                  );
-                }
 
                 // Check if source is S3
                 const isS3Source = sourceTypes.has("s3");
