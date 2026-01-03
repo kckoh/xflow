@@ -1,5 +1,6 @@
 import { useState, useEffect, useCallback } from 'react';
 import openSearchAPI from '../services/opensearch';
+import { useToast } from '../components/common/Toast';
 
 /**
  * 디바운스된 Domain/ETL Job 검색 hook
@@ -58,6 +59,7 @@ export function useTriggerIndexing() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
   const [result, setResult] = useState(null);
+  const { showToast } = useToast();
 
   const trigger = useCallback(async () => {
     setLoading(true);
@@ -65,15 +67,17 @@ export function useTriggerIndexing() {
     try {
       const data = await openSearchAPI.triggerIndexing();
       setResult(data);
+      showToast(`인덱싱 완료: ${data.total}개 문서`, 'success');
       return data;
     } catch (err) {
       console.error('Indexing error:', err);
       setError(err.message);
+      showToast(`인덱싱 실패: ${err.message}`, 'error');
       throw err;
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [showToast]);
 
   return { trigger, loading, error, result };
 }
@@ -86,6 +90,7 @@ export function useReindex() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
   const [result, setResult] = useState(null);
+  const { showToast } = useToast();
 
   const reindex = useCallback(async (deleteExisting = true) => {
     setLoading(true);
@@ -93,15 +98,17 @@ export function useReindex() {
     try {
       const data = await openSearchAPI.reindex(deleteExisting);
       setResult(data);
+      showToast(`재인덱싱 완료: ${data.total}개 문서`, 'success');
       return data;
     } catch (err) {
       console.error('Reindex error:', err);
       setError(err.message);
+      showToast(`재인덱싱 실패: ${err.message}`, 'error');
       throw err;
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [showToast]);
 
   return { reindex, loading, error, result };
 }

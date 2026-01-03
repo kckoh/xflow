@@ -58,12 +58,9 @@ export default function CatalogSearch() {
   // 인덱싱 버튼 클릭
   const handleRefresh = async () => {
     try {
-      const result = await triggerIndexing();
-      console.log('Indexing completed:', result);
-      // TODO: 성공 토스트 메시지 표시
+      await triggerIndexing();
     } catch (err) {
       console.error('Indexing failed:', err);
-      // TODO: 에러 토스트 메시지 표시
     }
   };
 
