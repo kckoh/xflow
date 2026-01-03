@@ -140,6 +140,10 @@ async def create_etl_job(job: ETLJobCreate):
                 )
 
     # Create new ETL job with estimated size for Spark auto-scaling
+    schedule = None
+    if job.schedule_frequency:
+        schedule = generate_schedule(job.schedule_frequency, job.ui_params)
+
     new_job = ETLJob(
         name=job.name,
         description=job.description,

@@ -58,7 +58,18 @@ def fetch_job_config(**context):
                     "user_name": config.get("user_name"),
                     "password": config.get("password"),
                 }
-        if source.get("type") == "s3" and source.get("connection_id"):
+        elif source.get("type") == "mongodb" and source.get("connection_id"):
+            connection = db.connections.find_one(
+                {"_id": ObjectId(source["connection_id"])}
+            )
+            if connection:
+                config = connection.get("config", {})
+                source["connection"] = {
+                    "type": connection.get("type"),
+                    "uri": config.get("uri"),
+                    "database": config.get("database"),
+                }
+        elif source.get("type") == "s3" and source.get("connection_id"):
             connection = db.connections.find_one(
                 {"_id": ObjectId(source["connection_id"])}
             )
