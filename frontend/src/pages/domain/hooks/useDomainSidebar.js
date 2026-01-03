@@ -42,6 +42,7 @@ export const useDomainSidebar = ({ domain, canvasRef }) => {
     // Handle Node Click: Update Sidebar Only
     const handleNodeSelect = useCallback(
         async (selectedId) => {
+            console.log('[useDomainSidebar] handleNodeSelect called with:', selectedId);
             try {
                 // 1. Handle Object Input (ETL Step)
                 if (typeof selectedId === 'object' && selectedId !== null) {

@@ -227,6 +227,60 @@ async def update_etl_job(job_id: str, job_update: ETLJobUpdate):
     )
 
 
+
+@router.patch("/{job_id}/nodes/{node_id}/metadata")
+async def update_node_metadata(job_id: str, node_id: str, metadata: dict):
+    """Update metadata for a specific node in an ETL job.
+    
+    Used by Domain to sync description/tags back to ETL Job.
+    
+    Args:
+        job_id: ETL Job ID
+        node_id: Node ID within the job
+        metadata: { table: { description, tags }, columns: { colName: { description, tags } } }
+    """
+    try:
+        job = await ETLJob.get(PydanticObjectId(job_id))
+    except Exception:
+        raise HTTPException(status_code=404, detail="Job not found")
+
+    if not job:
+        raise HTTPException(status_code=404, detail="Job not found")
+
+    # Find and update the specific node
+    node_found = False
+    for i, node in enumerate(job.nodes or []):
+        if node.get("id") == node_id:
+            # Merge metadata
+            if "data" not in job.nodes[i]:
+                job.nodes[i]["data"] = {}
+            if "metadata" not in job.nodes[i]["data"]:
+                job.nodes[i]["data"]["metadata"] = {}
+            
+            # Update table metadata
+            if "table" in metadata:
+                if "table" not in job.nodes[i]["data"]["metadata"]:
+                    job.nodes[i]["data"]["metadata"]["table"] = {}
+                job.nodes[i]["data"]["metadata"]["table"].update(metadata["table"])
+            
+            # Update column metadata
+            if "columns" in metadata:
+                if "columns" not in job.nodes[i]["data"]["metadata"]:
+                    job.nodes[i]["data"]["metadata"]["columns"] = {}
+                job.nodes[i]["data"]["metadata"]["columns"].update(metadata["columns"])
+            
+            node_found = True
+            break
+
+    if not node_found:
+        raise HTTPException(status_code=404, detail=f"Node {node_id} not found in job")
+
+    job.updated_at = datetime.utcnow()
+    await job.save()
+
+    return {"message": "Metadata updated successfully", "job_id": job_id, "node_id": node_id}
+
+
 @router.delete("/{job_id}", status_code=status.HTTP_204_NO_CONTENT)
 async def delete_etl_job(job_id: str):
     """Delete an ETL job"""
