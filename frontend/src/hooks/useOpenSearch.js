@@ -140,6 +140,3 @@ export function useOpenSearchStatus(autoFetch = false) {
 
   return { status, loading, error, fetchStatus };
 }
-
-// 이전 버전 호환성을 위한 alias
-export const useSearchCatalog = useSearch;
