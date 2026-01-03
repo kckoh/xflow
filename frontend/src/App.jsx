@@ -58,7 +58,7 @@ function App() {
           <Route
             path="/"
             element={
-              <ProtectedRoute>
+              <ProtectedRoute requireEtlAccess>
                 <MainLayout>
                   <ETLPage />
                 </MainLayout>
