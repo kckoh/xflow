@@ -1,0 +1,148 @@
+import { API_BASE_URL } from '../config/api';
+
+const BASE_URL = `${API_BASE_URL}/api/admin`;
+
+/**
+ * Get current user's session info and check admin status
+ * @param {string} sessionId 
+ * @returns {Promise<Object>} Session info
+ */
+export const getAdminSession = async (sessionId) => {
+    const response = await fetch(`${API_BASE_URL}/api/me?session_id=${sessionId}`);
+    if (!response.ok) throw new Error('Not authenticated');
+    return response.json();
+};
+
+/**
+ * Get all users (admin only)
+ * @param {string} sessionId 
+ * @returns {Promise<Array>} List of users
+ */
+export const getUsers = async (sessionId) => {
+    const response = await fetch(`${BASE_URL}/users?session_id=${sessionId}`);
+    if (!response.ok) {
+        const error = await response.json();
+        throw new Error(error.detail || 'Failed to fetch users');
+    }
+    return response.json();
+};
+
+/**
+ * Create a new user (admin only)
+ * @param {string} sessionId 
+ * @param {Object} userData - {email, password, name, is_admin, etl_access, domain_edit_access, dataset_access, all_datasets}
+ * @returns {Promise<Object>} Created user
+ */
+export const createUser = async (sessionId, userData) => {
+    const response = await fetch(`${BASE_URL}/users?session_id=${sessionId}`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(userData),
+    });
+    if (!response.ok) {
+        const error = await response.json();
+        throw new Error(error.detail || 'Failed to create user');
+    }
+    return response.json();
+};
+
+/**
+ * Update a user (admin only)
+ * @param {string} sessionId 
+ * @param {string} userId 
+ * @param {Object} userData - {email, password, name, is_admin, etl_access, domain_edit_access, dataset_access, all_datasets}
+ * @returns {Promise<Object>} Updated user
+ */
+export const updateUser = async (sessionId, userId, userData) => {
+    const response = await fetch(`${BASE_URL}/users/${userId}?session_id=${sessionId}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(userData),
+    });
+    if (!response.ok) {
+        const error = await response.json();
+        throw new Error(error.detail || 'Failed to update user');
+    }
+    return response.json();
+};
+
+/**
+ * Delete a user (admin only)
+ * @param {string} sessionId 
+ * @param {string} userId 
+ */
+export const deleteUser = async (sessionId, userId) => {
+    const response = await fetch(`${BASE_URL}/users/${userId}?session_id=${sessionId}`, {
+        method: 'DELETE',
+    });
+    if (!response.ok) {
+        const error = await response.json();
+        throw new Error(error.detail || 'Failed to delete user');
+    }
+    // 204 No Content
+    if (response.status === 204) return;
+    return response.json();
+};
+
+/**
+ * Get all datasets for permission selection
+ * Uses catalog API (same as Dataset page)
+ * @returns {Promise<Array>} List of datasets with target schemas
+ */
+export const getDatasets = async () => {
+    const response = await fetch(`${API_BASE_URL}/api/catalog`);
+    if (!response.ok) {
+        throw new Error('Failed to fetch datasets');
+    }
+    const datasets = await response.json();
+
+    /**
+     * Extract column info from various schema formats:
+     * Returns {name, type} object for richer display
+     */
+    const extractColumnInfo = (col) => {
+        if (typeof col === 'string') return { name: col, type: null };
+        if (col && col.key) return { name: col.key, type: col.type || null };      // RDB format
+        if (col && col.field) return { name: col.field, type: col.type || null };  // NoSQL format
+        if (col && col.name) return { name: col.name, type: col.type || null };    // General format
+        return null;
+    };
+
+    // Map catalog datasets to format needed for permission selector
+    return datasets.map(dataset => {
+        let schema = [];
+        let targetInfo = null;
+
+        // From targets array (Dataset model)
+        if (dataset.targets && dataset.targets.length > 0) {
+            const target = dataset.targets[0];
+            const rawSchema = target.schema || target.collection || [];
+            schema = rawSchema.map(extractColumnInfo).filter(Boolean);
+
+            // Extract target info (table/collection name)
+            const config = target.config || {};
+            targetInfo = {
+                type: target.type || config.sourceType || 'unknown',
+                tableName: config.tableName || null,
+                collectionName: config.collectionName || config.collection || null,
+                path: config.path || null,  // For S3 targets
+            };
+        }
+        // Fallback: From columns array
+        else if (dataset.columns && dataset.columns.length > 0) {
+            schema = dataset.columns.map(extractColumnInfo).filter(Boolean);
+        }
+        // Fallback: From schema array directly
+        else if (dataset.schema && dataset.schema.length > 0) {
+            schema = dataset.schema.map(extractColumnInfo).filter(Boolean);
+        }
+
+        return {
+            id: dataset.id,
+            name: dataset.name,
+            description: dataset.description || '',
+            schema: schema,
+            targetInfo: targetInfo
+        };
+    });
+};

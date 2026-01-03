@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useRef } from "react";
 import { Users, UserPlus, Wrench } from "lucide-react";
 import UserManagement from "./components/UserManagement";
 import UserCreateForm from "./components/UserCreateForm";
@@ -11,20 +11,13 @@ const tabs = [
 
 export default function AdminPage() {
     const [activeTab, setActiveTab] = useState("users");
-    const [users, setUsers] = useState([]);
     const [editingUser, setEditingUser] = useState(null);
+    const [refreshKey, setRefreshKey] = useState(0);
 
-    const handleUserCreated = (newUser) => {
-        if (editingUser) {
-            // Update existing user
-            setUsers((prev) =>
-                prev.map((u) => (u.id === newUser.id ? newUser : u))
-            );
-            setEditingUser(null);
-        } else {
-            // Add new user
-            setUsers((prev) => [...prev, newUser]);
-        }
+    const handleUserCreated = () => {
+        // Trigger refresh of user list
+        setRefreshKey((k) => k + 1);
+        setEditingUser(null);
         setActiveTab("users");
     };
 
@@ -35,6 +28,7 @@ export default function AdminPage() {
 
     const handleCancelEdit = () => {
         setEditingUser(null);
+        setActiveTab("users");
     };
 
     return (
@@ -84,8 +78,7 @@ export default function AdminPage() {
             <div className="p-6">
                 {activeTab === "users" && (
                     <UserManagement
-                        externalUsers={users}
-                        setExternalUsers={setUsers}
+                        key={refreshKey}
                         onEditUser={handleEditUser}
                     />
                 )}

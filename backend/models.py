@@ -10,6 +10,15 @@ class User(Document):
     """
     email: str = Field(..., unique=True, index=True)
     password: str
+    name: Optional[str] = None
+    
+    # Permission fields
+    is_admin: bool = False
+    etl_access: bool = False
+    domain_edit_access: bool = False
+    dataset_access: List[str] = Field(default_factory=list)  # dataset IDs
+    all_datasets: bool = False
+    
     created_at: datetime = Field(default_factory=datetime.utcnow)
     updated_at: datetime = Field(default_factory=datetime.utcnow)
 
