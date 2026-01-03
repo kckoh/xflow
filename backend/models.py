@@ -76,6 +76,7 @@ class ETLJob(Document):
     """
     name: str
     description: Optional[str] = None
+    job_type: str = "batch"  # "batch" or "cdc"
 
     # Multiple sources support (new)
     sources: List[dict] = Field(default_factory=list)
@@ -86,6 +87,7 @@ class ETLJob(Document):
     # Example: {"type": "rdb", "connection_id": "...", "table": "products"}
 
     transforms: List[dict] = Field(default_factory=list)
+    targets: List[dict] = Field(default_factory=list)
     # Example: [{"nodeId": "3", "type": "union", "config": {}, "inputNodeIds": ["1", "2"]}]
 
     destination: dict = Field(default_factory=dict)

@@ -27,16 +27,7 @@ services:
       POSTGRES_USER: postgres
       POSTGRES_PASSWORD: postgres
       POSTGRES_DB: mydb
-    command:
-      [
-        "postgres",
-        "-c",
-        "wal_level=logical",
-        "-c",
-        "max_replication_slots=4",
-        "-c",
-        "max_wal_senders=4",
-      ]
+    command: [ "postgres", "-c", "wal_level=logical", "-c", "max_replication_slots=4", "-c", "max_wal_senders=4" ]
     ports:
       - "5433:5432"
     volumes:
@@ -77,6 +68,7 @@ services:
       - "8000:8000"
     volumes:
       - ./backend:/app
+      - /var/run/docker.sock:/var/run/docker.sock
     environment:
       MONGODB_URL: mongodb://mongo:mongo@mongodb:27017
       MONGODB_DATABASE: mydb
@@ -294,10 +286,7 @@ services:
       SERVICE_NAME: metastore
       DB_DRIVER: postgres
       SERVICE_OPTS: >-
-        -Djavax.jdo.option.ConnectionDriverName=org.postgresql.Driver
-        -Djavax.jdo.option.ConnectionURL=jdbc:postgresql://postgres:5432/metastore
-        -Djavax.jdo.option.ConnectionUserName=postgres
-        -Djavax.jdo.option.ConnectionPassword=postgres
+        -Djavax.jdo.option.ConnectionDriverName=org.postgresql.Driver -Djavax.jdo.option.ConnectionURL=jdbc:postgresql://postgres:5432/metastore -Djavax.jdo.option.ConnectionUserName=postgres -Djavax.jdo.option.ConnectionPassword=postgres
     ports:
       - "9083:9083"
     volumes:

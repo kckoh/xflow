@@ -147,9 +147,11 @@ async def create_etl_job(job: ETLJobCreate):
     new_job = ETLJob(
         name=job.name,
         description=job.description,
+        job_type=job.job_type,
         sources=sources_data,
         source=sources_data[0] if sources_data else {},  # Legacy compatibility
         transforms=[t.model_dump() for t in job.transforms],
+        targets=job.targets or [],
         destination=job.destination.model_dump(),
         
         # Schedule info
@@ -178,9 +180,11 @@ async def create_etl_job(job: ETLJobCreate):
         id=str(new_job.id),
         name=new_job.name,
         description=new_job.description,
+        job_type=new_job.job_type,
         sources=new_job.sources,
         source=new_job.source,
         transforms=new_job.transforms,
+        targets=new_job.targets,
         destination=new_job.destination,
         schedule=new_job.schedule,
         schedule_frequency=new_job.schedule_frequency,
@@ -213,9 +217,11 @@ async def list_etl_jobs(import_ready: bool = None):
             id=str(job.id),
             name=job.name,
             description=job.description,
+            job_type=getattr(job, 'job_type', 'batch'),
             sources=job.sources,
             source=job.source,
             transforms=job.transforms,
+            targets=getattr(job, 'targets', []),
             destination=job.destination,
             schedule=job.schedule,
             schedule_frequency=job.schedule_frequency,
@@ -248,9 +254,11 @@ async def get_etl_job(job_id: str):
         id=str(job.id),
         name=job.name,
         description=job.description,
+        job_type=job.job_type,
         sources=job.sources,
         source=job.source,
         transforms=job.transforms,
+        targets=getattr(job, 'targets', []),
         destination=job.destination,
         schedule=job.schedule,
         schedule_frequency=job.schedule_frequency,
@@ -292,6 +300,8 @@ async def update_etl_job(job_id: str, job_update: ETLJobUpdate):
 
     if job_update.transforms is not None:
         job.transforms = [t.model_dump() for t in job_update.transforms]
+    if job_update.targets is not None:
+        job.targets = job_update.targets
     if job_update.destination is not None:
         job.destination = job_update.destination.model_dump()
         
@@ -321,6 +331,8 @@ async def update_etl_job(job_id: str, job_update: ETLJobUpdate):
         job.nodes = job_update.nodes
     if job_update.edges is not None:
         job.edges = job_update.edges
+    if job_update.job_type is not None:
+        job.job_type = job_update.job_type
 
     job.updated_at = datetime.utcnow()
     await job.save()
@@ -335,9 +347,11 @@ async def update_etl_job(job_id: str, job_update: ETLJobUpdate):
         id=str(job.id),
         name=job.name,
         description=job.description,
+        job_type=job.job_type,
         sources=job.sources,
         source=job.source,
         transforms=job.transforms,
+        targets=job.targets,
         destination=job.destination,
         schedule=job.schedule,
         schedule_frequency=job.schedule_frequency,
