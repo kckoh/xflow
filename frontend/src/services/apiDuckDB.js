@@ -3,7 +3,9 @@ import { API_BASE_URL } from '../config/api';
 const API_BASE = `${API_BASE_URL}/api/duckdb`;
 
 export const executeQuery = async (sql) => {
-    const response = await fetch(`${API_BASE}/query`, {
+    const sessionId = localStorage.getItem('sessionId');
+    const params = sessionId ? `?session_id=${sessionId}` : '';
+    const response = await fetch(`${API_BASE}/query${params}`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ sql }),
@@ -29,7 +31,11 @@ export const listBuckets = async () => {
 };
 
 export const listBucketFiles = async (bucket, prefix = "") => {
+    const sessionId = localStorage.getItem('sessionId');
     const params = new URLSearchParams({ prefix });
+    if (sessionId) {
+        params.append('session_id', sessionId);
+    }
     const response = await fetch(`${API_BASE}/buckets/${bucket}/files?${params}`);
 
     if (!response.ok) {
