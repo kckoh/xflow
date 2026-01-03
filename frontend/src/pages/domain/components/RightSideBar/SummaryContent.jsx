@@ -1,10 +1,14 @@
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import {
     Clock, User, Tag, FileText, Database, Layers,
-    Calendar, CheckCircle2, Edit2, AlertCircle, Save, X, Plus
+    Calendar, CheckCircle2, Edit2, AlertCircle, Save, X, Plus, Loader2
 } from "lucide-react";
+import { getEtlJob, updateEtlJobNodeMetadata } from "../../api/domainApi";
+import { useToast } from "../../../../components/common/Toast";
 
 export function SummaryContent({ dataset, isDomainMode, onUpdate }) {
+    const { showToast } = useToast();
+
     if (!dataset) return <div className="p-5 text-gray-400">No data available</div>;
 
     // Local state for editing
@@ -16,18 +20,86 @@ export function SummaryContent({ dataset, isDomainMode, onUpdate }) {
     const [tagsValue, setTagsValue] = useState(dataset.tags || []);
     const [newTagInput, setNewTagInput] = useState("");
 
+    // State for fetched metadata from ETL Job
+    const [fetchedMeta, setFetchedMeta] = useState({ description: null, tags: null });
+    const [loadingMeta, setLoadingMeta] = useState(false);
+
+    // Get source job info
+    const sourceJobId = dataset.sourceJobId || dataset.data?.sourceJobId || dataset.jobs?.[0]?.id || dataset.data?.jobs?.[0]?.id;
+    const sourceNodeId = dataset.sourceNodeId || dataset.data?.sourceNodeId;
+
+    // Fetch table metadata from ETL Job
+    useEffect(() => {
+        const fetchTableMeta = async () => {
+            console.log('[SummaryContent] sourceJobId:', sourceJobId, 'sourceNodeId:', sourceNodeId);
+
+            if (!sourceJobId) {
+                console.log('[SummaryContent] No sourceJobId, skipping fetch');
+                return;
+            }
+
+            setLoadingMeta(true);
+            try {
+                console.log('[SummaryContent] Fetching ETL Job:', sourceJobId);
+                const jobData = await getEtlJob(sourceJobId);
+                console.log('[SummaryContent] Job nodes count:', jobData.nodes?.length);
+
+                // Find source node if we have sourceNodeId
+                let targetNode = null;
+                if (sourceNodeId) {
+                    targetNode = jobData.nodes?.find(n => n.id === sourceNodeId);
+                    console.log('[SummaryContent] Found targetNode:', !!targetNode);
+                }
+
+                // Get table metadata
+                let tableMeta = null;
+                if (targetNode) {
+                    tableMeta = targetNode.data?.metadata?.table;
+                    console.log('[SummaryContent] targetNode metadata.table:', tableMeta);
+                } else {
+                    // Fallback: check all nodes for table metadata
+                    console.log('[SummaryContent] Fallback: checking all nodes');
+                    for (const node of (jobData.nodes || [])) {
+                        if (node.data?.metadata?.table) {
+                            tableMeta = node.data.metadata.table;
+                            console.log('[SummaryContent] Found table metadata in node:', node.id, tableMeta);
+                            break;
+                        }
+                    }
+                }
+
+                if (tableMeta) {
+                    console.log('[SummaryContent] Setting fetchedMeta:', tableMeta);
+                    setFetchedMeta({
+                        description: tableMeta.description,
+                        tags: tableMeta.tags
+                    });
+                } else {
+                    console.log('[SummaryContent] No table metadata found');
+                }
+            } catch (error) {
+                console.error('[SummaryContent] Failed to fetch table metadata:', error);
+            } finally {
+                setLoadingMeta(false);
+            }
+        };
+
+        fetchTableMeta();
+    }, [sourceJobId, sourceNodeId]);
+
     // Determine title and type
-    const title = dataset.name || dataset.label || "Untitled";
-    const type = isDomainMode ? "Domain" : (dataset.type || dataset.platform || "Node");
+    const title = dataset.name || dataset.label || dataset.data?.label || "Untitled";
+    const type = isDomainMode ? "Domain" : (dataset.type || dataset.platform || dataset.data?.platform || "Node");
 
     // Extract Metadata (Support nested config.metadata from ETL import)
     // For ReactFlow nodes, config is usually in 'data'
     const config = dataset.config || dataset.data?.config || {};
     const metadata = config.metadata?.table || {};
 
-    // Check direct properties first, then data properties, then metadata
-    const description = dataset.description || dataset.data?.description || metadata.description || "No description provided.";
-    const tags = dataset.tags || dataset.data?.tags || metadata.tags || [];
+    // Check fetched ETL Job metadata FIRST (highest priority for synced data)
+    // Then fall back to dataset properties
+    const description = fetchedMeta.description || dataset.description || dataset.data?.description || metadata.description || "No description provided.";
+    const tags = (fetchedMeta.tags && fetchedMeta.tags.length > 0) ? fetchedMeta.tags : (dataset.tags || dataset.data?.tags || metadata.tags || []);
 
     const owner = dataset.owner || dataset.data?.owner || "Unknown";
     const updatedAt = dataset.updated_at ? new Date(dataset.updated_at).toLocaleDateString() : "Just now";
@@ -36,10 +108,10 @@ export function SummaryContent({ dataset, isDomainMode, onUpdate }) {
     React.useEffect(() => {
         const cfg = dataset.config || dataset.data?.config || {};
         const meta = cfg.metadata?.table || {};
-        setDescValue(dataset.description || dataset.data?.description || meta.description || "");
-        setTagsValue(dataset.tags || dataset.data?.tags || meta.tags || []);
+        setDescValue(dataset.description || dataset.data?.description || meta.description || fetchedMeta.description || "");
+        setTagsValue(dataset.tags || dataset.data?.tags || meta.tags || fetchedMeta.tags || []);
         // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [dataset.id, dataset._id, dataset.description, dataset.data?.description, JSON.stringify(dataset.tags), JSON.stringify(dataset.config)]);
+    }, [dataset.id, dataset._id, dataset.description, dataset.data?.description, JSON.stringify(dataset.tags), JSON.stringify(dataset.config), fetchedMeta.description]);
 
     // Domain Stats
     const tableCount = isDomainMode ? (dataset.nodes?.filter(n => n.type !== 'E' && n.type !== 'T')?.length || 0) : 0;
@@ -58,7 +130,23 @@ export function SummaryContent({ dataset, isDomainMode, onUpdate }) {
     };
 
     const handleSaveDescription = async () => {
-        if (onUpdate) {
+        console.log('[SummaryContent] handleSaveDescription - sourceJobId:', sourceJobId, 'sourceNodeId:', sourceNodeId);
+        // If we have source job info, save to ETL Job
+        if (sourceJobId && sourceNodeId) {
+            try {
+                await updateEtlJobNodeMetadata(sourceJobId, sourceNodeId, {
+                    table: { description: descValue }
+                });
+                // Update local fetched state
+                setFetchedMeta(prev => ({ ...prev, description: descValue }));
+                setIsEditingDesc(false);
+                showToast('Description saved', 'success');
+            } catch (error) {
+                console.error('[SummaryContent] Failed to save description:', error);
+                showToast('Failed to save description', 'error');
+            }
+        } else if (onUpdate) {
+            // Fallback to Domain update
             const id = dataset.id || dataset._id;
             await onUpdate(id, { description: descValue });
             setIsEditingDesc(false);
@@ -66,12 +154,28 @@ export function SummaryContent({ dataset, isDomainMode, onUpdate }) {
     };
 
     const handleSaveTags = async () => {
-        if (onUpdate) {
+        // If we have source job info, save to ETL Job
+        if (sourceJobId && sourceNodeId) {
+            try {
+                await updateEtlJobNodeMetadata(sourceJobId, sourceNodeId, {
+                    table: { tags: tagsValue }
+                });
+                // Update local fetched state
+                setFetchedMeta(prev => ({ ...prev, tags: tagsValue }));
+                setIsEditingTags(false);
+                showToast('Tags saved', 'success');
+            } catch (error) {
+                console.error('[SummaryContent] Failed to save tags:', error);
+                showToast('Failed to save tags', 'error');
+            }
+        } else if (onUpdate) {
+            // Fallback to Domain update
             const id = dataset.id || dataset._id;
             await onUpdate(id, { tags: tagsValue });
             setIsEditingTags(false);
         }
     };
+
 
     return (
         <div className="animate-fade-in space-y-6 pb-20">
@@ -118,7 +222,7 @@ export function SummaryContent({ dataset, isDomainMode, onUpdate }) {
                     <h4 className="text-xs font-bold text-gray-500 uppercase tracking-wider flex items-center gap-1">
                         <FileText className="w-3 h-3" /> About
                     </h4>
-                    {isDomainMode && !isEditingDesc && (
+                    {(isDomainMode || sourceJobId) && !isEditingDesc && (
                         <button
                             onClick={() => setIsEditingDesc(true)}
                             className="p-1 hover:bg-white rounded-full text-gray-400 hover:text-blue-600 transition opacity-0 group-hover:opacity-100"
@@ -171,7 +275,7 @@ export function SummaryContent({ dataset, isDomainMode, onUpdate }) {
                     <h4 className="text-xs font-bold text-gray-500 uppercase tracking-wider flex items-center gap-1">
                         <Tag className="w-3 h-3" /> Tags
                     </h4>
-                    {isDomainMode && !isEditingTags && (
+                    {(isDomainMode || sourceJobId) && !isEditingTags && (
                         <button
                             onClick={() => setIsEditingTags(true)}
                             className="p-1 hover:bg-gray-100 rounded-full text-gray-400 hover:text-blue-600 transition opacity-0 group-hover:opacity-100"

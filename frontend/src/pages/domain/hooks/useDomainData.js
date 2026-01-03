@@ -1,7 +1,7 @@
 import { useState, useEffect, useCallback } from 'react';
 import { mergeGraphData, calculateImpact } from '../utils/domainUtils';
 
-export const useDomainData = ({ datasetId, selectedId, onStreamAnalysis, nodes, edges, setNodes, setEdges, updateLayout, handleToggleExpand, onDeleteNode }) => {
+export const useDomainData = ({ datasetId, selectedId, onStreamAnalysis, nodes, edges, setNodes, setEdges, updateLayout, handleToggleExpand, onDeleteNode, onEtlStepSelect }) => {
     const [expandTarget, setExpandTarget] = useState(null);
 
     // Expand Handler (Deferred for state update)
@@ -92,10 +92,11 @@ export const useDomainData = ({ datasetId, selectedId, onStreamAnalysis, nodes, 
                 ...n.data,
                 onDelete: onDeleteNode,
                 onToggleExpand: handleToggleExpand,
-                onExpand: handleExpandWithState
+                onExpand: handleExpandWithState,
+                onEtlStepSelect: onEtlStepSelect
             }
         })));
-    }, [setNodes, onDeleteNode, handleToggleExpand, handleExpandWithState]);
+    }, [setNodes, onDeleteNode, handleToggleExpand, handleExpandWithState, onEtlStepSelect]);
 
     return {
         fetchAndMerge
