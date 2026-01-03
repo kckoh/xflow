@@ -1,0 +1,26 @@
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: opensearch-ingress
+  namespace: xflow
+  annotations:
+    alb.ingress.kubernetes.io/group.name: xflow-alb
+    alb.ingress.kubernetes.io/scheme: internet-facing
+    alb.ingress.kubernetes.io/target-type: ip
+    alb.ingress.kubernetes.io/certificate-arn: arn:aws:acm:ap-northeast-2:134059028370:certificate/8bbac11a-efa0-4289-bfc4-edf8fed7b96c
+    alb.ingress.kubernetes.io/listen-ports: '[{"HTTP": 80}, {"HTTPS": 443}]'
+    alb.ingress.kubernetes.io/ssl-redirect: '443'
+    alb.ingress.kubernetes.io/healthcheck-path: /api/status
+spec:
+  ingressClassName: alb
+  rules:
+    - host: opensearch.xflows.net
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: opensearch-dashboards
+                port:
+                  number: 5601
