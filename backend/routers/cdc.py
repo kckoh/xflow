@@ -87,13 +87,18 @@ async def _reconcile_unified_pipeline(connection: Connection, active_tables: lis
     
     try:
         if connection.type in ["postgres", "postgresql"]:
+            # 필수 연결 정보 검증
+            db_password = connection.config.get("password")
+            if not db_password:
+                raise HTTPException(status_code=400, detail="Database password is required in connection config")
+            
             connect_config = CDCService.build_postgres_config(
                 connector_name=connector_name,
                 host=connection.config.get("host", "postgres-db"),
                 port=int(connection.config.get("port", 5432)),
                 database=connection.config.get("database", "mydb"),
                 user=connection.config.get("user", "postgres"),
-                password=connection.config.get("password", "postgres"),
+                password=db_password,
                 table_list=table_include_list,
                 schema="public" # TODO: 스키마가 여러 개일 경우 로직 보강 필요 (지금은 public 가정)
             )
