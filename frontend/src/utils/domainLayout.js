@@ -111,6 +111,8 @@ export function calculateDomainLayoutHorizontal(jobExecutionResults, arg2, arg3)
                 id: `step-source-${jobId}-${idx}`,
                 type: 'E',
                 label: displayLabel,
+                sourceJobId: jobId,
+                sourceNodeId: source.nodeId,  // Original ETL Job node ID
                 data: {
                     columns: enrichSchema(source.schema, jobId, source.nodeId),
                     platform: platform,
@@ -124,6 +126,8 @@ export function calculateDomainLayoutHorizontal(jobExecutionResults, arg2, arg3)
                 id: `step-transform-${jobId}-${idx}`,
                 type: 'T',
                 label: transform.type || `Transform`,
+                sourceJobId: jobId,
+                sourceNodeId: transform.nodeId,  // Original ETL Job node ID
                 data: {
                     columns: enrichSchema(transform.schema, jobId, transform.nodeId),
                     platform: transform.type || "Transform"
@@ -228,6 +232,9 @@ export function calculateDomainLayoutHorizontal(jobExecutionResults, arg2, arg3)
                         sourceType: target.type || "s3",
                         platform: platform, // Normalized platform
                         jobs: [jobObj],
+                        // Store source reference for metadata sync
+                        sourceJobId: jobId,
+                        sourceNodeId: target.nodeId,
                         config: {
                             metadata: metadata
                         }
