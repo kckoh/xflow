@@ -12,6 +12,8 @@ from schemas.domain import (
     JobExecutionResponse,
     DatasetNodeResponse
 )
+# OpenSearch Dual Write
+from utils.indexers import index_single_domain, delete_domain_from_index
 
 router = APIRouter()
 
@@ -126,6 +128,10 @@ async def create_domain(domain_data: DomainCreate):
 
     new_domain = Domain(**domain_dict)
     await new_domain.insert()
+    
+    # Dual Write: OpenSearch에 인덱싱
+    await index_single_domain(new_domain)
+    
     return new_domain
 
 @router.delete("/{id}", status_code=status.HTTP_204_NO_CONTENT)
@@ -138,6 +144,9 @@ async def delete_domain(id: str):
         raise HTTPException(status_code=404, detail="Domain not found")
     
     await domain.delete()
+    
+    # Dual Write: OpenSearch에서 삭제
+    await delete_domain_from_index(id)
 
 @router.put("/{id}", response_model=Domain)
 async def update_domain(id: str, update_data: DomainUpdate):
@@ -159,6 +168,10 @@ async def update_domain(id: str, update_data: DomainUpdate):
     
     domain.updated_at = datetime.utcnow()
     await domain.save()
+    
+    # Dual Write: OpenSearch 업데이트
+    await index_single_domain(domain)
+    
     return domain
 
 @router.post("/{id}/graph", response_model=Domain)
@@ -175,6 +188,10 @@ async def save_domain_graph(id: str, graph_data: DomainGraphUpdate):
     domain.updated_at = datetime.utcnow()
 
     await domain.save()
+    
+    # Dual Write: OpenSearch 업데이트 (노드/컬럼 변경 시)
+    await index_single_domain(domain)
+    
     return domain
 
 

@@ -9,6 +9,8 @@ from fastapi import APIRouter, HTTPException, status
 from models import ETLJob, JobRun, Connection, Dataset
 from schemas.etl_job import ETLJobCreate, ETLJobUpdate, ETLJobResponse
 from services.lineage_service import sync_pipeline_to_dataset
+# OpenSearch Dual Write
+from utils.indexers import index_single_etl_job, delete_etl_job_from_index
 
 router = APIRouter()
 
@@ -69,6 +71,9 @@ async def create_etl_job(job: ETLJobCreate):
     )
 
     await new_job.insert()
+    
+    # Dual Write: OpenSearch에 인덱싱
+    await index_single_etl_job(new_job)
     
     # Sync to Dataset (Lineage)
     await sync_pipeline_to_dataset(new_job)
@@ -197,6 +202,9 @@ async def update_etl_job(job_id: str, job_update: ETLJobUpdate):
 
     job.updated_at = datetime.utcnow()
     await job.save()
+    
+    # Dual Write: OpenSearch 업데이트
+    await index_single_etl_job(job)
 
     # Sync to Dataset (Lineage)
     await sync_pipeline_to_dataset(job)
@@ -231,6 +239,10 @@ async def delete_etl_job(job_id: str):
         raise HTTPException(status_code=404, detail="Job not found")
 
     await job.delete()
+    
+    # Dual Write: OpenSearch에서 삭제
+    await delete_etl_job_from_index(job_id)
+    
     return None
 
 
