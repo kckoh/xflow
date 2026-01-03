@@ -9,10 +9,15 @@ import { SidebarToggle } from "./components/RightSideBar/SidebarToggle";
 // import { saveDomainGraph, updateDomain } from "./api/domainApi"; // Moved to Hook
 import { useDomainDetail } from "./hooks/useDomainDetail";
 import { useDomainSidebar } from "./hooks/useDomainSidebar";
+import { useAuth } from "../../context/AuthContext";
 
 export default function DomainDetailPage() {
     // Ref to access DomainCanvas state (Passed to hook)
     const canvasRef = useRef(null);
+    const { user } = useAuth();
+
+    // Check if user can edit domain
+    const canEditDomain = user?.is_admin || user?.domain_edit_access;
 
     const {
         id,
@@ -84,22 +89,24 @@ export default function DomainDetailPage() {
                 <DomainDetailHeader
                     domain={domain}
                     actions={
-                        <>
-                            <button
-                                onClick={() => setShowImportModal(true)}
-                                className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors text-sm font-medium"
-                            >
-                                <Download size={16} />
-                                Import
-                            </button>
-                            <button
-                                onClick={handleSaveGraph}
-                                className="flex items-center gap-2 px-4 py-2 bg-green-500 text-white rounded-lg hover:bg-green-700 transition-colors text-sm font-medium"
-                            >
-                                <Database size={16} />
-                                Save Layout
-                            </button>
-                        </>
+                        canEditDomain ? (
+                            <>
+                                <button
+                                    onClick={() => setShowImportModal(true)}
+                                    className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors text-sm font-medium"
+                                >
+                                    <Download size={16} />
+                                    Import
+                                </button>
+                                <button
+                                    onClick={handleSaveGraph}
+                                    className="flex items-center gap-2 px-4 py-2 bg-green-500 text-white rounded-lg hover:bg-green-700 transition-colors text-sm font-medium"
+                                >
+                                    <Database size={16} />
+                                    Save Layout
+                                </button>
+                            </>
+                        ) : null
                     }
                 />
             </div>
