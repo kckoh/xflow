@@ -11,6 +11,7 @@ from schemas.etl_job import ETLJobCreate, ETLJobUpdate, ETLJobResponse
 from services.lineage_service import sync_pipeline_to_dataset
 # OpenSearch Dual Write
 from utils.indexers import index_single_etl_job, delete_etl_job_from_index
+from utils.schedule_converter import generate_schedule
 
 router = APIRouter()
 
@@ -139,6 +140,10 @@ async def create_etl_job(job: ETLJobCreate):
                 )
 
     # Create new ETL job with estimated size for Spark auto-scaling
+    schedule = None
+    if job.schedule_frequency:
+        schedule = generate_schedule(job.schedule_frequency, job.ui_params)
+
     new_job = ETLJob(
         name=job.name,
         description=job.description,
@@ -146,7 +151,13 @@ async def create_etl_job(job: ETLJobCreate):
         source=sources_data[0] if sources_data else {},  # Legacy compatibility
         transforms=[t.model_dump() for t in job.transforms],
         destination=job.destination.model_dump(),
-        schedule=job.schedule,
+        
+        # Schedule info
+        schedule=schedule,
+        schedule_frequency=job.schedule_frequency,
+        ui_params=job.ui_params,
+        incremental_config=job.incremental_config,
+        
         status="draft",
         nodes=job.nodes or [],
         edges=job.edges or [],
@@ -172,6 +183,9 @@ async def create_etl_job(job: ETLJobCreate):
         transforms=new_job.transforms,
         destination=new_job.destination,
         schedule=new_job.schedule,
+        schedule_frequency=new_job.schedule_frequency,
+        ui_params=new_job.ui_params,
+        incremental_config=new_job.incremental_config,
         status=new_job.status,
         nodes=new_job.nodes,
         edges=new_job.edges,
@@ -204,6 +218,9 @@ async def list_etl_jobs(import_ready: bool = None):
             transforms=job.transforms,
             destination=job.destination,
             schedule=job.schedule,
+            schedule_frequency=job.schedule_frequency,
+            ui_params=job.ui_params,
+            incremental_config=job.incremental_config,
             status=job.status,
             nodes=job.nodes,
             edges=job.edges,
@@ -236,6 +253,9 @@ async def get_etl_job(job_id: str):
         transforms=job.transforms,
         destination=job.destination,
         schedule=job.schedule,
+        schedule_frequency=job.schedule_frequency,
+        ui_params=job.ui_params,
+        incremental_config=job.incremental_config,
         status=job.status,
         nodes=job.nodes,
         edges=job.edges,
@@ -274,10 +294,27 @@ async def update_etl_job(job_id: str, job_update: ETLJobUpdate):
         job.transforms = [t.model_dump() for t in job_update.transforms]
     if job_update.destination is not None:
         job.destination = job_update.destination.model_dump()
-    if job_update.schedule is not None:
-        job.schedule = job_update.schedule
+        
+    # Handle schedule updates
+    if job_update.schedule_frequency == "":
+        # Explicitly clear schedule if frequency is empty string
+        job.schedule_frequency = None
+        job.ui_params = None
+        job.schedule = None
+    elif job_update.schedule_frequency is not None or job_update.ui_params is not None:
+        # Use existing values if not provided in update
+        freq = job_update.schedule_frequency if job_update.schedule_frequency is not None else job.schedule_frequency
+        params = job_update.ui_params if job_update.ui_params is not None else job.ui_params
+        
+        job.schedule_frequency = freq
+        job.ui_params = params
+        job.schedule = generate_schedule(freq, params)
+
     if job_update.status is not None:
         job.status = job_update.status
+    
+    if job_update.incremental_config is not None:
+        job.incremental_config = job_update.incremental_config
     if job_update.import_ready is not None:
         job.import_ready = job_update.import_ready
     if job_update.nodes is not None:
@@ -303,6 +340,9 @@ async def update_etl_job(job_id: str, job_update: ETLJobUpdate):
         transforms=job.transforms,
         destination=job.destination,
         schedule=job.schedule,
+        schedule_frequency=job.schedule_frequency,
+        ui_params=job.ui_params,
+        incremental_config=job.incremental_config,
         status=job.status,
         nodes=job.nodes,
         edges=job.edges,
@@ -385,9 +425,30 @@ async def delete_etl_job(job_id: str):
     return None
 
 
-@router.post("/{job_id}/run")
-async def run_etl_job(job_id: str):
-    """Trigger an ETL job execution"""
+@router.post("/{job_id}/activate")
+async def activate_etl_job(job_id: str):
+    """Activate schedule for an ETL job"""
+    try:
+        job = await ETLJob.get(PydanticObjectId(job_id))
+    except Exception:
+        raise HTTPException(status_code=404, detail="Job not found")
+
+    if not job:
+        raise HTTPException(status_code=404, detail="Job not found")
+        
+    if not job.schedule:
+        raise HTTPException(status_code=400, detail="Cannot activate job without a schedule")
+
+    job.status = "active"
+    job.updated_at = datetime.utcnow()
+    await job.save()
+    
+    return {"message": "Job schedule activated", "status": "active"}
+
+
+@router.post("/{job_id}/deactivate")
+async def deactivate_etl_job(job_id: str):
+    """Pause schedule for an ETL job"""
     try:
         job = await ETLJob.get(PydanticObjectId(job_id))
     except Exception:
@@ -396,6 +457,47 @@ async def run_etl_job(job_id: str):
     if not job:
         raise HTTPException(status_code=404, detail="Job not found")
 
+    job.status = "paused"
+    job.updated_at = datetime.utcnow()
+    await job.save()
+    
+    return {"message": "Job schedule paused", "status": "paused"}
+
+
+
+@router.post("/{job_id}/run")
+async def run_etl_job(job_id: str):
+    """Trigger an ETL job execution or activate schedule"""
+    try:
+        job = await ETLJob.get(PydanticObjectId(job_id))
+    except Exception:
+        raise HTTPException(status_code=404, detail="Job not found")
+
+    if not job:
+        raise HTTPException(status_code=404, detail="Job not found")
+
+    # [Logic for Action Button]
+    # Case 1: Job has a schedule → Activate schedule, don't run immediately
+    if job.schedule:
+        if job.status != "active":
+            job.status = "active"
+            job.updated_at = datetime.utcnow()
+            await job.save()
+            return {
+                "message": "Schedule activated. Job will run according to schedule.",
+                "job_id": job_id,
+                "schedule": job.schedule,
+                "schedule_activated": True,
+            }
+        else:
+            return {
+                "message": "Schedule is already active",
+                "job_id": job_id,
+                "schedule": job.schedule,
+                "schedule_activated": False,
+            }
+
+    # Case 2: No schedule → Run immediately (one-time execution)
     # Create job run record
     job_run = JobRun(
         job_id=job_id,
@@ -441,7 +543,7 @@ async def run_etl_job(job_id: str):
         )
 
     return {
-        "message": "Job triggered successfully",
+        "message": "Job triggered successfully (one-time execution)",
         "job_id": job_id,
         "run_id": str(job_run.id),
         "airflow_run_id": job_run.airflow_run_id,

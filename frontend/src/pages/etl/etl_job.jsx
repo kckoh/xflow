@@ -41,6 +41,7 @@ import RunsPanel from "../../components/etl/RunsPanel";
 import { applyTransformToSchema } from "../../utils/schemaTransforms";
 import DatasetNode from "../../components/common/nodes/DatasetNode";
 import { useMetadataUpdate } from "../../hooks/useMetadataUpdate";
+import { saveScheduleToBackend, convertNodesToApiFormat, utcToLocalDatetimeString } from "../../utils/etl_job";
 
 const initialNodes = [];
 
@@ -187,6 +188,7 @@ export default function ETLJobPage() {
       setJobDetails((prev) => ({
         ...prev,
         description: data.description || "",
+        incremental_config: data.incremental_config || null,
       }));
 
       // Restore nodes and edges if they exist
@@ -221,9 +223,25 @@ export default function ETLJobPage() {
         setEdges(data.edges);
       }
 
-      // Restore schedule
-      if (data.schedule) {
-        setSchedules([{ id: "1", name: "Main Schedule", cron: data.schedule }]);
+      // Restore schedule (only if we have valid schedule data)
+      if (data.schedule_frequency && data.ui_params) {
+        // Convert UTC startDate to local time for display
+        const uiParams = { ...data.ui_params };
+        if (uiParams.startDate) {
+          uiParams.startDate = utcToLocalDatetimeString(uiParams.startDate);
+        }
+
+        setSchedules([{
+            id: "1",
+            name: data.ui_params.scheduleName || "Main Schedule",
+            cron: data.schedule,
+            frequency: data.schedule_frequency,
+            description: data.ui_params.scheduleDescription || "",
+            uiParams: uiParams
+        }]);
+      } else {
+        // No valid schedule data - start with empty
+        setSchedules([]);
       }
 
       console.log("Job loaded:", data);
@@ -530,63 +548,13 @@ export default function ETLJobPage() {
     [setNodes, setEdges, selectedNode, edges]
   );
 
-  // Convert nodes to ETL Jobs API format
-  const convertNodesToApiFormat = () => {
-    // Find all source nodes
-    const sourceNodes = nodes.filter((n) => n.data?.nodeCategory === "source");
-    // Find transform nodes
-    const transformNodes = nodes.filter(
-      (n) => n.data?.nodeCategory === "transform"
-    );
-    // Find target node
-    const targetNode = nodes.find((n) => n.data?.nodeCategory === "target");
-
-    // Build sources array (multiple sources support)
-    const sources = sourceNodes.map((node) => ({
-      nodeId: node.id,
-      type: node.data?.sourceType || "rdb", // Support both rdb, mongodb, s3
-      connection_id: node.data?.sourceId || "",
-      config: node.data?.config || {}, // Include source config (e.g., S3 bucket/path)
-      table: node.data?.tableName || "",
-      collection: node.data?.collectionName || "", // For MongoDB
-      customRegex: node.data?.customRegex || null, // For S3 log parsing
-    }));
-
-    // Build transforms array with nodeId and inputNodeIds
-    const transforms = transformNodes.map((node) => {
-      // Find all incoming edges to this transform
-      const inputEdges = edges.filter((e) => e.target === node.id);
-      const inputNodeIds = inputEdges.map((e) => e.source);
-
-      return {
-        nodeId: node.id,
-        type: node.data?.transformType || "select-fields",
-        config: node.data?.transformConfig || {},
-        inputNodeIds: inputNodeIds,
-      };
-    });
-
-    // Build destination config
-    const destination = targetNode
-      ? {
-          nodeId: targetNode.id,
-          type: "s3",
-          path: targetNode.data?.s3Location || "",
-          format: "parquet",
-          options: {
-            compression: targetNode.data?.compressionType || "snappy",
-          },
-        }
-      : null;
-
-    return { sources, transforms, destination };
-  };
+  // Note: convertNodesToApiFormat is now imported from utils/etl_job.js
 
   const handleSave = async () => {
     if (isSaving) return;
     setIsSaving(true);
 
-    const { sources, transforms, destination } = convertNodesToApiFormat();
+    const { sources, transforms, destination } = convertNodesToApiFormat(nodes, edges);
 
     // Validate required fields
     if (!sources || sources.length === 0 || !sources[0]?.connection_id) {
@@ -606,7 +574,15 @@ export default function ETLJobPage() {
       sources, // Multiple sources support
       transforms,
       destination,
-      schedule: schedules.length > 0 ? schedules[0].cron : null,
+      // Don't send schedule directly - let backend generate it from frequency & ui_params
+      schedule_frequency: schedules.length > 0 ? schedules[0].frequency : "", // Send empty string to clear schedule
+      ui_params: schedules.length > 0 ? {
+          ...schedules[0].uiParams,
+          // Persist schedule name and description in ui_params since they don't have dedicated backend fields
+          scheduleName: schedules[0].name,
+          scheduleDescription: schedules[0].description
+      } : null,
+      incremental_config: jobDetails.incremental_config || null,
       nodes: nodes,
       edges: edges,
     };
@@ -1151,9 +1127,25 @@ export default function ETLJobPage() {
       ) : mainTab === "Schedules" ? (
         <SchedulesPanel
           schedules={schedules}
-          onUpdate={(newSchedules) => {
+          onUpdate={async (newSchedules) => {
             console.log("Schedules updated:", newSchedules);
             setSchedules(newSchedules);
+
+            // Auto-save schedule to backend
+            const result = await saveScheduleToBackend(
+              jobId,
+              jobName,
+              jobDetails,
+              newSchedules,
+              nodes,
+              edges
+            );
+
+            if (result.success) {
+              console.log("✅ Schedule saved to backend");
+            } else {
+              console.error("❌ Failed to save schedule:", result.error);
+            }
           }}
         />
       ) : mainTab === "Runs" ? (
