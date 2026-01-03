@@ -49,7 +49,7 @@ export default function CatalogSearch() {
       navigate(`/domain/${result.doc_id}`);
     } else if (result.doc_type === 'etl_job') {
       // ETL Job 상세 페이지로 이동
-      navigate(`/etl-jobs/${result.doc_id}`);
+      navigate(`/etl/job/${result.doc_id}`);
     }
     setIsOpen(false);
     setQuery('');
@@ -156,8 +156,8 @@ export default function CatalogSearch() {
                                   </span>
                                   {result.status && (
                                     <span className={`text-xs px-1.5 py-0.5 rounded ${result.status === 'active'
-                                        ? 'bg-green-100 text-green-700'
-                                        : 'bg-gray-100 text-gray-600'
+                                      ? 'bg-green-100 text-green-700'
+                                      : 'bg-gray-100 text-gray-600'
                                       }`}>
                                       {result.status}
                                     </span>
