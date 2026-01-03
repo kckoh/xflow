@@ -5,8 +5,8 @@ USER root
 # Install Python dependencies
 RUN pip install --no-cache-dir boto3 pymongo requests
 
-# Copy Spark jobs
-COPY jobs/ /opt/spark/jobs/
+# Copy Spark jobs with proper permissions
+COPY --chown=spark:spark jobs/ /opt/spark/jobs/
 
 # Download JDBC JARs
 RUN curl -o /opt/spark/jars/postgresql-42.7.1.jar \

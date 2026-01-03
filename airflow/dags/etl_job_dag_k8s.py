@@ -2,7 +2,7 @@
 ETL Job DAG (Kubernetes) - For production on EKS with Spot instances
 
 This DAG runs Spark jobs via SparkKubernetesOperator on EKS.
-For local development, use etl_job_dag.py instead.
+Uses Sensor for reliable completion detection (polling instead of watch).
 
 Trigger via Airflow API:
 POST /api/v1/dags/etl_job_dag_k8s/dagRuns
@@ -18,6 +18,7 @@ from datetime import datetime
 from airflow import DAG
 from airflow.operators.python import PythonOperator
 from airflow.providers.cncf.kubernetes.operators.spark_kubernetes import SparkKubernetesOperator
+from airflow.providers.cncf.kubernetes.sensors.spark_kubernetes import SparkKubernetesSensor
 
 from etl_common import (
     fetch_job_config,
@@ -27,24 +28,42 @@ from etl_common import (
 )
 
 
+def get_executor_count(size_gb: float) -> int:
+    """Determine executor count based on data size"""
+    if size_gb <= 1:
+        return 1
+    elif size_gb <= 10:
+        return 2
+    elif size_gb <= 30:
+        return 3
+    elif size_gb <= 50:
+        return 4
+    else:
+        return 5
+
+
 def generate_spark_application(**context):
     """Generate SparkApplication YAML from job config"""
     config_json = context["ti"].xcom_pull(task_ids="fetch_job_config")
     job_id = context["dag_run"].conf.get("job_id", "unknown")
 
     # Extract run_id from dag_run_id for unique naming
-    # dag_run_id format: job_{job_id}_{run_id}
     dag_run_id = context["dag_run"].run_id
     run_id = dag_run_id.split("_")[-1][:8] if "_" in dag_run_id else dag_run_id[:8]
 
-    # Escape the config JSON for YAML
-    escaped_config = json.dumps(config_json)
+    # Parse config to get estimated size for auto-scaling
+    config = json.loads(config_json)
+    estimated_size_gb = config.get("estimated_size_gb", 1)
+    executor_instances = get_executor_count(estimated_size_gb)
+    print(f"Auto-scaling: {estimated_size_gb:.2f} GB -> {executor_instances} executor(s)")
+
+    spark_app_name = f"etl-{job_id[:8]}-{run_id}"
 
     spark_app = {
         "apiVersion": "sparkoperator.k8s.io/v1beta2",
         "kind": "SparkApplication",
         "metadata": {
-            "name": f"etl-{job_id[:8]}-{run_id}",
+            "name": spark_app_name,
             "namespace": "spark-jobs",
         },
         "spec": {
@@ -80,7 +99,7 @@ def generate_spark_application(**context):
             },
             "executor": {
                 "cores": 4,
-                "instances": 1,
+                "instances": executor_instances,
                 "memory": "20g",
                 "nodeSelector": {
                     "node-type": "spark",
@@ -100,9 +119,12 @@ def generate_spark_application(**context):
                 "onFailureRetryInterval": 10,
                 "onSubmissionFailureRetries": 3,
             },
-            "timeToLiveSeconds": 60,  # 완료 후 1분 뒤 자동 삭제
+            "timeToLiveSeconds": 600,  # 완료 후 10분 뒤 자동 삭제
         },
     }
+
+    # Store app name for sensor
+    context["ti"].xcom_push(key="spark_app_name", value=spark_app_name)
 
     return spark_app
 
@@ -129,20 +151,30 @@ with DAG(
         python_callable=generate_spark_application,
     )
 
-    # Task 3: Run Spark ETL on Kubernetes
-    run_spark_etl = SparkKubernetesOperator(
-        task_id="run_spark_etl",
+    # Task 3: Submit Spark job (no watch - just submit)
+    submit_spark_job = SparkKubernetesOperator(
+        task_id="submit_spark_job",
         namespace="spark-jobs",
         application_file="{{ ti.xcom_pull(task_ids='generate_spark_spec') }}",
         kubernetes_conn_id="kubernetes_default",
         do_xcom_push=True,
-        watch=True,  # Wait for Spark job to complete
+        watch=False,  # Don't watch - use sensor instead
     )
 
-    # Task 4: Finalize import
+    # Task 4: Wait for Spark job completion (polling)
+    wait_for_spark = SparkKubernetesSensor(
+        task_id="wait_for_spark",
+        namespace="spark-jobs",
+        application_name="{{ ti.xcom_pull(task_ids='generate_spark_spec', key='spark_app_name') }}",
+        kubernetes_conn_id="kubernetes_default",
+        poke_interval=30,  # Check every 30 seconds
+        timeout=3600,  # 1 hour timeout
+    )
+
+    # Task 5: Finalize import
     finalize = PythonOperator(
         task_id="finalize_import",
         python_callable=finalize_import,
     )
 
-    fetch_config >> generate_spark_spec >> run_spark_etl >> finalize
+    fetch_config >> generate_spark_spec >> submit_spark_job >> wait_for_spark >> finalize

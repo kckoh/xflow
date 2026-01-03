@@ -10,6 +10,8 @@ from datetime import datetime
 from airflow.models import Variable
 
 
+
+
 def fetch_job_config(**context):
     """Fetch job configuration from MongoDB"""
     import pymongo
@@ -64,6 +66,10 @@ def fetch_job_config(**context):
                 source["connection"] = connection.get("config", {})
         enriched_sources.append(source)
 
+    # Get estimated size from job document (calculated at job creation time)
+    estimated_size_gb = job.get("estimated_size_gb", 1.0)
+    print(f"Estimated source size from job config: {estimated_size_gb:.2f} GB")
+
     # Build complete config for Spark
     config = {
         "job_id": job_id,
@@ -72,6 +78,7 @@ def fetch_job_config(**context):
         "transforms": job.get("transforms", []),
         "destination": job.get("destination", {}),
         "nodes": job.get("nodes", []),
+        "estimated_size_gb": estimated_size_gb,
     }
 
     # Add S3 config (different for local vs production)
