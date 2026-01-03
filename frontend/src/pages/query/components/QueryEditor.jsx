@@ -1,6 +1,7 @@
 import { useState } from "react";
-import { Play, Loader2, CheckCircle, XCircle, Clock, Download, Table, FileText } from "lucide-react";
+import { Play, Loader2, CheckCircle, XCircle, Clock, Download } from "lucide-react";
 import { executeQuery as runDuckDBQuery } from "../../../services/apiDuckDB";
+import { useToast } from "../../../components/common/Toast";
 
 export default function QueryEditor({ selectedTable }) {
     const [query, setQuery] = useState("");
@@ -8,7 +9,7 @@ export default function QueryEditor({ selectedTable }) {
     const [queryStatus, setQueryStatus] = useState(null);
     const [results, setResults] = useState(null);
     const [error, setError] = useState(null);
-    const [viewMode, setViewMode] = useState("table"); // 'table' | 'csv'
+    const { showToast } = useToast();
 
     const executeQuery = async () => {
         if (!query.trim()) {
@@ -54,7 +55,6 @@ export default function QueryEditor({ selectedTable }) {
                     if (value === null || value === undefined) return "";
                     if (typeof value === "object") return `"${JSON.stringify(value).replace(/"/g, '""')}"`;
                     const str = String(value);
-                    // 쉼표나 따옴표가 있으면 쌍따옴표로 감싸기
                     if (str.includes(",") || str.includes('"') || str.includes("\n")) {
                         return `"${str.replace(/"/g, '""')}"`;
                     }
@@ -76,6 +76,9 @@ export default function QueryEditor({ selectedTable }) {
         link.download = `query_result_${new Date().toISOString().slice(0, 10)}.csv`;
         link.click();
         URL.revokeObjectURL(url);
+
+        // Toast 알림
+        showToast(`샘플 데이터 ${results.row_count}개 행이 다운로드되었습니다.`, 'success');
     };
 
     const getStatusIcon = () => {
@@ -164,7 +167,7 @@ export default function QueryEditor({ selectedTable }) {
             <div className="flex-1 overflow-auto">
                 {results ? (
                     <div className="p-4">
-                        {/* Result Header with Toggle */}
+                        {/* Result Header */}
                         <div className="mb-4 flex items-center justify-between">
                             <div className="flex items-center gap-2">
                                 <CheckCircle className="w-5 h-5 text-green-600" />
@@ -176,93 +179,55 @@ export default function QueryEditor({ selectedTable }) {
                                 </span>
                             </div>
 
-                            {/* View Toggle + Download */}
-                            <div className="flex items-center gap-2">
-                                {/* Table/CSV Toggle */}
-                                <div className="flex border border-gray-200 rounded-lg overflow-hidden">
-                                    <button
-                                        onClick={() => setViewMode("table")}
-                                        className={`flex items-center gap-1 px-3 py-1.5 text-sm font-medium transition-colors ${viewMode === "table"
-                                                ? "bg-blue-600 text-white"
-                                                : "bg-white text-gray-600 hover:bg-gray-50"
-                                            }`}
-                                    >
-                                        <Table className="w-4 h-4" />
-                                        Table
-                                    </button>
-                                    <button
-                                        onClick={() => setViewMode("csv")}
-                                        className={`flex items-center gap-1 px-3 py-1.5 text-sm font-medium transition-colors ${viewMode === "csv"
-                                                ? "bg-blue-600 text-white"
-                                                : "bg-white text-gray-600 hover:bg-gray-50"
-                                            }`}
-                                    >
-                                        <FileText className="w-4 h-4" />
-                                        CSV
-                                    </button>
-                                </div>
-
-                                {/* Download Button */}
-                                <button
-                                    onClick={downloadCSV}
-                                    className="flex items-center gap-1 px-3 py-1.5 text-sm font-medium text-gray-600 bg-white border border-gray-200 rounded-lg hover:bg-gray-50 transition-colors"
-                                >
-                                    <Download className="w-4 h-4" />
-                                    Download
-                                </button>
-                            </div>
+                            {/* Download Button */}
+                            <button
+                                onClick={downloadCSV}
+                                className="flex items-center gap-1 px-3 py-1.5 text-sm font-medium text-gray-600 bg-white border border-gray-200 rounded-lg hover:bg-gray-50 transition-colors"
+                            >
+                                <Download className="w-4 h-4" />
+                                Download CSV
+                            </button>
                         </div>
 
                         {/* Table View */}
-                        {viewMode === "table" && (
-                            <div className="overflow-auto border border-gray-200 rounded-lg">
-                                <table className="w-full text-sm">
-                                    <thead className="bg-gray-50 border-b border-gray-200">
-                                        <tr>
+                        <div className="overflow-auto border border-gray-200 rounded-lg">
+                            <table className="w-full text-sm">
+                                <thead className="bg-gray-50 border-b border-gray-200">
+                                    <tr>
+                                        {results.columns.map((column) => (
+                                            <th
+                                                key={column}
+                                                className="px-4 py-3 text-left font-medium text-gray-700"
+                                            >
+                                                {column}
+                                            </th>
+                                        ))}
+                                    </tr>
+                                </thead>
+                                <tbody className="divide-y divide-gray-200">
+                                    {results.data.map((row, rowIndex) => (
+                                        <tr
+                                            key={rowIndex}
+                                            className="hover:bg-gray-50 transition-colors"
+                                        >
                                             {results.columns.map((column) => (
-                                                <th
+                                                <td
                                                     key={column}
-                                                    className="px-4 py-3 text-left font-medium text-gray-700"
+                                                    className="px-4 py-3 text-gray-900"
                                                 >
-                                                    {column}
-                                                </th>
+                                                    {(() => {
+                                                        const value = row[column];
+                                                        if (value === null || value === undefined) return "-";
+                                                        if (typeof value === "object") return JSON.stringify(value);
+                                                        return String(value);
+                                                    })()}
+                                                </td>
                                             ))}
                                         </tr>
-                                    </thead>
-                                    <tbody className="divide-y divide-gray-200">
-                                        {results.data.map((row, rowIndex) => (
-                                            <tr
-                                                key={rowIndex}
-                                                className="hover:bg-gray-50 transition-colors"
-                                            >
-                                                {results.columns.map((column) => (
-                                                    <td
-                                                        key={column}
-                                                        className="px-4 py-3 text-gray-900"
-                                                    >
-                                                        {(() => {
-                                                            const value = row[column];
-                                                            if (value === null || value === undefined) return "-";
-                                                            if (typeof value === "object") return JSON.stringify(value);
-                                                            return String(value);
-                                                        })()}
-                                                    </td>
-                                                ))}
-                                            </tr>
-                                        ))}
-                                    </tbody>
-                                </table>
-                            </div>
-                        )}
-
-                        {/* CSV View */}
-                        {viewMode === "csv" && (
-                            <div className="border border-gray-200 rounded-lg bg-gray-900 p-4 overflow-auto">
-                                <pre className="text-sm text-green-400 font-mono whitespace-pre">
-                                    {convertToCSV()}
-                                </pre>
-                            </div>
-                        )}
+                                    ))}
+                                </tbody>
+                            </table>
+                        </div>
                     </div>
                 ) : (
                     <div className="flex items-center justify-center h-full text-gray-400">
