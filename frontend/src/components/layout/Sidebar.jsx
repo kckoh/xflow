@@ -9,6 +9,7 @@ import {
   List,
   ChevronLeft,
   ChevronRight,
+  Wrench,
 } from "lucide-react";
 import { useAuth } from "../../context/AuthContext";
 import clsx from "clsx";
@@ -34,6 +35,10 @@ export function Sidebar({ isCollapsed, onToggle }) {
     {
       title: "ANALYSIS",
       items: [{ name: "Query", path: "/query", icon: Search }],
+    },
+    {
+      title: "ADMINISTRATION",
+      items: [{ name: "Admin", path: "/admin", icon: Wrench }],
     },
   ];
 
