@@ -1,0 +1,56 @@
+apiVersion: sparkoperator.k8s.io/v1beta2
+kind: SparkApplication
+metadata:
+  name: generate-benchmark-10gb
+  namespace: spark-jobs
+spec:
+  type: Python
+  pythonVersion: "3"
+  mode: cluster
+  image: 134059028370.dkr.ecr.ap-northeast-2.amazonaws.com/xflow-spark:latest
+  imagePullPolicy: Always
+  mainApplicationFile: local:///opt/spark/jobs/generate_benchmark.py
+  arguments:
+    - "--size"
+    - "10gb"
+    - "--output"
+    - "s3a://xflow-output/benchmark"
+  sparkVersion: "3.5.0"
+  sparkConf:
+    spark.sql.shuffle.partitions: "50"
+    spark.memory.fraction: "0.7"
+    spark.hadoop.fs.s3a.impl: "org.apache.hadoop.fs.s3a.S3AFileSystem"
+    spark.hadoop.fs.s3a.aws.credentials.provider: "com.amazonaws.auth.WebIdentityTokenCredentialsProvider"
+  driver:
+    cores: 2
+    memory: "4g"
+    serviceAccount: spark-sa
+    nodeSelector:
+      node-type: spark
+      lifecycle: spot
+    tolerations:
+      - key: spark-only
+        operator: Equal
+        value: "true"
+        effect: NoSchedule
+    env:
+      - name: AWS_REGION
+        value: ap-northeast-2
+  executor:
+    cores: 4
+    instances: 3
+    memory: "16g"
+    nodeSelector:
+      node-type: spark
+      lifecycle: spot
+    tolerations:
+      - key: spark-only
+        operator: Equal
+        value: "true"
+        effect: NoSchedule
+    env:
+      - name: AWS_REGION
+        value: ap-northeast-2
+  restartPolicy:
+    type: Never
+  timeToLiveSeconds: 600
