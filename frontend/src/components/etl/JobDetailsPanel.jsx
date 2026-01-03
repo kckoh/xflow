@@ -1,5 +1,4 @@
 import { useState, useEffect } from 'react';
-import { Settings, RefreshCw, Zap, Database } from 'lucide-react';
 import { Settings, RefreshCw, Clock, Zap, Database } from 'lucide-react';
 
 
@@ -15,6 +14,11 @@ export default function JobDetailsPanel({ jobDetails, onUpdate, jobId }) {
             setDescription(jobDetails.description || '');
             setMaxRetries(jobDetails.maxRetries || 0);
             setJobType(jobDetails.jobType || 'batch');
+
+            // Hydrate incremental config
+            const incConfig = jobDetails.incremental_config || {};
+            setIncrementalEnabled(incConfig.enabled || false);
+            setTimestampColumn(incConfig.timestamp_column || '');
         }
     }, [jobDetails]);
 
@@ -23,24 +27,16 @@ export default function JobDetailsPanel({ jobDetails, onUpdate, jobId }) {
         handleChange({ jobType: newType });
     };
 
-            
-            // Hydrate incremental config
-            const incConfig = jobDetails.incremental_config || {};
-            setIncrementalEnabled(incConfig.enabled || false);
-            setTimestampColumn(incConfig.timestamp_column || '');
-        }
-    }, [jobDetails]);
-    
     // Helper to merge updates with all current state
     const handleChange = (updates) => {
         // Since updates might be partial, we need to construct the full incremental_config object
         // if it's not provided in the updates.
-        
+
         let nextIncConfig = {
             enabled: incrementalEnabled,
             timestamp_column: timestampColumn
         };
-        
+
         if (updates.incremental_config) {
             nextIncConfig = updates.incremental_config;
         }
@@ -95,8 +91,8 @@ export default function JobDetailsPanel({ jobDetails, onUpdate, jobId }) {
                             <button
                                 onClick={() => handleTypeChange('batch')}
                                 className={`relative flex items-start p-4 border-2 rounded-lg transition-all text-left cursor-pointer ${jobType === 'batch'
-                                        ? 'border-blue-500 bg-blue-50'
-                                        : 'border-gray-200 hover:border-gray-300 hover:bg-gray-50'
+                                    ? 'border-blue-500 bg-blue-50'
+                                    : 'border-gray-200 hover:border-gray-300 hover:bg-gray-50'
                                     }`}
                             >
                                 <div className="flex-1">
@@ -121,8 +117,8 @@ export default function JobDetailsPanel({ jobDetails, onUpdate, jobId }) {
                             <button
                                 onClick={() => handleTypeChange('cdc')}
                                 className={`relative flex items-start p-4 border-2 rounded-lg transition-all text-left cursor-pointer ${jobType === 'cdc'
-                                        ? 'border-green-500 bg-green-50'
-                                        : 'border-gray-200 hover:border-gray-300 hover:bg-gray-50'
+                                    ? 'border-green-500 bg-green-50'
+                                    : 'border-gray-200 hover:border-gray-300 hover:bg-gray-50'
                                     }`}
                             >
                                 <div className="flex-1">
@@ -162,7 +158,7 @@ export default function JobDetailsPanel({ jobDetails, onUpdate, jobId }) {
                         <h3 className="text-lg font-semibold text-gray-900">Incremental Load Strategy</h3>
                     </div>
                     <div className="p-6 space-y-5">
-                       <div className="flex items-start gap-4">
+                        <div className="flex items-start gap-4">
                             <div className="flex items-center h-5">
                                 <input
                                     id="incremental-mode"
@@ -189,33 +185,33 @@ export default function JobDetailsPanel({ jobDetails, onUpdate, jobId }) {
                                     Only process new data based on a timestamp column (Watermark strategy).
                                 </p>
                             </div>
-                       </div>
+                        </div>
 
-                       {incrementalEnabled && (
-                           <div className="pl-8">
-                               <label className="block text-sm font-medium text-gray-700 mb-2">
-                                   Timestamp Column Name
-                               </label>
-                               <input
-                                   type="text"
-                                   value={timestampColumn}
-                                   onChange={(e) => {
-                                       setTimestampColumn(e.target.value);
-                                       handleChange({
-                                           incremental_config: {
-                                               enabled: true,
-                                               timestamp_column: e.target.value
-                                           }
-                                       });
-                                   }}
-                                   className="w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
-                                   placeholder="e.g., updated_at, created_at"
-                               />
-                               <p className="mt-2 text-xs text-gray-400">
-                                   Ensure this column exists in your source table/collection and contains comparable timestamps.
-                               </p>
-                           </div>
-                       )}
+                        {incrementalEnabled && (
+                            <div className="pl-8">
+                                <label className="block text-sm font-medium text-gray-700 mb-2">
+                                    Timestamp Column Name
+                                </label>
+                                <input
+                                    type="text"
+                                    value={timestampColumn}
+                                    onChange={(e) => {
+                                        setTimestampColumn(e.target.value);
+                                        handleChange({
+                                            incremental_config: {
+                                                enabled: true,
+                                                timestamp_column: e.target.value
+                                            }
+                                        });
+                                    }}
+                                    className="w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                                    placeholder="e.g., updated_at, created_at"
+                                />
+                                <p className="mt-2 text-xs text-gray-400">
+                                    Ensure this column exists in your source table/collection and contains comparable timestamps.
+                                </p>
+                            </div>
+                        )}
                     </div>
                 </div>
 
