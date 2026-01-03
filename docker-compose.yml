@@ -150,7 +150,9 @@ services:
 
   # ============ Spark ============
   spark-master:
-    image: apache/spark:3.5.7-python3
+    build:
+      context: ./spark
+      dockerfile: Dockerfile.local
     container_name: spark-master
     restart: unless-stopped
     environment:
@@ -168,7 +170,9 @@ services:
       - ./spark/jobs:/opt/spark/jobs
 
   spark-worker:
-    image: apache/spark:3.5.7-python3
+    build:
+      context: ./spark
+      dockerfile: Dockerfile.local
     container_name: spark-worker
     restart: unless-stopped
     environment:
@@ -367,7 +371,6 @@ services:
       - "9600:9600"
     volumes:
       - opensearch-data:/usr/share/opensearch/data
-
 
   opensearch-dashboards:
     image: opensearchproject/opensearch-dashboards:2.11.1
