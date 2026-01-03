@@ -24,6 +24,7 @@ async def signup(user: UserCreate):
     new_user = User(
         email=user.email,
         password=user.password,
+        name=user.email.split("@")[0],  # Default name from email
         created_at=datetime.utcnow(),
         updated_at=datetime.utcnow()
     )
@@ -54,17 +55,30 @@ async def login(user: UserLogin):
             detail="Invalid email or password",
         )
 
-    # Create session
+    # Create session with full user info
+    # Special admin email check
+    is_admin = db_user.is_admin or db_user.email == "admin@xflows.net"
+    
     session_id = str(uuid.uuid4())
     sessions[session_id] = {
-        "user_id": str(db_user.id),  # Convert ObjectId to string
-        "email": db_user.email
+        "user_id": str(db_user.id),
+        "email": db_user.email,
+        "name": db_user.name or db_user.email.split("@")[0],
+        "is_admin": is_admin,
+        "etl_access": db_user.etl_access,
+        "domain_edit_access": db_user.domain_edit_access,
+        "dataset_access": db_user.dataset_access,
+        "all_datasets": db_user.all_datasets,
     }
-    return {"session_id": session_id}
+    
+    return {
+        "session_id": session_id,
+        "user": sessions[session_id]
+    }
 
 
 @router.get("/me")
-def get_current_user(session_id: str):
+async def get_current_user(session_id: str):
     """Get current user from session"""
     if session_id not in sessions:
         raise HTTPException(status_code=401, detail="Not authenticated")

@@ -18,9 +18,9 @@ import { CatalogSearch } from "../opensearch";
 export function Sidebar({ isCollapsed, onToggle }) {
   const navigate = useNavigate();
   const location = useLocation();
-  const { logout } = useAuth();
+  const { logout, user } = useAuth();
 
-  const navSections = [
+  const allNavSections = [
     {
       title: "DATA CATALOG",
       items: [{ name: "Dataset", path: "/", icon: List }],
@@ -39,8 +39,17 @@ export function Sidebar({ isCollapsed, onToggle }) {
     {
       title: "ADMINISTRATION",
       items: [{ name: "Admin", path: "/admin", icon: Wrench }],
+      adminOnly: true,
     },
   ];
+
+  // Filter sections based on user permissions
+  const navSections = allNavSections.filter((section) => {
+    if (section.adminOnly) {
+      return user?.is_admin === true;
+    }
+    return true;
+  });
 
   const handleLogout = () => {
     logout();
@@ -172,6 +181,12 @@ export function Sidebar({ isCollapsed, onToggle }) {
 }
 
 export function Topbar({ isCollapsed }) {
+  const { user } = useAuth();
+
+  const initials = user?.name
+    ? user.name.split(" ").map(n => n[0]).join("").toUpperCase().slice(0, 2)
+    : "??";
+
   return (
     <div
       className={clsx(
@@ -186,11 +201,11 @@ export function Topbar({ isCollapsed }) {
       <div className="flex items-center space-x-4">
         <div className="flex items-center space-x-3 pl-4 border-l border-gray-200">
           <div className="h-8 w-8 rounded-full bg-gradient-to-tr from-blue-500 to-purple-500 flex items-center justify-center text-white font-medium text-xs">
-            User
+            {initials}
           </div>
           <div className="hidden md:block">
-            <p className="text-sm font-medium text-gray-700">Username</p>
-            <p className="text-xs text-gray-500">Role</p>
+            <p className="text-sm font-medium text-gray-700">{user?.name || "User"}</p>
+            <p className="text-xs text-gray-500">{user?.is_admin ? "Admin" : "User"}</p>
           </div>
         </div>
       </div>
