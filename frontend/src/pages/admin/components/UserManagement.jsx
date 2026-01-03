@@ -1,40 +1,7 @@
 import { useState, useMemo, useEffect } from "react";
-import { Search, Edit2, Trash2, Check, X } from "lucide-react";
-import clsx from "clsx";
-
-// Mock data
-const initialMockUsers = [
-    {
-        id: "1",
-        email: "admin@xflow.io",
-        name: "Admin User",
-        etlAccess: true,
-        domainEditAccess: true,
-        datasetAccess: [],
-        allDatasets: true,
-        createdAt: "2025-12-01T00:00:00Z",
-    },
-    {
-        id: "2",
-        email: "john@company.com",
-        name: "John Doe",
-        etlAccess: true,
-        domainEditAccess: false,
-        datasetAccess: ["sales-pipeline", "marketing-pipeline"],
-        allDatasets: false,
-        createdAt: "2025-12-15T00:00:00Z",
-    },
-    {
-        id: "3",
-        email: "jane@company.com",
-        name: "Jane Smith",
-        etlAccess: false,
-        domainEditAccess: false,
-        datasetAccess: ["finance-pipeline"],
-        allDatasets: false,
-        createdAt: "2025-12-20T00:00:00Z",
-    },
-];
+import { Search, Edit2, Trash2, Check, X, Loader2 } from "lucide-react";
+import { useAuth } from "../../../context/AuthContext";
+import { getUsers, deleteUser } from "../../../services/adminApi";
 
 function AccessBadge({ hasAccess }) {
     return hasAccess ? (
@@ -64,41 +31,75 @@ function DatasetBadge({ datasetAccess, allDatasets }) {
     );
 }
 
-export default function UserManagement({ externalUsers, setExternalUsers, onEditUser }) {
-    const [users, setUsers] = useState(initialMockUsers);
+export default function UserManagement({ onEditUser }) {
+    const { sessionId } = useAuth();
+    const [users, setUsers] = useState([]);
     const [searchQuery, setSearchQuery] = useState("");
+    const [loading, setLoading] = useState(true);
+    const [error, setError] = useState(null);
 
-    // Merge external users from Add User tab
-    useEffect(() => {
-        if (externalUsers && externalUsers.length > 0) {
-            setUsers((prev) => {
-                const newUsers = [...prev];
-                externalUsers.forEach((extUser) => {
-                    const existingIndex = newUsers.findIndex((u) => u.id === extUser.id);
-                    if (existingIndex >= 0) {
-                        newUsers[existingIndex] = extUser;
-                    } else {
-                        newUsers.push(extUser);
-                    }
-                });
-                return newUsers;
-            });
+    // Fetch users from API
+    const fetchUsers = async () => {
+        setLoading(true);
+        setError(null);
+        try {
+            const data = await getUsers(sessionId);
+            setUsers(data);
+        } catch (err) {
+            setError(err.message);
+        } finally {
+            setLoading(false);
         }
-    }, [externalUsers]);
+    };
+
+    useEffect(() => {
+        fetchUsers();
+    }, [sessionId]);
 
     const filteredUsers = useMemo(() => {
         return users.filter(
             (user) =>
                 user.email.toLowerCase().includes(searchQuery.toLowerCase()) ||
-                user.name.toLowerCase().includes(searchQuery.toLowerCase())
+                (user.name && user.name.toLowerCase().includes(searchQuery.toLowerCase()))
         );
     }, [users, searchQuery]);
 
-    const handleDeleteUser = (user) => {
-        if (window.confirm(`Are you sure you want to delete "${user.name}"?`)) {
+    const handleDeleteUser = async (user) => {
+        if (!window.confirm(`Are you sure you want to delete "${user.name || user.email}"?`)) {
+            return;
+        }
+
+        try {
+            await deleteUser(sessionId, user.id);
+            // Remove from local state
             setUsers((prev) => prev.filter((u) => u.id !== user.id));
+        } catch (err) {
+            alert(err.message);
         }
     };
+
+    if (loading) {
+        return (
+            <div className="flex items-center justify-center py-12">
+                <Loader2 className="w-6 h-6 animate-spin text-gray-400" />
+                <span className="ml-2 text-gray-500">Loading users...</span>
+            </div>
+        );
+    }
+
+    if (error) {
+        return (
+            <div className="p-4 bg-red-50 border border-red-200 rounded-lg text-red-600 text-sm">
+                Error: {error}
+                <button
+                    onClick={fetchUsers}
+                    className="ml-4 text-red-700 underline"
+                >
+                    Retry
+                </button>
+            </div>
+        );
+    }
 
     return (
         <div className="space-y-4">
@@ -145,26 +146,31 @@ export default function UserManagement({ externalUsers, setExternalUsers, onEdit
                                 <td className="px-4 py-3">
                                     <div>
                                         <p className="text-sm font-medium text-gray-900">
-                                            {user.name}
+                                            {user.name || user.email.split("@")[0]}
+                                            {user.is_admin && (
+                                                <span className="ml-2 px-1.5 py-0.5 bg-purple-100 text-purple-700 text-xs rounded">
+                                                    Admin
+                                                </span>
+                                            )}
                                         </p>
                                         <p className="text-xs text-gray-500">{user.email}</p>
                                     </div>
                                 </td>
                                 <td className="px-4 py-3">
-                                    <AccessBadge hasAccess={user.etlAccess} />
+                                    <AccessBadge hasAccess={user.etl_access} />
                                 </td>
                                 <td className="px-4 py-3">
-                                    <AccessBadge hasAccess={user.domainEditAccess} />
+                                    <AccessBadge hasAccess={user.domain_edit_access} />
                                 </td>
                                 <td className="px-4 py-3">
                                     <DatasetBadge
-                                        datasetAccess={user.datasetAccess}
-                                        allDatasets={user.allDatasets}
+                                        datasetAccess={user.dataset_access}
+                                        allDatasets={user.all_datasets}
                                     />
                                 </td>
                                 <td className="px-4 py-3">
                                     <span className="text-sm text-gray-500">
-                                        {new Date(user.createdAt).toLocaleDateString()}
+                                        {user.created_at ? new Date(user.created_at).toLocaleDateString() : "-"}
                                     </span>
                                 </td>
                                 <td className="px-4 py-3">

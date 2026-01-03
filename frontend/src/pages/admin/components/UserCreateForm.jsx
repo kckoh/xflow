@@ -1,6 +1,8 @@
 import { useState, useEffect, useMemo } from "react";
-import { Check, Search, X, ChevronLeft, ChevronRight, Database } from "lucide-react";
+import { Check, Search, X, ChevronLeft, ChevronRight, Database, Loader2 } from "lucide-react";
 import clsx from "clsx";
+import { useAuth } from "../../../context/AuthContext";
+import { createUser, updateUser } from "../../../services/adminApi";
 
 // Dataset list with schema info (will be fetched from DB later)
 const mockDatasets = [
@@ -332,6 +334,7 @@ function DatasetPermissionSelector({ datasets, selectedDatasets, onChange }) {
 }
 
 export default function UserCreateForm({ editingUser, onUserCreated, onCancel }) {
+    const { sessionId } = useAuth();
     const [formData, setFormData] = useState({
         email: "",
         password: "",
@@ -344,19 +347,20 @@ export default function UserCreateForm({ editingUser, onUserCreated, onCancel })
     });
     const [errors, setErrors] = useState({});
     const [successMessage, setSuccessMessage] = useState("");
+    const [isSubmitting, setIsSubmitting] = useState(false);
 
-    // Load editing user data
+    // Load editing user data (map API field names to form field names)
     useEffect(() => {
         if (editingUser) {
             setFormData({
                 email: editingUser.email,
                 password: "",
                 confirmPassword: "",
-                name: editingUser.name,
-                etlAccess: editingUser.etlAccess || false,
-                domainEditAccess: editingUser.domainEditAccess || false,
-                datasetAccess: editingUser.datasetAccess || [],
-                allDatasets: editingUser.allDatasets || false,
+                name: editingUser.name || "",
+                etlAccess: editingUser.etl_access || editingUser.etlAccess || false,
+                domainEditAccess: editingUser.domain_edit_access || editingUser.domainEditAccess || false,
+                datasetAccess: editingUser.dataset_access || editingUser.datasetAccess || [],
+                allDatasets: editingUser.all_datasets || editingUser.allDatasets || false,
             });
             setErrors({});
             setSuccessMessage("");
@@ -403,20 +407,39 @@ export default function UserCreateForm({ editingUser, onUserCreated, onCancel })
         return Object.keys(newErrors).length === 0;
     };
 
-    const handleSubmit = () => {
-        if (validateForm()) {
-            const userData = {
-                id: editingUser ? editingUser.id : String(Date.now()),
+    const handleSubmit = async () => {
+        if (!validateForm()) return;
+
+        setIsSubmitting(true);
+        setErrors({});
+
+        try {
+            const payload = {
                 email: formData.email,
                 name: formData.name,
-                etlAccess: formData.etlAccess,
-                domainEditAccess: formData.domainEditAccess,
-                datasetAccess: formData.allDatasets ? [] : formData.datasetAccess,
-                allDatasets: formData.allDatasets,
-                createdAt: editingUser ? editingUser.createdAt : new Date().toISOString(),
+                is_admin: false,
+                etl_access: formData.etlAccess,
+                domain_edit_access: formData.domainEditAccess,
+                dataset_access: formData.allDatasets ? [] : formData.datasetAccess,
+                all_datasets: formData.allDatasets,
             };
 
-            onUserCreated(userData);
+            // Only include password if provided
+            if (formData.password) {
+                payload.password = formData.password;
+            }
+
+            let data;
+            if (editingUser) {
+                // Update existing user
+                data = await updateUser(sessionId, editingUser.id, payload);
+            } else {
+                // Create new user (password required)
+                payload.password = formData.password;
+                data = await createUser(sessionId, payload);
+            }
+
+            onUserCreated(data);
 
             if (!editingUser) {
                 setFormData({
@@ -429,10 +452,13 @@ export default function UserCreateForm({ editingUser, onUserCreated, onCancel })
                     datasetAccess: [],
                     allDatasets: false,
                 });
-                setErrors({});
                 setSuccessMessage("User created successfully!");
                 setTimeout(() => setSuccessMessage(""), 3000);
             }
+        } catch (err) {
+            setErrors({ submit: err.message });
+        } finally {
+            setIsSubmitting(false);
         }
     };
 
@@ -646,21 +672,31 @@ export default function UserCreateForm({ editingUser, onUserCreated, onCancel })
                 </div>
 
                 {/* Footer */}
-                <div className="flex items-center justify-end gap-3 px-6 py-4 border-t border-gray-200 bg-gray-50">
-                    {onCancel && (
+                <div className="flex items-center justify-between px-6 py-4 border-t border-gray-200 bg-gray-50">
+                    <div>
+                        {errors.submit && (
+                            <p className="text-sm text-red-600">{errors.submit}</p>
+                        )}
+                    </div>
+                    <div className="flex items-center gap-3">
+                        {onCancel && (
+                            <button
+                                onClick={onCancel}
+                                disabled={isSubmitting}
+                                className="px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-100 rounded-lg transition-colors disabled:opacity-50"
+                            >
+                                Cancel
+                            </button>
+                        )}
                         <button
-                            onClick={onCancel}
-                            className="px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-100 rounded-lg transition-colors"
+                            onClick={handleSubmit}
+                            disabled={isSubmitting}
+                            className="px-5 py-2 bg-blue-600 text-white text-sm font-medium rounded-lg hover:bg-blue-700 transition-colors shadow-sm disabled:opacity-50 flex items-center gap-2"
                         >
-                            Cancel
+                            {isSubmitting && <Loader2 className="w-4 h-4 animate-spin" />}
+                            {editingUser ? "Save Changes" : "Create User"}
                         </button>
-                    )}
-                    <button
-                        onClick={handleSubmit}
-                        className="px-5 py-2 bg-blue-600 text-white text-sm font-medium rounded-lg hover:bg-blue-700 transition-colors shadow-sm"
-                    >
-                        {editingUser ? "Save Changes" : "Create User"}
-                    </button>
+                    </div>
                 </div>
             </div>
         </div>
