@@ -5,10 +5,12 @@ const API_URL = `${API_BASE_URL}/api/catalog`;
 export const catalogAPI = {
     /**
      * Fetch all datasets
+     * @param {string} sessionId - Optional session ID for permission filtering
      * @returns {Promise<Array>}
      */
-    getDatasets: async () => {
-        const response = await fetch(API_URL);
+    getDatasets: async (sessionId = null) => {
+        const url = sessionId ? `${API_URL}?session_id=${sessionId}` : API_URL;
+        const response = await fetch(url);
         if (!response.ok) {
             throw new Error(`Failed to fetch catalog data: ${response.statusText} `);
         }

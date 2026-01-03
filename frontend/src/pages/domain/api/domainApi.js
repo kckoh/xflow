@@ -55,7 +55,11 @@ export const saveDomainGraph = async (id, { nodes, edges }) => {
 
 // ETL Job Import APIs
 export const getImportReadyJobs = async () => {
-    const response = await fetch(`${BASE_URL}/jobs?import_ready=true`);
+    const sessionId = localStorage.getItem('sessionId');
+    const url = sessionId
+        ? `${BASE_URL}/jobs?import_ready=true&session_id=${sessionId}`
+        : `${BASE_URL}/jobs?import_ready=true`;
+    const response = await fetch(url);
     if (!response.ok) throw new Error(`Failed to fetch import-ready jobs: ${response.status}`);
     return response.json();
 };

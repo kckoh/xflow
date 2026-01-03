@@ -68,10 +68,48 @@ async def get_job_execution(job_id: str):
 
 
 @router.get("/jobs", response_model=List[DomainJobListResponse])
-async def list_domain_jobs(import_ready: bool = Query(True)):
-    """Get ETL jobs that are ready to be imported into domain (import_ready=true by default)"""
+async def list_domain_jobs(
+    import_ready: bool = Query(True),
+    session_id: Optional[str] = Query(None, description="Session ID for authentication")
+):
+    """Get ETL jobs that are ready to be imported into domain (import_ready=true by default)
+    Filters by user's dataset_access permissions if authenticated."""
     try:
+        # Import dependencies here to avoid circular imports
+        from dependencies import sessions
+        
+        # Get all import-ready jobs
         jobs = await ETLJob.find(ETLJob.import_ready == import_ready).to_list()
+        
+        # Get user session if provided
+        user_session = None
+        if session_id and session_id in sessions:
+            user_session = sessions[session_id]
+        
+        # Filter jobs based on dataset_access permissions
+        if user_session:
+            is_admin = user_session.get("is_admin", False)
+            dataset_access = user_session.get("dataset_access", [])
+            
+            # Admin sees all jobs
+            if not is_admin and dataset_access is not None:
+                # Get all datasets to map job_id to dataset_id
+                datasets = await Dataset.find_all().to_list()
+                job_to_dataset = {d.job_id: str(d.id) for d in datasets if d.job_id}
+                
+                # Filter jobs: only include if user has access to the dataset
+                filtered_jobs = []
+                for job in jobs:
+                    job_id_str = str(job.id)
+                    dataset_id = job_to_dataset.get(job_id_str)
+                    
+                    # Include job if:
+                    # 1. User has access to its dataset, OR
+                    # 2. No dataset exists yet for this job (allow import to create it)
+                    if dataset_id is None or dataset_id in dataset_access:
+                        filtered_jobs.append(job)
+                
+                jobs = filtered_jobs
 
         return [
             DomainJobListResponse(
