@@ -38,7 +38,11 @@ class ETLJobCreate(BaseModel):
     transforms: List[TransformConfig] = []
     targets: Optional[List[dict]] = None
     destination: DestinationConfig
-    schedule: Optional[str] = None  # Cron expression or None for manual
+    schedule: Optional[str] = None  # Created by backend
+    schedule_frequency: Optional[str] = None
+    ui_params: Optional[dict] = None
+    incremental_config: Optional[dict] = None
+    
     # Visual Editor state
     nodes: Optional[List[dict]] = None
     edges: Optional[List[dict]] = None
@@ -55,7 +59,12 @@ class ETLJobUpdate(BaseModel):
     transforms: Optional[List[TransformConfig]] = None
     targets: Optional[List[dict]] = None
     destination: Optional[DestinationConfig] = None
+    
     schedule: Optional[str] = None
+    schedule_frequency: Optional[str] = None
+    ui_params: Optional[dict] = None
+    incremental_config: Optional[dict] = None
+    
     status: Optional[str] = None
     import_ready: Optional[bool] = None
     # Visual Editor state
@@ -65,6 +74,22 @@ class ETLJobUpdate(BaseModel):
 
 class ETLJobResponse(ETLJobCreate):
     id: str
+    name: str
+    description: Optional[str] = None
+    # Multiple sources support (new)
+    sources: Optional[List[dict]] = None
+    # Legacy single source (backward compatibility)
+    source: Optional[dict] = None
+    transforms: List[dict]
+    destination: dict
+    
+    schedule: Optional[str] = None
+    schedule_frequency: Optional[str] = None
+    ui_params: Optional[dict] = None
+    incremental_config: Optional[dict] = None
+    last_sync_timestamp: Optional[datetime] = None
+    
+    status: str
     created_at: datetime
     updated_at: datetime
     # Visual Editor state

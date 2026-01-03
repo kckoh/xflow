@@ -2,6 +2,7 @@ import { useState, useEffect } from "react";
 import { useNavigate, useLocation } from "react-router-dom";
 import {
   Play,
+  Pause,
   Code,
   FileText,
   BarChart3,
@@ -64,27 +65,58 @@ export default function ETLMain() {
     }
   };
 
-  const handleRun = async (jobId) => {
+  const handleRun = async (job) => {
     try {
-      const response = await fetch(
-        `${API_BASE_URL}/api/etl-jobs/${jobId}/run`,
-        {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
+      // Determine the appropriate endpoint based on job state
+      let endpoint;
+      let actionMessage;
+
+      if (job.schedule) {
+        // Job has a schedule
+        if (job.status === "active") {
+          // Pause active schedule
+          endpoint = `/api/etl-jobs/${job.id}/deactivate`;
+          actionMessage = "Schedule paused";
+        } else {
+          // Activate draft/paused schedule
+          endpoint = `/api/etl-jobs/${job.id}/activate`;
+          actionMessage = "Schedule activated";
         }
-      );
+      } else {
+        // No schedule - run immediately
+        endpoint = `/api/etl-jobs/${job.id}/run`;
+        actionMessage = "Job started";
+      }
+
+      const response = await fetch(`${API_BASE_URL}${endpoint}`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+      });
 
       if (!response.ok) {
         const error = await response.json();
-        throw new Error(error.detail || "Failed to run job");
+        throw new Error(error.detail || "Failed to execute action");
       }
 
       const data = await response.json();
-      console.log("Job run triggered:", data);
-      showToast(
-        `Job started! Run ID: ${data.run_id}. Processing via Airflow + Spark...`,
-        "success"
-      );
+      console.log("Action executed:", data);
+
+      // Show appropriate message
+      if (job.schedule) {
+        showToast(
+          `${actionMessage}! ${data.message || ""}`,
+          "success"
+        );
+      } else {
+        // One-time execution
+        showToast(
+          `Job started! Run ID: ${data.run_id}. Processing via Airflow + Spark...`,
+          "success"
+        );
+      }
+
+      // Refresh job list to update status
+      fetchJobs();
     } catch (error) {
       console.error("Run failed:", error);
       showToast(`Run failed: ${error.message}`, "error");
@@ -132,6 +164,54 @@ export default function ETLMain() {
       action: () => navigate("/etl/visual"),
     },
   ];
+
+  const getScheduleDisplay = (job) => {
+    if (!job.schedule) return <span className="text-gray-400 italic">Manual</span>;
+
+    const { schedule_frequency: frequency, ui_params: uiParams } = job;
+
+    if (frequency === 'interval' && uiParams) {
+        const parts = [];
+        if (uiParams.intervalDays > 0) parts.push(`${uiParams.intervalDays}d`);
+        if (uiParams.intervalHours > 0) parts.push(`${uiParams.intervalHours}h`);
+        if (uiParams.intervalMinutes > 0) parts.push(`${uiParams.intervalMinutes}m`);
+        return (
+            <span className="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-blue-100 text-blue-800">
+                Every {parts.join(' ') || '0m'}
+            </span>
+        );
+    }
+    
+    if (frequency === 'hourly' && uiParams) {
+         return (
+            <span className="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-purple-100 text-purple-800">
+                Every {uiParams.hourInterval}h
+            </span>
+         );
+    }
+
+    if (['daily', 'weekly', 'monthly'].includes(frequency) && uiParams?.startDate) {
+        const date = new Date(uiParams.startDate);
+        const timeStr = date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+        
+        let text = "";
+        if (frequency === 'daily') text = `Daily at ${timeStr}`;
+        else if (frequency === 'weekly') text = `Weekly (${date.toLocaleDateString([], { weekday: 'short' })}) ${timeStr}`;
+        else if (frequency === 'monthly') text = `Monthly (${date.getDate()}th) ${timeStr}`;
+        
+        return (
+            <span className="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-green-100 text-green-800">
+                {text}
+            </span>
+        );
+    }
+
+    return (
+        <span className="font-mono text-xs bg-gray-100 px-2 py-1 rounded">
+            {job.schedule}
+        </span>
+    );
+  };
 
   return (
     <div className="min-h-screen bg-gray-50 px-6 pt-2 pb-6">
@@ -251,13 +331,16 @@ export default function ETLMain() {
                       </span>
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                      {job.schedule ? (
-                        <span className="flex items-center gap-1 font-mono bg-gray-50 px-2 py-0.5 rounded text-xs">
-                          {job.schedule}
+                      <div className="flex flex-col">
+                        <span className="text-sm text-gray-900">
+                          {getScheduleDisplay(job)}
                         </span>
-                      ) : (
-                        <span className="text-gray-400 italic">Manual</span>
-                      )}
+                        {job.ui_params?.startDate && (
+                           <span className="text-xs text-gray-500">
+                             Start: {new Date(job.ui_params.startDate).toLocaleDateString()}
+                           </span>
+                        )}
+                      </div>
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
                       {job.description || "-"}
@@ -268,14 +351,28 @@ export default function ETLMain() {
                     <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
                       <div className="flex items-center gap-3">
                         <button
-                          className="text-green-600 hover:text-green-800 transition-colors"
+                          className={
+                            job.schedule && job.status === "active"
+                              ? "text-orange-600 hover:text-orange-800 transition-colors"
+                              : "text-green-600 hover:text-green-800 transition-colors"
+                          }
                           onClick={(e) => {
                             e.stopPropagation();
-                            handleRun(job.id);
+                            handleRun(job);
                           }}
-                          title="Run"
+                          title={
+                            job.schedule
+                              ? job.status === "active"
+                                ? "Pause Schedule"
+                                : "Activate Schedule"
+                              : "Run Now"
+                          }
                         >
-                          <Play className="w-4 h-4" />
+                          {job.schedule && job.status === "active" ? (
+                            <Pause className="w-4 h-4" />
+                          ) : (
+                            <Play className="w-4 h-4" />
+                          )}
                         </button>
                         <button
                           className="text-red-600 hover:text-red-800 transition-colors"

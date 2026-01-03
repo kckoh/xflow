@@ -1,10 +1,14 @@
 import { useState, useEffect } from 'react';
 import { Settings, RefreshCw, Zap, Database } from 'lucide-react';
+import { Settings, RefreshCw, Clock, Zap, Database } from 'lucide-react';
+
 
 export default function JobDetailsPanel({ jobDetails, onUpdate, jobId }) {
     const [description, setDescription] = useState('');
     const [maxRetries, setMaxRetries] = useState(0);
     const [jobType, setJobType] = useState('batch'); // 'batch' or 'cdc'
+    const [incrementalEnabled, setIncrementalEnabled] = useState(false);
+    const [timestampColumn, setTimestampColumn] = useState('');
 
     useEffect(() => {
         if (jobDetails) {
@@ -19,11 +23,33 @@ export default function JobDetailsPanel({ jobDetails, onUpdate, jobId }) {
         handleChange({ jobType: newType });
     };
 
+            
+            // Hydrate incremental config
+            const incConfig = jobDetails.incremental_config || {};
+            setIncrementalEnabled(incConfig.enabled || false);
+            setTimestampColumn(incConfig.timestamp_column || '');
+        }
+    }, [jobDetails]);
+    
+    // Helper to merge updates with all current state
     const handleChange = (updates) => {
+        // Since updates might be partial, we need to construct the full incremental_config object
+        // if it's not provided in the updates.
+        
+        let nextIncConfig = {
+            enabled: incrementalEnabled,
+            timestamp_column: timestampColumn
+        };
+        
+        if (updates.incremental_config) {
+            nextIncConfig = updates.incremental_config;
+        }
+
         const newDetails = {
             description: updates.description ?? description,
             jobType: updates.jobType ?? jobType,
             maxRetries: updates.maxRetries ?? maxRetries,
+            incremental_config: nextIncConfig
         };
         onUpdate(newDetails);
     };
@@ -126,6 +152,70 @@ export default function JobDetailsPanel({ jobDetails, onUpdate, jobId }) {
                             💡 타입을 선택한 후 <strong>Save</strong> 버튼을 눌러야 적용됩니다.
                             {jobType === 'cdc' && ' CDC 선택 시 저장과 함께 실시간 동기화가 시작됩니다.'}
                         </p>
+                    </div>
+                </div>
+
+                {/* Incremental Load Settings */}
+                <div className="bg-white rounded-lg border border-gray-200 shadow-sm">
+                    <div className="px-6 py-4 border-b border-gray-200 flex items-center gap-3">
+                        <Clock className="w-5 h-5 text-gray-500" />
+                        <h3 className="text-lg font-semibold text-gray-900">Incremental Load Strategy</h3>
+                    </div>
+                    <div className="p-6 space-y-5">
+                       <div className="flex items-start gap-4">
+                            <div className="flex items-center h-5">
+                                <input
+                                    id="incremental-mode"
+                                    type="checkbox"
+                                    checked={incrementalEnabled}
+                                    onChange={(e) => {
+                                        const enabled = e.target.checked;
+                                        setIncrementalEnabled(enabled);
+                                        handleChange({
+                                            incremental_config: {
+                                                enabled: enabled,
+                                                timestamp_column: timestampColumn
+                                            }
+                                        });
+                                    }}
+                                    className="focus:ring-blue-500 h-4 w-4 text-blue-600 border-gray-300 rounded"
+                                />
+                            </div>
+                            <div className="flex-1">
+                                <label htmlFor="incremental-mode" className="font-medium text-gray-700">
+                                    Enable Incremental Load
+                                </label>
+                                <p className="text-sm text-gray-500">
+                                    Only process new data based on a timestamp column (Watermark strategy).
+                                </p>
+                            </div>
+                       </div>
+
+                       {incrementalEnabled && (
+                           <div className="pl-8">
+                               <label className="block text-sm font-medium text-gray-700 mb-2">
+                                   Timestamp Column Name
+                               </label>
+                               <input
+                                   type="text"
+                                   value={timestampColumn}
+                                   onChange={(e) => {
+                                       setTimestampColumn(e.target.value);
+                                       handleChange({
+                                           incremental_config: {
+                                               enabled: true,
+                                               timestamp_column: e.target.value
+                                           }
+                                       });
+                                   }}
+                                   className="w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                                   placeholder="e.g., updated_at, created_at"
+                               />
+                               <p className="mt-2 text-xs text-gray-400">
+                                   Ensure this column exists in your source table/collection and contains comparable timestamps.
+                               </p>
+                           </div>
+                       )}
                     </div>
                 </div>
 

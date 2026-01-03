@@ -77,6 +77,9 @@ export default function S3TransformPanel({ node, sourceBucket, sourcePath, onClo
   };
 
   const handleSave = () => {
+    // Get base schema from node's input
+    const baseSchema = node?.data?.inputSchema || [];
+
     const schema =
       transformType === 's3-select-fields'
         ? baseSchema.filter((field) => selectedFields.includes(field.key))

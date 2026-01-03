@@ -37,7 +37,7 @@ function Login() {
                 return;
             }
 
-            login(data.session_id);
+            login(data.session_id, data.user);
             navigate("/"); // Redirect to Dashboard
         } catch (error) {
             console.error("Error:", error);

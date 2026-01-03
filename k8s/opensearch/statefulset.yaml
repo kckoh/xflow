@@ -1,0 +1,89 @@
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: opensearch
+spec:
+  serviceName: opensearch
+  replicas: 1
+  selector:
+    matchLabels:
+      app: opensearch
+  template:
+    metadata:
+      labels:
+        app: opensearch
+    spec:
+      securityContext:
+        fsGroup: 1000
+        runAsUser: 1000
+      initContainers:
+        - name: fix-permissions
+          image: busybox:1.36
+          command:
+            - sh
+            - -c
+            - |
+              chown -R 1000:1000 /usr/share/opensearch/data
+          securityContext:
+            runAsUser: 0
+          volumeMounts:
+            - name: opensearch-data
+              mountPath: /usr/share/opensearch/data
+        - name: install-plugins
+          image: opensearchproject/opensearch:2.11.1
+          command:
+            - sh
+            - -c
+            - |
+              if ! /usr/share/opensearch/bin/opensearch-plugin list | grep -q analysis-nori; then
+                /usr/share/opensearch/bin/opensearch-plugin install --batch analysis-nori
+              fi
+              cp -r /usr/share/opensearch/plugins/* /plugins/ 2>/dev/null || true
+          volumeMounts:
+            - name: plugins
+              mountPath: /plugins
+      containers:
+        - name: opensearch
+          image: opensearchproject/opensearch:2.11.1
+          ports:
+            - containerPort: 9200
+              name: http
+            - containerPort: 9600
+              name: transport
+          env:
+            - name: discovery.type
+              value: single-node
+            - name: plugins.security.disabled
+              value: "true"
+            - name: OPENSEARCH_JAVA_OPTS
+              value: "-Xms512m -Xmx512m"
+          volumeMounts:
+            - name: opensearch-data
+              mountPath: /usr/share/opensearch/data
+            - name: plugins
+              mountPath: /usr/share/opensearch/plugins
+          resources:
+            requests:
+              memory: "768Mi"
+              cpu: "250m"
+            limits:
+              memory: "1536Mi"
+              cpu: "500m"
+          readinessProbe:
+            httpGet:
+              path: /_cluster/health
+              port: 9200
+            initialDelaySeconds: 30
+            periodSeconds: 10
+          livenessProbe:
+            httpGet:
+              path: /_cluster/health
+              port: 9200
+            initialDelaySeconds: 60
+            periodSeconds: 20
+      volumes:
+        - name: opensearch-data
+          persistentVolumeClaim:
+            claimName: opensearch-pvc
+        - name: plugins
+          emptyDir: {}

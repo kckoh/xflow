@@ -12,6 +12,7 @@ import ETLPage from "./pages/etl/etl_main";
 import ConnectionListPage from "./pages/sources/ConnectionListPage";
 import ConnectionCreatePage from "./pages/sources/ConnectionCreatePage";
 import QueryPage from "./pages/query/QueryPage";
+import AdminPage from "./pages/admin/AdminPage";
 import { ToastProvider } from "./components/common/Toast";
 
 // Placeholder components for new routes
@@ -115,6 +116,17 @@ function App() {
               <ProtectedRoute>
                 <MainLayout>
                   <SettingsPage />
+                </MainLayout>
+              </ProtectedRoute>
+            }
+          />
+
+          <Route
+            path="/admin"
+            element={
+              <ProtectedRoute requireAdmin>
+                <MainLayout>
+                  <AdminPage />
                 </MainLayout>
               </ProtectedRoute>
             }

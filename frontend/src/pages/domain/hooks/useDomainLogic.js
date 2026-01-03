@@ -5,7 +5,7 @@ import { useDomainInteractions } from './useDomainInteractions';
 import { useToast } from '../../../components/common/Toast';
 import { deleteDomain } from '../api/domainApi';
 
-export const useDomainLogic = ({ datasetId, selectedId, onStreamAnalysis, onNodeSelect, initialNodes, initialEdges, onNodesDelete, onEdgesDelete, onEdgeCreate }) => {
+export const useDomainLogic = ({ datasetId, selectedId, onStreamAnalysis, onNodeSelect, onEtlStepSelect, initialNodes, initialEdges, onNodesDelete, onEdgesDelete, onEdgeCreate }) => {
     const { showToast } = useToast();
 
     // 1. Graph State & Layout Logic
@@ -49,7 +49,8 @@ export const useDomainLogic = ({ datasetId, selectedId, onStreamAnalysis, onNode
         nodes, edges, setNodes, setEdges,
         updateLayout,
         handleToggleExpand,
-        onDeleteNode: handleDeleteNode
+        onDeleteNode: handleDeleteNode,
+        onEtlStepSelect
     });
 
     // 3. User Interactions & Events
