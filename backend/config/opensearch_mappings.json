@@ -81,6 +81,29 @@
         "status": {
           "type": "keyword"
         },
+        "node_descriptions": {
+          "type": "text",
+          "analyzer": "korean_analyzer"
+        },
+        "node_tags": {
+          "type": "keyword"
+        },
+        "column_names": {
+          "type": "text",
+          "analyzer": "korean_analyzer",
+          "fields": {
+            "keyword": {
+              "type": "keyword"
+            }
+          }
+        },
+        "column_descriptions": {
+          "type": "text",
+          "analyzer": "korean_analyzer"
+        },
+        "column_tags": {
+          "type": "keyword"
+        },
         "created_at": {
           "type": "date"
         },

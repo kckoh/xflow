@@ -149,7 +149,13 @@ async def search(
                     {
                         "multi_match": {
                             "query": q,
-                            "fields": ["name^3", "description^2"],
+                            "fields": [
+                                "name^3",
+                                "description^2",
+                                "node_descriptions",
+                                "column_names^2",
+                                "column_descriptions"
+                            ],
                             "type": "best_fields",
                             "fuzziness": "AUTO"
                         }

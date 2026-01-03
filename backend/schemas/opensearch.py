@@ -19,6 +19,13 @@ class DomainDocument(BaseModel):
     owner: Optional[str] = Field(default=None, description="소유자")
     tags: Optional[List[str]] = Field(default=None, description="태그 목록")
     status: Optional[str] = Field(default=None, description="상태 (etl_job의 경우)")
+    # 노드/컬럼 메타데이터
+    node_descriptions: Optional[List[str]] = Field(default=None, description="노드 설명 목록")
+    node_tags: Optional[List[str]] = Field(default=None, description="노드 태그 목록")
+    column_names: Optional[List[str]] = Field(default=None, description="컬럼명 목록")
+    column_descriptions: Optional[List[str]] = Field(default=None, description="컬럼 설명 목록")
+    column_tags: Optional[List[str]] = Field(default=None, description="컬럼 태그 목록")
+    # 타임스탬프
     created_at: Optional[datetime] = Field(default=None, description="생성 시간")
     updated_at: Optional[datetime] = Field(default=None, description="수정 시간")
     last_indexed: Optional[datetime] = Field(default=None, description="마지막 인덱싱 시간")
