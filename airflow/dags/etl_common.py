@@ -71,6 +71,7 @@ def fetch_job_config(**context):
     print(f"Estimated source size from job config: {estimated_size_gb:.2f} GB")
 
     # Build complete config for Spark
+    # Build complete config for Spark
     config = {
         "job_id": job_id,
         "name": job.get("name"),
@@ -80,6 +81,18 @@ def fetch_job_config(**context):
         "nodes": job.get("nodes", []),
         "estimated_size_gb": estimated_size_gb,
     }
+    
+    # Inject incremental config into sources and destination if present
+    incremental_config = job.get("incremental_config")
+    if incremental_config:
+        # Merge the top-level last_sync_timestamp into the config dict for Spark
+        last_sync = job.get("last_sync_timestamp")
+        if last_sync:
+            incremental_config["last_sync_timestamp"] = last_sync.isoformat()
+            
+        for source in config["sources"]:
+            source["incremental_config"] = incremental_config
+        config["destination"]["incremental_config"] = incremental_config
 
     # Add S3 config (different for local vs production)
     if config["destination"].get("type") == "s3":
@@ -148,7 +161,7 @@ def update_job_run_status(status: str, error_message: str = None, **context):
 
 
 def finalize_import(**context):
-    """Final task: Set import_ready flag to True"""
+    """Final task: Set import_ready flag to True and update last_sync_timestamp for incremental loads"""
     import pymongo
     from bson import ObjectId
 
@@ -163,9 +176,24 @@ def finalize_import(**context):
     db = client[mongo_db]
 
     try:
+        # Fetch job to check if incremental is enabled
+        job = db.etl_jobs.find_one({"_id": ObjectId(job_id)})
+        if not job:
+            print(f"ETL Job {job_id} not found")
+            return
+
+        update_fields = {"import_ready": True}
+
+        # Update last_sync_timestamp if incremental is enabled
+        incremental_config = job.get("incremental_config") or {}
+        if incremental_config.get("enabled"):
+            current_time = datetime.utcnow()
+            update_fields["last_sync_timestamp"] = current_time
+            print(f"[Incremental] Updated last_sync_timestamp: {current_time.isoformat()}")
+
         result = db.etl_jobs.update_one(
             {"_id": ObjectId(job_id)},
-            {"$set": {"import_ready": True}}
+            {"$set": update_fields}
         )
 
         if result.modified_count > 0:
@@ -174,7 +202,7 @@ def finalize_import(**context):
             print(f"ETL Job {job_id} not found or already marked")
 
     except Exception as e:
-        print(f"Failed to set import_ready: {e}")
+        print(f"Failed to finalize import: {e}")
         raise
     finally:
         client.close()

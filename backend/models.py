@@ -82,8 +82,16 @@ class ETLJob(Document):
     destination: dict = Field(default_factory=dict)
     # Example: {"type": "s3", "path": "s3a://bucket/path", "format": "parquet"}
 
-    schedule: Optional[str] = None  # Cron expression or None for manual trigger
+    schedule: Optional[str] = None  # Cron expression or @interval string
+    schedule_frequency: Optional[str] = None  # daily, weekly, interval, etc.
+    ui_params: Optional[dict] = None  # Raw UI parameters for restoration
+    
     status: str = "draft"  # draft, active, paused
+    
+    # Incremental Load Support
+    last_sync_timestamp: Optional[datetime] = None
+    incremental_config: Optional[dict] = None
+    # Example: {"enabled": true, "timestamp_column": "updated_at", "mode": "append"}
 
     # Import ready flag - true when job execution is complete and ready to import
     import_ready: bool = False
@@ -92,8 +100,8 @@ class ETLJob(Document):
     estimated_size_gb: float = 1.0
 
     # Visual Editor state (for UI restoration)
-    nodes: Optional[List[dict]] = Field(default_factory=list)
-    edges: Optional[List[dict]] = Field(default_factory=list)
+    nodes: Optional[List[dict]] = None
+    edges: Optional[List[dict]] = None
 
     created_at: datetime = Field(default_factory=datetime.utcnow)
     updated_at: datetime = Field(default_factory=datetime.utcnow)
@@ -134,8 +142,8 @@ class Domain(Document):
     description: Optional[str] = None
     docs: Optional[str] = None
     attachments: List[Attachment] = Field(default_factory=list)
-    nodes: List[Dict[str, Any]] = []
-    edges: List[Dict[str, Any]] = []
+    nodes: Optional[List[Dict[str, Any]]] = None
+    edges: Optional[List[Dict[str, Any]]] = None
     created_at: datetime = Field(default_factory=datetime.utcnow)
     updated_at: datetime = Field(default_factory=datetime.utcnow)
 
