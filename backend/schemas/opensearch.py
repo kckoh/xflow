@@ -3,92 +3,63 @@ Search 관련 스키마
 OpenSearch 인덱싱 및 검색용
 """
 from pydantic import BaseModel, Field
-from typing import Optional, Literal
+from typing import Optional, Literal, List
 from datetime import datetime
 
 
-class CatalogDocument(BaseModel):
+class DomainDocument(BaseModel):
     """
-    OpenSearch에 저장되는 Catalog 문서 스키마
+    OpenSearch에 저장되는 Domain/ETL Job 문서 스키마
     """
-    source: Literal['s3', 'mongodb'] = Field(
-        description="데이터 소스"
-    )
-    source_type: str = Field(
-        description="리소스 타입 (table, collection)"
-    )
-    database: str = Field(
-        description="데이터베이스 이름"
-    )
-    resource_name: str = Field(
-        description="테이블/컬렉션/노드 이름"
-    )
-    field_name: str = Field(
-        description="필드/컬럼 이름"
-    )
-    field_type: str = Field(
-        description="필드 타입"
-    )
-    description: Optional[str] = Field(
-        default=None,
-        description="설명"
-    )
-    location: Optional[str] = Field(
-        default=None,
-        description="S3 경로 등"
-    )
-    tag: Optional[list[str]] = Field(
-        default=None,
-        description="태그 목록"
-    )
-    owner: Optional[str] = Field(
-        default=None,
-        description="소유자"
-    )
-    domain: Optional[str] = Field(
-        default=None,
-        description="비즈니스 도메인"
-    )
-    last_indexed: datetime = Field(
-        description="마지막 인덱싱 시간"
-    )
+    doc_id: str = Field(description="MongoDB 문서 ID")
+    doc_type: Literal['domain', 'etl_job'] = Field(description="문서 타입")
+    name: str = Field(description="이름")
+    description: Optional[str] = Field(default=None, description="설명")
+    type: Optional[str] = Field(default=None, description="타입 (domain의 경우)")
+    owner: Optional[str] = Field(default=None, description="소유자")
+    tags: Optional[List[str]] = Field(default=None, description="태그 목록")
+    status: Optional[str] = Field(default=None, description="상태 (etl_job의 경우)")
+    created_at: Optional[datetime] = Field(default=None, description="생성 시간")
+    updated_at: Optional[datetime] = Field(default=None, description="수정 시간")
+    last_indexed: Optional[datetime] = Field(default=None, description="마지막 인덱싱 시간")
 
 
 class IndexingResult(BaseModel):
     """
     인덱싱 결과 스키마
     """
-    s3: int = Field(description="S3 인덱싱 문서 수")
-    mongodb: int = Field(description="MongoDB 인덱싱 문서 수")
+    domains: int = Field(default=0, description="Domain 인덱싱 문서 수")
+    etl_jobs: int = Field(default=0, description="ETL Job 인덱싱 문서 수")
     total: int = Field(description="총 인덱싱 문서 수")
 
 
-class SearchQuery(BaseModel):
+class ReindexRequest(BaseModel):
     """
-    검색 쿼리 스키마
+    재인덱싱 요청 스키마
     """
-    q: str = Field(
-        description="검색어",
-        min_length=1
-    )
-    source: Optional[Literal['s3', 'mongodb']] = Field(
-        default=None,
-        description="특정 소스만 검색"
-    )
-    limit: int = Field(
-        default=20,
-        ge=1,
-        le=100,
-        description="결과 개수 제한"
+    delete_existing: bool = Field(
+        default=True,
+        description="기존 인덱스 삭제 여부"
     )
 
 
-class SearchResult(BaseModel):
+class ReindexResult(BaseModel):
     """
-    검색 결과 스키마
+    재인덱싱 결과 스키마
+    """
+    success: bool = Field(description="성공 여부")
+    domains_indexed: int = Field(default=0, description="Domain 인덱싱 수")
+    etl_jobs_indexed: int = Field(default=0, description="ETL Job 인덱싱 수")
+    total: int = Field(description="총 인덱싱 수")
+    message: Optional[str] = Field(default=None, description="메시지")
+
+
+class DomainSearchResult(BaseModel):
+    """
+    Domain/ETL Job 검색 결과 스키마
     """
     total: int = Field(description="총 검색 결과 수")
-    results: list[CatalogDocument] = Field(description="검색 결과 문서들")
+    results: List[DomainDocument] = Field(description="검색 결과 문서들")
 
 
 class StatusResponse(BaseModel):
@@ -101,15 +72,18 @@ class StatusResponse(BaseModel):
     opensearch_connected: bool = Field(
         description="OpenSearch 연결 상태"
     )
-    index_exists: bool = Field(
-        description="인덱스 존재 여부"
+    domain_index_exists: bool = Field(
+        default=False,
+        description="Domain 인덱스 존재 여부"
     )
     total_documents: int = Field(
         description="총 문서 수"
     )
-    s3_documents: int = Field(
-        description="S3 소스 문서 수"
+    domain_documents: int = Field(
+        default=0,
+        description="Domain 문서 수"
     )
-    mongodb_documents: int = Field(
-        description="MongoDB 소스 문서 수"
+    etl_job_documents: int = Field(
+        default=0,
+        description="ETL Job 문서 수"
     )

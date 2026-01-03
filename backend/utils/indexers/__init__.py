@@ -1,7 +1,7 @@
 """
-Data Catalog Indexers
-각 데이터 소스별 인덱싱 모듈
+Data Indexers
+OpenSearch 인덱싱 모듈
 """
-from .catalog_indexer import index_all_sources
+from .domain_indexer import index_domains, index_etl_jobs, index_all_domains_and_jobs
 
-__all__ = ['index_all_sources']
+__all__ = ['index_domains', 'index_etl_jobs', 'index_all_domains_and_jobs']

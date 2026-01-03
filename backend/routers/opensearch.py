@@ -3,12 +3,19 @@ OpenSearch 관련 API 엔드포인트
 - 수동 인덱싱 트리거
 - 검색 쿼리 처리
 - 상태 확인
+- Bulk Reindex
 """
 from fastapi import APIRouter, HTTPException, Query
-from typing import Optional, Literal
-from schemas.opensearch import IndexingResult, SearchQuery, SearchResult, CatalogDocument, StatusResponse
-from utils.indexers import index_all_sources
-from utils.opensearch_client import get_opensearch_client, CATALOG_INDEX
+from typing import Optional, Literal, List
+from schemas.opensearch import (
+    IndexingResult, DomainDocument, DomainSearchResult,
+    ReindexRequest, ReindexResult, StatusResponse
+)
+from utils.indexers import index_all_domains_and_jobs
+from utils.opensearch_client import (
+    get_opensearch_client, DOMAIN_INDEX,
+    delete_domain_index, create_domain_index
+)
 
 router = APIRouter()
 
@@ -18,54 +25,47 @@ async def get_status():
     """
     OpenSearch 상태 확인
     연결 상태, 인덱스 존재 여부, 문서 수 확인
-
-    Returns:
-        StatusResponse: OpenSearch 및 인덱스 상태 정보
     """
     try:
         opensearch = get_opensearch_client()
 
-        # OpenSearch 연결 확인
         opensearch_connected = False
-        index_exists = False
+        domain_index_exists = False
         total_documents = 0
-        s3_documents = 0
-        mongodb_documents = 0
+        domain_documents = 0
+        etl_job_documents = 0
 
         try:
-            # Cluster health 확인
             opensearch.cluster.health()
             opensearch_connected = True
 
-            # 인덱스 존재 확인
-            index_exists = opensearch.indices.exists(index=CATALOG_INDEX)
-
-            if index_exists:
+            # Domain 인덱스 확인
+            domain_index_exists = opensearch.indices.exists(index=DOMAIN_INDEX)
+            if domain_index_exists:
                 # 총 문서 수
-                count_response = opensearch.count(index=CATALOG_INDEX)
+                count_response = opensearch.count(index=DOMAIN_INDEX)
                 total_documents = count_response['count']
 
-                # S3 문서 수
-                s3_response = opensearch.count(
-                    index=CATALOG_INDEX,
-                    body={"query": {"term": {"source": "s3"}}}
+                # Domain 문서 수
+                domain_response = opensearch.count(
+                    index=DOMAIN_INDEX,
+                    body={"query": {"term": {"doc_type": "domain"}}}
                 )
-                s3_documents = s3_response['count']
+                domain_documents = domain_response['count']
 
-                # MongoDB 문서 수
-                mongodb_response = opensearch.count(
-                    index=CATALOG_INDEX,
-                    body={"query": {"term": {"source": "mongodb"}}}
+                # ETL Job 문서 수
+                etl_response = opensearch.count(
+                    index=DOMAIN_INDEX,
+                    body={"query": {"term": {"doc_type": "etl_job"}}}
                 )
-                mongodb_documents = mongodb_response['count']
+                etl_job_documents = etl_response['count']
 
         except Exception as e:
             print(f"OpenSearch status check error: {e}")
 
-        # 전체 상태 판단
-        if opensearch_connected and index_exists and total_documents > 0:
+        if opensearch_connected and domain_index_exists and total_documents > 0:
             status = "healthy"
-        elif opensearch_connected and index_exists:
+        elif opensearch_connected and domain_index_exists:
             status = "degraded"
         else:
             status = "unhealthy"
@@ -73,110 +73,117 @@ async def get_status():
         return StatusResponse(
             status=status,
             opensearch_connected=opensearch_connected,
-            index_exists=index_exists,
+            domain_index_exists=domain_index_exists,
             total_documents=total_documents,
-            s3_documents=s3_documents,
-            mongodb_documents=mongodb_documents
+            domain_documents=domain_documents,
+            etl_job_documents=etl_job_documents
         )
 
     except Exception as e:
-        raise HTTPException(
-            status_code=500,
-            detail=f"Status check failed: {str(e)}"
-        )
+        raise HTTPException(status_code=500, detail=f"Status check failed: {str(e)}")
 
 
 @router.post("/index", response_model=IndexingResult, status_code=201)
 async def trigger_indexing():
     """
     수동 인덱싱 트리거
-    모든 데이터 소스 (S3, MongoDB) 메타데이터를 OpenSearch에 인덱싱
-
-    Returns:
-        IndexingResult: 인덱싱된 문서 수 (소스별 + 총합)
+    Domain과 ETL Job을 OpenSearch에 인덱싱
     """
     try:
-        result = await index_all_sources()
-        return result
-    except Exception as e:
-        raise HTTPException(
-            status_code=500,
-            detail=f"Indexing failed: {str(e)}"
+        result = await index_all_domains_and_jobs()
+        
+        return IndexingResult(
+            domains=result['domains'],
+            etl_jobs=result['etl_jobs'],
+            total=result['total']
         )
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Indexing failed: {str(e)}")
 
 
-@router.get("/search", response_model=SearchResult)
-async def search_catalog(
+@router.post("/reindex", response_model=ReindexResult)
+async def reindex(request: ReindexRequest = None):
+    """
+    인덱스 재생성 (삭제 후 재인덱싱)
+    스키마 변경 후 사용
+    """
+    try:
+        delete_existing = request.delete_existing if request else True
+        
+        if delete_existing:
+            delete_domain_index()
+            create_domain_index()
+        
+        result = await index_all_domains_and_jobs()
+        
+        return ReindexResult(
+            success=True,
+            domains_indexed=result['domains'],
+            etl_jobs_indexed=result['etl_jobs'],
+            total=result['total'],
+            message="Reindexing completed successfully"
+        )
+        
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Reindexing failed: {str(e)}")
+
+
+@router.get("/search", response_model=DomainSearchResult)
+async def search(
     q: str = Query(..., min_length=1, description="검색어"),
-    source: Optional[Literal['s3', 'mongodb']] = Query(None, description="특정 소스만 검색"),
-    limit: int = Query(20, ge=1, le=100, description="결과 개수 제한")
+    doc_type: Optional[Literal['domain', 'etl_job']] = Query(None, description="문서 타입 필터"),
+    tags: Optional[List[str]] = Query(None, description="태그 필터"),
+    limit: int = Query(20, ge=1, le=100, description="결과 개수 제한"),
+    offset: int = Query(0, ge=0, description="페이지네이션 오프셋")
 ):
     """
-    데이터 카탈로그 검색
-    데이터베이스, 테이블/컬렉션, 필드 이름 전문 검색
-
-    Args:
-        q: 검색어
-        source: 특정 소스만 검색 (선택)
-        limit: 결과 개수 제한 (1-100)
-
-    Returns:
-        SearchResult: 검색 결과 (총 개수 + 문서 리스트)
+    Domain/ETL Job 통합 검색
+    이름, 설명으로 검색
     """
     try:
         opensearch = get_opensearch_client()
 
-        # OpenSearch 쿼리 구성
         query = {
             "bool": {
                 "must": [
                     {
                         "multi_match": {
                             "query": q,
-                            "fields": ["database^3", "resource_name^2", "field_name^1"],
+                            "fields": ["name^3", "description^2"],
                             "type": "best_fields",
                             "fuzziness": "AUTO"
                         }
                     }
-                ]
+                ],
+                "filter": []
             }
         }
 
-        # 소스 필터 추가 (옵션)
-        if source:
-            query["bool"]["filter"] = [
-                {"term": {"source": source}}
-            ]
+        if doc_type:
+            query["bool"]["filter"].append({"term": {"doc_type": doc_type}})
 
-        # 검색 실행
+        if tags:
+            query["bool"]["filter"].append({"terms": {"tags": tags}})
+
         response = opensearch.search(
-            index=CATALOG_INDEX,
+            index=DOMAIN_INDEX,
             body={
                 "query": query,
                 "size": limit,
+                "from": offset,
                 "sort": [
                     {"_score": {"order": "desc"}},
-                    {"last_indexed": {"order": "desc"}}
+                    {"updated_at": {"order": "desc"}}
                 ]
             }
         )
 
-        # 결과 파싱
         total = response['hits']['total']['value']
         hits = response['hits']['hits']
 
-        results = [
-            CatalogDocument(**hit['_source'])
-            for hit in hits
-        ]
+        results = [DomainDocument(**hit['_source']) for hit in hits]
 
-        return SearchResult(
-            total=total,
-            results=results
-        )
+        return DomainSearchResult(total=total, results=results)
 
     except Exception as e:
-        raise HTTPException(
-            status_code=500,
-            detail=f"Search failed: {str(e)}"
-        )
+        raise HTTPException(status_code=500, detail=f"Search failed: {str(e)}")

@@ -20,20 +20,23 @@ _opensearch_client: Optional[OpenSearch] = None
 # 매핑 설정 로드
 MAPPINGS_FILE = Path(__file__).parent.parent / 'config' / 'opensearch_mappings.json'
 
-def load_catalog_mapping():
+
+def load_mappings():
     """
-    JSON 파일에서 catalog 인덱스 매핑 로드
+    JSON 파일에서 모든 인덱스 매핑 로드
     """
     with open(MAPPINGS_FILE, 'r', encoding='utf-8') as f:
-        mappings = json.load(f)
-    return mappings['catalog_index']
+        return json.load(f)
+
 
 # 매핑 로드
-_catalog_config = load_catalog_mapping()
-CATALOG_INDEX = _catalog_config['index_name']
-CATALOG_INDEX_MAPPING = {
-    'settings': _catalog_config['settings'],
-    'mappings': _catalog_config['mappings']
+_mappings = load_mappings()
+
+# Domain Index 설정
+DOMAIN_INDEX = _mappings['domain_index']['index_name']
+DOMAIN_INDEX_MAPPING = {
+    'settings': _mappings['domain_index']['settings'],
+    'mappings': _mappings['domain_index']['mappings']
 }
 
 
@@ -61,38 +64,50 @@ def get_opensearch_client() -> OpenSearch:
     return _opensearch_client
 
 
-def create_catalog_index():
+def create_index(index_name: str, mapping: dict):
     """
-    Data Catalog 인덱스 생성 (이미 존재하면 스킵)
+    인덱스 생성 (이미 존재하면 스킵)
     """
     client = get_opensearch_client()
 
-    # 인덱스 존재 확인
-    if client.indices.exists(index=CATALOG_INDEX):
-        print(f"Index '{CATALOG_INDEX}' already exists")
+    if client.indices.exists(index=index_name):
+        print(f"Index '{index_name}' already exists")
         return
 
-    # 인덱스 생성 (매핑은 JSON 파일에서 로드)
     response = client.indices.create(
-        index=CATALOG_INDEX,
-        body=CATALOG_INDEX_MAPPING
+        index=index_name,
+        body=mapping
     )
 
-    print(f"Index '{CATALOG_INDEX}' created successfully")
+    print(f"Index '{index_name}' created successfully")
     return response
 
 
-def delete_catalog_index():
+def delete_index(index_name: str):
     """
-    Data Catalog 인덱스 삭제 (테스트/재생성용)
+    인덱스 삭제
     """
     client = get_opensearch_client()
 
-    if client.indices.exists(index=CATALOG_INDEX):
-        client.indices.delete(index=CATALOG_INDEX)
-        print(f"Index '{CATALOG_INDEX}' deleted")
+    if client.indices.exists(index=index_name):
+        client.indices.delete(index=index_name)
+        print(f"Index '{index_name}' deleted")
     else:
-        print(f"Index '{CATALOG_INDEX}' does not exist")
+        print(f"Index '{index_name}' does not exist")
+
+
+def create_domain_index():
+    """
+    Domain 인덱스 생성 (이미 존재하면 스킵)
+    """
+    return create_index(DOMAIN_INDEX, DOMAIN_INDEX_MAPPING)
+
+
+def delete_domain_index():
+    """
+    Domain 인덱스 삭제
+    """
+    return delete_index(DOMAIN_INDEX)
 
 
 def check_opensearch_connection() -> bool:
@@ -115,6 +130,6 @@ def initialize_opensearch():
     FastAPI 시작 시 호출
     """
     if check_opensearch_connection():
-        create_catalog_index()
+        create_domain_index()
         return True
     return False
