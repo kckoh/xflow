@@ -67,18 +67,22 @@ export default function QueryEditor({ selectedTable }) {
 
     // CSV 다운로드
     const downloadCSV = () => {
-        const csv = convertToCSV();
-        const bom = "\uFEFF"; // UTF-8 BOM for Korean support
-        const blob = new Blob([bom + csv], { type: "text/csv;charset=utf-8;" });
-        const url = URL.createObjectURL(blob);
-        const link = document.createElement("a");
-        link.href = url;
-        link.download = `query_result_${new Date().toISOString().slice(0, 10)}.csv`;
-        link.click();
-        URL.revokeObjectURL(url);
+        try {
+            const csv = convertToCSV();
+            const bom = "\uFEFF"; // UTF-8 BOM for Korean support
+            const blob = new Blob([bom + csv], { type: "text/csv;charset=utf-8;" });
+            const url = URL.createObjectURL(blob);
+            const link = document.createElement("a");
+            link.href = url;
+            link.download = `query_result_${new Date().toISOString().slice(0, 10)}.csv`;
+            link.click();
+            URL.revokeObjectURL(url);
 
-        // Toast 알림
-        showToast(`샘플 데이터 ${results.row_count}개 행이 다운로드되었습니다.`, 'success');
+            showToast(`샘플 데이터 ${results.row_count}개 행이 다운로드되었습니다.`, 'success');
+        } catch (err) {
+            console.error('CSV 다운로드 실패:', err);
+            showToast('CSV 다운로드에 실패했습니다.', 'error');
+        }
     };
 
     const getStatusIcon = () => {
