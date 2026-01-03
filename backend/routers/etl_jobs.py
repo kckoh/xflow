@@ -12,6 +12,81 @@ from services.lineage_service import sync_pipeline_to_dataset
 
 router = APIRouter()
 
+
+async def get_table_size_gb(connection: Connection, table_name: str) -> float:
+    """Calculate table size in GB from database connection"""
+    config = connection.config
+    db_type = connection.type
+
+    try:
+        if db_type == "postgres":
+            import psycopg2
+            conn = psycopg2.connect(
+                host=config.get("host"),
+                port=config.get("port", 5432),
+                database=config.get("database_name"),
+                user=config.get("user_name"),
+                password=config.get("password"),
+            )
+            cursor = conn.cursor()
+            cursor.execute(
+                "SELECT pg_total_relation_size(%s) / (1024.0 * 1024.0 * 1024.0)",
+                (table_name,)
+            )
+            result = cursor.fetchone()
+            size_gb = float(result[0]) if result and result[0] else 0.0
+            cursor.close()
+            conn.close()
+
+        elif db_type == "mysql":
+            import pymysql
+            conn = pymysql.connect(
+                host=config.get("host"),
+                port=config.get("port", 3306),
+                database=config.get("database_name"),
+                user=config.get("user_name"),
+                password=config.get("password"),
+            )
+            cursor = conn.cursor()
+            cursor.execute("""
+                SELECT (data_length + index_length) / (1024 * 1024 * 1024)
+                FROM information_schema.tables
+                WHERE table_schema = %s AND table_name = %s
+            """, (config.get("database_name"), table_name))
+            result = cursor.fetchone()
+            size_gb = float(result[0]) if result and result[0] else 0.0
+            cursor.close()
+            conn.close()
+
+        elif db_type == "mongodb":
+            from pymongo import MongoClient
+            host = config.get("host")
+            port = config.get("port", 27017)
+            user = config.get("user_name")
+            password = config.get("password")
+            db_name = config.get("database_name")
+
+            if user and password:
+                mongo_url = f"mongodb://{user}:{password}@{host}:{port}"
+            else:
+                mongo_url = f"mongodb://{host}:{port}"
+
+            client = MongoClient(mongo_url)
+            db = client[db_name]
+            stats = db.command("collStats", table_name)
+            size_bytes = stats.get("size", 0) + stats.get("totalIndexSize", 0)
+            size_gb = size_bytes / (1024 * 1024 * 1024)
+            client.close()
+        else:
+            return 1.0
+
+        print(f"Table {table_name} ({db_type}) size: {size_gb:.2f} GB")
+        return max(size_gb, 0.1)  # Minimum 0.1 GB
+
+    except Exception as e:
+        print(f"Failed to get table size for {table_name}: {e}")
+        return 1.0  # Default 1GB on error
+
 AIRFLOW_BASE_URL = os.getenv("AIRFLOW_BASE_URL", "http://airflow-webserver.airflow:8080/api/v1")
 AIRFLOW_AUTH = ("admin", "admin")
 # DAG ID: "etl_job_dag" for local, "etl_job_dag_k8s" for production (EKS)
@@ -36,23 +111,32 @@ async def create_etl_job(job: ETLJobCreate):
     elif job.source:
         sources_data = [job.source.model_dump()]
 
-    # Validate all source connections exist
+    # Validate all source connections and calculate table sizes
+    total_size_gb = 0.0
     for source_item in sources_data:
         if source_item.get("connection_id"):
             try:
-                source = await Connection.get(PydanticObjectId(source_item["connection_id"]))
-                if not source:
+                connection = await Connection.get(PydanticObjectId(source_item["connection_id"]))
+                if not connection:
                     raise HTTPException(
                         status_code=status.HTTP_400_BAD_REQUEST,
                         detail=f"Source connection not found: {source_item['connection_id']}"
                     )
-            except Exception:
+                # Calculate table size if table_name exists
+                table_name = source_item.get("table_name")
+                if table_name and connection.type in ["postgres", "mysql", "mongodb"]:
+                    size_gb = await get_table_size_gb(connection, table_name)
+                    source_item["size_gb"] = size_gb
+                    total_size_gb += size_gb
+            except HTTPException:
+                raise
+            except Exception as e:
                 raise HTTPException(
                     status_code=status.HTTP_400_BAD_REQUEST,
                     detail=f"Invalid source connection ID: {source_item.get('connection_id')}"
                 )
 
-    # Create new ETL job
+    # Create new ETL job with estimated size for Spark auto-scaling
     new_job = ETLJob(
         name=job.name,
         description=job.description,
@@ -64,6 +148,7 @@ async def create_etl_job(job: ETLJobCreate):
         status="draft",
         nodes=job.nodes or [],
         edges=job.edges or [],
+        estimated_size_gb=total_size_gb if total_size_gb > 0 else 1.0,
         created_at=datetime.utcnow(),
         updated_at=datetime.utcnow(),
     )

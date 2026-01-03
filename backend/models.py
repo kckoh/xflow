@@ -88,6 +88,9 @@ class ETLJob(Document):
     # Import ready flag - true when job execution is complete and ready to import
     import_ready: bool = False
 
+    # Estimated total source size in GB (for Spark executor auto-scaling)
+    estimated_size_gb: float = 1.0
+
     # Visual Editor state (for UI restoration)
     nodes: Optional[List[dict]] = Field(default_factory=list)
     edges: Optional[List[dict]] = Field(default_factory=list)
