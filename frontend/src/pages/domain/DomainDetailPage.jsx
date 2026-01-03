@@ -1,4 +1,4 @@
-import { useState, useRef } from "react";
+import { useState, useRef, useMemo, useEffect } from "react";
 // import { useToast } from "../../components/common/Toast"; // Moved to Hook
 import { Download, Database } from "lucide-react";
 import DomainDetailHeader from "./components/DomainDetailHeader";
@@ -30,6 +30,7 @@ export default function DomainDetailPage() {
     } = useDomainDetail(canvasRef);
 
     const [showImportModal, setShowImportModal] = useState(false);
+    const [datasets, setDatasets] = useState([]);
 
     // Use Sidebar Hook
     const {
@@ -44,6 +45,85 @@ export default function DomainDetailPage() {
         handleBackgroundClick,
         setSidebarDataset
     } = useDomainSidebar({ domain, canvasRef });
+
+    // Fetch datasets to check permissions
+    useEffect(() => {
+        const fetchDatasets = async () => {
+            try {
+                const { getDatasets } = await import('../../services/adminApi');
+                const data = await getDatasets();
+                setDatasets(data);
+            } catch (err) {
+                console.error('Failed to fetch datasets:', err);
+            }
+        };
+        fetchDatasets();
+    }, []);
+
+    // Calculate which nodes user has permission to view
+    const nodePermissions = useMemo(() => {
+        if (!domain?.nodes || !user) return {};
+
+        // Admin has access to everything
+        if (user.is_admin) {
+            return domain.nodes.reduce((acc, node) => {
+                acc[node.id] = true;
+                return acc;
+            }, {});
+        }
+
+        // Get user's dataset access list (dataset IDs)
+        const datasetAccessIds = user.dataset_access || [];
+
+        // Create a map of dataset names to dataset IDs
+        const datasetNameToId = {};
+        datasets.forEach(dataset => {
+            datasetNameToId[dataset.name] = dataset.id;
+        });
+
+        // Check each node
+        const permissions = domain.nodes.reduce((acc, node) => {
+            const nodeData = node.data || {};
+            let nodeName = nodeData.name || nodeData.label;
+
+            // Extract dataset name from label (remove prefix like "(S3) ")
+            if (nodeName && nodeName.includes(') ')) {
+                nodeName = nodeName.split(') ')[1] || nodeName;
+            }
+
+            // Check if user has access to this dataset
+            const datasetId = datasetNameToId[nodeName];
+            const hasPermission = datasetId ? datasetAccessIds.includes(datasetId) : false;
+
+            acc[node.id] = hasPermission;
+
+            return acc;
+        }, {});
+    }, [domain?.nodes, user, datasets]);
+
+    // Enrich nodes with permission information
+    const enrichedNodes = useMemo(() => {
+        if (!domain?.nodes) return [];
+
+        return domain.nodes.map(node => ({
+            ...node,
+            data: {
+                ...node.data,
+                hasPermission: nodePermissions[node.id] !== false
+            }
+        }));
+    }, [domain?.nodes, nodePermissions]);
+
+    // Filter edges to hide connections to/from denied nodes
+    const filteredEdges = useMemo(() => {
+        if (!domain?.edges) return [];
+
+        return domain.edges.filter(edge => {
+            const sourceHasPermission = nodePermissions[edge.source] !== false;
+            const targetHasPermission = nodePermissions[edge.target] !== false;
+            return sourceHasPermission && targetHasPermission;
+        });
+    }, [domain?.edges, nodePermissions]);
 
     // Sync Sidebar dataset when domain updates (if viewing updated entity)
     // Note: We might need a useEffect here or improved logic in useDomainSidebar, 
@@ -164,8 +244,9 @@ export default function DomainDetailPage() {
                     <DomainCanvas
                         ref={canvasRef}
                         datasetId={domain.id}
-                        initialNodes={domain.nodes}
-                        initialEdges={domain.edges}
+                        initialNodes={enrichedNodes}
+                        initialEdges={filteredEdges}
+                        nodePermissions={nodePermissions}
                         selectedId={activeSidebarData.id}
                         onStreamAnalysis={handleStreamAnalysis}
                         onNodeSelect={handleNodeSelect}
