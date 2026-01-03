@@ -13,3 +13,9 @@ resources:
   - backend/configmap.yaml
   - backend/deployment.yaml
   - backend/service.yaml
+  - opensearch/pvc.yaml
+  - opensearch/statefulset.yaml
+  - opensearch/service.yaml
+  - opensearch/dashboards-deployment.yaml
+  - opensearch/dashboards-service.yaml
+  - opensearch/ingress.yaml
