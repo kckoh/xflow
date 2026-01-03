@@ -3,9 +3,12 @@ import {
     Clock, User, Tag, FileText, Database, Layers,
     Calendar, CheckCircle2, Edit2, AlertCircle, Save, X, Plus, Loader2
 } from "lucide-react";
-import { getEtlJob } from "../../api/domainApi";
+import { getEtlJob, updateEtlJobNodeMetadata } from "../../api/domainApi";
+import { useToast } from "../../../../components/common/Toast";
 
 export function SummaryContent({ dataset, isDomainMode, onUpdate }) {
+    const { showToast } = useToast();
+
     if (!dataset) return <div className="p-5 text-gray-400">No data available</div>;
 
     // Local state for editing
@@ -131,17 +134,16 @@ export function SummaryContent({ dataset, isDomainMode, onUpdate }) {
         // If we have source job info, save to ETL Job
         if (sourceJobId && sourceNodeId) {
             try {
-                const { updateEtlJobNodeMetadata } = await import("../../api/domainApi");
                 await updateEtlJobNodeMetadata(sourceJobId, sourceNodeId, {
                     table: { description: descValue }
                 });
                 // Update local fetched state
                 setFetchedMeta(prev => ({ ...prev, description: descValue }));
                 setIsEditingDesc(false);
-                console.log('[SummaryContent] Saved description to ETL Job');
+                showToast('Description saved', 'success');
             } catch (error) {
                 console.error('[SummaryContent] Failed to save description:', error);
-                alert('Failed to save description');
+                showToast('Failed to save description', 'error');
             }
         } else if (onUpdate) {
             // Fallback to Domain update
@@ -155,17 +157,16 @@ export function SummaryContent({ dataset, isDomainMode, onUpdate }) {
         // If we have source job info, save to ETL Job
         if (sourceJobId && sourceNodeId) {
             try {
-                const { updateEtlJobNodeMetadata } = await import("../../api/domainApi");
                 await updateEtlJobNodeMetadata(sourceJobId, sourceNodeId, {
                     table: { tags: tagsValue }
                 });
                 // Update local fetched state
                 setFetchedMeta(prev => ({ ...prev, tags: tagsValue }));
                 setIsEditingTags(false);
-                console.log('[SummaryContent] Saved tags to ETL Job');
+                showToast('Tags saved', 'success');
             } catch (error) {
                 console.error('[SummaryContent] Failed to save tags:', error);
-                alert('Failed to save tags');
+                showToast('Failed to save tags', 'error');
             }
         } else if (onUpdate) {
             // Fallback to Domain update

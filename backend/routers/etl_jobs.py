@@ -282,7 +282,6 @@ async def update_node_metadata(job_id: str, node_id: str, metadata: dict):
 
 
 @router.delete("/{job_id}", status_code=status.HTTP_204_NO_CONTENT)
-
 async def delete_etl_job(job_id: str):
     """Delete an ETL job"""
     try:
