@@ -1,78 +1,114 @@
 {
-  "catalog_index": {
-    "index_name": "data_catalog",
+  "domain_index": {
+    "index_name": "domains",
     "settings": {
       "number_of_shards": 1,
       "number_of_replicas": 0,
       "analysis": {
+        "tokenizer": {
+          "nori_tokenizer": {
+            "type": "nori_tokenizer",
+            "decompound_mode": "mixed"
+          }
+        },
+        "filter": {
+          "nori_stopwords": {
+            "type": "nori_part_of_speech",
+            "stoptags": [
+              "E",
+              "IC",
+              "J",
+              "MAG",
+              "MAJ",
+              "MM",
+              "SP",
+              "SSC",
+              "SSO",
+              "SC",
+              "SE",
+              "XPN",
+              "XSA",
+              "XSN",
+              "XSV",
+              "UNA",
+              "NA",
+              "VSV"
+            ]
+          }
+        },
         "analyzer": {
-          "catalog_analyzer": {
+          "korean_analyzer": {
             "type": "custom",
-            "tokenizer": "standard",
-            "filter": ["lowercase", "asciifolding"]
+            "tokenizer": "nori_tokenizer",
+            "filter": [
+              "nori_stopwords",
+              "lowercase"
+            ]
           }
         }
       }
     },
     "mappings": {
-      "dynamic": true,
       "properties": {
-        "source": {
+        "doc_id": {
           "type": "keyword"
         },
-        "source_type": {
+        "doc_type": {
           "type": "keyword"
         },
-        "database": {
+        "name": {
           "type": "text",
-          "analyzer": "catalog_analyzer",
+          "analyzer": "korean_analyzer",
           "fields": {
             "keyword": {
               "type": "keyword"
             }
           }
-        },
-        "resource_name": {
-          "type": "text",
-          "analyzer": "catalog_analyzer",
-          "fields": {
-            "keyword": {
-              "type": "keyword"
-            }
-          }
-        },
-        "field_name": {
-          "type": "text",
-          "analyzer": "catalog_analyzer",
-          "fields": {
-            "keyword": {
-              "type": "keyword"
-            }
-          }
-        },
-        "field_type": {
-          "type": "keyword"
         },
         "description": {
           "type": "text",
-          "analyzer": "catalog_analyzer",
-          "fields": {
-            "keyword": {
-              "type": "keyword"
-            }
-          }
+          "analyzer": "korean_analyzer"
         },
-        "location": {
-          "type": "keyword"
-        },
-        "tag": {
+        "type": {
           "type": "keyword"
         },
         "owner": {
           "type": "keyword"
         },
-        "domain": {
+        "tags": {
           "type": "keyword"
+        },
+        "status": {
+          "type": "keyword"
+        },
+        "node_descriptions": {
+          "type": "text",
+          "analyzer": "korean_analyzer"
+        },
+        "node_tags": {
+          "type": "keyword"
+        },
+        "column_names": {
+          "type": "text",
+          "analyzer": "korean_analyzer",
+          "fields": {
+            "keyword": {
+              "type": "keyword"
+            }
+          }
+        },
+        "column_descriptions": {
+          "type": "text",
+          "analyzer": "korean_analyzer"
+        },
+        "column_tags": {
+          "type": "keyword"
+        },
+        "created_at": {
+          "type": "date"
+        },
+        "updated_at": {
+          "type": "date"
         },
         "last_indexed": {
           "type": "date"

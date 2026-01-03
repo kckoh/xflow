@@ -1,11 +1,11 @@
 import { useState, useRef, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Search, RefreshCw, Database, Table, Loader2 } from 'lucide-react';
-import { useSearchCatalog, useTriggerIndexing } from '../../hooks/useOpenSearch';
+import { Search, RefreshCw, Database, Workflow, Loader2 } from 'lucide-react';
+import { useSearch, useTriggerIndexing } from '../../hooks/useOpenSearch';
 
 /**
- * 카탈로그 검색 컴포넌트
- * - 자동완성 검색 (디바운스 적용)
+ * 통합 검색 컴포넌트
+ * - Domain/ETL Job 검색 (디바운스 적용)
  * - 인덱싱 새로고침 버튼
  * - 검색 결과 드롭다운
  */
@@ -16,7 +16,7 @@ export default function CatalogSearch() {
   const searchRef = useRef(null);
 
   // 검색 API 호출 (디바운스 적용)
-  const { results, loading, error } = useSearchCatalog(query);
+  const { results, loading, error } = useSearch(query);
 
   // 인덱싱 트리거
   const { trigger: triggerIndexing, loading: indexing } = useTriggerIndexing();
@@ -44,8 +44,13 @@ export default function CatalogSearch() {
 
   // 검색 결과 클릭 핸들러
   const handleResultClick = (result) => {
-    // CatalogPage로 이동하면서 resource_name으로 검색
-    navigate(`/domain?search=${encodeURIComponent(result.resource_name)}`);
+    if (result.doc_type === 'domain') {
+      // Domain 상세 페이지로 이동
+      navigate(`/domain/${result.doc_id}`);
+    } else if (result.doc_type === 'etl_job') {
+      // ETL Job 상세 페이지로 이동
+      navigate(`/etl/job/${result.doc_id}`);
+    }
     setIsOpen(false);
     setQuery('');
   };
@@ -53,24 +58,27 @@ export default function CatalogSearch() {
   // 인덱싱 버튼 클릭
   const handleRefresh = async () => {
     try {
-      const result = await triggerIndexing();
-      console.log('Indexing completed:', result);
-      // TODO: 성공 토스트 메시지 표시
+      await triggerIndexing();
     } catch (err) {
       console.error('Indexing failed:', err);
-      // TODO: 에러 토스트 메시지 표시
     }
   };
 
-  // 결과를 database별로 그룹화
+  // 결과를 doc_type별로 그룹화
   const groupedResults = results.reduce((acc, result) => {
-    const db = result.database;
-    if (!acc[db]) {
-      acc[db] = [];
+    const type = result.doc_type;
+    if (!acc[type]) {
+      acc[type] = [];
     }
-    acc[db].push(result);
+    acc[type].push(result);
     return acc;
   }, {});
+
+  // 타입별 라벨
+  const typeLabels = {
+    domain: { label: 'Domains', icon: Database },
+    etl_job: { label: 'Dataset', icon: Workflow }
+  };
 
   return (
     <div className="flex items-center gap-2 flex-1 max-w-xl" ref={searchRef}>
@@ -85,7 +93,7 @@ export default function CatalogSearch() {
         </div>
         <input
           type="text"
-          placeholder="Search tables, fields, databases..."
+          placeholder="Search domains, ETL jobs..."
           value={query}
           onChange={(e) => setQuery(e.target.value)}
           onFocus={() => {
@@ -111,59 +119,77 @@ export default function CatalogSearch() {
 
             {!error && Object.keys(groupedResults).length > 0 && (
               <div className="py-2">
-                {Object.entries(groupedResults).map(([database, items]) => (
-                  <div key={database} className="mb-2 last:mb-0">
-                    {/* Database Header */}
-                    <div className="px-4 py-2 bg-gray-50 border-b border-gray-100">
-                      <div className="flex items-center gap-2 text-xs font-semibold text-gray-700">
-                        <Database className="w-3.5 h-3.5" />
-                        {database}
-                        <span className="text-gray-400">({items.length})</span>
-                      </div>
-                    </div>
+                {Object.entries(groupedResults).map(([docType, items]) => {
+                  const typeInfo = typeLabels[docType] || { label: docType, icon: Database };
+                  const IconComponent = typeInfo.icon;
 
-                    {/* Results */}
-                    <div>
-                      {items.slice(0, 5).map((result, idx) => (
-                        <button
-                          key={`${result.database}-${result.resource_name}-${result.field_name}-${idx}`}
-                          onClick={() => handleResultClick(result)}
-                          className="w-full px-4 py-2.5 hover:bg-blue-50 transition-colors text-left border-b border-gray-50 last:border-b-0"
-                        >
-                          <div className="flex items-start gap-3">
-                            <div className="mt-0.5">
-                              <Table className="w-4 h-4 text-gray-400" />
-                            </div>
-                            <div className="flex-1 min-w-0">
-                              <div className="flex items-center gap-2 mb-1">
-                                <span className="font-medium text-sm text-gray-900 truncate">
-                                  {result.resource_name}
-                                </span>
-                                <span className="text-xs text-gray-400">•</span>
-                                <span className="text-xs text-gray-500 truncate">
-                                  {result.field_name}
-                                </span>
+                  return (
+                    <div key={docType} className="mb-2 last:mb-0">
+                      {/* Type Header */}
+                      <div className="px-4 py-2 bg-gray-50 border-b border-gray-100">
+                        <div className="flex items-center gap-2 text-xs font-semibold text-gray-700">
+                          <IconComponent className="w-3.5 h-3.5" />
+                          {typeInfo.label}
+                          <span className="text-gray-400">({items.length})</span>
+                        </div>
+                      </div>
+
+                      {/* Results */}
+                      <div>
+                        {items.slice(0, 5).map((result, idx) => (
+                          <button
+                            key={`${result.doc_type}-${result.doc_id}-${idx}`}
+                            onClick={() => handleResultClick(result)}
+                            className="w-full px-4 py-2.5 hover:bg-blue-50 transition-colors text-left border-b border-gray-50 last:border-b-0"
+                          >
+                            <div className="flex items-start gap-3">
+                              <div className="mt-0.5">
+                                <IconComponent className="w-4 h-4 text-gray-400" />
                               </div>
-                              <div className="flex items-center gap-2 flex-wrap">
-                                <span className="text-xs px-1.5 py-0.5 bg-gray-100 text-gray-600 rounded">
-                                  {result.source}
-                                </span>
-                                <span className="text-xs text-gray-500">
-                                  {result.field_type}
-                                </span>
-                                {result.domain && (
-                                  <span className="text-xs px-1.5 py-0.5 bg-blue-50 text-blue-600 rounded">
-                                    {result.domain}
+                              <div className="flex-1 min-w-0">
+                                <div className="flex items-center gap-2 mb-1">
+                                  <span className="font-medium text-sm text-gray-900 truncate">
+                                    {result.name}
                                   </span>
+                                  {result.status && (
+                                    <span className={`text-xs px-1.5 py-0.5 rounded ${result.status === 'active'
+                                      ? 'bg-green-100 text-green-700'
+                                      : 'bg-gray-100 text-gray-600'
+                                      }`}>
+                                      {result.status}
+                                    </span>
+                                  )}
+                                </div>
+                                {result.description && (
+                                  <p className="text-xs text-gray-500 truncate">
+                                    {result.description}
+                                  </p>
+                                )}
+                                {result.tags && result.tags.length > 0 && (
+                                  <div className="flex items-center gap-1 mt-1 flex-wrap">
+                                    {result.tags.slice(0, 3).map((tag, tagIdx) => (
+                                      <span
+                                        key={tagIdx}
+                                        className="text-xs px-1.5 py-0.5 bg-blue-50 text-blue-600 rounded"
+                                      >
+                                        {tag}
+                                      </span>
+                                    ))}
+                                    {result.tags.length > 3 && (
+                                      <span className="text-xs text-gray-400">
+                                        +{result.tags.length - 3}
+                                      </span>
+                                    )}
+                                  </div>
                                 )}
                               </div>
                             </div>
-                          </div>
-                        </button>
-                      ))}
+                          </button>
+                        ))}
+                      </div>
                     </div>
-                  </div>
-                ))}
+                  );
+                })}
               </div>
             )}
           </div>
@@ -174,7 +200,7 @@ export default function CatalogSearch() {
       <button
         onClick={handleRefresh}
         disabled={indexing}
-        title="Refresh catalog index"
+        title="Refresh search index"
         className="p-2 rounded-lg hover:bg-gray-100 text-gray-500 hover:text-blue-600 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
       >
         <RefreshCw
