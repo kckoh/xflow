@@ -121,3 +121,49 @@ export const getDomainFileDownloadUrl = async (id, fileId) => {
     const blob = await response.blob();
     return { url: window.URL.createObjectURL(blob) };
 };
+
+// ============ Quality APIs ============
+
+const QUALITY_URL = `${API_BASE_URL}/api/quality`;
+
+/**
+ * Run quality check on a dataset
+ */
+export const runQualityCheck = async (datasetId, s3Path, options = {}) => {
+    const response = await fetch(`${QUALITY_URL}/${datasetId}/run`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+            s3_path: s3Path,
+            job_id: options.jobId,
+            null_threshold: options.nullThreshold || 5.0,
+            duplicate_threshold: options.duplicateThreshold || 1.0
+        })
+    });
+    if (!response.ok) throw new Error(`Failed to run quality check: ${response.status}`);
+    return response.json();
+};
+
+/**
+ * Get latest quality result for a dataset
+ */
+export const getLatestQualityResult = async (datasetId) => {
+    const response = await fetch(`${QUALITY_URL}/${datasetId}/latest`);
+    if (!response.ok) throw new Error(`Failed to fetch quality result: ${response.status}`);
+    return response.json();
+};
+
+/**
+ * Get quality check history for a dataset
+ */
+export const getQualityHistory = async (datasetId, limit = 10) => {
+    const response = await fetch(`${QUALITY_URL}/${datasetId}/history?limit=${limit}`);
+    if (!response.ok) throw new Error(`Failed to fetch quality history: ${response.status}`);
+    return response.json();
+};
+
+export const getQualityDashboardSummary = async () => {
+    const response = await fetch(`${API_BASE_URL}/api/quality/dashboard/summary`);
+    if (!response.ok) throw new Error(`Failed to fetch quality dashboard: ${response.status}`);
+    return response.json();
+};

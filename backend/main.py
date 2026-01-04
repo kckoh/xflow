@@ -92,6 +92,10 @@ app.include_router(admin.router, prefix="/api/admin", tags=["admin"])
 # AI Query Assistant (Text-to-SQL)
 app.include_router(ai.router, prefix="/api/ai", tags=["ai"])
 
+# Quality (Data quality checks)
+from routers import quality
+app.include_router(quality.router, prefix="/api/quality", tags=["quality"])
+
 
 
 # Root route - Test database connection

@@ -311,6 +311,7 @@ export default function DomainDetailPage() {
                     handleSidebarTabClick={handleSidebarTabClick}
                     streamData={streamData}
                     dataset={activeSidebarData}
+                    domain={domain}
                     onNodeSelect={handleNodeSelect}
                     onUpdate={handleEntityUpdate}
                     nodePermissions={nodePermissions}

@@ -201,3 +201,50 @@ class Dataset(Document):
             "sources.urn",
             "targets.urn"
         ]
+
+
+class QualityCheck(BaseModel):
+    """Individual quality check result"""
+    name: str                    # "null_check", "duplicate_check", etc.
+    column: Optional[str] = None # Column name (if applicable)
+    passed: bool                 # Did it pass the threshold?
+    value: float                 # Actual value (e.g., 0.5 = 0.5% nulls)
+    threshold: float             # Threshold to pass (e.g., 5.0 = 5%)
+    message: Optional[str] = None
+
+
+class QualityResult(Document):
+    """
+    Quality check result for a Dataset.
+    Each run creates a new document, allowing historical tracking.
+    """
+    dataset_id: str              # Reference to Dataset._id
+    job_id: Optional[str] = None # Reference to ETLJob._id (if triggered by job)
+    s3_path: str                 # S3 path that was checked
+    
+    # Summary metrics
+    row_count: int = 0
+    column_count: int = 0
+    null_counts: Dict[str, int] = Field(default_factory=dict)  # { column: null_count }
+    duplicate_count: int = 0
+    
+    # Overall score (0-100)
+    overall_score: float = 0.0
+    
+    # Detailed check results
+    checks: List[QualityCheck] = Field(default_factory=list)
+    
+    # Metadata
+    status: str = "pending"      # pending / running / completed / failed
+    error_message: Optional[str] = None
+    run_at: datetime = Field(default_factory=datetime.utcnow)
+    completed_at: Optional[datetime] = None
+    duration_ms: int = 0
+    
+    class Settings:
+        name = "quality_results"
+        indexes = [
+            "dataset_id",
+            "job_id",
+            "run_at"
+        ]
