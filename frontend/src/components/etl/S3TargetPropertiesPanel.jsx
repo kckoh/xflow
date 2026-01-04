@@ -112,9 +112,19 @@ export default function S3TargetPropertiesPanel({ node, selectedMetadataItem, on
                             </label>
                             <input
                                 type="text"
-                                value={(selectedMetadataItem.tags || []).join(', ')}
+                                value={typeof selectedMetadataItem.tags === 'string' ? selectedMetadataItem.tags : (selectedMetadataItem.tags || []).join(', ')}
                                 onChange={(e) => {
-                                    const tags = e.target.value.split(',').map(t => t.trim()).filter(t => t);
+                                    // Just update the display value, don't parse yet
+                                    if (onMetadataUpdate) {
+                                        onMetadataUpdate({ ...selectedMetadataItem, tags: e.target.value });
+                                    }
+                                }}
+                                onBlur={(e) => {
+                                    // On blur, parse the comma-separated tags
+                                    const tagsString = typeof selectedMetadataItem.tags === 'string'
+                                        ? selectedMetadataItem.tags
+                                        : (selectedMetadataItem.tags || []).join(', ');
+                                    const tags = tagsString.split(',').map(t => t.trim()).filter(t => t);
                                     if (onMetadataUpdate) {
                                         onMetadataUpdate({ ...selectedMetadataItem, tags });
                                     }

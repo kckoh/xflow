@@ -516,11 +516,11 @@ def write_s3_destination(df: DataFrame, dest_config: dict, job_name: str = "outp
     if path.startswith("s3://"):
         path = path.replace("s3://", "s3a://", 1)
 
-    # If path ends with / (bucket root), append job name as folder
-    if path.endswith("/"):
-        path = path + job_name
-    elif not path.split("/")[-1]:  # Empty last segment
-        path = path.rstrip("/") + "/" + job_name
+    # Ensure path ends with / before appending job name
+    if not path.endswith("/"):
+        path = path + "/"
+    
+    path = path + job_name
 
     options = dest_config.get("options", {})
     compression = options.get("compression", "snappy")

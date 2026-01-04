@@ -27,7 +27,9 @@ import {
   Combine,
   Archive,
 } from "lucide-react";
+import { DeletionEdge } from "../domain/components/CustomEdges";
 import { SiPostgresql, SiMongodb } from "@icons-pack/react-simple-icons";
+import { useToast } from "../../components/common/Toast";
 import "./etl_job.css";
 import { useNavigate, useParams } from "react-router-dom";
 import { API_BASE_URL } from "../../config/api";
@@ -51,6 +53,11 @@ const initialEdges = [];
 // 커스텀 노드 타입 정의
 const nodeTypes = {
   datasetNode: DatasetNode,
+};
+
+// Custom edge type for deletion with hover effect
+const edgeTypes = {
+  deletion: DeletionEdge,
 };
 
 const normalizeSourceType = (value) => {
@@ -136,6 +143,7 @@ export default function ETLJobPage() {
   // 오른쪽 패널 하단에 표시할 메타데이터 아이템 (table 또는 column)
   const [selectedMetadataItem, setSelectedMetadataItem] = useState(null);
   const [isCdcActive, setIsCdcActive] = useState(false);
+  const { showToast } = useToast();
 
   // Custom hook for metadata updates (removes duplicate code)
   const handleMetadataUpdate = useMetadataUpdate(
@@ -215,6 +223,15 @@ export default function ETLJobPage() {
                 node.data?.sourceType || inferredSourceType || undefined,
               icon: iconMap[node.data.label] || Archive, // Fallback to Archive
               nodeId: node.id, // Ensure nodeId is set
+              // Delete handler
+              onDelete: (nodeId) => {
+                setNodes((nds) => nds.filter((n) => n.id !== nodeId));
+                // Clear selected node if it was deleted
+                if (selectedNode?.id === nodeId) {
+                  setSelectedNode(null);
+                  setSelectedMetadataItem(null);
+                }
+              },
               // Restore onMetadataSelect callback for metadata editing
               onMetadataSelect: (item, clickedNodeId) => {
                 isMetadataClickRef.current = true; // Mark as metadata click
@@ -254,7 +271,7 @@ export default function ETLJobPage() {
       console.log("Job loaded:", data);
     } catch (error) {
       console.error("Failed to load job:", error);
-      alert(`Failed to load job: ${error.message}`);
+      showToast(`Failed to load job: ${error.message}`, "error");
     } finally {
       setIsLoading(false);
     }
@@ -309,7 +326,12 @@ export default function ETLJobPage() {
 
   const onConnect = useCallback(
     (params) => {
-      setEdges((eds) => addEdge(params, eds));
+      // Create edge with deletion type for hover delete effect
+      const newEdge = {
+        ...params,
+        type: 'deletion',
+      };
+      setEdges((eds) => addEdge(newEdge, eds));
 
       // Schema propagation: use functional update to access latest state
       setNodes((nds) => {
@@ -565,12 +587,12 @@ export default function ETLJobPage() {
 
     // Validate required fields
     if (!sources || sources.length === 0 || !sources[0]?.connection_id) {
-      alert("Please select at least one source connection first.");
+      showToast("Please select at least one source connection first.", "error");
       setIsSaving(false);
       return;
     }
     if (!destination?.path) {
-      alert("Please set S3 destination path first.");
+      showToast("Please set S3 destination path first.", "error");
       setIsSaving(false);
       return;
     }
@@ -619,10 +641,10 @@ export default function ETLJobPage() {
       const data = await response.json();
       setJobId(data.id);
       console.log("Job saved:", data);
-      alert("Job saved successfully!");
+      showToast("Job saved successfully!", "success");
     } catch (error) {
       console.error("Save failed:", error);
-      alert(`Save failed: ${error.message}`);
+      showToast(`Save failed: ${error.message}`, "error");
     } finally {
       setIsSaving(false);
     }
@@ -631,7 +653,7 @@ export default function ETLJobPage() {
   // Run job - Batch 또는 CDC 실행
   const handleRun = async () => {
     if (!jobId) {
-      alert("먼저 Job을 저장하세요.");
+      showToast("Please save the job first.", "error");
       return;
     }
 
@@ -643,11 +665,11 @@ export default function ETLJobPage() {
         });
 
         if (response.ok) {
-          alert("CDC 파이프라인이 활성화되었습니다! 실시간 동기화가 시작됩니다.");
+          showToast("CDC pipeline activated! Real-time sync started.", "success");
           setIsCdcActive(true);
         } else {
           const error = await response.json();
-          alert(`CDC 활성화 실패: ${error.detail || 'Unknown error'}`);
+          showToast(`Failed to activate CDC: ${error.detail || 'Unknown error'}`, "error");
         }
       } else {
         // Batch 타입: 기존 배치 실행
@@ -657,22 +679,22 @@ export default function ETLJobPage() {
 
         if (response.ok) {
           const data = await response.json();
-          alert(`Batch Job 실행 시작! Run ID: ${data.run_id}`);
+          showToast(`Batch job started! Run ID: ${data.run_id}`, "success");
         } else {
           const error = await response.json();
-          alert(`실행 실패: ${error.detail || 'Unknown error'}`);
+          showToast(`Execution failed: ${error.detail || 'Unknown error'}`, "error");
         }
       }
     } catch (error) {
       console.error("Run failed:", error);
-      alert(`실행 실패: ${error.message}`);
+      showToast(`Execution failed: ${error.message}`, "error");
     }
   };
 
   const handleStop = async () => {
     if (!jobId) return;
 
-    if (confirm("CDC 파이프라인을 중지하시겠습니까? (커넥터와 Job이 종료됩니다)")) {
+    if (confirm("Stop CDC pipeline? (Connector and Job will be terminated)")) {
       try {
         const stopRes = await fetch(
           `${API_BASE_URL}/api/cdc/job/${jobId}/deactivate`,
@@ -682,11 +704,11 @@ export default function ETLJobPage() {
           const errorData = await stopRes.json();
           throw new Error(errorData.detail || "Failed to stop CDC");
         }
-        alert("CDC 파이프라인이 중지되었습니다.");
+        showToast("CDC pipeline stopped.", "success");
         setIsCdcActive(false);
       } catch (error) {
         console.error("CDC Stop Error:", error);
-        alert(`CDC 중지 실패: ${error.message}`);
+        showToast(`Failed to stop CDC: ${error.message}`, "error");
       }
     }
   };
@@ -767,6 +789,16 @@ export default function ETLJobPage() {
 
         nodeId: uniqueId, // 노드 ID 전달
 
+        // Delete handler
+        onDelete: (nodeId) => {
+          setNodes((nds) => nds.filter((n) => n.id !== nodeId));
+          // Clear selected node if it was deleted
+          if (selectedNode?.id === nodeId) {
+            setSelectedNode(null);
+            setSelectedMetadataItem(null);
+          }
+        },
+
         // Table 또는 Column 클릭 시 노드 선택 + 메타데이터 편집
         onMetadataSelect: (item, clickedNodeId) => {
           isMetadataClickRef.current = true; // Mark as metadata click
@@ -806,6 +838,21 @@ export default function ETLJobPage() {
     setSelectedMetadataItem(null);
   };
 
+  const handleNodesDelete = (deleted) => {
+    if (!deleted || deleted.length === 0) return;
+    setNodes((nds) => nds.filter((n) => !deleted.some((d) => d.id === n.id)));
+    // Clear selected node if it was deleted
+    if (selectedNode && deleted.some((d) => d.id === selectedNode.id)) {
+      setSelectedNode(null);
+      setSelectedMetadataItem(null);
+    }
+  };
+
+  const handleEdgesDelete = (deleted) => {
+    if (!deleted || deleted.length === 0) return;
+    setEdges((eds) => eds.filter((e) => !deleted.some((d) => d.id === e.id)));
+  };
+
   return (
     <div className="h-full flex flex-col bg-gray-50 overflow-hidden">
       {/* Header */}
@@ -821,7 +868,7 @@ export default function ETLJobPage() {
           <input
             type="text"
             value={jobName}
-            onChange={(e) => setJobName(e.target.value)}
+            onChange={(e) => setJobName(e.target.value.replace(/ /g, '_'))}
             className="text-xl font-semibold border-none focus:outline-none focus:ring-2 focus:ring-blue-500 rounded px-2"
             placeholder="Job name"
           />
@@ -960,9 +1007,12 @@ export default function ETLJobPage() {
                 nodes={nodes}
                 edges={edges}
                 nodeTypes={nodeTypes}
+                edgeTypes={edgeTypes}
                 onNodesChange={onNodesChange}
                 onEdgesChange={onEdgesChange}
                 onConnect={onConnect}
+                onNodesDelete={handleNodesDelete}
+                onEdgesDelete={handleEdgesDelete}
                 onNodeClick={handleNodeClick}
                 onPaneClick={handlePaneClick}
                 onInit={(instance) => {
@@ -972,6 +1022,7 @@ export default function ETLJobPage() {
                 fitViewOptions={{ maxZoom: 1.2, padding: 0.4 }}
                 nodesDraggable
                 nodesConnectable
+                elementsSelectable
                 className="bg-gray-50 flex-1"
               >
                 <Controls />
