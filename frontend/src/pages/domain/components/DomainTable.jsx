@@ -15,6 +15,7 @@ export default function DomainTable({
   searchTerm,
   onSearchChange,
   onDelete,
+  canEditDomain,
 }) {
   const navigate = useNavigate();
 
@@ -65,7 +66,7 @@ export default function DomainTable({
               <th className="px-6 py-4 font-medium">Owner</th>
               <th className="px-6 py-4 font-medium">Platform</th>
               <th className="px-6 py-4 font-medium">Tags</th>
-              <th className="px-6 py-4 font-medium text-right">Delete</th>
+              {canEditDomain && <th className="px-6 py-4 font-medium text-right">Delete</th>}
             </tr>
           </thead>
           <tbody className="divide-y divide-gray-100">
@@ -129,20 +130,22 @@ export default function DomainTable({
                         ))}
                     </div>
                   </td>
-                  <td className="px-6 py-4 text-gray-400 text-right">
-                    <div className="flex items-center justify-end gap-3">
-                      <button
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          onDelete(table._id);
-                        }}
-                        className="p-1 hover:bg-red-50 text-gray-400 hover:text-red-500 rounded-md transition-colors"
-                        title="Delete Dataset"
-                      >
-                        <Trash2 size={30} />
-                      </button>
-                    </div>
-                  </td>
+                  {canEditDomain && (
+                    <td className="px-6 py-4 text-gray-400 text-right">
+                      <div className="flex items-center justify-end gap-3">
+                        <button
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            onDelete(table._id);
+                          }}
+                          className="p-1 hover:bg-red-50 text-gray-400 hover:text-red-500 rounded-md transition-colors"
+                          title="Delete Dataset"
+                        >
+                          <Trash2 size={30} />
+                        </button>
+                      </div>
+                    </td>
+                  )}
                 </tr>
               ))}
           </tbody>

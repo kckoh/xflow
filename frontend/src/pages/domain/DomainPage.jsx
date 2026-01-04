@@ -23,6 +23,9 @@ export default function DomainPage() {
   // Check if user can create domains
   const canCreateDomain = user?.is_admin || user?.domain_edit_access;
 
+  // Check if user can edit/delete domains
+  const canEditDomain = user?.is_admin || user?.domain_edit_access;
+
   // URL search 파라미터가 변경되면 searchTerm 업데이트
   useEffect(() => {
     const urlSearch = searchParams.get("search");
@@ -90,6 +93,7 @@ export default function DomainPage() {
         searchTerm={searchTerm}
         onSearchChange={setSearchTerm}
         onDelete={handleDelete}
+        canEditDomain={canEditDomain}
       />
     </div>
   );
