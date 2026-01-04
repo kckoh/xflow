@@ -10,12 +10,18 @@ import {
 
 export default function DomainTable({
   tables,
+  totalCount,
   loading,
   error,
   searchTerm,
   onSearchChange,
   onDelete,
   canEditDomain,
+  currentPage,
+  totalPages,
+  startIndex,
+  endIndex,
+  onPageChange,
 }) {
   const navigate = useNavigate();
 
@@ -58,7 +64,7 @@ export default function DomainTable({
       </div>
 
       {/* Table */}
-      <div className="overflow-x-auto">
+      <div className="overflow-x-auto" style={{ minHeight: '560px' }}>
         <table className="w-full text-left border-collapse">
           <thead>
             <tr className="bg-gray-50 border-b border-gray-100 text-xs text-gray-500 uppercase tracking-wider">
@@ -158,6 +164,36 @@ export default function DomainTable({
           </div>
         )}
       </div>
+
+      {/* Pagination */}
+      {totalCount > 0 && (
+        <div className="px-6 py-4 border-t border-gray-200 flex items-center justify-between">
+          <div className="text-sm text-gray-700">
+            Showing {startIndex + 1} to{" "}
+            {Math.min(endIndex, totalCount)} of {totalCount}{" "}
+            results
+          </div>
+          <div className="flex items-center gap-2">
+            <button
+              onClick={() => onPageChange((p) => Math.max(1, p - 1))}
+              disabled={currentPage === 1}
+              className="px-3 py-1 border border-gray-300 rounded-md text-sm text-gray-700 hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
+            >
+              Previous
+            </button>
+            <span className="px-3 py-1 bg-blue-600 text-white rounded-md text-sm">
+              {currentPage}
+            </span>
+            <button
+              onClick={() => onPageChange((p) => Math.min(totalPages, p + 1))}
+              disabled={currentPage === totalPages || totalPages === 0}
+              className="px-3 py-1 border border-gray-300 rounded-md text-sm text-gray-700 hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
+            >
+              Next
+            </button>
+          </div>
+        </div>
+      )}
     </section>
   );
 }

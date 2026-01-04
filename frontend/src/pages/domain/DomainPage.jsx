@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { useSearchParams } from "react-router-dom";
 import { useToast } from "../../components/common/Toast";
 import { useAuth } from "../../context/AuthContext";
@@ -6,6 +6,8 @@ import DomainCreateModal from "./components/DomainCreateModal";
 import DomainHeader from "./components/DomainHeader";
 import DomainTable from "./components/DomainTable";
 import { getDomains, deleteDomain } from "./api/domainApi";
+
+const ITEMS_PER_PAGE = 7;
 
 export default function DomainPage() {
   const { showToast } = useToast();
@@ -15,10 +17,13 @@ export default function DomainPage() {
     searchParams.get("search") || "",
   );
   // Domain Data
-  const [allTables, setAllTables] = useState([]);
+  const [tables, setTables] = useState([]);
+  const [totalCount, setTotalCount] = useState(0);
+  const [totalPages, setTotalPages] = useState(0);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [showCreateModal, setShowCreateModal] = useState(false);
+  const [currentPage, setCurrentPage] = useState(1);
 
   // Check if user can create domains
   const canCreateDomain = user?.is_admin || user?.domain_edit_access;
@@ -34,24 +39,35 @@ export default function DomainPage() {
     }
   }, [searchParams]);
 
-
-
-  const fetchDomains = async () => {
+  const fetchDomains = useCallback(async () => {
     setLoading(true);
     try {
-      const data = await getDomains();
-      setAllTables(data);
+      const data = await getDomains({
+        page: currentPage,
+        limit: ITEMS_PER_PAGE,
+        search: searchTerm,
+      });
+      setTables(data.items || []);
+      setTotalCount(data.total || 0);
+      setTotalPages(data.total_pages || 0);
     } catch (err) {
       console.error("Error fetching domains:", err);
-      // setError(err.message); // Don't block UI on error, just log
+      setError(err.message);
     } finally {
       setLoading(false);
     }
-  };
+  }, [currentPage, searchTerm]);
 
+  // Reset to page 1 when search term changes
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [searchTerm]);
+
+  // Fetch data when page or search changes
   useEffect(() => {
     fetchDomains();
-  }, []);
+  }, [fetchDomains]);
+
   const handleDelete = async (id) => {
     try {
       await deleteDomain(id);
@@ -63,9 +79,9 @@ export default function DomainPage() {
     }
   };
 
-  const filteredTables = allTables.filter((table) =>
-    table.name.toLowerCase().includes(searchTerm.toLowerCase()),
-  );
+  // Calculate indices for display
+  const startIndex = (currentPage - 1) * ITEMS_PER_PAGE;
+  const endIndex = startIndex + ITEMS_PER_PAGE;
 
   return (
     <div className="space-y-8 relative">
@@ -84,16 +100,21 @@ export default function DomainPage() {
         />
       )}
 
-
       {/* All Domains Table */}
       <DomainTable
-        tables={filteredTables}
+        tables={tables}
+        totalCount={totalCount}
         loading={loading}
         error={error}
         searchTerm={searchTerm}
         onSearchChange={setSearchTerm}
         onDelete={handleDelete}
         canEditDomain={canEditDomain}
+        currentPage={currentPage}
+        totalPages={totalPages}
+        startIndex={startIndex}
+        endIndex={endIndex}
+        onPageChange={setCurrentPage}
       />
     </div>
   );
