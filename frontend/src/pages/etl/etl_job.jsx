@@ -221,6 +221,15 @@ export default function ETLJobPage() {
                 node.data?.sourceType || inferredSourceType || undefined,
               icon: iconMap[node.data.label] || Archive, // Fallback to Archive
               nodeId: node.id, // Ensure nodeId is set
+              // Delete handler
+              onDelete: (nodeId) => {
+                setNodes((nds) => nds.filter((n) => n.id !== nodeId));
+                // Clear selected node if it was deleted
+                if (selectedNode?.id === nodeId) {
+                  setSelectedNode(null);
+                  setSelectedMetadataItem(null);
+                }
+              },
               // Restore onMetadataSelect callback for metadata editing
               onMetadataSelect: (item, clickedNodeId) => {
                 isMetadataClickRef.current = true; // Mark as metadata click
