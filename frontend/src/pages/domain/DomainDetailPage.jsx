@@ -105,7 +105,16 @@ export default function DomainDetailPage() {
 
             // Extract dataset name from label (remove prefix like "(S3) ")
             if (nodeName && nodeName.includes(') ')) {
-                nodeName = nodeName.split(') ')[1] || nodeName;
+                const extracted = nodeName.split(') ')[1];
+                // Only use extracted name if it's not empty
+                if (extracted && extracted.trim()) {
+                    nodeName = extracted;
+                }
+            }
+
+            // Skip if nodeName is still empty or invalid
+            if (!nodeName || !nodeName.trim()) {
+                return acc;
             }
 
             // Check if user has access to this dataset

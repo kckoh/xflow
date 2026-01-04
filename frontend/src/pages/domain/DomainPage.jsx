@@ -90,6 +90,7 @@ export default function DomainPage() {
         searchTerm={searchTerm}
         onSearchChange={setSearchTerm}
         onDelete={handleDelete}
+        canEditDomain={canEditDomain}
       />
     </div>
   );
