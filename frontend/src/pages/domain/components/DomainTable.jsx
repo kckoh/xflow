@@ -1,12 +1,20 @@
+import { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import {
   Search,
   Database,
   Table as TableIcon,
-  ChevronDown,
-  ListFilter,
+  ArrowUpDown,
+  X,
   Trash2,
 } from "lucide-react";
+
+const SORT_OPTIONS = [
+  { value: "updated_at", label: "Last Modified" },
+  { value: "name", label: "Name" },
+  { value: "owner", label: "Owner" },
+  { value: "platform", label: "Platform" },
+];
 
 export default function DomainTable({
   tables,
@@ -22,8 +30,35 @@ export default function DomainTable({
   startIndex,
   endIndex,
   onPageChange,
+  sortBy,
+  sortOrder,
+  onSortChange,
+  ownerFilter,
+  onOwnerFilterChange,
+  tagFilter,
+  onTagFilterChange,
 }) {
   const navigate = useNavigate();
+  const [showSortMenu, setShowSortMenu] = useState(false);
+
+  const currentSortLabel = SORT_OPTIONS.find(opt => opt.value === sortBy)?.label || "Last Modified";
+
+  const handleSortSelect = (field) => {
+    if (field === sortBy) {
+      // Toggle order if same field
+      onSortChange(field, sortOrder === "desc" ? "asc" : "desc");
+    } else {
+      onSortChange(field, "desc");
+    }
+    setShowSortMenu(false);
+  };
+
+  const clearFilters = () => {
+    onOwnerFilterChange("");
+    onTagFilterChange("");
+  };
+
+  const hasActiveFilters = ownerFilter || tagFilter;
 
   return (
     <section className="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden">
@@ -38,9 +73,31 @@ export default function DomainTable({
             </span>
           </div>
           <div className="h-6 w-px bg-gray-200 mx-2 hidden md:block"></div>
-          <FilterDropdown label="Owner" />
-          <FilterDropdown label="Platform" />
-          <FilterDropdown label="Last Modified" />
+          {/* Owner Filter */}
+          <input
+            type="text"
+            placeholder="Filter by Owner"
+            value={ownerFilter}
+            onChange={(e) => onOwnerFilterChange(e.target.value)}
+            className="px-3 py-1.5 text-sm border border-gray-200 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none w-32"
+          />
+          {/* Tag Filter */}
+          <input
+            type="text"
+            placeholder="Filter by Tag"
+            value={tagFilter}
+            onChange={(e) => onTagFilterChange(e.target.value)}
+            className="px-3 py-1.5 text-sm border border-gray-200 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none w-32"
+          />
+          {hasActiveFilters && (
+            <button
+              onClick={clearFilters}
+              className="flex items-center gap-1 px-2 py-1 text-xs text-red-600 hover:bg-red-50 rounded transition-colors"
+            >
+              <X className="w-3 h-3" />
+              Clear
+            </button>
+          )}
         </div>
 
         {/* Right: Search & Sort */}
@@ -56,10 +113,34 @@ export default function DomainTable({
             />
           </div>
           <div className="h-8 w-px bg-gray-200 mx-1"></div>
-          <button className="flex items-center gap-2 px-3 py-1.5 text-sm font-medium text-gray-600 hover:bg-gray-50 rounded-lg transition-colors">
-            <span>Sort by</span>
-            <ListFilter className="w-4 h-4" />
-          </button>
+          {/* Sort Dropdown */}
+          <div className="relative">
+            <button
+              onClick={() => setShowSortMenu(!showSortMenu)}
+              className="flex items-center gap-2 px-3 py-1.5 text-sm font-medium text-gray-600 hover:bg-gray-50 rounded-lg transition-colors border border-gray-200"
+            >
+              <ArrowUpDown className="w-4 h-4" />
+              <span>{currentSortLabel}</span>
+              <span className="text-xs text-gray-400">{sortOrder === "desc" ? "↓" : "↑"}</span>
+            </button>
+            {showSortMenu && (
+              <div className="absolute right-0 mt-1 w-40 bg-white border border-gray-200 rounded-lg shadow-lg z-10">
+                {SORT_OPTIONS.map((option) => (
+                  <button
+                    key={option.value}
+                    onClick={() => handleSortSelect(option.value)}
+                    className={`w-full text-left px-3 py-2 text-sm hover:bg-gray-50 first:rounded-t-lg last:rounded-b-lg ${sortBy === option.value ? "bg-blue-50 text-blue-600" : "text-gray-700"
+                      }`}
+                  >
+                    {option.label}
+                    {sortBy === option.value && (
+                      <span className="ml-2 text-xs">{sortOrder === "desc" ? "↓" : "↑"}</span>
+                    )}
+                  </button>
+                ))}
+              </div>
+            )}
+          </div>
         </div>
       </div>
 
@@ -70,7 +151,6 @@ export default function DomainTable({
             <tr className="bg-gray-50 border-b border-gray-100 text-xs text-gray-500 uppercase tracking-wider">
               <th className="px-6 py-4 font-medium">Name</th>
               <th className="px-6 py-4 font-medium">Owner</th>
-              <th className="px-6 py-4 font-medium">Platform</th>
               <th className="px-6 py-4 font-medium">Tags</th>
               {canEditDomain && <th className="px-6 py-4 font-medium text-right">Delete</th>}
             </tr>
@@ -78,14 +158,14 @@ export default function DomainTable({
           <tbody className="divide-y divide-gray-100">
             {loading && (
               <tr>
-                <td colSpan="6" className="px-6 py-8 text-center text-gray-500">
+                <td colSpan="4" className="px-6 py-8 text-center text-gray-500">
                   Loading catalog data...
                 </td>
               </tr>
             )}
             {error && (
               <tr>
-                <td colSpan="6" className="px-6 py-8 text-center text-red-500">
+                <td colSpan="4" className="px-6 py-8 text-center text-red-500">
                   Error: {error}
                 </td>
               </tr>
@@ -119,9 +199,6 @@ export default function DomainTable({
                     ) : (
                       <span className="text-gray-400">No owner</span>
                     )}
-                  </td>
-                  <td className="px-6 py-4 text-sm text-gray-600 font-mono uppercase text-xs">
-                    {table.platform}
                   </td>
                   <td className="px-6 py-4">
                     <div className="flex gap-1 flex-wrap">
@@ -195,14 +272,5 @@ export default function DomainTable({
         </div>
       )}
     </section>
-  );
-}
-
-function FilterDropdown({ label }) {
-  return (
-    <button className="flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium text-gray-600 bg-white border border-gray-200 rounded-lg hover:bg-gray-50 hover:border-gray-300 transition-all whitespace-nowrap">
-      {label}
-      <ChevronDown className="w-3.5 h-3.5 text-gray-400" />
-    </button>
   );
 }

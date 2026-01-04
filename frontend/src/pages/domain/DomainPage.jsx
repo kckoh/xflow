@@ -25,6 +25,12 @@ export default function DomainPage() {
   const [showCreateModal, setShowCreateModal] = useState(false);
   const [currentPage, setCurrentPage] = useState(1);
 
+  // Sort and Filter state
+  const [sortBy, setSortBy] = useState("updated_at");
+  const [sortOrder, setSortOrder] = useState("desc");
+  const [ownerFilter, setOwnerFilter] = useState("");
+  const [tagFilter, setTagFilter] = useState("");
+
   // Check if user can create domains
   const canCreateDomain = user?.is_admin || user?.domain_edit_access;
 
@@ -46,6 +52,10 @@ export default function DomainPage() {
         page: currentPage,
         limit: ITEMS_PER_PAGE,
         search: searchTerm,
+        sortBy,
+        sortOrder,
+        owner: ownerFilter,
+        tag: tagFilter,
       });
       setTables(data.items || []);
       setTotalCount(data.total || 0);
@@ -56,14 +66,14 @@ export default function DomainPage() {
     } finally {
       setLoading(false);
     }
-  }, [currentPage, searchTerm]);
+  }, [currentPage, searchTerm, sortBy, sortOrder, ownerFilter, tagFilter]);
 
-  // Reset to page 1 when search term changes
+  // Reset to page 1 when filters change
   useEffect(() => {
     setCurrentPage(1);
-  }, [searchTerm]);
+  }, [searchTerm, sortBy, sortOrder, ownerFilter, tagFilter]);
 
-  // Fetch data when page or search changes
+  // Fetch data when dependencies change
   useEffect(() => {
     fetchDomains();
   }, [fetchDomains]);
@@ -115,6 +125,13 @@ export default function DomainPage() {
         startIndex={startIndex}
         endIndex={endIndex}
         onPageChange={setCurrentPage}
+        sortBy={sortBy}
+        sortOrder={sortOrder}
+        onSortChange={(field, order) => { setSortBy(field); setSortOrder(order); }}
+        ownerFilter={ownerFilter}
+        onOwnerFilterChange={setOwnerFilter}
+        tagFilter={tagFilter}
+        onTagFilterChange={setTagFilter}
       />
     </div>
   );
