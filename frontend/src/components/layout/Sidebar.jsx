@@ -30,7 +30,6 @@ export function Sidebar({ isCollapsed, onToggle }) {
       title: "LINEAGE",
       items: [
         { name: "Domain", path: "/domain", icon: Database },
-        { name: "Business Glossary", path: "/glossary", icon: GitMerge },
       ],
     },
     {
