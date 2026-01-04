@@ -229,6 +229,7 @@ def on_failure_callback(context):
     from kubernetes import client, config
 
     error = str(context.get("exception", "Unknown error"))
+
     spark_logs = ""
 
     # Try to get Spark driver logs
@@ -259,3 +260,76 @@ def on_failure_callback(context):
     full_error = error + spark_logs
     # Store up to 50KB of error message
     update_job_run_status("failed", error_message=full_error[:50000], **context)
+
+
+def run_quality_check(**context):
+    """
+    Run quality check on the ETL output data.
+    Calls the Quality Check API with the dataset ID and S3 path.
+    """
+    import requests
+    import pymongo
+    from bson import ObjectId
+    
+    job_id = context["dag_run"].conf.get("job_id")
+    if not job_id:
+        print("[Quality] No job_id found, skipping quality check")
+        return
+    
+    # Get MongoDB connection
+    mongo_url = Variable.get(
+        "MONGODB_URL", default_var="mongodb://mongo:mongo@mongodb:27017"
+    )
+    mongo_db = Variable.get("MONGODB_DATABASE", default_var="mydb")
+    
+    client = pymongo.MongoClient(mongo_url)
+    db = client[mongo_db]
+    
+    try:
+        # Fetch ETL job to get destination info
+        job = db.etl_jobs.find_one({"_id": ObjectId(job_id)})
+        if not job:
+            print(f"[Quality] ETL job {job_id} not found")
+            return
+        
+        destination = job.get("destination", {})
+        s3_path = destination.get("s3_path") or destination.get("path")
+        
+        if not s3_path:
+            print("[Quality] No S3 path found in job destination")
+            return
+        
+        # Find the associated dataset
+        dataset = db.datasets.find_one({"job_id": job_id})
+        if not dataset:
+            print(f"[Quality] No dataset found for job {job_id}")
+            return
+        
+        dataset_id = str(dataset["_id"])
+        
+        # Call Quality Check API
+        backend_url = Variable.get(
+            "BACKEND_URL", default_var="http://backend:8000"
+        )
+        
+        api_url = f"{backend_url}/api/quality/{dataset_id}/run"
+        payload = {"s3_path": s3_path}
+        
+        print(f"[Quality] Calling API: {api_url}")
+        print(f"[Quality] Payload: {payload}")
+        
+        response = requests.post(api_url, json=payload, timeout=300)
+        
+        if response.status_code == 200:
+            result = response.json()
+            score = result.get("overall_score", 0)
+            print(f"[Quality] Check completed! Score: {score}/100")
+        else:
+            print(f"[Quality] API call failed: {response.status_code} - {response.text}")
+            
+    except Exception as e:
+        print(f"[Quality] Error running quality check: {e}")
+        # Don't raise - quality check failure should not fail the DAG
+    finally:
+        client.close()
+

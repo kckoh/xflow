@@ -5,6 +5,7 @@ import { StreamImpactContent } from "./StreamImpactContent";
 import { SummaryContent } from "./SummaryContent";
 import { ColumnsContent } from "./ColumnsContent";
 import { DocsContent } from "./DocsContent";
+import { QualityContent } from "./QualityContent";
 
 export function RightSidebar({
     isSidebarOpen,
@@ -12,6 +13,7 @@ export function RightSidebar({
     handleSidebarTabClick,
     streamData,
     dataset,
+    domain,
     onNodeSelect,
     onUpdate,
     nodePermissions, // For filtering columns by permission
@@ -19,8 +21,39 @@ export function RightSidebar({
 }) {
     const isDomainMode = dataset && Array.isArray(dataset.nodes);
 
+    // Helper to deeply check for S3/Storage properties
+    const checkS3 = (obj) => {
+        if (!obj) return false;
+
+        // 1. Check direct config (or nested data.config)
+        const cfg = obj.config || (obj.data && obj.data.config);
+
+        if (cfg) {
+            // Strong signals only
+            if (cfg.s3Location) return true;
+            if (cfg.s3_location) return true;
+            if (cfg.format === 'parquet') return true;
+            // Check path for s3:// prefix
+            if (cfg.path && typeof cfg.path === 'string' && (cfg.path.startsWith('s3://') || cfg.path.startsWith('s3a://'))) return true;
+        }
+
+        // 2. Check direct property (Dataset object)
+        if (obj.s3Location || obj.s3_location) return true;
+
+        // 3. Recursive check for nested data (e.g. node.data)
+        // Only recurse if data is an object and not the same object
+        if (obj.data && typeof obj.data === 'object' && obj.data !== obj) {
+            return checkS3(obj.data);
+        }
+
+        return false;
+    };
+
+    // Show Quality tab for all nodes - displays the overall Dataset quality
+    const showQualityTab = true;
+
     // Define Tabs based on Mode
-    const TABS = isDomainMode
+    let TABS = isDomainMode
         ? [
             { id: "summary", label: "Overview", icon: Book, color: "purple" },
             { id: "columns", label: "All Columns", icon: Columns, color: "blue" },
@@ -31,6 +64,17 @@ export function RightSidebar({
             { id: "columns", label: "Schema", icon: Columns, color: "blue" },
             { id: "lineage", label: "Lineage", icon: GitFork, color: "orange" },
         ];
+
+    // Add Quality tab only if S3 data is available
+    if (showQualityTab) {
+        if (isDomainMode) {
+            // Add quality at index 2 (after columns)
+            TABS.splice(2, 0, { id: "quality", label: "Quality", icon: ShieldCheck, color: "green" });
+        } else {
+            // Add quality at index 2
+            TABS.splice(2, 0, { id: "quality", label: "Quality", icon: ShieldCheck, color: "green" });
+        }
+    }
 
     // Reset tab if current tab is invalid for the new mode
     useEffect(() => {
@@ -48,6 +92,8 @@ export function RightSidebar({
                 return <SummaryContent dataset={dataset} isDomainMode={isDomainMode} onUpdate={onUpdate} canEditDomain={canEditDomain} />;
             case "columns":
                 return <ColumnsContent dataset={dataset} isDomainMode={isDomainMode} onNodeSelect={onNodeSelect} nodePermissions={nodePermissions} canEditDomain={canEditDomain} />;
+            case "quality":
+                return <QualityContent dataset={domain} isDomainMode={true} />;
             case "lineage":
                 return <StreamImpactContent streamData={streamData} onNodeSelect={onNodeSelect} />;
             case "docs":
