@@ -1,82 +1,206 @@
 """
 Spark Service - Spark Job 실행 관리
-역할: spark-master 컨테이너에 명령을 보내서 Job 실행/중지
+역할: Spark Operator를 통해 K8s에서 CDC Streaming Job 실행/중지
 """
-import docker
+import os
 import json
 import logging
 
 logger = logging.getLogger(__name__)
 
+ENVIRONMENT = os.getenv("ENVIRONMENT", "development")
+SPARK_IMAGE = os.getenv("SPARK_IMAGE", "134059028370.dkr.ecr.ap-northeast-2.amazonaws.com/xflow-spark:latest")
+SPARK_NAMESPACE = os.getenv("SPARK_NAMESPACE", "spark-jobs")
+KAFKA_BOOTSTRAP_SERVERS = os.getenv("KAFKA_BOOTSTRAP_SERVERS", "xflow-kafka-kafka-bootstrap.kafka:9092")
+
 
 class SparkService:
-    """Spark Job 관리 서비스"""
-    
-    CLIENT = None
-    CONTAINER_NAME = "spark-master"
-    
+    """Spark Job 관리 서비스 (K8s Spark Operator)"""
+
+    K8S_CLIENT = None
+
     @classmethod
-    def _get_client(cls):
-        """Docker 클라이언트 (lazy init)"""
-        if cls.CLIENT is None:
-            cls.CLIENT = docker.from_env()
-        return cls.CLIENT
-    
+    def _get_k8s_client(cls):
+        """Kubernetes 클라이언트 (lazy init)"""
+        if cls.K8S_CLIENT is None:
+            try:
+                from kubernetes import client, config
+                # K8s 환경에서는 in-cluster config
+                if ENVIRONMENT == "production":
+                    config.load_incluster_config()
+                else:
+                    config.load_kube_config()
+                cls.K8S_CLIENT = client.CustomObjectsApi()
+            except Exception as e:
+                logger.error(f"K8s 클라이언트 초기화 실패: {e}")
+                raise
+        return cls.K8S_CLIENT
+
     @classmethod
-    def submit_job(cls, config: dict, app_name: str, script_path: str = "/opt/spark/jobs/dataset_cdc_runner.py") -> str:
+    def _build_spark_application(cls, config: dict, app_name: str, script_path: str) -> dict:
+        """SparkApplication CRD 생성"""
+        config_json = json.dumps(config)
+
+        return {
+            "apiVersion": "sparkoperator.k8s.io/v1beta2",
+            "kind": "SparkApplication",
+            "metadata": {
+                "name": app_name.lower().replace("_", "-")[:63],  # K8s name 제약
+                "namespace": SPARK_NAMESPACE,
+            },
+            "spec": {
+                "type": "Python",
+                "pythonVersion": "3",
+                "mode": "cluster",
+                "image": SPARK_IMAGE,
+                "imagePullPolicy": "Always",
+                "mainApplicationFile": f"local://{script_path}",
+                "arguments": [config_json],
+                "sparkVersion": "3.5.0",
+                "sparkConf": {
+                    # Kafka 설정
+                    "spark.jars.packages": "org.apache.spark:spark-sql-kafka-0-10_2.12:3.5.0",
+                    # S3 설정
+                    "spark.hadoop.fs.s3a.impl": "org.apache.hadoop.fs.s3a.S3AFileSystem",
+                    "spark.hadoop.fs.s3a.aws.credentials.provider": "com.amazonaws.auth.WebIdentityTokenCredentialsProvider",
+                    "spark.sql.shuffle.partitions": "24",
+                },
+                "driver": {
+                    "cores": 1,
+                    "memory": "2g",
+                    "serviceAccount": "spark-sa",
+                    "nodeSelector": {
+                        "node-type": "spark",
+                        "lifecycle": "spot",
+                    },
+                    "tolerations": [{
+                        "key": "spark-only",
+                        "operator": "Equal",
+                        "value": "true",
+                        "effect": "NoSchedule",
+                    }],
+                    "env": [
+                        {"name": "AWS_REGION", "value": "ap-northeast-2"},
+                        {"name": "KAFKA_BOOTSTRAP_SERVERS", "value": KAFKA_BOOTSTRAP_SERVERS},
+                    ],
+                },
+                "executor": {
+                    "cores": 2,
+                    "instances": 1,
+                    "memory": "4g",
+                    "nodeSelector": {
+                        "node-type": "spark",
+                        "lifecycle": "spot",
+                    },
+                    "tolerations": [{
+                        "key": "spark-only",
+                        "operator": "Equal",
+                        "value": "true",
+                        "effect": "NoSchedule",
+                    }],
+                    "env": [
+                        {"name": "AWS_REGION", "value": "ap-northeast-2"},
+                        {"name": "KAFKA_BOOTSTRAP_SERVERS", "value": KAFKA_BOOTSTRAP_SERVERS},
+                    ],
+                },
+                "restartPolicy": {
+                    "type": "Always",  # Streaming은 항상 재시작
+                },
+            },
+        }
+
+    @classmethod
+    def submit_job(cls, config: dict, app_name: str, script_path: str = "/opt/spark/jobs/unified_cdc_runner.py") -> str:
         """
-        Spark Streaming Job 실행
-        
+        Spark Streaming Job 실행 (K8s SparkApplication 생성)
+
         Args:
             config: Dataset 설정 (sources, transforms, targets)
             app_name: Spark 애플리케이션 이름
             script_path: 실행할 파이썬 스크립트 경로
         """
-        config_json = json.dumps(config).replace('"', '\\"')
-        
-        cmd = f'''
-            /opt/spark/bin/spark-submit \
-            --master spark://spark-master:7077 \
-            --name "{app_name}" \
-            --packages org.apache.spark:spark-sql-kafka-0-10_2.12:3.5.0 \
-            --conf spark.driver.extraJavaOptions=-Divy.home=/tmp/.ivy2 \
-            --jars /opt/spark/jars/extra/aws-java-sdk-bundle-1.12.262.jar,/opt/spark/jars/extra/hadoop-aws-3.3.4.jar \
-            {script_path} \
-            "{config_json}"
-        '''
-        
         try:
-            client = cls._get_client()
-            container = client.containers.get(cls.CONTAINER_NAME)
-            
-            # detach=True: 백그라운드 실행 (Streaming은 무한 루프이므로)
-            # 로그 디버깅을 위해 파일로 리다이렉트
-            cmd_with_log = f"/bin/bash -c '{cmd} > /opt/spark/work/spark_job.log 2>&1'"
-            container.exec_run(cmd_with_log, detach=True)
-            
-            logger.info(f"Spark Job 시작: {app_name}")
+            k8s_client = cls._get_k8s_client()
+
+            # SparkApplication 생성
+            spark_app = cls._build_spark_application(config, app_name, script_path)
+            app_name_normalized = spark_app["metadata"]["name"]
+
+            # 기존 앱 삭제 (있으면)
+            try:
+                k8s_client.delete_namespaced_custom_object(
+                    group="sparkoperator.k8s.io",
+                    version="v1beta2",
+                    namespace=SPARK_NAMESPACE,
+                    plural="sparkapplications",
+                    name=app_name_normalized,
+                )
+                logger.info(f"기존 SparkApplication 삭제: {app_name_normalized}")
+                import time
+                time.sleep(2)  # 삭제 대기
+            except Exception:
+                pass  # 없으면 무시
+
+            # 새 앱 생성
+            k8s_client.create_namespaced_custom_object(
+                group="sparkoperator.k8s.io",
+                version="v1beta2",
+                namespace=SPARK_NAMESPACE,
+                plural="sparkapplications",
+                body=spark_app,
+            )
+
+            logger.info(f"Spark Job 시작: {app_name_normalized}")
             return "started"
-            
-        except docker.errors.NotFound:
-            logger.error(f"컨테이너 없음: {cls.CONTAINER_NAME}")
-            raise RuntimeError(f"Container {cls.CONTAINER_NAME} not found")
+
         except Exception as e:
             logger.error(f"Job 시작 실패: {e}")
             raise
-    
+
     @classmethod
     def stop_job(cls, app_name: str) -> bool:
-        """Spark Job 중지"""
+        """Spark Job 중지 (SparkApplication 삭제)"""
         try:
-            client = cls._get_client()
-            container = client.containers.get(cls.CONTAINER_NAME)
-            
-            # 프로세스 이름으로 kill
-            container.exec_run(f"pkill -f '{app_name}'")
-            
-            logger.info(f"Spark Job 중지 요청: {app_name}")
+            k8s_client = cls._get_k8s_client()
+            app_name_normalized = app_name.lower().replace("_", "-")[:63]
+
+            k8s_client.delete_namespaced_custom_object(
+                group="sparkoperator.k8s.io",
+                version="v1beta2",
+                namespace=SPARK_NAMESPACE,
+                plural="sparkapplications",
+                name=app_name_normalized,
+            )
+
+            logger.info(f"Spark Job 중지: {app_name_normalized}")
             return True
-            
+
         except Exception as e:
-            logger.warning(f"Job 중지 실패: {e}")
+            logger.warning(f"Job 중지 실패 (이미 없을 수 있음): {e}")
             return False
+
+    @classmethod
+    def get_job_status(cls, app_name: str) -> dict:
+        """Spark Job 상태 조회"""
+        try:
+            k8s_client = cls._get_k8s_client()
+            app_name_normalized = app_name.lower().replace("_", "-")[:63]
+
+            result = k8s_client.get_namespaced_custom_object(
+                group="sparkoperator.k8s.io",
+                version="v1beta2",
+                namespace=SPARK_NAMESPACE,
+                plural="sparkapplications",
+                name=app_name_normalized,
+            )
+
+            status = result.get("status", {})
+            return {
+                "name": app_name_normalized,
+                "state": status.get("applicationState", {}).get("state", "UNKNOWN"),
+                "driver_info": status.get("driverInfo", {}),
+            }
+
+        except Exception as e:
+            logger.warning(f"Job 상태 조회 실패: {e}")
+            return {"name": app_name, "state": "NOT_FOUND", "error": str(e)}
