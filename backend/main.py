@@ -79,6 +79,10 @@ app.include_router(duckdb.router, prefix="/api/duckdb", tags=["duckdb"])
 # Domains (CRUD + ETL Job Import)
 app.include_router(domains.router, prefix="/api/domains", tags=["domains"])
 
+# CDC (Change Data Capture)
+from routers import cdc
+app.include_router(cdc.router)
+
 # Logs (Event logging to S3/Local)
 app.include_router(logs.router)
 
