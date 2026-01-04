@@ -22,7 +22,7 @@ chmod +x install.sh
 
 - **URL**: https://grafana.xflows.net
 - **ID**: admin
-- **PW**: xflow2024 (변경 필요)
+- **PW**: 
 
 ## 로그 조회 방법
 
