@@ -14,13 +14,30 @@ def build_etl_job_document(job: ETLJob) -> dict:
     ETL Job 객체를 OpenSearch 문서로 변환
     """
     node_meta = extract_node_metadata(job.nodes or [])
-    
+
+    # Extract S3 path from destination and append job name for full path
+    s3_path = None
+    if job.destination:
+        dest = job.destination
+        base_path = None
+        if isinstance(dest, dict):
+            base_path = dest.get('path')
+        elif hasattr(dest, 'path'):
+            base_path = dest.path
+
+        if base_path:
+            # Construct full path: base_path + job_name/*.parquet
+            # e.g., s3://xflow-benchmark/ + 1gb -> s3://xflow-benchmark/1gb/*.parquet
+            base_path = base_path.rstrip('/')
+            s3_path = f"{base_path}/{job.name}/*.parquet"
+
     return {
         'doc_id': str(job.id),
         'doc_type': 'etl_job',
         'name': job.name,
         'description': job.description,
         'status': job.status,
+        's3_path': s3_path,  # S3 Parquet path for DuckDB queries
         'node_descriptions': node_meta['node_descriptions'],
         'node_tags': node_meta['node_tags'],
         'column_names': node_meta['column_names'],
