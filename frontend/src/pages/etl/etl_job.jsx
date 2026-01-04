@@ -27,6 +27,7 @@ import {
   Combine,
   Archive,
 } from "lucide-react";
+import { DeletionEdge } from "../domain/components/CustomEdges";
 import { SiPostgresql, SiMongodb } from "@icons-pack/react-simple-icons";
 import "./etl_job.css";
 import { useNavigate, useParams } from "react-router-dom";
@@ -51,6 +52,11 @@ const initialEdges = [];
 // 커스텀 노드 타입 정의
 const nodeTypes = {
   datasetNode: DatasetNode,
+};
+
+// Custom edge type for deletion with hover effect
+const edgeTypes = {
+  deletion: DeletionEdge,
 };
 
 const normalizeSourceType = (value) => {
@@ -309,7 +315,12 @@ export default function ETLJobPage() {
 
   const onConnect = useCallback(
     (params) => {
-      setEdges((eds) => addEdge(params, eds));
+      // Create edge with deletion type for hover delete effect
+      const newEdge = {
+        ...params,
+        type: 'deletion',
+      };
+      setEdges((eds) => addEdge(newEdge, eds));
 
       // Schema propagation: use functional update to access latest state
       setNodes((nds) => {
@@ -767,6 +778,16 @@ export default function ETLJobPage() {
 
         nodeId: uniqueId, // 노드 ID 전달
 
+        // Delete handler
+        onDelete: (nodeId) => {
+          setNodes((nds) => nds.filter((n) => n.id !== nodeId));
+          // Clear selected node if it was deleted
+          if (selectedNode?.id === nodeId) {
+            setSelectedNode(null);
+            setSelectedMetadataItem(null);
+          }
+        },
+
         // Table 또는 Column 클릭 시 노드 선택 + 메타데이터 편집
         onMetadataSelect: (item, clickedNodeId) => {
           isMetadataClickRef.current = true; // Mark as metadata click
@@ -804,6 +825,21 @@ export default function ETLJobPage() {
   const handlePaneClick = () => {
     setSelectedNode(null);
     setSelectedMetadataItem(null);
+  };
+
+  const handleNodesDelete = (deleted) => {
+    if (!deleted || deleted.length === 0) return;
+    setNodes((nds) => nds.filter((n) => !deleted.some((d) => d.id === n.id)));
+    // Clear selected node if it was deleted
+    if (selectedNode && deleted.some((d) => d.id === selectedNode.id)) {
+      setSelectedNode(null);
+      setSelectedMetadataItem(null);
+    }
+  };
+
+  const handleEdgesDelete = (deleted) => {
+    if (!deleted || deleted.length === 0) return;
+    setEdges((eds) => eds.filter((e) => !deleted.some((d) => d.id === e.id)));
   };
 
   return (
@@ -870,10 +906,10 @@ export default function ETLJobPage() {
               onClick={() => !isDisabled && setMainTab(tab)}
               disabled={isDisabled}
               className={`py-3 text-sm font-medium border-b-2 transition-colors ${mainTab === tab
-                  ? "text-blue-600 border-blue-600"
-                  : isDisabled
-                    ? "text-gray-400 border-transparent cursor-not-allowed"
-                    : "text-gray-600 border-transparent hover:text-gray-900 hover:border-gray-300"
+                ? "text-blue-600 border-blue-600"
+                : isDisabled
+                  ? "text-gray-400 border-transparent cursor-not-allowed"
+                  : "text-gray-600 border-transparent hover:text-gray-900 hover:border-gray-300"
                 }`}
               title={isDisabled ? "Save the job first to access this tab" : ""}
             >
@@ -908,8 +944,8 @@ export default function ETLJobPage() {
                       <button
                         onClick={() => setActiveTab("source")}
                         className={`flex-1 px-4 py-3 text-sm font-medium transition-colors ${activeTab === "source"
-                            ? "text-blue-600 border-b-2 border-blue-600 bg-blue-50"
-                            : "text-gray-600 hover:text-gray-900 hover:bg-gray-50"
+                          ? "text-blue-600 border-b-2 border-blue-600 bg-blue-50"
+                          : "text-gray-600 hover:text-gray-900 hover:bg-gray-50"
                           }`}
                       >
                         Source
@@ -917,8 +953,8 @@ export default function ETLJobPage() {
                       <button
                         onClick={() => setActiveTab("transform")}
                         className={`flex-1 px-4 py-3 text-sm font-medium transition-colors ${activeTab === "transform"
-                            ? "text-purple-600 border-b-2 border-purple-600 bg-purple-50"
-                            : "text-gray-600 hover:text-gray-900 hover:bg-gray-50"
+                          ? "text-purple-600 border-b-2 border-purple-600 bg-purple-50"
+                          : "text-gray-600 hover:text-gray-900 hover:bg-gray-50"
                           }`}
                       >
                         Transform
@@ -926,8 +962,8 @@ export default function ETLJobPage() {
                       <button
                         onClick={() => setActiveTab("target")}
                         className={`flex-1 px-4 py-3 text-sm font-medium transition-colors ${activeTab === "target"
-                            ? "text-green-600 border-b-2 border-green-600 bg-green-50"
-                            : "text-gray-600 hover:text-gray-900 hover:bg-gray-50"
+                          ? "text-green-600 border-b-2 border-green-600 bg-green-50"
+                          : "text-gray-600 hover:text-gray-900 hover:bg-gray-50"
                           }`}
                       >
                         Target
@@ -960,9 +996,12 @@ export default function ETLJobPage() {
                 nodes={nodes}
                 edges={edges}
                 nodeTypes={nodeTypes}
+                edgeTypes={edgeTypes}
                 onNodesChange={onNodesChange}
                 onEdgesChange={onEdgesChange}
                 onConnect={onConnect}
+                onNodesDelete={handleNodesDelete}
+                onEdgesDelete={handleEdgesDelete}
                 onNodeClick={handleNodeClick}
                 onPaneClick={handlePaneClick}
                 onInit={(instance) => {
@@ -972,6 +1011,7 @@ export default function ETLJobPage() {
                 fitViewOptions={{ maxZoom: 1.2, padding: 0.4 }}
                 nodesDraggable
                 nodesConnectable
+                elementsSelectable
                 className="bg-gray-50 flex-1"
               >
                 <Controls />

@@ -1,6 +1,6 @@
 import { memo, useState } from "react";
 import { Handle, Position } from "@xyflow/react";
-import { ChevronDown, ChevronUp } from "lucide-react";
+import { ChevronDown, ChevronUp, X } from "lucide-react";
 
 /**
  * DatasetNode - 커스텀 ReactFlow 노드
@@ -53,11 +53,24 @@ const DatasetNode = ({ data, selected }) => {
     return (
         <div
             className={`
-        bg-white rounded-lg shadow-md border transition-all duration-200
+        bg-white rounded-lg shadow-md border transition-all duration-200 group relative
         ${selected ? "ring-2 ring-blue-500 shadow-lg" : "border-gray-200"}
         min-w-[200px] max-w-[280px]
       `}
         >
+            {/* Delete Button (Top-Right, Hover Only) */}
+            {data.onDelete && (
+                <button
+                    onClick={(e) => {
+                        e.stopPropagation();
+                        data.onDelete(data.nodeId);
+                    }}
+                    className="absolute -top-2 -right-2 z-50 flex items-center justify-center w-6 h-6 bg-red-500 text-white rounded-full opacity-0 group-hover:opacity-100 transition-opacity duration-200 hover:bg-red-600 hover:scale-110"
+                    title="Delete Node"
+                >
+                    <X className="w-3 h-3" />
+                </button>
+            )}
             {/* 입력 핸들 */}
             {config.showSourceHandle && (
                 <Handle

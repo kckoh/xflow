@@ -39,7 +39,7 @@ export const DeletionEdge = ({
             {/* Base Visible Path */}
             <BaseEdge path={edgePath} markerEnd={markerEnd} style={edgeStyle} />
 
-            {/* Invisible Interaction Path (Thick) */}
+            {/* Invisible Interaction Path (Thick) - Handle hover and click */}
             <path
                 d={edgePath}
                 fill="none"
@@ -49,16 +49,20 @@ export const DeletionEdge = ({
                 style={{ cursor: 'pointer', pointerEvents: 'all' }}
                 onMouseEnter={() => setIsHovered(true)}
                 onMouseLeave={() => setIsHovered(false)}
+                onClick={(e) => {
+                    e.stopPropagation();
+                    setEdges((eds) => eds.filter((edge) => edge.id !== id));
+                }}
             />
 
-            {/* Scissor Icon on Hover */}
+            {/* Scissor Icon on Hover - Non-interactive visual only */}
             {isHovered && (
                 <EdgeLabelRenderer>
                     <div
                         style={{
                             position: 'absolute',
                             transform: `translate(-50%, -50%) translate(${labelX}px,${labelY}px)`,
-                            pointerEvents: 'none',
+                            pointerEvents: 'none', // Don't interfere with hover
                             zIndex: 1000
                         }}
                     >
