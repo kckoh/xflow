@@ -2,19 +2,21 @@
 AI Query Assistant API 엔드포인트
 자연어 → SQL 변환 (Text-to-SQL)
 """
-from fastapi import APIRouter, HTTPException, Query
+from fastapi import APIRouter, HTTPException, Query, Request
 from schemas.ai import (
     GenerateSQLRequest, GenerateSQLResponse,
     SchemaSearchResult, SchemaSearchResponse
 )
 from services.opensearch_rag_service import get_rag_service
 from services.bedrock_service import get_bedrock_service
+from utils.limiter import limiter
 
 router = APIRouter()
 
 
 @router.post("/generate-sql", response_model=GenerateSQLResponse)
-async def generate_sql(request: GenerateSQLRequest):
+@limiter.limit("100/minute")
+async def generate_sql(request: Request, body: GenerateSQLRequest):
     """
     자연어 질문을 SQL로 변환
 
@@ -25,18 +27,18 @@ async def generate_sql(request: GenerateSQLRequest):
     try:
         # 1. OpenSearch에서 관련 스키마 검색
         rag_service = get_rag_service()
-        results, schema_context = rag_service.search_schema(request.question)
+        results, schema_context = rag_service.search_schema(body.question)
 
+        # 검색 결과 없으면 빈 컨텍스트로 진행 (AI가 "not found" 응답)
         if not results:
-            # 스키마가 없으면 모든 스키마 가져오기
-            results, schema_context = rag_service.get_all_schemas(limit=10)
+            schema_context = "No matching schemas found."
 
         # 2. Bedrock로 SQL 생성
         bedrock_service = get_bedrock_service()
         sql = bedrock_service.generate_sql(
             schema_context=schema_context,
-            question=request.question,
-            additional_context=request.context
+            question=body.question,
+            additional_context=body.context
         )
 
         return GenerateSQLResponse(
@@ -48,7 +50,7 @@ async def generate_sql(request: GenerateSQLRequest):
         print(f"Generate SQL error: {e}")
         raise HTTPException(
             status_code=500,
-            detail=f"SQL generation failed: {str(e)}"
+            detail="SQL generation failed. Please try again."
         )
 
 
