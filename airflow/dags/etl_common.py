@@ -225,6 +225,37 @@ def on_success_callback(context):
 
 
 def on_failure_callback(context):
-    """Callback when DAG fails"""
+    """Callback when DAG fails - also fetches Spark logs"""
+    from kubernetes import client, config
+
     error = str(context.get("exception", "Unknown error"))
-    update_job_run_status("failed", error_message=error, **context)
+    spark_logs = ""
+
+    # Try to get Spark driver logs
+    try:
+        # Get spark app name from XCom
+        ti = context.get("ti") or context.get("task_instance")
+        if ti:
+            spark_app_name = ti.xcom_pull(task_ids="generate_spark_spec", key="spark_app_name")
+            if spark_app_name:
+                config.load_incluster_config()
+                v1 = client.CoreV1Api()
+
+                # Find driver pod
+                driver_pod_name = f"{spark_app_name}-driver"
+                try:
+                    logs = v1.read_namespaced_pod_log(
+                        name=driver_pod_name,
+                        namespace="spark-jobs",
+                    )
+                    spark_logs = f"\n\n=== Spark Driver Logs ===\n{logs}"
+                    print(spark_logs)
+                except Exception as log_err:
+                    spark_logs = f"\n\nFailed to fetch Spark logs: {log_err}"
+                    print(spark_logs)
+    except Exception as e:
+        print(f"Error fetching Spark logs: {e}")
+
+    full_error = error + spark_logs
+    # Store up to 50KB of error message
+    update_job_run_status("failed", error_message=full_error[:50000], **context)
