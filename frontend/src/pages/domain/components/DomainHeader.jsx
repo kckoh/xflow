@@ -1,6 +1,6 @@
 import { Plus, Database } from "lucide-react";
 
-export default function DomainHeader({ onCreateClick }) {
+export default function DomainHeader({ onCreateClick, canCreateDomain = true }) {
   return (
     <div className="flex justify-between items-start">
       <div>
@@ -12,13 +12,15 @@ export default function DomainHeader({ onCreateClick }) {
           Discover, manage, and govern your data assets.
         </p>
       </div>
-      <button
-        onClick={onCreateClick}
-        className="flex items-center gap-2 bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg font-medium shadow-sm transition-colors"
-      >
-        <Plus size={18} />
-        Register Domain
-      </button>
+      {canCreateDomain && (
+        <button
+          onClick={onCreateClick}
+          className="flex items-center gap-2 bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg font-medium shadow-sm transition-colors"
+        >
+          <Plus size={18} />
+          Register Domain
+        </button>
+      )}
     </div>
   );
 }

@@ -1,7 +1,11 @@
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, HTTPException, Query, Depends
 from pydantic import BaseModel
+from typing import Optional, Dict, Any
 from utils.duckdb_client import execute_query, get_schema, preview_data
+from models import Dataset
 import math
+import re
+from dependencies import get_user_session
 
 router = APIRouter()
 
@@ -20,12 +24,45 @@ def clean_data(data: list[dict]) -> list[dict]:
 
 
 @router.post("/query")
-async def run_query(request: QueryRequest):
-    """SQL 쿼리 실행"""
+async def run_query(
+    request: QueryRequest,
+    user_session: Optional[Dict[str, Any]] = Depends(get_user_session)
+):
+    """SQL 쿼리 실행 (권한 체크 포함)"""
     try:
+        # Check permissions for datasets referenced in SQL
+        
+        if user_session:
+            is_admin = user_session.get("is_admin", False)
+            
+            if not is_admin:
+                # Extract S3 paths from SQL
+                s3_paths = re.findall(r's3://[\w\-]+/[\w\-]+', request.sql)
+                
+                if s3_paths:
+                    dataset_access = user_session.get("dataset_access", [])
+                    datasets = await Dataset.find_all().to_list()
+                    dataset_id_to_name = {str(d.id): d.name for d in datasets}
+                    allowed_dataset_names = [dataset_id_to_name.get(did) for did in dataset_access]
+                    
+                    # Check each S3 path
+                    for s3_path in s3_paths:
+                        # Extract dataset name: s3://bucket/dataset_name/... -> dataset_name
+                        parts = s3_path.replace('s3://', '').split('/')
+                        if len(parts) > 1:
+                            dataset_name = parts[1]
+                            
+                            if dataset_name not in allowed_dataset_names:
+                                raise HTTPException(
+                                    status_code=403,
+                                    detail=f"No permission to access dataset: {dataset_name}"
+                                )
+        
         data = execute_query(request.sql)
         data = clean_data(data)
         return {"data": data, "row_count": len(data)}
+    except HTTPException:
+        raise
     except Exception as e:
         raise HTTPException(status_code=400, detail=str(e))
 
@@ -90,8 +127,12 @@ async def list_all_buckets():
 
 
 @router.get("/buckets/{bucket}/files")
-async def list_bucket_files(bucket: str, prefix: str = ""):
-    """특정 버킷의 파일 목록 조회"""
+async def list_bucket_files(
+    bucket: str,
+    prefix: str = "",
+    user_session: Optional[Dict[str, Any]] = Depends(get_user_session)
+):
+    """특정 버킷의 파일 목록 조회 (권한 체크 포함)"""
     try:
         s3 = get_s3_client()
         response = s3.list_objects_v2(Bucket=bucket, Prefix=prefix)
@@ -101,6 +142,35 @@ async def list_bucket_files(bucket: str, prefix: str = ""):
                 "file": f"s3://{bucket}/{obj['Key']}",
                 "size": obj["Size"],
             })
+
+        # Filter files by dataset permissions
+        
+        if user_session:
+            is_admin = user_session.get("is_admin", False)
+            
+            if not is_admin:
+                dataset_access = user_session.get("dataset_access", [])
+                
+                # Get allowed dataset names
+                datasets = await Dataset.find_all().to_list()
+                dataset_id_to_name = {str(d.id): d.name for d in datasets}
+                allowed_dataset_names = [dataset_id_to_name.get(did) for did in dataset_access if did in dataset_id_to_name]
+                
+                # Filter files
+                filtered_files = []
+                for file_obj in files:
+                    # Extract dataset name from path: s3://bucket/dataset_name/file.parquet -> dataset_name
+                    file_path = file_obj["file"]
+                    parts = file_path.replace(f's3://{bucket}/', '').split('/')
+                    
+                    if len(parts) > 0:
+                        dataset_name = parts[0]
+                        
+                        # Include if dataset is in allowed list
+                        if dataset_name in allowed_dataset_names:
+                            filtered_files.append(file_obj)
+                
+                files = filtered_files
 
         return {"files": files}
     except Exception as e:

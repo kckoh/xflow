@@ -3,7 +3,7 @@ import { LayoutGrid, Search, AlignLeft, Hash, MoreHorizontal, Table as TableIcon
 import { getPlatformIcon, getStyleConfig } from "../schema-node/SchemaNodeHeader";
 import { NodeColumnsList, ColumnItem } from "../NodeColumnsList";
 
-export function ColumnsContent({ dataset, isDomainMode, onNodeSelect }) {
+export function ColumnsContent({ dataset, isDomainMode, onNodeSelect, nodePermissions = {}, canEditDomain }) {
     const [searchTerm, setSearchTerm] = useState("");
 
 
@@ -11,8 +11,11 @@ export function ColumnsContent({ dataset, isDomainMode, onNodeSelect }) {
         // Domain Mode: List Nodes and their Columns
         const nodes = dataset?.nodes || [];
 
+        // Filter out nodes user doesn't have permission to view
+        const permittedNodes = nodes.filter(node => nodePermissions[node.id] !== false);
+
         // Filter: Show nodes that match search OR have columns that match search
-        const filteredNodes = nodes.filter(node => {
+        const filteredNodes = permittedNodes.filter(node => {
             if (!searchTerm) return true;
             const nodeName = node.data?.label || node.id;
             if (nodeName.toLowerCase().includes(searchTerm.toLowerCase())) return true;
@@ -67,7 +70,7 @@ export function ColumnsContent({ dataset, isDomainMode, onNodeSelect }) {
                                     </span>
                                 </div>
                                 <div className="p-3 bg-gray-50/30">
-                                    <NodeColumnsList node={node} />
+                                    <NodeColumnsList node={node} canEditDomain={canEditDomain} />
                                 </div>
                             </div>
                         );
@@ -116,7 +119,7 @@ export function ColumnsContent({ dataset, isDomainMode, onNodeSelect }) {
 
             {/* List */}
             <div className="flex-1 overflow-y-auto p-5 pt-0 space-y-2">
-                <NodeColumnsList node={nodeForList} searchTerm={searchTerm} />
+                <NodeColumnsList node={nodeForList} searchTerm={searchTerm} canEditDomain={canEditDomain} />
             </div>
         </div>
     );

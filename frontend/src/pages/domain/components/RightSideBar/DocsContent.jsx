@@ -4,7 +4,7 @@ import { getPlatformIcon, getStyleConfig } from "../schema-node/SchemaNodeHeader
 import { uploadDomainFile, deleteDomainFile, getDomainFileDownloadUrl } from "../../api/domainApi";
 import { useToast } from "../../../../components/common/Toast";
 
-export function DocsContent({ dataset, isDomainMode, onUpdate }) {
+export function DocsContent({ dataset, isDomainMode, onUpdate, canEditDomain }) {
     const title = isDomainMode ? (dataset.name || "Domain Documentation") : (dataset.label || dataset.name || "Node Documentation");
     const domainId = dataset.id || dataset._id;
     const { showToast } = useToast();
@@ -129,7 +129,7 @@ export function DocsContent({ dataset, isDomainMode, onUpdate }) {
                                 </span>
                             </div>
                         </div>
-                        {isDomainMode && !isEditing && (
+                        {isDomainMode && canEditDomain && !isEditing && (
                             <button
                                 onClick={() => setIsEditing(true)}
                                 className="text-gray-400 hover:text-indigo-600 transition-colors"
@@ -188,22 +188,24 @@ export function DocsContent({ dataset, isDomainMode, onUpdate }) {
                             <h4 className="text-xs font-bold text-gray-500 uppercase tracking-wider flex items-center gap-1">
                                 <Paperclip className="w-3 h-3" /> Attachments
                             </h4>
-                            <div className="relative">
-                                <input
-                                    type="file"
-                                    ref={fileInputRef}
-                                    className="hidden"
-                                    onChange={handleFileUpload}
-                                />
-                                <button
-                                    onClick={() => fileInputRef.current?.click()}
-                                    disabled={isUploading}
-                                    className="flex items-center gap-1 text-[10px] bg-gray-50 hover:bg-gray-100 text-gray-600 px-2 py-1 rounded border border-gray-200 transition-colors disabled:opacity-50"
-                                >
-                                    {isUploading ? <Loader2 className="w-3 h-3 animate-spin" /> : <Plus className="w-3 h-3" />}
-                                    Add File
-                                </button>
-                            </div>
+                            {canEditDomain && (
+                                <div className="relative">
+                                    <input
+                                        type="file"
+                                        ref={fileInputRef}
+                                        className="hidden"
+                                        onChange={handleFileUpload}
+                                    />
+                                    <button
+                                        onClick={() => fileInputRef.current?.click()}
+                                        disabled={isUploading}
+                                        className="flex items-center gap-1 text-[10px] bg-gray-50 hover:bg-gray-100 text-gray-600 px-2 py-1 rounded border border-gray-200 transition-colors disabled:opacity-50"
+                                    >
+                                        {isUploading ? <Loader2 className="w-3 h-3 animate-spin" /> : <Plus className="w-3 h-3" />}
+                                        Add File
+                                    </button>
+                                </div>
+                            )}
                         </div>
 
                         {attachments.length === 0 ? (
@@ -235,13 +237,15 @@ export function DocsContent({ dataset, isDomainMode, onUpdate }) {
                                             >
                                                 <Download className="w-3.5 h-3.5" />
                                             </button>
-                                            <button
-                                                onClick={() => handleDeleteFile(file.id)}
-                                                className="p-1.5 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded"
-                                                title="Delete"
-                                            >
-                                                <Trash2 className="w-3.5 h-3.5" />
-                                            </button>
+                                            {canEditDomain && (
+                                                <button
+                                                    onClick={() => handleDeleteFile(file.id)}
+                                                    className="p-1.5 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded"
+                                                    title="Delete"
+                                                >
+                                                    <Trash2 className="w-3.5 h-3.5" />
+                                                </button>
+                                            )}
                                         </div>
                                     </div>
                                 ))}
