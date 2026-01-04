@@ -3,7 +3,9 @@ import { API_BASE_URL } from '../../../config/api';
 const BASE_URL = `${API_BASE_URL}/api/domains`;
 
 export const getDomains = async () => {
-    const response = await fetch(BASE_URL);
+    const sessionId = sessionStorage.getItem('sessionId');
+    const url = sessionId ? `${BASE_URL}?session_id=${sessionId}` : BASE_URL;
+    const response = await fetch(url);
     if (!response.ok) throw new Error(`Failed to fetch domains: ${response.status}`);
     return response.json();
 };

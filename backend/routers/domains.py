@@ -20,11 +20,57 @@ router = APIRouter()
 # --- Domain CRUD Endpoints ---
 
 @router.get("", response_model=List[Domain])
-async def get_all_domains():
+async def get_all_domains(
+    session_id: Optional[str] = Query(None, description="Session ID for authentication")
+):
     """
     Get all domains (list view).
+    Filters domains based on user's dataset_access permissions.
+    Only shows domains where user has access to at least one dataset.
     """
     domains = await Domain.find_all().to_list()
+    
+    # Filter domains based on dataset permissions
+    from dependencies import get_user_session
+    user_session = get_user_session(session_id)
+    
+    if user_session:
+        is_admin = user_session.get("is_admin", False)
+        
+        if not is_admin:
+            dataset_access = user_session.get("dataset_access", [])
+            
+            # Get all datasets to map names to IDs
+            datasets = await Dataset.find_all().to_list()
+            dataset_id_to_name = {str(d.id): d.name for d in datasets}
+            allowed_dataset_names = set(dataset_id_to_name.get(did) for did in dataset_access if did in dataset_id_to_name)
+            
+            # Filter domains
+            filtered_domains = []
+            for domain in domains:
+                # Extract dataset names from domain nodes
+                has_accessible_dataset = False
+                
+                if domain.nodes:
+                    for node in domain.nodes:
+                        node_data = node.get("data", {})
+                        node_name = node_data.get("name") or node_data.get("label", "")
+                        
+                        # Extract dataset name (remove prefix like "(S3) ")
+                        if node_name and ') ' in node_name:
+                            node_name = node_name.split(') ')[1]
+                        
+                        # Check if this dataset is accessible
+                        if node_name in allowed_dataset_names:
+                            has_accessible_dataset = True
+                            break
+                
+                # Only include domain if user has access to at least one dataset
+                if has_accessible_dataset:
+                    filtered_domains.append(domain)
+            
+            domains = filtered_domains
+    
     return domains
 
 

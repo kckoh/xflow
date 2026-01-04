@@ -82,7 +82,7 @@ export default function DomainDetailPage() {
         });
 
         // Check each node
-        const permissions = domain.nodes.reduce((acc, node) => {
+        return domain.nodes.reduce((acc, node) => {
             const nodeData = node.data || {};
             let nodeName = nodeData.name || nodeData.label;
 
@@ -109,7 +109,7 @@ export default function DomainDetailPage() {
             ...node,
             data: {
                 ...node.data,
-                hasPermission: nodePermissions[node.id] !== false
+                hasPermission: nodePermissions[node.id] !== false  // undefined means not yet checked, default to true
             }
         }));
     }, [domain?.nodes, nodePermissions]);
