@@ -1,9 +1,10 @@
-from fastapi import APIRouter, HTTPException, Query, Body, status
-from typing import List, Optional
+from fastapi import APIRouter, HTTPException, Query, Body, status, Depends
+from typing import List, Optional, Dict, Any
 from bson import ObjectId
 import database
 from schemas.catalog import CatalogItem, DatasetDetail, DatasetUpdate, DatasetCreate, LineageCreate
 from services import catalog_service, lineage_service
+from dependencies import sessions, get_user_session
 
 router = APIRouter()
 
@@ -20,11 +21,13 @@ async def create_new_dataset(dataset_data: DatasetCreate):
 async def get_catalog(
     type: Optional[str] = Query(None, description="Filter by layer (e.g. RAW, MART)"),
     platform: Optional[str] = Query(None, description="Filter by platform"),
-    search: Optional[str] = Query(None, description="Search by name or description")
+    search: Optional[str] = Query(None, description="Search by name or description"),
+    user_session: Optional[Dict[str, Any]] = Depends(get_user_session)
 ):
     """
     Fetch list of datasets with optional filtering.
-    """                                   
+    If authenticated, filters based on user's dataset_access permissions.
+    """
     db = database.mongodb_client[database.DATABASE_NAME]
     # Build Search/Filter Query
     query = {}
@@ -58,6 +61,16 @@ async def get_catalog(
              doc["columns"] = doc["schema"]
              
         items.append(doc)
+    
+    # Check etl_access if authenticated
+    if user_session:
+        etl_access = user_session.get("etl_access", False)
+        is_admin = user_session.get("is_admin", False)
+        
+        # Admin or etl_access = true can see catalog
+        if not is_admin and not etl_access:
+            # No access to catalog
+            return []
         
     return items
 

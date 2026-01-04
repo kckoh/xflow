@@ -3,6 +3,7 @@ import { Check, Search, X, ChevronLeft, ChevronRight, Database, Loader2 } from "
 import clsx from "clsx";
 import { useAuth } from "../../../context/AuthContext";
 import { createUser, updateUser, getDatasets } from "../../../services/adminApi";
+import { getDomains } from "../../domain/api/domainApi";
 
 const ITEMS_PER_PAGE = 6;
 
@@ -53,22 +54,103 @@ function Toggle({ checked, onChange, label, description }) {
 function DatasetPermissionSelector({ datasets, selectedDatasets, onChange }) {
     const [searchQuery, setSearchQuery] = useState("");
     const [currentPage, setCurrentPage] = useState(1);
-    const [hoveredDataset, setHoveredDataset] = useState(null);
-    const [pinnedDataset, setPinnedDataset] = useState(null); // Click to pin
+    const [pinnedDataset, setPinnedDataset] = useState(null);
+    const [selectedDomain, setSelectedDomain] = useState("ALL"); // Domain filter state
+    const [domains, setDomains] = useState([]);
+    const [domainsLoading, setDomainsLoading] = useState(true);
 
+    // Fetch domains on mount
+    useEffect(() => {
+        const fetchDomains = async () => {
+            try {
+                const data = await getDomains();
+                setDomains(data);
+            } catch (err) {
+                console.error('Failed to fetch domains:', err);
+                setDomains([]);
+            } finally {
+                setDomainsLoading(false);
+            }
+        };
+        fetchDomains();
+    }, []);
+
+    // Extract Dataset-to-Domain mapping from Domain nodes
+    // One dataset can appear in multiple domains
+    const datasetDomainMap = useMemo(() => {
+        const map = {}; // { datasetId: [domainName1, domainName2, ...] }
+
+        console.log('=== Domain-Dataset Mapping Debug ===');
+        console.log('Domains:', domains);
+        console.log('Datasets:', datasets);
+
+        // Parse each domain's nodes to find datasets
+        domains.forEach(domain => {
+            console.log(`Processing domain: ${domain.name}`, domain.nodes);
+            if (domain.nodes && Array.isArray(domain.nodes)) {
+                domain.nodes.forEach(node => {
+                    const nodeData = node.data || {};
+                    let nodeName = nodeData.name || nodeData.label;
+
+                    // Remove prefix like "(S3) " from label
+                    if (nodeName && nodeName.includes(') ')) {
+                        nodeName = nodeName.split(') ')[1] || nodeName;
+                    }
+
+                    console.log(`  Node name: ${nodeName}`, nodeData);
+
+                    // Match node name with dataset name
+                    if (nodeName) {
+                        const matchingDataset = datasets.find(d => d.name === nodeName);
+                        if (matchingDataset) {
+                            // Add this domain to the dataset's domain list
+                            if (!map[matchingDataset.id]) {
+                                map[matchingDataset.id] = [];
+                            }
+                            if (!map[matchingDataset.id].includes(domain.name)) {
+                                map[matchingDataset.id].push(domain.name);
+                            }
+                            console.log(`  ✓ Matched: ${nodeName} -> ${domain.name}`);
+                        } else {
+                            console.log(`  ✗ No match for: ${nodeName}`);
+                        }
+                    }
+                });
+            }
+        });
+
+        console.log('Final datasetDomainMap:', map);
+        return map;
+    }, [datasets, domains]);
+
+    // Filter datasets by selected domain and search query
     const filteredDatasets = useMemo(() => {
-        if (!searchQuery.trim()) return datasets;
-        const query = searchQuery.toLowerCase();
-        return datasets.filter((d) =>
-            d.name.toLowerCase().includes(query) ||
-            (d.description && d.description.toLowerCase().includes(query))
-        );
-    }, [datasets, searchQuery]);
+        let filtered = datasets;
 
-    // Reset to page 1 when search changes
+        // Apply domain filter
+        if (selectedDomain !== "ALL") {
+            filtered = filtered.filter(d => {
+                const domains = datasetDomainMap[d.id] || [];
+                return domains.includes(selectedDomain);
+            });
+        }
+
+        // Apply search filter
+        if (searchQuery.trim()) {
+            const query = searchQuery.toLowerCase();
+            filtered = filtered.filter((d) =>
+                d.name.toLowerCase().includes(query) ||
+                (d.description && d.description.toLowerCase().includes(query))
+            );
+        }
+
+        return filtered;
+    }, [datasets, selectedDomain, searchQuery, datasetDomainMap]);
+
+    // Reset to page 1 when search or domain filter changes
     useEffect(() => {
         setCurrentPage(1);
-    }, [searchQuery]);
+    }, [searchQuery, selectedDomain]);
 
     const totalPages = Math.ceil(filteredDatasets.length / ITEMS_PER_PAGE);
     const startIndex = (currentPage - 1) * ITEMS_PER_PAGE;
@@ -86,12 +168,11 @@ function DatasetPermissionSelector({ datasets, selectedDatasets, onChange }) {
         onChange(selectedDatasets.filter((id) => id !== datasetId));
     };
 
-    // Click on dataset row to pin/unpin preview
     const handleRowClick = (datasetId) => {
         if (pinnedDataset === datasetId) {
-            setPinnedDataset(null); // Unpin if same
+            setPinnedDataset(null);
         } else {
-            setPinnedDataset(datasetId); // Pin this one
+            setPinnedDataset(datasetId);
         }
     };
 
@@ -99,12 +180,9 @@ function DatasetPermissionSelector({ datasets, selectedDatasets, onChange }) {
         selectedDatasets.includes(d.id)
     );
 
-    // Get the dataset to show in detail panel: pinned > hovered
     const detailDataset = pinnedDataset
         ? datasets.find(d => d.id === pinnedDataset)
-        : hoveredDataset
-            ? datasets.find(d => d.id === hoveredDataset)
-            : null;
+        : null;
 
     return (
         <div className="space-y-3">
@@ -129,11 +207,64 @@ function DatasetPermissionSelector({ datasets, selectedDatasets, onChange }) {
                 </div>
             )}
 
-            {/* Dual Panel Layout */}
+            {/* Three Panel Layout */}
             <div className="border border-gray-200 rounded-lg overflow-hidden">
                 <div className="flex">
-                    {/* Left Panel - Dataset List */}
-                    <div className="flex-1 border-r border-gray-200">
+                    {/* LEFT: Domain Filter Tabs (30%) */}
+                    <div className="w-[30%] border-r border-gray-200 bg-gray-50">
+                        <div className="p-3 border-b border-gray-200">
+                            <h4 className="text-xs font-semibold text-gray-500 uppercase tracking-wider">
+                                Filter by Domain
+                            </h4>
+                        </div>
+                        <div className="p-2 space-y-1">
+                            {/* ALL Tab */}
+                            <button
+                                type="button"
+                                onClick={() => setSelectedDomain("ALL")}
+                                className={clsx(
+                                    "w-full text-left px-3 py-2 rounded-lg text-sm font-medium transition-all",
+                                    selectedDomain === "ALL"
+                                        ? "bg-blue-600 text-white shadow-sm"
+                                        : "text-gray-700 hover:bg-gray-100"
+                                )}
+                            >
+                                ALL
+                                <span className={clsx(
+                                    "ml-2 text-xs",
+                                    selectedDomain === "ALL" ? "text-blue-200" : "text-gray-400"
+                                )}>
+                                    ({datasets.length})
+                                </span>
+                            </button>
+
+                            {/* Domain Tabs */}
+                            {domainsLoading ? (
+                                <div className="flex justify-center py-4">
+                                    <Loader2 className="w-4 h-4 animate-spin text-gray-400" />
+                                </div>
+                            ) : (
+                                domains.map((domain) => (
+                                    <button
+                                        key={domain.id}
+                                        type="button"
+                                        onClick={() => setSelectedDomain(domain.name)}
+                                        className={clsx(
+                                            "w-full text-left px-3 py-2 rounded-lg text-sm font-medium transition-all",
+                                            selectedDomain === domain.name
+                                                ? "bg-blue-600 text-white shadow-sm"
+                                                : "text-gray-700 hover:bg-gray-100"
+                                        )}
+                                    >
+                                        {domain.name}
+                                    </button>
+                                ))
+                            )}
+                        </div>
+                    </div>
+
+                    {/* MIDDLE: Dataset List (40%) */}
+                    <div className="w-[40%] border-r border-gray-200">
                         {/* Search */}
                         <div className="p-3 border-b border-gray-100 bg-gray-50">
                             <div className="relative">
@@ -157,24 +288,21 @@ function DatasetPermissionSelector({ datasets, selectedDatasets, onChange }) {
                             ) : (
                                 paginatedDatasets.map((dataset) => {
                                     const isSelected = selectedDatasets.includes(dataset.id);
-                                    const isHovered = hoveredDataset === dataset.id;
                                     const isPinned = pinnedDataset === dataset.id;
+                                    const domainNames = datasetDomainMap[dataset.id] || [];
                                     return (
                                         <div
                                             key={dataset.id}
                                             onClick={() => handleRowClick(dataset.id)}
-                                            onMouseEnter={() => setHoveredDataset(dataset.id)}
-                                            onMouseLeave={() => setHoveredDataset(null)}
                                             className={clsx(
                                                 "flex items-center gap-3 px-4 py-3 cursor-pointer transition-all",
                                                 isPinned && "bg-blue-100 border-l-2 border-blue-600",
-                                                isSelected && !isPinned && "bg-blue-50",
-                                                isHovered && !isSelected && !isPinned && "bg-gray-50"
+                                                isSelected && !isPinned && "bg-blue-50"
                                             )}
                                         >
                                             <div
                                                 onClick={(e) => {
-                                                    e.stopPropagation(); // Don't trigger row click
+                                                    e.stopPropagation();
                                                     handleToggle(dataset.id);
                                                 }}
                                                 className={clsx(
@@ -190,17 +318,26 @@ function DatasetPermissionSelector({ datasets, selectedDatasets, onChange }) {
                                             </div>
                                             <div className="flex-1 min-w-0">
                                                 <span className={clsx(
-                                                    "text-sm font-medium block",
+                                                    "text-sm font-medium block truncate",
                                                     isSelected ? "text-blue-900" : "text-gray-900"
                                                 )}>
                                                     {dataset.name}
                                                 </span>
+                                                {domainNames.length > 0 && (
+                                                    <div className="flex flex-wrap gap-1 mt-1">
+                                                        {domainNames.map((domainName, idx) => (
+                                                            <span
+                                                                key={idx}
+                                                                className="inline-block px-1.5 py-0.5 text-xs bg-gray-100 text-gray-600 rounded"
+                                                            >
+                                                                {domainName}
+                                                            </span>
+                                                        ))}
+                                                    </div>
+                                                )}
                                             </div>
-                                            {(isHovered || isPinned) && (
-                                                <ChevronRight className={clsx(
-                                                    "w-4 h-4",
-                                                    isPinned ? "text-blue-600" : "text-gray-400"
-                                                )} />
+                                            {isPinned && (
+                                                <ChevronRight className="w-4 h-4 text-blue-600" />
                                             )}
                                         </div>
                                     );
@@ -244,8 +381,8 @@ function DatasetPermissionSelector({ datasets, selectedDatasets, onChange }) {
                         )}
                     </div>
 
-                    {/* Right Panel - Schema Preview (Dataset Node Style) */}
-                    <div className="w-72 bg-gray-50 border-l border-gray-200">
+                    {/* RIGHT: Schema Preview (30%) */}
+                    <div className="w-[30%] bg-gray-50">
                         {detailDataset ? (
                             <div className="flex flex-col h-full">
                                 {/* Header */}
@@ -332,7 +469,7 @@ function DatasetPermissionSelector({ datasets, selectedDatasets, onChange }) {
                                     <Database className="w-6 h-6 text-gray-300" />
                                 </div>
                                 <p className="text-sm text-gray-400 mb-1">
-                                    Hover over a dataset
+                                    Click on a dataset
                                 </p>
                                 <p className="text-xs text-gray-300">
                                     to preview its schema

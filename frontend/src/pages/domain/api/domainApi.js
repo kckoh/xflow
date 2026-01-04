@@ -3,7 +3,9 @@ import { API_BASE_URL } from '../../../config/api';
 const BASE_URL = `${API_BASE_URL}/api/domains`;
 
 export const getDomains = async () => {
-    const response = await fetch(BASE_URL);
+    const sessionId = sessionStorage.getItem('sessionId');
+    const url = sessionId ? `${BASE_URL}?session_id=${sessionId}` : BASE_URL;
+    const response = await fetch(url);
     if (!response.ok) throw new Error(`Failed to fetch domains: ${response.status}`);
     return response.json();
 };
@@ -55,7 +57,11 @@ export const saveDomainGraph = async (id, { nodes, edges }) => {
 
 // ETL Job Import APIs
 export const getImportReadyJobs = async () => {
-    const response = await fetch(`${BASE_URL}/jobs?import_ready=true`);
+    const sessionId = sessionStorage.getItem('sessionId');
+    const url = sessionId
+        ? `${BASE_URL}/jobs?import_ready=true&session_id=${sessionId}`
+        : `${BASE_URL}/jobs?import_ready=true`;
+    const response = await fetch(url);
     if (!response.ok) throw new Error(`Failed to fetch import-ready jobs: ${response.status}`);
     return response.json();
 };

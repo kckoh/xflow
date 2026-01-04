@@ -26,12 +26,12 @@ export function Sidebar({ isCollapsed, onToggle }) {
     {
       title: "DATA CATALOG",
       items: [{ name: "Dataset", path: "/", icon: List }],
+      requiresEtlAccess: true, // Show only if user has ETL access
     },
     {
       title: "LINEAGE",
       items: [
         { name: "Domain", path: "/domain", icon: Database },
-        { name: "Business Glossary", path: "/glossary", icon: GitMerge },
       ],
     },
     {
@@ -47,8 +47,13 @@ export function Sidebar({ isCollapsed, onToggle }) {
 
   // Filter sections based on user permissions
   const navSections = allNavSections.filter((section) => {
+    // Admin-only sections
     if (section.adminOnly) {
       return user?.is_admin === true;
+    }
+    // ETL access required sections (Data Catalog)
+    if (section.requiresEtlAccess) {
+      return user?.etl_access === true || user?.is_admin === true;
     }
     return true;
   });
