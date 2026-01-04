@@ -159,20 +159,29 @@ class QualityService:
             # Create DuckDB connection
             conn = duckdb.connect(":memory:")
             
-            # Configure S3 for DuckDB (supporting LocalStack)
+            # Configure S3 for DuckDB
             conn.execute("INSTALL httpfs; LOAD httpfs;")
             
-            # Parse endpoint for DuckDB (remove protocol)
-            duckdb_endpoint = S3_ENDPOINT.replace("http://", "").replace("https://", "")
+            # Environment-based S3 configuration
+            env = os.getenv("ENVIRONMENT", "local")
             
-            conn.execute(f"""
-                SET s3_endpoint='{duckdb_endpoint}';
-                SET s3_use_ssl=false;
-                SET s3_url_style='path';
-                SET s3_region='{S3_REGION}';
-                SET s3_access_key_id='{S3_ACCESS_KEY}';
-                SET s3_secret_access_key='{S3_SECRET_KEY}';
-            """)
+            if env == "production":
+                # Production (AWS): Use IAM Role, minimal configuration
+                # DuckDB will use AWS SDK default credential chain
+                conn.execute(f"""
+                    SET s3_region='{S3_REGION}';
+                """)
+            else:
+                # Local (LocalStack): Explicit endpoint and credentials
+                duckdb_endpoint = S3_ENDPOINT.replace("http://", "").replace("https://", "")
+                conn.execute(f"""
+                    SET s3_endpoint='{duckdb_endpoint}';
+                    SET s3_use_ssl=false;
+                    SET s3_url_style='path';
+                    SET s3_region='{S3_REGION}';
+                    SET s3_access_key_id='{S3_ACCESS_KEY}';
+                    SET s3_secret_access_key='{S3_SECRET_KEY}';
+                """)
             
             # Build query for S3 paths (use all files, TABLESAMPLE handles sampling)
             s3_target_paths = [f"s3://{bucket}/{k}" for k in parquet_keys]
