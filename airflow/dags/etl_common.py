@@ -282,10 +282,11 @@ def run_quality_check(**context):
     )
     mongo_db = Variable.get("MONGODB_DATABASE", default_var="mydb")
     
-    client = pymongo.MongoClient(mongo_url)
-    db = client[mongo_db]
-    
+    client = None
     try:
+        client = pymongo.MongoClient(mongo_url)
+        db = client[mongo_db]
+        
         # Fetch ETL job to get destination info
         job = db.etl_jobs.find_one({"_id": ObjectId(job_id)})
         if not job:
@@ -331,5 +332,6 @@ def run_quality_check(**context):
         print(f"[Quality] Error running quality check: {e}")
         # Don't raise - quality check failure should not fail the DAG
     finally:
-        client.close()
+        if client:
+            client.close()
 

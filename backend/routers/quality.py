@@ -4,11 +4,12 @@ Quality API Router - Endpoints for data quality checks.
 
 from typing import List, Optional
 from datetime import datetime
-from fastapi import APIRouter, HTTPException, status, BackgroundTasks
+from fastapi import APIRouter, HTTPException, status, BackgroundTasks, Request
 
 from models import QualityResult, QualityCheck, Dataset
 from services.quality_service import quality_service
 from schemas.quality import QualityRunRequest, QualityCheckResponse, QualityResultResponse
+from utils.limiter import limiter
 
 
 
@@ -57,9 +58,11 @@ def to_response(result: QualityResult) -> QualityResultResponse:
 # --- Endpoints ---
 
 @router.post("/{dataset_id}/run", response_model=QualityResultResponse)
+@limiter.limit("3/minute")
 async def run_quality_check(
+    request: Request,
     dataset_id: str,
-    request: QualityRunRequest
+    check_request: QualityRunRequest
 ):
     """
     Run quality check on a dataset's S3 data.
@@ -72,10 +75,10 @@ async def run_quality_check(
     try:
         result = await quality_service.run_quality_check(
             dataset_id=dataset_id,
-            s3_path=request.s3_path,
-            job_id=request.job_id,
-            null_threshold=request.null_threshold,
-            duplicate_threshold=request.duplicate_threshold
+            s3_path=check_request.s3_path,
+            job_id=check_request.job_id,
+            null_threshold=check_request.null_threshold,
+            duplicate_threshold=check_request.duplicate_threshold
         )
         return to_response(result)
     except Exception as e:

@@ -22,8 +22,8 @@ from models import QualityResult, QualityCheck, Dataset
 S3_ENDPOINT = os.getenv("AWS_ENDPOINT", "http://localstack-main:4566")
 S3_ACCESS_KEY = os.getenv("AWS_ACCESS_KEY_ID", "test")
 S3_SECRET_KEY = os.getenv("AWS_SECRET_ACCESS_KEY", "test")
-# Note: Spark jobs are creating data in us-east-1 (default), so we must force this region
-S3_REGION = "us-east-1"
+# Note: Production region
+S3_REGION = "ap-northeast-2"
 
 
 class QualityService:
@@ -33,13 +33,23 @@ class QualityService:
     """
     
     def __init__(self):
-        self.s3_client = boto3.client(
-            's3',
-            endpoint_url=S3_ENDPOINT,
-            aws_access_key_id=S3_ACCESS_KEY,
-            aws_secret_access_key=S3_SECRET_KEY,
-            region_name=S3_REGION
-        )
+        env = os.getenv("ENVIRONMENT", "local")
+        
+        if env == "production":
+            # Production: Use IRSA/IAM Role (No explicit credentials/endpoint)
+            self.s3_client = boto3.client(
+                's3',
+                region_name=S3_REGION
+            )
+        else:
+            # Local: Explicit endpoint (LocalStack)
+            self.s3_client = boto3.client(
+                's3',
+                endpoint_url=S3_ENDPOINT,
+                aws_access_key_id=S3_ACCESS_KEY,
+                aws_secret_access_key=S3_SECRET_KEY,
+                region_name=S3_REGION
+            )
     
     def _parse_s3_path(self, s3_path: str) -> tuple[str, str]:
         """Parse s3://bucket/key format to (bucket, key)"""
