@@ -2,50 +2,47 @@ import { createContext, useContext, useState, useEffect } from "react";
 
 const AuthContext = createContext();
 
-export function AuthProvider({ children }) {
+export const AuthProvider = ({ children }) => {
   const [sessionId, setSessionId] = useState(
-    () => localStorage.getItem("sessionId") || null
+    () => sessionStorage.getItem("sessionId") || null
   );
   const [user, setUser] = useState(() => {
-    const stored = localStorage.getItem("user");
+    const stored = sessionStorage.getItem("user");
     return stored ? JSON.parse(stored) : null;
   });
 
-  // Fetch user info on mount if we have sessionId but no user
+  // Restore session on mount (if exists)
   useEffect(() => {
-    if (sessionId && !user) {
-      fetchUser();
-    }
-  }, [sessionId]);
+    const storedSessionId = sessionStorage.getItem("sessionId");
+    const storedUser = sessionStorage.getItem("user");
 
-  const fetchUser = async () => {
-    try {
-      const res = await fetch(`/api/auth/me?session_id=${sessionId}`);
-      if (res.ok) {
-        const userData = await res.json();
-        setUser(userData);
-        localStorage.setItem("user", JSON.stringify(userData));
-      } else {
-        // Session invalid, logout
-        logout();
-      }
-    } catch (err) {
-      console.error("Failed to fetch user:", err);
+    if (storedSessionId && storedUser) {
+      setSessionId(storedSessionId);
+      setUser(JSON.parse(storedUser));
     }
-  };
+  }, []);
+
+  // Persist user to storage when it changes
+  useEffect(() => {
+    if (user) {
+      sessionStorage.setItem("user", JSON.stringify(user));
+    }
+  }, [user]);
 
   const login = (newSessionId, userData) => {
-    localStorage.setItem("sessionId", newSessionId);
-    localStorage.setItem("user", JSON.stringify(userData));
     setSessionId(newSessionId);
     setUser(userData);
+
+    // Persist to sessionStorage
+    sessionStorage.setItem("sessionId", newSessionId);
+    sessionStorage.setItem("user", JSON.stringify(userData));
   };
 
   const logout = () => {
-    localStorage.removeItem("sessionId");
-    localStorage.removeItem("user");
     setSessionId(null);
     setUser(null);
+    sessionStorage.removeItem("sessionId");
+    sessionStorage.removeItem("user");
   };
 
   return (

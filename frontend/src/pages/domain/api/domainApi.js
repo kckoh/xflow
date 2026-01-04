@@ -55,7 +55,7 @@ export const saveDomainGraph = async (id, { nodes, edges }) => {
 
 // ETL Job Import APIs
 export const getImportReadyJobs = async () => {
-    const sessionId = localStorage.getItem('sessionId');
+    const sessionId = sessionStorage.getItem('sessionId');
     const url = sessionId
         ? `${BASE_URL}/jobs?import_ready=true&session_id=${sessionId}`
         : `${BASE_URL}/jobs?import_ready=true`;
