@@ -71,12 +71,12 @@ const EtlStepNode = ({ step, parentId, onExpandChange, onSelect, onScroll }) => 
     );
 };
 
-export const SchemaEtlView = ({ data, parentNodeId, onEtlStepSelect }) => {
+export const SchemaEtlView = ({ data, parentNodeId, onEtlStepSelect, refreshTrigger }) => {
     const jobs = data.jobs || [];
     const containerRef = useRef(null);
 
     // Logic extracted to hook
-    const { lines, refreshLines } = useEtlLineage(containerRef, jobs, parentNodeId, data.columns);
+    const { lines, refreshLines } = useEtlLineage(containerRef, jobs, parentNodeId, data.columns, refreshTrigger);
 
     return (
         <div ref={containerRef} className="p-5 rounded-xl shadow-2xl border border-gray-200/30 min-w-max relative"
