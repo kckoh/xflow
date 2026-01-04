@@ -84,14 +84,26 @@ export function useColumnEdit({ col, sourceJobId, sourceNodeId, onMetadataUpdate
         setGeneratingAI(true);
         try {
             const tableName = 'table'; // Context not available, basic
-            const desc = await generateColumnDescription(tableName, name, type);
+
+            // Extract samples if available
+            let samples = [];
+            if (isObj) {
+                samples = col.samples || col.sampleValues || [];
+                // If samples is a string (comma separated), split it
+                if (typeof samples === 'string') {
+                    samples = samples.split(',').map(s => s.trim());
+                }
+            }
+
+            const desc = await generateColumnDescription(tableName, name, type, samples);
             setDescValue(desc);
+            // Optional: You could show a toast here via callback or context if needed
         } catch (error) {
             console.error('AI 생성 실패:', error);
         } finally {
             setGeneratingAI(false);
         }
-    }, [generatingAI, name, type]);
+    }, [generatingAI, name, type, col, isObj]);
 
     return {
         // State

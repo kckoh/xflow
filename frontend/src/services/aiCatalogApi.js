@@ -38,9 +38,10 @@ export const generateTableDescription = async (tableName, columns) => {
  * @param {string} tableName - 테이블 이름
  * @param {string} columnName - 컬럼 이름
  * @param {string} columnType - 컬럼 타입
+ * @param {Array} [sampleValues] - (Optional) 샘플 값 리스트
  * @returns {Promise<string>} 생성된 컬럼 설명
  */
-export const generateColumnDescription = async (tableName, columnName, columnType) => {
+export const generateColumnDescription = async (tableName, columnName, columnType, sampleValues = []) => {
     const response = await fetch(`${API_BASE_URL}/api/ai-catalog/generate-column-description`, {
         method: 'POST',
         headers: {
@@ -49,7 +50,8 @@ export const generateColumnDescription = async (tableName, columnName, columnTyp
         body: JSON.stringify({
             table_name: tableName,
             column_name: columnName,
-            column_type: columnType
+            column_type: columnType,
+            sample_values: sampleValues
         })
     });
 
