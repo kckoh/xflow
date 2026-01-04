@@ -21,6 +21,7 @@ from airflow.operators.python import PythonOperator
 from etl_common import (
     fetch_job_config,
     finalize_import,
+    run_quality_check,
     on_success_callback,
     on_failure_callback,
 )
@@ -57,10 +58,17 @@ with DAG(
         """,
     )
 
-    # Task 3: Finalize import
+    # Task 3: Run Quality Check
+    quality_check = PythonOperator(
+        task_id="run_quality_check",
+        python_callable=run_quality_check,
+    )
+
+    # Task 4: Finalize import
     finalize = PythonOperator(
         task_id="finalize_import",
         python_callable=finalize_import,
     )
 
-    fetch_config >> run_spark_etl >> finalize
+    fetch_config >> run_spark_etl >> quality_check >> finalize
+

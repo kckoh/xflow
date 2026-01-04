@@ -13,6 +13,7 @@ import ConnectionListPage from "./pages/sources/ConnectionListPage";
 import ConnectionCreatePage from "./pages/sources/ConnectionCreatePage";
 import QueryPage from "./pages/query/QueryPage";
 import AdminPage from "./pages/admin/AdminPage";
+import QualityDashboard from "./pages/Quality/QualityDashboard";
 import { ToastProvider } from "./components/common/Toast";
 
 // Placeholder components for new routes
@@ -94,6 +95,17 @@ function App() {
               <ProtectedRoute>
                 <MainLayout>
                   <GlossaryPage />
+                </MainLayout>
+              </ProtectedRoute>
+            }
+          />
+
+          <Route
+            path="/quality"
+            element={
+              <ProtectedRoute>
+                <MainLayout>
+                  <QualityDashboard />
                 </MainLayout>
               </ProtectedRoute>
             }

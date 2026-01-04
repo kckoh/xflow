@@ -11,6 +11,7 @@ import {
   ChevronRight,
   Wrench,
   Sparkles,
+  Activity,
 } from "lucide-react";
 import { useAuth } from "../../context/AuthContext";
 import { useAICopilot } from "../../context/AICopilotContext";
@@ -27,6 +28,10 @@ export function Sidebar({ isCollapsed, onToggle }) {
       title: "DATA CATALOG",
       items: [{ name: "Dataset", path: "/", icon: List }],
       requiresEtlAccess: true, // Show only if user has ETL access
+    },
+    {
+      title: "QUALITY",
+      items: [{ name: "Dashboard", path: "/quality", icon: Activity }],
     },
     {
       title: "LINEAGE",
