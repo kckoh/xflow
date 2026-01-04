@@ -1,10 +1,11 @@
-from fastapi import APIRouter, HTTPException, Query
+from fastapi import APIRouter, HTTPException, Query, Depends
 from pydantic import BaseModel
-from typing import Optional
+from typing import Optional, Dict, Any
 from utils.duckdb_client import execute_query, get_schema, preview_data
 from models import Dataset
 import math
 import re
+from dependencies import get_user_session
 
 router = APIRouter()
 
@@ -25,13 +26,11 @@ def clean_data(data: list[dict]) -> list[dict]:
 @router.post("/query")
 async def run_query(
     request: QueryRequest,
-    session_id: Optional[str] = Query(None, description="Session ID for authentication")
+    user_session: Optional[Dict[str, Any]] = Depends(get_user_session)
 ):
     """SQL 쿼리 실행 (권한 체크 포함)"""
     try:
         # Check permissions for datasets referenced in SQL
-        from dependencies import get_user_session
-        user_session = get_user_session(session_id)
         
         if user_session:
             is_admin = user_session.get("is_admin", False)
@@ -131,7 +130,7 @@ async def list_all_buckets():
 async def list_bucket_files(
     bucket: str,
     prefix: str = "",
-    session_id: Optional[str] = Query(None, description="Session ID for authentication")
+    user_session: Optional[Dict[str, Any]] = Depends(get_user_session)
 ):
     """특정 버킷의 파일 목록 조회 (권한 체크 포함)"""
     try:
@@ -145,8 +144,6 @@ async def list_bucket_files(
             })
 
         # Filter files by dataset permissions
-        from dependencies import get_user_session
-        user_session = get_user_session(session_id)
         
         if user_session:
             is_admin = user_session.get("is_admin", False)

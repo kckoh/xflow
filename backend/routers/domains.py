@@ -1,4 +1,4 @@
-from fastapi import APIRouter, HTTPException, Body, status, Query
+from fastapi import APIRouter, HTTPException, Body, status, Query, Depends
 from typing import List, Optional, Dict, Any
 from datetime import datetime
 from beanie import PydanticObjectId
@@ -14,6 +14,7 @@ from schemas.domain import (
 )
 # OpenSearch Dual Write
 from utils.indexers import index_single_domain, delete_domain_from_index
+from dependencies import get_user_session
 
 router = APIRouter()
 
@@ -21,7 +22,7 @@ router = APIRouter()
 
 @router.get("", response_model=List[Domain])
 async def get_all_domains(
-    session_id: Optional[str] = Query(None, description="Session ID for authentication")
+    user_session: Optional[Dict[str, Any]] = Depends(get_user_session)
 ):
     """
     Get all domains (list view).
@@ -30,10 +31,7 @@ async def get_all_domains(
     """
     domains = await Domain.find_all().to_list()
     
-    # Filter domains based on dataset permissions
-    from dependencies import get_user_session
-    user_session = get_user_session(session_id)
-    
+    # Filter domains based on dataset permissions    
     if user_session:
         is_admin = user_session.get("is_admin", False)
         
@@ -116,20 +114,13 @@ async def get_job_execution(job_id: str):
 @router.get("/jobs", response_model=List[DomainJobListResponse])
 async def list_domain_jobs(
     import_ready: bool = Query(True),
-    session_id: Optional[str] = Query(None, description="Session ID for authentication")
+    user_session: Optional[Dict[str, Any]] = Depends(get_user_session)
 ):
     """Get ETL jobs that are ready to be imported into domain (import_ready=true by default)
     Filters by user's dataset_access permissions if authenticated."""
     try:
-        # Import dependencies here to avoid circular imports
-        from dependencies import sessions
-        
         # Get all import-ready jobs
         jobs = await ETLJob.find(ETLJob.import_ready == import_ready).to_list()
-        
-        # Get user session if provided
-        from dependencies import get_user_session
-        user_session = get_user_session(session_id)
         
         # Filter jobs based on dataset_access permissions
         if user_session:
