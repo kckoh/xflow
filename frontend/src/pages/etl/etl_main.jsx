@@ -73,7 +73,18 @@ export default function ETLMain() {
       let endpoint;
       let actionMessage;
 
-      if (job.schedule) {
+      // CDC job handling - uses separate CDC API endpoints
+      if (job.job_type === "cdc") {
+        if (job.is_active) {
+          // Stop active CDC
+          endpoint = `/api/cdc/job/${job.id}/deactivate`;
+          actionMessage = "CDC Pipeline stopped";
+        } else {
+          // Start CDC
+          endpoint = `/api/cdc/job/${job.id}/activate`;
+          actionMessage = "CDC Pipeline started";
+        }
+      } else if (job.schedule) {
         // Job has a schedule
         if (job.status === "active") {
           // Pause active schedule
@@ -322,14 +333,20 @@ export default function ETLMain() {
                       {job.name}
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap text-sm">
-                      <span
-                        className={`px-2 py-1 text-xs font-semibold rounded-full ${job.is_active
+                      {job.job_type === "cdc" ? (
+                        <span
+                          className={`px-2 py-1 text-xs font-semibold rounded-full ${job.is_active
                             ? "bg-green-100 text-green-800"
-                            : "bg-gray-100 text-gray-800"
-                          }`}
-                      >
-                        {job.is_active ? "Active" : "Inactive"}
-                      </span>
+                            : "bg-red-100 text-red-800"
+                            }`}
+                        >
+                          {job.is_active ? "CDC Active" : "CDC Stopped"}
+                        </span>
+                      ) : (
+                        <span className="px-2 py-1 text-xs font-semibold rounded-full bg-blue-100 text-blue-800">
+                          Batch
+                        </span>
+                      )}
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
                       <div className="flex flex-col">
@@ -350,33 +367,72 @@ export default function ETLMain() {
                       {new Date(job.updated_at).toLocaleString()}
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                      <div className="flex items-center gap-3">
-                        <button
-                          className={
-                            job.schedule && job.status === "active"
-                              ? "text-orange-600 hover:text-orange-800 transition-colors"
-                              : "text-green-600 hover:text-green-800 transition-colors"
-                          }
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            handleRun(job);
-                          }}
-                          title={
-                            job.schedule
-                              ? job.status === "active"
-                                ? "Pause Schedule"
-                                : "Activate Schedule"
-                              : "Run Now"
-                          }
-                        >
-                          {job.schedule && job.status === "active" ? (
-                            <Pause className="w-4 h-4" />
+                      <div className="flex items-center justify-between">
+                        {/* Run/Stop Toggle Button */}
+                        <div className="flex items-center gap-2">
+                          {/* CDC Active - Show Stop */}
+                          {job.job_type === "cdc" && job.is_active ? (
+                            <button
+                              className="text-red-600 hover:text-red-800 transition-colors"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                handleRun(job);
+                              }}
+                              title="Stop CDC Pipeline"
+                            >
+                              <Pause className="w-4 h-4" />
+                            </button>
+                          ) : job.job_type === "cdc" && !job.is_active ? (
+                            /* CDC Inactive - Show Play */
+                            <button
+                              className="text-green-600 hover:text-green-800 transition-colors"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                handleRun(job);
+                              }}
+                              title="Start CDC Pipeline"
+                            >
+                              <Play className="w-4 h-4" />
+                            </button>
+                          ) : job.is_running ? (
+                            <button
+                              className="text-red-600 hover:text-red-800 transition-colors"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                showToast("Stop functionality coming soon", "info");
+                              }}
+                              title="Stop Running Job"
+                            >
+                              <Pause className="w-4 h-4" />
+                            </button>
+                          ) : job.schedule && job.status === "active" ? (
+                            <button
+                              className="text-orange-600 hover:text-orange-800 transition-colors"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                handleRun(job);
+                              }}
+                              title="Pause Schedule"
+                            >
+                              <Pause className="w-4 h-4" />
+                            </button>
                           ) : (
-                            <Play className="w-4 h-4" />
+                            <button
+                              className="text-green-600 hover:text-green-800 transition-colors"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                handleRun(job);
+                              }}
+                              title={job.schedule ? "Activate Schedule" : "Run Now"}
+                            >
+                              <Play className="w-4 h-4" />
+                            </button>
                           )}
-                        </button>
+                        </div>
+
+                        {/* Delete Button - Far Right */}
                         <button
-                          className="text-red-600 hover:text-red-800 transition-colors"
+                          className="text-red-600 hover:text-red-800 transition-colors ml-4"
                           onClick={(e) => {
                             e.stopPropagation();
                             openDeleteModal(job.id, job.name);
