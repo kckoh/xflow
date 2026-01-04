@@ -13,7 +13,8 @@ export function RightSidebar({
     streamData,
     dataset,
     onNodeSelect,
-    onUpdate // Added onUpdate prop
+    onUpdate,
+    nodePermissions // For filtering columns by permission
 }) {
     const isDomainMode = dataset && Array.isArray(dataset.nodes);
 
@@ -45,7 +46,7 @@ export function RightSidebar({
             case "summary":
                 return <SummaryContent dataset={dataset} isDomainMode={isDomainMode} onUpdate={onUpdate} />;
             case "columns":
-                return <ColumnsContent dataset={dataset} isDomainMode={isDomainMode} onNodeSelect={onNodeSelect} />;
+                return <ColumnsContent dataset={dataset} isDomainMode={isDomainMode} onNodeSelect={onNodeSelect} nodePermissions={nodePermissions} />;
             case "lineage":
                 return <StreamImpactContent streamData={streamData} onNodeSelect={onNodeSelect} />;
             case "docs":

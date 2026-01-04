@@ -304,6 +304,7 @@ export default function DomainDetailPage() {
                     dataset={activeSidebarData}
                     onNodeSelect={handleNodeSelect}
                     onUpdate={handleEntityUpdate}
+                    nodePermissions={nodePermissions}
                 />
             </div>
         </div>
