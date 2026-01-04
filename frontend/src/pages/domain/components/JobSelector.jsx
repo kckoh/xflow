@@ -54,6 +54,7 @@ export default function JobSelector({ selectedIds = [], onToggle, onSelectDetail
     const handleJobClick = (job) => {
         setFocusedJob(job);
         if (onSelectDetail) onSelectDetail(job);
+        if (onToggle) onToggle(job.id); // Toggle selection on row click
     };
 
     const filteredJobs = jobs.filter(job =>
