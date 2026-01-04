@@ -4,7 +4,6 @@ import { useToast } from "../../components/common/Toast";
 import { useAuth } from "../../context/AuthContext";
 import DomainCreateModal from "./components/DomainCreateModal";
 import DomainHeader from "./components/DomainHeader";
-import RecentlyUsedSection from "./components/RecentlyUsedSection";
 import DomainTable from "./components/DomainTable";
 import { getDomains, deleteDomain } from "./api/domainApi";
 
@@ -31,9 +30,6 @@ export default function DomainPage() {
       setSearchTerm(urlSearch);
     }
   }, [searchParams]);
-
-  // TODO: Recently Used Tables 임의로 구현
-  const recentTables = allTables.slice(0, 4);
 
 
 
@@ -85,8 +81,6 @@ export default function DomainPage() {
         />
       )}
 
-      {/* Recently Used Tables */}
-      <RecentlyUsedSection recentTables={recentTables} />
 
       {/* All Domains Table */}
       <DomainTable
