@@ -1,4 +1,7 @@
-adminPassword: xflow2024
+admin:
+  existingSecret: grafana-admin
+  userKey: admin-user
+  passwordKey: admin-password
 
 persistence:
   enabled: false

@@ -225,3 +225,6 @@ frontend/node_modules/
 # Spark JARs (too large for GitHub)
 spark/jars/*.jar
 trino/plugin/
+
+# Kubernetes secrets
+k8s/monitoring/grafana-secret.yaml
