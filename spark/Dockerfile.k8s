@@ -8,13 +8,21 @@ RUN pip install --no-cache-dir boto3 pymongo requests
 # Copy Spark jobs with proper permissions
 COPY --chown=spark:spark jobs/ /opt/spark/jobs/
 
-# Download JDBC JARs
+# Download JDBC and connector JARs
 RUN curl -o /opt/spark/jars/postgresql-42.7.1.jar \
     https://jdbc.postgresql.org/download/postgresql-42.7.1.jar && \
     curl -o /opt/spark/jars/hadoop-aws-3.3.4.jar \
     https://repo1.maven.org/maven2/org/apache/hadoop/hadoop-aws/3.3.4/hadoop-aws-3.3.4.jar && \
     curl -o /opt/spark/jars/aws-java-sdk-bundle-1.12.262.jar \
-    https://repo1.maven.org/maven2/com/amazonaws/aws-java-sdk-bundle/1.12.262/aws-java-sdk-bundle-1.12.262.jar
+    https://repo1.maven.org/maven2/com/amazonaws/aws-java-sdk-bundle/1.12.262/aws-java-sdk-bundle-1.12.262.jar && \
+    curl -o /opt/spark/jars/mongo-spark-connector_2.12-10.4.0.jar \
+    https://repo1.maven.org/maven2/org/mongodb/spark/mongo-spark-connector_2.12/10.4.0/mongo-spark-connector_2.12-10.4.0.jar && \
+    curl -o /opt/spark/jars/bson-5.2.0.jar \
+    https://repo1.maven.org/maven2/org/mongodb/bson/5.2.0/bson-5.2.0.jar && \
+    curl -o /opt/spark/jars/mongodb-driver-core-5.2.0.jar \
+    https://repo1.maven.org/maven2/org/mongodb/mongodb-driver-core/5.2.0/mongodb-driver-core-5.2.0.jar && \
+    curl -o /opt/spark/jars/mongodb-driver-sync-5.2.0.jar \
+    https://repo1.maven.org/maven2/org/mongodb/mongodb-driver-sync/5.2.0/mongodb-driver-sync-5.2.0.jar
 
 USER spark
 

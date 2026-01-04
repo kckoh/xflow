@@ -1,0 +1,27 @@
+# IRSA (IAM Roles for Service Accounts) patch for Airflow
+# Apply after Helm install/upgrade: kubectl apply -f k8s/airflow/irsa-patch.yaml
+# Then restart: kubectl rollout restart deployment airflow-webserver airflow-scheduler -n airflow
+
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: airflow-scheduler
+  namespace: airflow
+  annotations:
+    eks.amazonaws.com/role-arn: "arn:aws:iam::134059028370:role/eksctl-xflow-cluster-addon-iamserviceaccount--Role1-bLIJeAhC8jWI"
+---
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: airflow-webserver
+  namespace: airflow
+  annotations:
+    eks.amazonaws.com/role-arn: "arn:aws:iam::134059028370:role/eksctl-xflow-cluster-addon-iamserviceaccount--Role1-bLIJeAhC8jWI"
+---
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: airflow-triggerer
+  namespace: airflow
+  annotations:
+    eks.amazonaws.com/role-arn: "arn:aws:iam::134059028370:role/eksctl-xflow-cluster-addon-iamserviceaccount--Role1-bLIJeAhC8jWI"

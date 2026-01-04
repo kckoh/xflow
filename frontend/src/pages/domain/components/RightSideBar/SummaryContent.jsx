@@ -30,6 +30,9 @@ export function SummaryContent({ dataset, isDomainMode, onUpdate, canEditDomain 
 
     // Fetch table metadata from ETL Job
     useEffect(() => {
+        // Reset fetchedMeta when dataset changes to avoid showing stale data
+        setFetchedMeta({ description: null, tags: null });
+
         const fetchTableMeta = async () => {
             console.log('[SummaryContent] sourceJobId:', sourceJobId, 'sourceNodeId:', sourceNodeId);
 
@@ -85,7 +88,7 @@ export function SummaryContent({ dataset, isDomainMode, onUpdate, canEditDomain 
         };
 
         fetchTableMeta();
-    }, [sourceJobId, sourceNodeId]);
+    }, [sourceJobId, sourceNodeId, dataset.id, dataset._id]);
 
     // Determine title and type
     const title = dataset.name || dataset.label || dataset.data?.label || "Untitled";
@@ -108,10 +111,10 @@ export function SummaryContent({ dataset, isDomainMode, onUpdate, canEditDomain 
     React.useEffect(() => {
         const cfg = dataset.config || dataset.data?.config || {};
         const meta = cfg.metadata?.table || {};
-        setDescValue(dataset.description || dataset.data?.description || meta.description || fetchedMeta.description || "");
-        setTagsValue(dataset.tags || dataset.data?.tags || meta.tags || fetchedMeta.tags || []);
+        setDescValue(fetchedMeta.description || dataset.description || dataset.data?.description || meta.description || "");
+        setTagsValue((fetchedMeta.tags && fetchedMeta.tags.length > 0) ? fetchedMeta.tags : (dataset.tags || dataset.data?.tags || meta.tags || []));
         // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [dataset.id, dataset._id, dataset.description, dataset.data?.description, JSON.stringify(dataset.tags), JSON.stringify(dataset.config), fetchedMeta.description]);
+    }, [dataset.id, dataset._id, dataset.description, dataset.data?.description, JSON.stringify(dataset.tags), JSON.stringify(dataset.config), fetchedMeta.description, JSON.stringify(fetchedMeta.tags)]);
 
     // Domain Stats
     const tableCount = isDomainMode ? (dataset.nodes?.filter(n => n.type !== 'E' && n.type !== 'T')?.length || 0) : 0;

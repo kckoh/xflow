@@ -51,6 +51,21 @@ scheduler:
       memory: "2Gi"
       cpu: "500m"
 
+# DAG Processor
+dagProcessor:
+  enabled: true
+  replicas: 1
+  serviceAccount:
+    annotations:
+      eks.amazonaws.com/role-arn: "arn:aws:iam::134059028370:role/eksctl-xflow-cluster-addon-iamserviceaccount--Role1-bLIJeAhC8jWI"
+  resources:
+    requests:
+      memory: "256Mi"
+      cpu: "100m"
+    limits:
+      memory: "512Mi"
+      cpu: "250m"
+
 # Triggerer (for deferrable operators)
 triggerer:
   enabled: true
