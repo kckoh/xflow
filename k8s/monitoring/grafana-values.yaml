@@ -6,12 +6,6 @@ persistence:
 service:
   type: ClusterIP
 
-serviceAccount:
-  create: true
-  name: grafana
-  annotations:
-    eks.amazonaws.com/role-arn: arn:aws:iam::134059028370:role/xflow-grafana-cloudwatch
-
 datasources:
   datasources.yaml:
     apiVersion: 1
