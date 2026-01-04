@@ -11,6 +11,7 @@ export const nodeHeight = 220;
 const SchemaNodeComponent = ({ id, data, selected }) => {
     const [schemaExpanded, setSchemaExpanded] = useState(true);
     const [etlOpen, setEtlOpen] = useState(false);
+    const [mainNodeScrollVersion, setMainNodeScrollVersion] = useState(0);
 
     // Data extraction
     const columns = data.columns || [];
@@ -103,7 +104,12 @@ const SchemaNodeComponent = ({ id, data, selected }) => {
             {/* Content Area: Columns (Always render if expanded) */}
             {schemaExpanded && (
                 <div id={`main-cols-${id}`}>
-                    <SchemaNodeColumns columns={columns} nodeId={id} withHandles={hasPermission} />
+                    <SchemaNodeColumns
+                        columns={columns}
+                        nodeId={id}
+                        withHandles={hasPermission}
+                        onScroll={() => setMainNodeScrollVersion(v => v + 1)}
+                    />
                 </div>
             )}
 
@@ -114,6 +120,7 @@ const SchemaNodeComponent = ({ id, data, selected }) => {
                         data={data}
                         parentNodeId={id}
                         onEtlStepSelect={data.onEtlStepSelect} // Pass handler
+                        refreshTrigger={mainNodeScrollVersion}
                     />
                 </div>
             )}

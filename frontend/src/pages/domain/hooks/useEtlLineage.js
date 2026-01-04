@@ -23,7 +23,7 @@ export const groupNodesIntoLayers = (steps) => {
     return layers;
 };
 
-export const useEtlLineage = (containerRef, jobs, parentNodeId, dataColumns) => {
+export const useEtlLineage = (containerRef, jobs, parentNodeId, dataColumns, refreshTrigger) => {
     const [lines, setLines] = useState([]);
     const [redrawCount, setRedrawCount] = useState(0);
 
@@ -150,9 +150,7 @@ export const useEtlLineage = (containerRef, jobs, parentNodeId, dataColumns) => 
                                             || document.getElementById(tId1);
                                     }
 
-                                    if (sourceEl && targetEl && isVisible(sourceEl, sourceContainer)) {
-                                        // Note: We might want isVisible check for targetEl too if main node scrolls, 
-                                        // but for now focus on ETL step scrolling which is the main issue.
+                                    if (sourceEl && targetEl && isVisible(sourceEl, sourceContainer) && isVisible(targetEl, mainContainer)) {
                                         const sRect = sourceEl.getBoundingClientRect();
                                         const tRect = targetEl.getBoundingClientRect();
 
@@ -173,7 +171,7 @@ export const useEtlLineage = (containerRef, jobs, parentNodeId, dataColumns) => 
         }, 10);
 
         return () => clearTimeout(timer);
-    }, [jobs, redrawCount, dataColumns, parentNodeId, containerRef]);
+    }, [jobs, redrawCount, dataColumns, parentNodeId, containerRef, refreshTrigger]);
 
     return { lines, refreshLines };
 };
