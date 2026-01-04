@@ -1,0 +1,28 @@
+adminPassword: xflow2024
+
+persistence:
+  enabled: false
+
+service:
+  type: ClusterIP
+
+serviceAccount:
+  create: true
+  name: grafana
+  annotations:
+    eks.amazonaws.com/role-arn: arn:aws:iam::134059028370:role/xflow-grafana-cloudwatch
+
+datasources:
+  datasources.yaml:
+    apiVersion: 1
+    datasources:
+      - name: Loki
+        type: loki
+        url: http://loki-gateway.monitoring.svc.cluster.local
+        access: proxy
+        isDefault: true
+      - name: CloudWatch
+        type: cloudwatch
+        jsonData:
+          defaultRegion: ap-northeast-2
+          authType: default
