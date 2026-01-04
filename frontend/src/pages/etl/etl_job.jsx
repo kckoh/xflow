@@ -988,6 +988,17 @@ export default function ETLJobPage() {
                         return "#6b7280";
                     }
                   }}
+                  nodeComponent={({ x, y, width, color }) => (
+                    <rect
+                      x={x}
+                      y={y}
+                      width={width}
+                      height={30}
+                      fill={color}
+                      rx={4}
+                      ry={4}
+                    />
+                  )}
                   className="bg-white border border-gray-200"
                 />
                 <Background
