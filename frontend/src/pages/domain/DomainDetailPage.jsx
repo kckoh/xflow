@@ -15,7 +15,7 @@ import { getDatasets } from "../../services/adminApi";
 export default function DomainDetailPage() {
     // Ref to access DomainCanvas state (Passed to hook)
     const canvasRef = useRef(null);
-    const { user } = useAuth();
+    const { user, isAuthReady } = useAuth();
 
     // Check if user can edit domain
     const canEditDomain = user?.is_admin || user?.domain_edit_access;
@@ -32,6 +32,7 @@ export default function DomainDetailPage() {
 
     const [showImportModal, setShowImportModal] = useState(false);
     const [datasets, setDatasets] = useState([]);
+    const [isLoadingDatasets, setIsLoadingDatasets] = useState(true);
 
     // Use Sidebar Hook
     const {
@@ -55,6 +56,8 @@ export default function DomainDetailPage() {
                 setDatasets(data);
             } catch (err) {
                 console.error('Failed to fetch datasets:', err);
+            } finally {
+                setIsLoadingDatasets(false);
             }
         };
         fetchDatasets();
@@ -62,9 +65,23 @@ export default function DomainDetailPage() {
 
     // Calculate which nodes user has permission to view
     const nodePermissions = useMemo(() => {
-        if (!domain?.nodes || !user) return {};
+        console.log('[Permission] isAuthReady:', isAuthReady, 'isLoadingDatasets:', isLoadingDatasets, 'user:', user?.username);
 
-        // Admin has access to everything
+        // Wait for ALL loading to complete before calculating permissions
+        // Return empty object during loading = default to show (undefined !== false = true)
+        if (!isAuthReady || !domain?.nodes || isLoadingDatasets) {
+            return {};
+        }
+
+        // If user not logged in, deny all access
+        if (!user) {
+            return domain.nodes.reduce((acc, node) => {
+                acc[node.id] = false;
+                return acc;
+            }, {});
+        }
+
+        // Admin has access to everything - explicitly grant
         if (user.is_admin) {
             return domain.nodes.reduce((acc, node) => {
                 acc[node.id] = true;
@@ -81,7 +98,7 @@ export default function DomainDetailPage() {
             datasetNameToId[dataset.name] = dataset.id;
         });
 
-        // Check each node
+        // Check each node - ONLY set false if explicitly denied
         return domain.nodes.reduce((acc, node) => {
             const nodeData = node.data || {};
             let nodeName = nodeData.name || nodeData.label;
@@ -93,26 +110,40 @@ export default function DomainDetailPage() {
 
             // Check if user has access to this dataset
             const datasetId = datasetNameToId[nodeName];
-            const hasPermission = datasetId ? datasetAccessIds.includes(datasetId) : false;
 
-            acc[node.id] = hasPermission;
+            // Only explicitly set to false if we found the dataset and user doesn't have access
+            // If dataset not found in our list, leave undefined (will default to true)
+            if (datasetId && !datasetAccessIds.includes(datasetId)) {
+                acc[node.id] = false;
+            }
 
             return acc;
         }, {});
-    }, [domain?.nodes, user, datasets]);
+    }, [domain?.nodes, user, datasets, isLoadingDatasets, isAuthReady]);
 
     // Enrich nodes with permission information
     const enrichedNodes = useMemo(() => {
         if (!domain?.nodes) return [];
 
-        return domain.nodes.map(node => ({
-            ...node,
-            data: {
-                ...node.data,
-                hasPermission: nodePermissions[node.id] !== false  // undefined means not yet checked, default to true
-            }
-        }));
-    }, [domain?.nodes, nodePermissions]);
+        // Wait for user to load before showing nodes
+        if (!user) return [];
+
+        return domain.nodes.map(node => {
+            const hasPermission = nodePermissions[node.id] !== false; // undefined means not yet checked, default to true
+
+            return {
+                ...node,
+                data: {
+                    ...node.data,
+                    hasPermission
+                },
+                // Disable interaction for permission denied nodes
+                selectable: hasPermission,
+                draggable: hasPermission,
+                connectable: hasPermission
+            };
+        });
+    }, [domain?.nodes, nodePermissions, user]);
 
     // Filter edges to hide connections to/from denied nodes
     const filteredEdges = useMemo(() => {
@@ -131,7 +162,7 @@ export default function DomainDetailPage() {
     // Ideally useDomainSidebar should handle this Observation.
     // For now keeping it minimal as the hook handles optimistic updates on `domain` object.
 
-    if (loading) return <div className="flex items-center justify-center h-screen">Loading...</div>;
+    if (loading || !isAuthReady || isLoadingDatasets) return <div className="flex items-center justify-center h-screen">Loading...</div>;
     if (error) return <div className="flex items-center justify-center h-screen text-red-500">Error: {error}</div>;
     if (!domain) return <div className="flex items-center justify-center h-screen">Dataset not found</div>;
 

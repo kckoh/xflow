@@ -3,15 +3,11 @@ import { createContext, useContext, useState, useEffect } from "react";
 const AuthContext = createContext();
 
 export const AuthProvider = ({ children }) => {
-  const [sessionId, setSessionId] = useState(
-    () => sessionStorage.getItem("sessionId") || null
-  );
-  const [user, setUser] = useState(() => {
-    const stored = sessionStorage.getItem("user");
-    return stored ? JSON.parse(stored) : null;
-  });
+  const [sessionId, setSessionId] = useState(null);
+  const [user, setUser] = useState(null);
+  const [isAuthReady, setIsAuthReady] = useState(false);
 
-  // Restore session on mount (if exists)
+  // Restore session on mount (only once)
   useEffect(() => {
     const storedSessionId = sessionStorage.getItem("sessionId");
     const storedUser = sessionStorage.getItem("user");
@@ -20,6 +16,9 @@ export const AuthProvider = ({ children }) => {
       setSessionId(storedSessionId);
       setUser(JSON.parse(storedUser));
     }
+
+    // Mark auth as ready after restoration attempt
+    setIsAuthReady(true);
   }, []);
 
   // Persist user to storage when it changes
@@ -46,10 +45,11 @@ export const AuthProvider = ({ children }) => {
   };
 
   return (
-    <AuthContext.Provider value={{ sessionId, user, login, logout }}>
+    <AuthContext.Provider value={{ sessionId, user, login, logout, isAuthReady }}>
       {children}
     </AuthContext.Provider>
   );
 }
 
 export const useAuth = () => useContext(AuthContext);
+

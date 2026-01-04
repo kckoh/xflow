@@ -45,6 +45,11 @@ export const useDomainInteractions = ({ nodes, edges, setNodes, setEdges, datase
     }, [nodes]);
 
     const onNodeClick = useCallback((event, node) => {
+        // Block interaction for permission denied nodes
+        if (node.data?.hasPermission === false) {
+            return; // Do nothing for denied nodes
+        }
+
         // Prevent event propagation if handling edge cases for interaction
         // but React flow might need this.
         if (onNodeSelect) {
