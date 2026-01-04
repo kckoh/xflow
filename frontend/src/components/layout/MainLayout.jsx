@@ -9,7 +9,7 @@ export default function MainLayout({ children, fullWidth = false }) {
 
     return (
         <AICopilotProvider>
-            <div className="min-h-screen bg-gray-50 flex">
+            <div className={clsx("bg-gray-50 flex", fullWidth ? "h-screen overflow-hidden" : "min-h-screen")}>
                 {/* Fixed Sidebar */}
                 <Sidebar
                     isCollapsed={isCollapsed}
