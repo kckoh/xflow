@@ -8,7 +8,7 @@ load_dotenv()
 from contextlib import asynccontextmanager
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
-from routers import auth, users, connections, catalog, etl_jobs, job_runs, opensearch, duckdb, metadata, domains, logs, admin
+from routers import auth, users, connections, catalog, etl_jobs, job_runs, opensearch, duckdb, metadata, domains, logs, admin, ai
 from routers.transforms import select_fields # 추후 type 추가 예정 (예: join ...)
 from database import init_db, close_db
 
@@ -88,6 +88,9 @@ app.include_router(logs.router)
 
 # Admin (User management - admin only)
 app.include_router(admin.router, prefix="/api/admin", tags=["admin"])
+
+# AI Query Assistant (Text-to-SQL)
+app.include_router(ai.router, prefix="/api/ai", tags=["ai"])
 
 
 
