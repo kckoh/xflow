@@ -134,7 +134,8 @@ class QualityService:
                 parquet_keys = [key]
             else:
                 # Folder - list all parquet files
-                prefix = key.rstrip('/') + '/'
+                # Handle root bucket case (key is empty)
+                prefix = key.rstrip('/') + '/' if key else ""
                 parquet_keys = self._list_parquet_files(bucket, prefix)
                 
                 if not parquet_keys:
@@ -171,6 +172,7 @@ class QualityService:
             
             # Configure S3 for DuckDB
             conn.execute("INSTALL httpfs; LOAD httpfs;")
+            conn.execute("INSTALL aws; LOAD aws;")
             
             # Environment-based S3 configuration
             env = os.getenv("ENVIRONMENT", "local")
@@ -179,6 +181,7 @@ class QualityService:
                 # Production (AWS): Use IAM Role, minimal configuration
                 # DuckDB will use AWS SDK default credential chain
                 conn.execute(f"""
+                    CALL load_aws_credentials();
                     SET s3_region='{S3_REGION}';
                 """)
             else:
@@ -193,14 +196,43 @@ class QualityService:
                     SET s3_secret_access_key='{S3_SECRET_KEY}';
                 """)
             
+            # DEBUG: Detailed logging
+            print("="*50)
+            print("[Quality DEBUG INFO]")
+            print(f"Timestamp: {datetime.utcnow()}")
+            print(f"Dataset ID: {dataset_id}")
+            print(f"Environment: {env}")
+            print(f"S3 Region: {S3_REGION}")
+            print(f"Target Path: {s3_path}")
+            
+            # Check loaded extensions
+            try:
+                exts = conn.execute("SELECT name, loaded FROM duckdb_extensions() WHERE loaded=true").fetchall()
+                print(f"Loaded Extensions: {exts}")
+            except Exception as e:
+                print(f"Error checking extensions: {e}")
+                
+            # Try to list files with various patterns
+            patterns = [s3_path, s3_path.replace("**/*.parquet", "*"), s3_path.replace("**/*.parquet", "**/*")]
+            for pat in patterns:
+                try:
+                    print(f"Testing pattern: {pat}")
+                    files = conn.execute(f"SELECT * FROM glob('{pat}') LIMIT 3").fetchall()
+                    print(f" -> Found: {files}")
+                except Exception as e:
+                    print(f" -> Error: {e}")
+            
+            print("="*50)
+            
             # Build query for S3 paths (use all files, TABLESAMPLE handles sampling)
             s3_target_paths = [f"s3://{bucket}/{k}" for k in parquet_keys]
             
+            # Use union_by_name=True to handle files with different schemas
             if len(s3_target_paths) == 1:
-                from_clause = f"read_parquet('{s3_target_paths[0]}'){sample_clause}"
+                from_clause = f"read_parquet('{s3_target_paths[0]}', union_by_name=True){sample_clause}"
             else:
                 paths_str = ", ".join([f"'{p}'" for p in s3_target_paths])
-                from_clause = f"read_parquet([{paths_str}]){sample_clause}"
+                from_clause = f"read_parquet([{paths_str}], union_by_name=True){sample_clause}"
             
             checks = []
             
