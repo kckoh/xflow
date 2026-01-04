@@ -134,7 +134,8 @@ class QualityService:
                 parquet_keys = [key]
             else:
                 # Folder - list all parquet files
-                prefix = key.rstrip('/') + '/'
+                # Handle root bucket case (key is empty)
+                prefix = key.rstrip('/') + '/' if key else ""
                 parquet_keys = self._list_parquet_files(bucket, prefix)
                 
                 if not parquet_keys:
@@ -171,6 +172,7 @@ class QualityService:
             
             # Configure S3 for DuckDB
             conn.execute("INSTALL httpfs; LOAD httpfs;")
+            conn.execute("INSTALL aws; LOAD aws;")
             
             # Environment-based S3 configuration
             env = os.getenv("ENVIRONMENT", "local")
