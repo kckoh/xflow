@@ -54,7 +54,6 @@ function Toggle({ checked, onChange, label, description }) {
 function DatasetPermissionSelector({ datasets, selectedDatasets, onChange }) {
     const [searchQuery, setSearchQuery] = useState("");
     const [currentPage, setCurrentPage] = useState(1);
-    const [hoveredDataset, setHoveredDataset] = useState(null);
     const [pinnedDataset, setPinnedDataset] = useState(null);
     const [selectedDomain, setSelectedDomain] = useState("ALL"); // Domain filter state
     const [domains, setDomains] = useState([]);
@@ -183,9 +182,7 @@ function DatasetPermissionSelector({ datasets, selectedDatasets, onChange }) {
 
     const detailDataset = pinnedDataset
         ? datasets.find(d => d.id === pinnedDataset)
-        : hoveredDataset
-            ? datasets.find(d => d.id === hoveredDataset)
-            : null;
+        : null;
 
     return (
         <div className="space-y-3">
@@ -291,20 +288,16 @@ function DatasetPermissionSelector({ datasets, selectedDatasets, onChange }) {
                             ) : (
                                 paginatedDatasets.map((dataset) => {
                                     const isSelected = selectedDatasets.includes(dataset.id);
-                                    const isHovered = hoveredDataset === dataset.id;
                                     const isPinned = pinnedDataset === dataset.id;
                                     const domainNames = datasetDomainMap[dataset.id] || [];
                                     return (
                                         <div
                                             key={dataset.id}
                                             onClick={() => handleRowClick(dataset.id)}
-                                            onMouseEnter={() => setHoveredDataset(dataset.id)}
-                                            onMouseLeave={() => setHoveredDataset(null)}
                                             className={clsx(
                                                 "flex items-center gap-3 px-4 py-3 cursor-pointer transition-all",
                                                 isPinned && "bg-blue-100 border-l-2 border-blue-600",
-                                                isSelected && !isPinned && "bg-blue-50",
-                                                isHovered && !isSelected && !isPinned && "bg-gray-50"
+                                                isSelected && !isPinned && "bg-blue-50"
                                             )}
                                         >
                                             <div
@@ -343,11 +336,8 @@ function DatasetPermissionSelector({ datasets, selectedDatasets, onChange }) {
                                                     </div>
                                                 )}
                                             </div>
-                                            {(isHovered || isPinned) && (
-                                                <ChevronRight className={clsx(
-                                                    "w-4 h-4",
-                                                    isPinned ? "text-blue-600" : "text-gray-400"
-                                                )} />
+                                            {isPinned && (
+                                                <ChevronRight className="w-4 h-4 text-blue-600" />
                                             )}
                                         </div>
                                     );
@@ -479,7 +469,7 @@ function DatasetPermissionSelector({ datasets, selectedDatasets, onChange }) {
                                     <Database className="w-6 h-6 text-gray-300" />
                                 </div>
                                 <p className="text-sm text-gray-400 mb-1">
-                                    Hover over a dataset
+                                    Click on a dataset
                                 </p>
                                 <p className="text-xs text-gray-300">
                                     to preview its schema
