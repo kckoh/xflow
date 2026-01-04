@@ -1,6 +1,7 @@
 import { useState, useEffect } from "react";
 import { useSearchParams } from "react-router-dom";
 import { useToast } from "../../components/common/Toast";
+import { useAuth } from "../../context/AuthContext";
 import DomainCreateModal from "./components/DomainCreateModal";
 import DomainHeader from "./components/DomainHeader";
 import RecentlyUsedSection from "./components/RecentlyUsedSection";
@@ -9,6 +10,7 @@ import { getDomains, deleteDomain } from "./api/domainApi";
 
 export default function DomainPage() {
   const { showToast } = useToast();
+  const { user } = useAuth();
   const [searchParams, setSearchParams] = useSearchParams();
   const [searchTerm, setSearchTerm] = useState(
     searchParams.get("search") || "",
@@ -18,6 +20,9 @@ export default function DomainPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [showCreateModal, setShowCreateModal] = useState(false);
+
+  // Check if user can create domains
+  const canCreateDomain = user?.is_admin || user?.domain_edit_access;
 
   // URL search 파라미터가 변경되면 searchTerm 업데이트
   useEffect(() => {
@@ -66,7 +71,10 @@ export default function DomainPage() {
   return (
     <div className="space-y-8 relative">
       {/* Header */}
-      <DomainHeader onCreateClick={() => setShowCreateModal(true)} />
+      <DomainHeader
+        onCreateClick={() => setShowCreateModal(true)}
+        canCreateDomain={canCreateDomain}
+      />
 
       {/* Create Dataset Modal */}
       {showCreateModal && (
