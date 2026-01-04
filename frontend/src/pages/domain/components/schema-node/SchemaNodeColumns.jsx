@@ -48,12 +48,14 @@ export const SchemaNodeColumns = ({ columns = [], withHandles = true, nodeId = n
                         const colName = typeof col === 'string' ? col : (col?.name || col?.key || col?.field || 'unknown');
                         const colType = col?.dataType || col?.type || 'string';
                         const colDesc = col?.description || '';
+                        const aiDesc = col?.ai_description || '';
                         const colTags = col?.tags ? col.tags.join(', ') : '';
                         const prefix = nodeId ? `${nodeId}:` : '';
 
                         const tooltipText = [
                             `Name: ${colName}`,
                             `Type: ${colType}`,
+                            aiDesc ? `🤖 AI: ${aiDesc}` : null,
                             colDesc ? `Desc: ${colDesc}` : null,
                             colTags ? `Tags: ${colTags}` : null
                         ].filter(Boolean).join('\n');

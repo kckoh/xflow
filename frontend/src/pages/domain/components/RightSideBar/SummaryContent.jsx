@@ -1,181 +1,46 @@
-import React, { useState, useEffect } from "react";
+import React from "react";
 import {
     Clock, User, Tag, FileText, Database, Layers,
-    Calendar, CheckCircle2, Edit2, AlertCircle, Save, X, Plus, Loader2
+    Calendar, CheckCircle2, Edit2, Save, X, Plus, Loader2, Sparkles
 } from "lucide-react";
-import { getEtlJob, updateEtlJobNodeMetadata } from "../../api/domainApi";
-import { useToast } from "../../../../components/common/Toast";
+import { useSummaryContent } from "../../hooks/useSummaryContent";
 
 export function SummaryContent({ dataset, isDomainMode, onUpdate }) {
-    const { showToast } = useToast();
-
     if (!dataset) return <div className="p-5 text-gray-400">No data available</div>;
 
-    // Local state for editing
-    const [isEditingDesc, setIsEditingDesc] = useState(false);
-    const [isEditingTags, setIsEditingTags] = useState(false);
+    const {
+        // State
+        isEditingDesc,
+        setIsEditingDesc,
+        isEditingTags,
+        setIsEditingTags,
+        descValue,
+        setDescValue,
+        tagsValue,
+        newTagInput,
+        setNewTagInput,
+        isGeneratingAI,
 
-    // Temp state for values
-    const [descValue, setDescValue] = useState(dataset.description || "");
-    const [tagsValue, setTagsValue] = useState(dataset.tags || []);
-    const [newTagInput, setNewTagInput] = useState("");
+        // Derived
+        title,
+        type,
+        description,
+        tags,
+        owner,
+        updatedAt,
+        tableCount,
+        connectionCount,
+        sourceJobId,
 
-    // State for fetched metadata from ETL Job
-    const [fetchedMeta, setFetchedMeta] = useState({ description: null, tags: null });
-    const [loadingMeta, setLoadingMeta] = useState(false);
-
-    // Get source job info
-    const sourceJobId = dataset.sourceJobId || dataset.data?.sourceJobId || dataset.jobs?.[0]?.id || dataset.data?.jobs?.[0]?.id;
-    const sourceNodeId = dataset.sourceNodeId || dataset.data?.sourceNodeId;
-
-    // Fetch table metadata from ETL Job
-    useEffect(() => {
-        const fetchTableMeta = async () => {
-            console.log('[SummaryContent] sourceJobId:', sourceJobId, 'sourceNodeId:', sourceNodeId);
-
-            if (!sourceJobId) {
-                console.log('[SummaryContent] No sourceJobId, skipping fetch');
-                return;
-            }
-
-            setLoadingMeta(true);
-            try {
-                console.log('[SummaryContent] Fetching ETL Job:', sourceJobId);
-                const jobData = await getEtlJob(sourceJobId);
-                console.log('[SummaryContent] Job nodes count:', jobData.nodes?.length);
-
-                // Find source node if we have sourceNodeId
-                let targetNode = null;
-                if (sourceNodeId) {
-                    targetNode = jobData.nodes?.find(n => n.id === sourceNodeId);
-                    console.log('[SummaryContent] Found targetNode:', !!targetNode);
-                }
-
-                // Get table metadata
-                let tableMeta = null;
-                if (targetNode) {
-                    tableMeta = targetNode.data?.metadata?.table;
-                    console.log('[SummaryContent] targetNode metadata.table:', tableMeta);
-                } else {
-                    // Fallback: check all nodes for table metadata
-                    console.log('[SummaryContent] Fallback: checking all nodes');
-                    for (const node of (jobData.nodes || [])) {
-                        if (node.data?.metadata?.table) {
-                            tableMeta = node.data.metadata.table;
-                            console.log('[SummaryContent] Found table metadata in node:', node.id, tableMeta);
-                            break;
-                        }
-                    }
-                }
-
-                if (tableMeta) {
-                    console.log('[SummaryContent] Setting fetchedMeta:', tableMeta);
-                    setFetchedMeta({
-                        description: tableMeta.description,
-                        tags: tableMeta.tags
-                    });
-                } else {
-                    console.log('[SummaryContent] No table metadata found');
-                }
-            } catch (error) {
-                console.error('[SummaryContent] Failed to fetch table metadata:', error);
-            } finally {
-                setLoadingMeta(false);
-            }
-        };
-
-        fetchTableMeta();
-    }, [sourceJobId, sourceNodeId]);
-
-    // Determine title and type
-    const title = dataset.name || dataset.label || dataset.data?.label || "Untitled";
-    const type = isDomainMode ? "Domain" : (dataset.type || dataset.platform || dataset.data?.platform || "Node");
-
-    // Extract Metadata (Support nested config.metadata from ETL import)
-    // For ReactFlow nodes, config is usually in 'data'
-    const config = dataset.config || dataset.data?.config || {};
-    const metadata = config.metadata?.table || {};
-
-    // Check fetched ETL Job metadata FIRST (highest priority for synced data)
-    // Then fall back to dataset properties
-    const description = fetchedMeta.description || dataset.description || dataset.data?.description || metadata.description || "No description provided.";
-    const tags = (fetchedMeta.tags && fetchedMeta.tags.length > 0) ? fetchedMeta.tags : (dataset.tags || dataset.data?.tags || metadata.tags || []);
-
-    const owner = dataset.owner || dataset.data?.owner || "Unknown";
-    const updatedAt = dataset.updated_at ? new Date(dataset.updated_at).toLocaleDateString() : "Just now";
-
-    // Reset local state only when actual data changes
-    React.useEffect(() => {
-        const cfg = dataset.config || dataset.data?.config || {};
-        const meta = cfg.metadata?.table || {};
-        setDescValue(dataset.description || dataset.data?.description || meta.description || fetchedMeta.description || "");
-        setTagsValue(dataset.tags || dataset.data?.tags || meta.tags || fetchedMeta.tags || []);
-        // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [dataset.id, dataset._id, dataset.description, dataset.data?.description, JSON.stringify(dataset.tags), JSON.stringify(dataset.config), fetchedMeta.description]);
-
-    // Domain Stats
-    const tableCount = isDomainMode ? (dataset.nodes?.filter(n => n.type !== 'E' && n.type !== 'T')?.length || 0) : 0;
-    const connectionCount = isDomainMode ? (dataset.edges?.length || 0) : 0;
-
-    // --- Handlers ---
-    const addTag = () => {
-        if (newTagInput.trim() && !tagsValue.includes(newTagInput.trim())) {
-            setTagsValue([...tagsValue, newTagInput.trim()]);
-            setNewTagInput("");
-        }
-    };
-
-    const removeTag = (tagToRemove) => {
-        setTagsValue(tagsValue.filter(t => t !== tagToRemove));
-    };
-
-    const handleSaveDescription = async () => {
-        console.log('[SummaryContent] handleSaveDescription - sourceJobId:', sourceJobId, 'sourceNodeId:', sourceNodeId);
-        // If we have source job info, save to ETL Job
-        if (sourceJobId && sourceNodeId) {
-            try {
-                await updateEtlJobNodeMetadata(sourceJobId, sourceNodeId, {
-                    table: { description: descValue }
-                });
-                // Update local fetched state
-                setFetchedMeta(prev => ({ ...prev, description: descValue }));
-                setIsEditingDesc(false);
-                showToast('Description saved', 'success');
-            } catch (error) {
-                console.error('[SummaryContent] Failed to save description:', error);
-                showToast('Failed to save description', 'error');
-            }
-        } else if (onUpdate) {
-            // Fallback to Domain update
-            const id = dataset.id || dataset._id;
-            await onUpdate(id, { description: descValue });
-            setIsEditingDesc(false);
-        }
-    };
-
-    const handleSaveTags = async () => {
-        // If we have source job info, save to ETL Job
-        if (sourceJobId && sourceNodeId) {
-            try {
-                await updateEtlJobNodeMetadata(sourceJobId, sourceNodeId, {
-                    table: { tags: tagsValue }
-                });
-                // Update local fetched state
-                setFetchedMeta(prev => ({ ...prev, tags: tagsValue }));
-                setIsEditingTags(false);
-                showToast('Tags saved', 'success');
-            } catch (error) {
-                console.error('[SummaryContent] Failed to save tags:', error);
-                showToast('Failed to save tags', 'error');
-            }
-        } else if (onUpdate) {
-            // Fallback to Domain update
-            const id = dataset.id || dataset._id;
-            await onUpdate(id, { tags: tagsValue });
-            setIsEditingTags(false);
-        }
-    };
-
+        // Handlers
+        addTag,
+        removeTag,
+        handleSaveDescription,
+        handleSaveTags,
+        handleGenerateAI,
+        cancelEditDesc,
+        cancelEditTags
+    } = useSummaryContent({ dataset, isDomainMode, onUpdate });
 
     return (
         <div className="animate-fade-in space-y-6 pb-20">
@@ -244,7 +109,19 @@ export function SummaryContent({ dataset, isDomainMode, onUpdate }) {
                         />
                         <div className="flex justify-end gap-2 mt-2">
                             <button
-                                onClick={() => { setIsEditingDesc(false); setDescValue(dataset.description || ""); }}
+                                onClick={handleGenerateAI}
+                                className="px-3 py-1 text-xs bg-purple-600 text-white hover:bg-purple-700 rounded flex items-center gap-1"
+                                disabled={isGeneratingAI}
+                            >
+                                {isGeneratingAI ? (
+                                    <Loader2 className="w-3 h-3 animate-spin" />
+                                ) : (
+                                    <Sparkles className="w-3 h-3" />
+                                )}
+                                AI 생성
+                            </button>
+                            <button
+                                onClick={cancelEditDesc}
                                 className="px-3 py-1 text-xs text-gray-600 hover:bg-gray-200 rounded"
                             >
                                 Cancel
@@ -313,13 +190,13 @@ export function SummaryContent({ dataset, isDomainMode, onUpdate }) {
                         </div>
                         <div className="flex justify-end gap-2">
                             <button
-                                onClick={() => { setIsEditingTags(false); setTagsValue(dataset.tags || []); }}
+                                onClick={cancelEditTags}
                                 className="px-3 py-1 text-xs text-gray-600 hover:bg-gray-200 rounded"
                             >
                                 Cancel
                             </button>
                             <button
-                                onClick={() => handleSaveTags()}
+                                onClick={handleSaveTags}
                                 className="px-3 py-1 text-xs bg-blue-600 text-white hover:bg-blue-700 rounded flex items-center gap-1"
                             >
                                 <Save className="w-3 h-3" /> Save
