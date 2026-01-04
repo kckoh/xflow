@@ -20,12 +20,19 @@ router = APIRouter()
 
 # --- Domain CRUD Endpoints ---
 
-@router.get("", response_model=List[Domain])
+@router.get("")
 async def get_all_domains(
+    page: int = Query(1, ge=1, description="Page number"),
+    limit: int = Query(10, ge=1, le=100, description="Items per page"),
+    search: Optional[str] = Query(None, description="Search term for domain name"),
+    sort_by: str = Query("updated_at", description="Sort field: name, updated_at, owner, platform"),
+    sort_order: str = Query("desc", description="Sort order: asc, desc"),
+    owner: Optional[str] = Query(None, description="Filter by owner"),
+    platform: Optional[str] = Query(None, description="Filter by platform"),
     user_session: Optional[Dict[str, Any]] = Depends(get_user_session)
 ):
     """
-    Get all domains (list view).
+    Get all domains (list view) with pagination, sorting, and filtering.
     Filters domains based on user's dataset_access permissions.
     Only shows domains where user has access to at least one dataset.
     """
@@ -69,7 +76,44 @@ async def get_all_domains(
             
             domains = filtered_domains
     
-    return domains
+    # Apply search filter
+    if search:
+        search_lower = search.lower()
+        domains = [d for d in domains if search_lower in d.name.lower()]
+    
+    # Apply owner filter
+    if owner:
+        domains = [d for d in domains if d.owner and d.owner.lower() == owner.lower()]
+    
+    # Apply platform filter
+    if platform:
+        domains = [d for d in domains if d.platform and d.platform.lower() == platform.lower()]
+    
+    # Sort
+    reverse = sort_order.lower() == "desc"
+    if sort_by == "name":
+        domains.sort(key=lambda d: (d.name or "").lower(), reverse=reverse)
+    elif sort_by == "owner":
+        domains.sort(key=lambda d: (d.owner or "").lower(), reverse=reverse)
+    elif sort_by == "platform":
+        domains.sort(key=lambda d: (d.platform or "").lower(), reverse=reverse)
+    else:  # default: updated_at
+        domains.sort(key=lambda d: d.updated_at or d.created_at, reverse=reverse)
+    
+    # Pagination
+    total = len(domains)
+    total_pages = (total + limit - 1) // limit  # ceil division
+    start_idx = (page - 1) * limit
+    end_idx = start_idx + limit
+    paginated_domains = domains[start_idx:end_idx]
+    
+    return {
+        "items": paginated_domains,
+        "total": total,
+        "page": page,
+        "limit": limit,
+        "total_pages": total_pages
+    }
 
 
 # --- ETL Job Import Endpoints (must be before /{id} to avoid route conflict) ---

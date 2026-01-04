@@ -2,9 +2,27 @@ import { API_BASE_URL } from '../../../config/api';
 
 const BASE_URL = `${API_BASE_URL}/api/domains`;
 
-export const getDomains = async () => {
+export const getDomains = async ({
+    page = 1,
+    limit = 10,
+    search = '',
+    sortBy = 'updated_at',
+    sortOrder = 'desc',
+    owner = '',
+    platform = ''
+} = {}) => {
     const sessionId = sessionStorage.getItem('sessionId');
-    const url = sessionId ? `${BASE_URL}?session_id=${sessionId}` : BASE_URL;
+    const params = new URLSearchParams();
+    params.append('page', page);
+    params.append('limit', limit);
+    params.append('sort_by', sortBy);
+    params.append('sort_order', sortOrder);
+    if (search) params.append('search', search);
+    if (owner) params.append('owner', owner);
+    if (platform) params.append('platform', platform);
+    if (sessionId) params.append('session_id', sessionId);
+
+    const url = `${BASE_URL}?${params.toString()}`;
     const response = await fetch(url);
     if (!response.ok) throw new Error(`Failed to fetch domains: ${response.status}`);
     return response.json();
