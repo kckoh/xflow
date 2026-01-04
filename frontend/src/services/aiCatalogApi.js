@@ -8,9 +8,10 @@ import { API_BASE_URL } from '../config/api';
  * 테이블 설명을 AI로 생성합니다.
  * @param {string} tableName - 테이블 이름
  * @param {Array} columns - 컬럼 정보 배열
+ * @param {Object} [transformationContext] - (Optional) 변환 컨텍스트 (operation, source_tables 등)
  * @returns {Promise<string>} 생성된 테이블 설명
  */
-export const generateTableDescription = async (tableName, columns) => {
+export const generateTableDescription = async (tableName, columns, transformationContext = null) => {
     const response = await fetch(`${API_BASE_URL}/api/ai-catalog/generate-table-description`, {
         method: 'POST',
         headers: {
@@ -21,7 +22,8 @@ export const generateTableDescription = async (tableName, columns) => {
             columns: columns.map(col => ({
                 name: col.name || col.key || col.field || 'unknown',
                 type: col.type || col.dataType || 'string'
-            }))
+            })),
+            transformation_context: transformationContext
         })
     });
 

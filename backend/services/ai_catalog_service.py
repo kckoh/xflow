@@ -9,7 +9,8 @@ from services.providers import get_provider
 async def generate_table_description(
     table_name: str,
     columns: List[Dict[str, Any]],
-    sample_data: Optional[List[Dict]] = None
+    sample_data: Optional[List[Dict]] = None,
+    transformation_context: Optional[Dict[str, Any]] = None
 ) -> str:
     """
     테이블 설명을 AI로 자동 생성합니다.
@@ -18,6 +19,7 @@ async def generate_table_description(
         table_name: 테이블 이름
         columns: 컬럼 정보 리스트 [{"name": "col1", "type": "string"}, ...]
         sample_data: 샘플 데이터 (선택)
+        transformation_context: 변환 컨텍스트 (선택)
     
     Returns:
         생성된 테이블 설명
@@ -26,7 +28,8 @@ async def generate_table_description(
     return await provider.generate_table_description(
         table_name=table_name,
         columns=columns,
-        sample_data=sample_data
+        sample_data=sample_data,
+        transformation_context=transformation_context
     )
 
 

@@ -21,6 +21,7 @@ export function useSummaryContent({ dataset, isDomainMode, onUpdate }) {
 
     // State for fetched metadata from ETL Job
     const [fetchedMeta, setFetchedMeta] = useState({ description: null, tags: null });
+    const [lineageInfo, setLineageInfo] = useState(null);
     const [loadingMeta, setLoadingMeta] = useState(false);
     const [isGeneratingAI, setIsGeneratingAI] = useState(false);
 
@@ -58,6 +59,25 @@ export function useSummaryContent({ dataset, isDomainMode, onUpdate }) {
                         description: tableMeta.description,
                         tags: tableMeta.tags
                     });
+                }
+
+                // Extract Lineage Info (Upstream sources & Transformation)
+                if (targetNode) {
+                    const upstreamEdges = jobData.edges?.filter(e => e.target === targetNode.id) || [];
+                    const sourceTables = upstreamEdges.map(e => {
+                        const srcNode = jobData.nodes?.find(n => n.id === e.source);
+                        // Try to find table name or label
+                        return srcNode?.data?.label || srcNode?.data?.table || srcNode?.data?.name || "Unknown Source";
+                    }).filter(name => name !== "Unknown Source");
+
+                    if (sourceTables.length > 0 || targetNode.data?.op) {
+                        setLineageInfo({
+                            nodeType: targetNode.type || "T", // E, T, L (Default to T if unknown)
+                            operation: targetNode.data?.op || "Unknown Transformation",
+                            sourceTables: sourceTables
+                        });
+                        console.log('[useSummaryContent] Lineage info extracted:', { type: targetNode.type, op: targetNode.data?.op, sources: sourceTables });
+                    }
                 }
             } catch (error) {
                 console.error('[useSummaryContent] Failed to fetch table metadata:', error);
@@ -150,7 +170,15 @@ export function useSummaryContent({ dataset, isDomainMode, onUpdate }) {
         try {
             const tableName = dataset?.name || dataset?.label || dataset?.data?.label || 'unknown_table';
             const columns = dataset?.data?.columns || dataset?.columns || [];
-            const desc = await generateTableDescription(tableName, columns);
+
+            // Pass lineage info if available
+            const context = lineageInfo ? {
+                node_type: lineageInfo.nodeType,
+                operation: lineageInfo.operation,
+                source_tables: lineageInfo.sourceTables
+            } : null;
+
+            const desc = await generateTableDescription(tableName, columns, context);
             setDescValue(desc);
             showToast('✨ AI 설명 생성 완료', 'success');
         } catch (error) {

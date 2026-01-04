@@ -60,7 +60,8 @@ class BaseAIProvider(ABC):
         self,
         table_name: str,
         columns: List[Dict[str, Any]],
-        sample_data: Optional[List[Dict]] = None
+        sample_data: Optional[List[Dict]] = None,
+        transformation_context: Optional[Dict[str, Any]] = None
     ) -> str:
         """
         테이블 설명 자동 생성
@@ -73,10 +74,35 @@ class BaseAIProvider(ABC):
         sample_info = ""
         if sample_data and len(sample_data) > 0:
             sample_info = f"\n\n샘플 데이터 (첫 3건):\n{sample_data[:3]}"
+
+        # 리니지/변환 정보 및 노드 타입별 가이드라인 구성
+        lineage_info = ""
+        focus_guideline = ""
         
+        if transformation_context:
+            op = transformation_context.get("operation", "Unknown")
+            sources = ", ".join(transformation_context.get("source_tables", []))
+            node_type = transformation_context.get("node_type", "T")  # Default T
+            
+            # 리니지 정보 텍스트
+            if sources:
+                lineage_info = f"\n데이터 생성 맥락:\n- 노드 타입: {node_type} (E=Extract, T=Transform, L=Load)\n- 데이터 출처(Source Tables): {sources}\n- 변환 로직(Operation): {op}"
+            
+            # 노드 타입별 작성 가이드라인 분기
+            if node_type == 'E':
+                focus_guideline = """2. **원천 데이터 중심**: 이 데이터가 '어디서 수집되었는지', '원본 그대로인지'를 명시하세요. (예: "ERP 시스템에서 수집된 원천 주문 데이터")"""
+            elif node_type == 'T':
+                focus_guideline = """2. **변환 로직 강조**: 이 데이터가 '어떤 처리(필터, 조인 등)를 거쳤는지'와 '그로 인해 데이터의 성격이 어떻게 변했는지' 설명하세요. (예: "모든 주문 중 취소된 건을 제외하고 정제된...")"""
+            elif node_type == 'L':
+                focus_guideline = """2. **활용 목적 강조**: 이 데이터가 '최종적으로 어디에 쓰이는지', '어떤 분석을 위한 것인지' 비즈니스 가치를 설명하세요. (예: "경영진 대시보드에서 매출 추이를 분석하기 위한 최종 집계 테이블")"""
+            else:
+                focus_guideline = """2. **데이터 흐름 반영**: 제공된 '데이터 생성 맥락'이 있다면, 이 데이터가 어디서 왔고(Source) 어떻게 변환되었는지(Operation) 설명에 포함하세요."""
+
         prompt = f"""다음 데이터베이스 테이블 정보를 분석하고, 데이터 카탈로그에 등재될 설명을 작성해주세요.
 
 테이블명: {table_name}
+
+{lineage_info}
 
 컬럼 구조:
 {column_info}
@@ -84,15 +110,15 @@ class BaseAIProvider(ABC):
 
 작성 가이드라인:
 1. **비즈니스 관점의 요약**: 이 테이블이 어떤 비즈니스 프로세스에서 사용되는지, 어떤 핵심 데이터를 담고 있는지 첫 문장에 서술하세요.
-2. **기계적 표현 지양**: "이 테이블은~", "~로 구성되어 있습니다", "저장하는 테이블입니다" 같은 불필요한 서술어를 빼고, 핵심 내용만 자연스럽게 기술하세요.
-3. **용도 중심**: 단순한 컬럼 나열 대신, 이 데이터가 *왜* 필요한지, *어떻게* 활용되는지 설명하세요.
+{focus_guideline}
+3. **기계적 표현 지양**: "이 테이블은~", "~로 구성되어 있습니다", "저장하는 테이블입니다" 같은 불필요한 서술어를 빼고, 핵심 내용만 자연스럽게 기술하세요.
 4. **간결함**: 2~3문장 내외로 핵심만 전달하세요.
 
 잘못된 예시:
 X "Product 테이블은 제품 정보를 저장합니다. id는 정수형이고 name은 문자열입니다." (너무 기계적)
 
-좋은 예시:
-O "전체 상품의 마스터 데이터를 관리하며, 상품별 카테고리, 가격 정책, 재고 상태 정보를 포함합니다. 주문 처리 및 매출 분석의 기준 데이터로 활용됩니다."
+좋은 예시 (T 노드):
+O "주문 정보와 고객 정보를 결합하여 생성된 통합 데이터입니다. 취소된 주문을 제외하고 유효한 매출 건만을 포함하며, 고객 등급별 구매 패턴 분석에 활용됩니다."
 """
         
         return await self.generate_text(

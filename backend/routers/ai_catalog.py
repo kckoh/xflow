@@ -24,6 +24,7 @@ class GenerateTableDescRequest(BaseModel):
     table_name: str
     columns: List[ColumnInfo]
     sample_data: Optional[List[Dict]] = None
+    transformation_context: Optional[Dict[str, Any]] = None
 
 
 class GenerateColumnDescRequest(BaseModel):
@@ -58,7 +59,8 @@ async def generate_table_description(request: GenerateTableDescRequest):
         description = await ai_service.generate_table_description(
             table_name=request.table_name,
             columns=columns,
-            sample_data=request.sample_data
+            sample_data=request.sample_data,
+            transformation_context=request.transformation_context
         )
         return {"description": description}
     except Exception as e:
