@@ -305,6 +305,7 @@ export default function DomainDetailPage() {
                     onNodeSelect={handleNodeSelect}
                     onUpdate={handleEntityUpdate}
                     nodePermissions={nodePermissions}
+                    canEditDomain={canEditDomain}
                 />
             </div>
         </div>

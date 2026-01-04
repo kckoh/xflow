@@ -5,7 +5,7 @@ import { getEtlJob, updateEtlJobNodeMetadata } from "../api/domainApi";
 /**
  * ColumnItem - Individual column display with description and tags (editable)
  */
-function ColumnItem({ col, sourceJobId, sourceNodeId, onMetadataUpdate }) {
+function ColumnItem({ col, sourceJobId, sourceNodeId, onMetadataUpdate, canEditDomain }) {
     const [isOpen, setIsOpen] = useState(false);
     const [isEditing, setIsEditing] = useState(false);
 
@@ -28,7 +28,7 @@ function ColumnItem({ col, sourceJobId, sourceNodeId, onMetadataUpdate }) {
     }, [description, JSON.stringify(tags)]);
 
     const hasContent = description || (tags && tags.length > 0);
-    const canEdit = sourceJobId && sourceNodeId;
+    const canEdit = sourceJobId && sourceNodeId && canEditDomain;
 
     const addTag = () => {
         if (newTagInput.trim() && !tagsValue.includes(newTagInput.trim())) {
@@ -206,7 +206,7 @@ function ColumnItem({ col, sourceJobId, sourceNodeId, onMetadataUpdate }) {
 /**
  * NodeColumnsList - Fetches column metadata from ETL Job and displays columns
  */
-export function NodeColumnsList({ node, searchTerm = "" }) {
+export function NodeColumnsList({ node, searchTerm = "", canEditDomain }) {
     const [enrichedColumns, setEnrichedColumns] = useState([]);
     const [loading, setLoading] = useState(false);
 
@@ -415,6 +415,7 @@ export function NodeColumnsList({ node, searchTerm = "" }) {
                     sourceJobId={sourceJobId}
                     sourceNodeId={sourceNodeId}
                     onMetadataUpdate={handleMetadataUpdate}
+                    canEditDomain={canEditDomain}
                 />
             ))}
         </>

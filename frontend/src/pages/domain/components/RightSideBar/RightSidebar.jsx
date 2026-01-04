@@ -14,7 +14,8 @@ export function RightSidebar({
     dataset,
     onNodeSelect,
     onUpdate,
-    nodePermissions // For filtering columns by permission
+    nodePermissions, // For filtering columns by permission
+    canEditDomain // Permission flag for edit controls
 }) {
     const isDomainMode = dataset && Array.isArray(dataset.nodes);
 
@@ -44,15 +45,15 @@ export function RightSidebar({
     const renderContent = () => {
         switch (sidebarTab) {
             case "summary":
-                return <SummaryContent dataset={dataset} isDomainMode={isDomainMode} onUpdate={onUpdate} />;
+                return <SummaryContent dataset={dataset} isDomainMode={isDomainMode} onUpdate={onUpdate} canEditDomain={canEditDomain} />;
             case "columns":
-                return <ColumnsContent dataset={dataset} isDomainMode={isDomainMode} onNodeSelect={onNodeSelect} nodePermissions={nodePermissions} />;
+                return <ColumnsContent dataset={dataset} isDomainMode={isDomainMode} onNodeSelect={onNodeSelect} nodePermissions={nodePermissions} canEditDomain={canEditDomain} />;
             case "lineage":
                 return <StreamImpactContent streamData={streamData} onNodeSelect={onNodeSelect} />;
             case "docs":
-                return <DocsContent dataset={dataset} isDomainMode={isDomainMode} onUpdate={onUpdate} />;
+                return <DocsContent dataset={dataset} isDomainMode={isDomainMode} onUpdate={onUpdate} canEditDomain={canEditDomain} />;
             default:
-                return <SummaryContent dataset={dataset} isDomainMode={isDomainMode} />;
+                return <SummaryContent dataset={dataset} isDomainMode={isDomainMode} canEditDomain={canEditDomain} />;
         }
     };
 
