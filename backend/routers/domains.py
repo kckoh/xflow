@@ -82,9 +82,8 @@ async def list_domain_jobs(
         jobs = await ETLJob.find(ETLJob.import_ready == import_ready).to_list()
         
         # Get user session if provided
-        user_session = None
-        if session_id and session_id in sessions:
-            user_session = sessions[session_id]
+        from dependencies import get_user_session
+        user_session = get_user_session(session_id)
         
         # Filter jobs based on dataset_access permissions
         if user_session:

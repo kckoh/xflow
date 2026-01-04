@@ -1,8 +1,24 @@
 from fastapi import HTTPException, Header
 from models import User
+from typing import Optional, Dict, Any
 
 # Move sessions here so it's accessible everywhere
 sessions = {}
+
+
+def get_user_session(session_id: Optional[str]) -> Optional[Dict[str, Any]]:
+    """
+    Helper function to get user session from session_id.
+    Returns None if session_id is not provided or invalid.
+    
+    Usage:
+        user_session = get_user_session(session_id)
+        if user_session:
+            is_admin = user_session.get("is_admin", False)
+    """
+    if session_id and session_id in sessions:
+        return sessions[session_id]
+    return None
 
 
 def get_current_user_id(session_id: str = Header(alias="X-Session-ID")) -> str:

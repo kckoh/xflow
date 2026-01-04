@@ -10,6 +10,7 @@ import { SidebarToggle } from "./components/RightSideBar/SidebarToggle";
 import { useDomainDetail } from "./hooks/useDomainDetail";
 import { useDomainSidebar } from "./hooks/useDomainSidebar";
 import { useAuth } from "../../context/AuthContext";
+import { getDatasets } from "../../services/adminApi";
 
 export default function DomainDetailPage() {
     // Ref to access DomainCanvas state (Passed to hook)
@@ -50,7 +51,6 @@ export default function DomainDetailPage() {
     useEffect(() => {
         const fetchDatasets = async () => {
             try {
-                const { getDatasets } = await import('../../services/adminApi');
                 const data = await getDatasets();
                 setDatasets(data);
             } catch (err) {

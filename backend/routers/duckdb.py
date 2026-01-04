@@ -30,10 +30,10 @@ async def run_query(
     """SQL 쿼리 실행 (권한 체크 포함)"""
     try:
         # Check permissions for datasets referenced in SQL
-        from dependencies import sessions
+        from dependencies import get_user_session
+        user_session = get_user_session(session_id)
         
-        if session_id and session_id in sessions:
-            user_session = sessions[session_id]
+        if user_session:
             is_admin = user_session.get("is_admin", False)
             
             if not is_admin:
@@ -145,10 +145,10 @@ async def list_bucket_files(
             })
 
         # Filter files by dataset permissions
-        from dependencies import sessions
+        from dependencies import get_user_session
+        user_session = get_user_session(session_id)
         
-        if session_id and session_id in sessions:
-            user_session = sessions[session_id]
+        if user_session:
             is_admin = user_session.get("is_admin", False)
             
             if not is_admin:

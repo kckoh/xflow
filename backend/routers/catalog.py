@@ -29,9 +29,8 @@ async def get_catalog(
     If authenticated, filters based on user's dataset_access permissions.
     """
     # Get user session if provided
-    user_session = None
-    if session_id and session_id in sessions:
-        user_session = sessions[session_id]
+    from dependencies import get_user_session
+    user_session = get_user_session(session_id)
     
     db = database.mongodb_client[database.DATABASE_NAME]
     # Build Search/Filter Query
