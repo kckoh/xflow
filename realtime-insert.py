@@ -76,7 +76,7 @@ try:
 
         print(f"[{now.strftime('%H:%M:%S')}] Inserted: product={product_id}, order={order_id}, event={event_id}")
 
-        time.sleep(1)
+        time.sleep(0.2)  # 1초에 5개
 
 except KeyboardInterrupt:
     print(f"\n\n✅ Stopped. Total inserted: {count} rows per table")

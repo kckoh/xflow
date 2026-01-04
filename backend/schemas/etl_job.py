@@ -30,11 +30,13 @@ class DestinationConfig(BaseModel):
 class ETLJobCreate(BaseModel):
     name: str
     description: Optional[str] = None
+    job_type: str = "batch"  # "batch" or "cdc"
     # Multiple sources support (new)
     sources: Optional[List[SourceConfig]] = None
     # Legacy single source (backward compatibility)
     source: Optional[SourceConfig] = None
     transforms: List[TransformConfig] = []
+    targets: Optional[List[dict]] = None
     destination: DestinationConfig
     schedule: Optional[str] = None  # Created by backend
     schedule_frequency: Optional[str] = None
@@ -49,11 +51,13 @@ class ETLJobCreate(BaseModel):
 class ETLJobUpdate(BaseModel):
     name: Optional[str] = None
     description: Optional[str] = None
+    job_type: Optional[str] = None  # "batch" or "cdc"
     # Multiple sources support (new)
     sources: Optional[List[SourceConfig]] = None
     # Legacy single source (backward compatibility)
     source: Optional[SourceConfig] = None
     transforms: Optional[List[TransformConfig]] = None
+    targets: Optional[List[dict]] = None
     destination: Optional[DestinationConfig] = None
     
     schedule: Optional[str] = None
@@ -68,7 +72,7 @@ class ETLJobUpdate(BaseModel):
     edges: Optional[List[dict]] = None
 
 
-class ETLJobResponse(BaseModel):
+class ETLJobResponse(ETLJobCreate):
     id: str
     name: str
     description: Optional[str] = None
