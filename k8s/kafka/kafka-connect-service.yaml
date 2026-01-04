@@ -1,0 +1,10 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: kafka-connect
+  namespace: xflow
+spec:
+  type: ExternalName
+  externalName: xflow-connect-connect-api.kafka.svc.cluster.local
+  ports:
+    - port: 8083
