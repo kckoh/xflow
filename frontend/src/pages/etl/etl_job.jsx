@@ -239,12 +239,12 @@ export default function ETLJobPage() {
         }
 
         setSchedules([{
-            id: "1",
-            name: data.ui_params.scheduleName || "Main Schedule",
-            cron: data.schedule,
-            frequency: data.schedule_frequency,
-            description: data.ui_params.scheduleDescription || "",
-            uiParams: uiParams
+          id: "1",
+          name: data.ui_params.scheduleName || "Main Schedule",
+          cron: data.schedule,
+          frequency: data.schedule_frequency,
+          description: data.ui_params.scheduleDescription || "",
+          uiParams: uiParams
         }]);
       } else {
         // No valid schedule data - start with empty
@@ -326,9 +326,9 @@ export default function ETLJobPage() {
         const nextTransformType =
           targetNode.data?.nodeCategory === "transform"
             ? normalizeTransformTypeForSource(
-                directSourceType,
-                targetNode.data?.transformType
-              )
+              directSourceType,
+              targetNode.data?.transformType
+            )
             : targetNode.data?.transformType;
 
         if (!sourceNode?.data?.schema) {
@@ -352,12 +352,12 @@ export default function ETLJobPage() {
             return nds.map((n) =>
               n.id === params.target
                 ? {
-                    ...n,
-                    data: {
-                      ...n.data,
-                      sourceType: unionSourceType,
-                    },
-                  }
+                  ...n,
+                  data: {
+                    ...n.data,
+                    sourceType: unionSourceType,
+                  },
+                }
                 : n
             );
           }
@@ -365,12 +365,12 @@ export default function ETLJobPage() {
           return nds.map((n) =>
             n.id === params.target
               ? {
-                  ...n,
-                  data: {
-                    ...applySourceType(n.data),
-                    transformType: nextTransformType || n.data.transformType,
-                  },
-                }
+                ...n,
+                data: {
+                  ...applySourceType(n.data),
+                  transformType: nextTransformType || n.data.transformType,
+                },
+              }
               : n
           );
         }
@@ -414,15 +414,15 @@ export default function ETLJobPage() {
           return nds.map((n) =>
             n.id === params.target
               ? {
-                  ...n,
-                  data: {
-                    ...n.data,
-                    inputSchemas: inputSchemas, // Store array of schemas for Union config
-                    schema: unionSchema,
-                    tableName: combinedTableName, // Set combined table name
-                    sourceType: unionSourceType,
-                  },
-                }
+                ...n,
+                data: {
+                  ...n.data,
+                  inputSchemas: inputSchemas, // Store array of schemas for Union config
+                  schema: unionSchema,
+                  tableName: combinedTableName, // Set combined table name
+                  sourceType: unionSourceType,
+                },
+              }
               : n
           );
         }
@@ -431,24 +431,24 @@ export default function ETLJobPage() {
         return nds.map((n) =>
           n.id === params.target
             ? {
-                ...n,
-                data: {
-                  ...n.data,
-                  transformType: nextTransformType || n.data.transformType,
-                  inputSchema: sourceNode.data.schema,
-                  tableName: sourceNode.data.tableName, // RDB 테이블명 전파
-                  collectionName: sourceNode.data.collectionName, // MongoDB 컬렉션명 전파
-                  // If transform has config, apply it; otherwise use input as output
-                  schema: n.data.transformConfig
-                    ? applyTransformToSchema(
-                        sourceNode.data.schema,
-                        nextTransformType || n.data.transformType,
-                        n.data.transformConfig
-                      )
-                    : sourceNode.data.schema,
-                  sourceType: directSourceType || n.data.sourceType,
-                },
-              }
+              ...n,
+              data: {
+                ...n.data,
+                transformType: nextTransformType || n.data.transformType,
+                inputSchema: sourceNode.data.schema,
+                tableName: sourceNode.data.tableName, // RDB 테이블명 전파
+                collectionName: sourceNode.data.collectionName, // MongoDB 컬렉션명 전파
+                // If transform has config, apply it; otherwise use input as output
+                schema: n.data.transformConfig
+                  ? applyTransformToSchema(
+                    sourceNode.data.schema,
+                    nextTransformType || n.data.transformType,
+                    n.data.transformConfig
+                  )
+                  : sourceNode.data.schema,
+                sourceType: directSourceType || n.data.sourceType,
+              },
+            }
             : n
         );
       });
@@ -520,10 +520,10 @@ export default function ETLJobPage() {
                   collectionName: sourceNode.data.collectionName, // MongoDB 컬렉션명 전파
                   schema: prev.data.transformConfig
                     ? applyTransformToSchema(
-                        sourceNode.data.schema,
-                        nextTransformType || prev.data.transformType,
-                        prev.data.transformConfig
-                      )
+                      sourceNode.data.schema,
+                      nextTransformType || prev.data.transformType,
+                      prev.data.transformConfig
+                    )
                     : sourceNode.data.schema,
                   sourceType: directSourceType || prev.data.sourceType,
                 },
@@ -585,10 +585,10 @@ export default function ETLJobPage() {
       // Don't send schedule directly - let backend generate it from frequency & ui_params
       schedule_frequency: schedules.length > 0 ? schedules[0].frequency : "", // Send empty string to clear schedule
       ui_params: schedules.length > 0 ? {
-          ...schedules[0].uiParams,
-          // Persist schedule name and description in ui_params since they don't have dedicated backend fields
-          scheduleName: schedules[0].name,
-          scheduleDescription: schedules[0].description
+        ...schedules[0].uiParams,
+        // Persist schedule name and description in ui_params since they don't have dedicated backend fields
+        scheduleName: schedules[0].name,
+        scheduleDescription: schedules[0].description
       } : null,
       incremental_config: jobDetails.incremental_config || null,
       nodes: nodes,
@@ -807,7 +807,7 @@ export default function ETLJobPage() {
   };
 
   return (
-    <div className="h-full flex flex-col bg-gray-50">
+    <div className="h-full flex flex-col bg-gray-50 overflow-hidden">
       {/* Header */}
       <div className="bg-white border-b border-gray-200 px-6 py-3 flex items-center justify-between">
         <div className="flex items-center gap-4">
@@ -839,10 +839,10 @@ export default function ETLJobPage() {
             onClick={jobDetails.jobType === "cdc" && isCdcActive ? handleStop : handleRun}
             disabled={!jobId || isSaving}
             className={`px-4 py-2 rounded-md transition-colors flex items-center gap-2 ${!jobId || isSaving
-                ? 'bg-gray-200 text-gray-400 cursor-not-allowed'
-                : jobDetails.jobType === "cdc" && isCdcActive
-                  ? 'bg-red-600 text-white hover:bg-red-700'
-                  : 'bg-green-600 text-white hover:bg-green-700'
+              ? 'bg-gray-200 text-gray-400 cursor-not-allowed'
+              : jobDetails.jobType === "cdc" && isCdcActive
+                ? 'bg-red-600 text-white hover:bg-red-700'
+                : 'bg-green-600 text-white hover:bg-green-700'
               }`}
           >
             {jobDetails.jobType === "cdc" && isCdcActive ? (
@@ -869,13 +869,12 @@ export default function ETLJobPage() {
               key={tab}
               onClick={() => !isDisabled && setMainTab(tab)}
               disabled={isDisabled}
-              className={`py-3 text-sm font-medium border-b-2 transition-colors ${
-                mainTab === tab
-                  ? "text-blue-600 border-blue-600"
-                  : isDisabled
+              className={`py-3 text-sm font-medium border-b-2 transition-colors ${mainTab === tab
+                ? "text-blue-600 border-blue-600"
+                : isDisabled
                   ? "text-gray-400 border-transparent cursor-not-allowed"
                   : "text-gray-600 border-transparent hover:text-gray-900 hover:border-gray-300"
-              }`}
+                }`}
               title={isDisabled ? "Save the job first to access this tab" : ""}
             >
               {tab}
@@ -887,7 +886,7 @@ export default function ETLJobPage() {
       {/* Main Content: Canvas + Properties Panel (Shown only when 'Visual' is active) */}
       {mainTab === "Visual" ? (
         <>
-          <div className="flex-1 flex overflow-hidden">
+          <div className="flex-1 flex overflow-hidden min-h-0">
             {/* ReactFlow Canvas + Bottom Panel Wrapper */}
             <div className="flex-1 relative flex flex-col">
               {/* Add Node Button */}
@@ -908,31 +907,28 @@ export default function ETLJobPage() {
                     <div className="flex border-b border-gray-200">
                       <button
                         onClick={() => setActiveTab("source")}
-                        className={`flex-1 px-4 py-3 text-sm font-medium transition-colors ${
-                          activeTab === "source"
-                            ? "text-blue-600 border-b-2 border-blue-600 bg-blue-50"
-                            : "text-gray-600 hover:text-gray-900 hover:bg-gray-50"
-                        }`}
+                        className={`flex-1 px-4 py-3 text-sm font-medium transition-colors ${activeTab === "source"
+                          ? "text-blue-600 border-b-2 border-blue-600 bg-blue-50"
+                          : "text-gray-600 hover:text-gray-900 hover:bg-gray-50"
+                          }`}
                       >
                         Source
                       </button>
                       <button
                         onClick={() => setActiveTab("transform")}
-                        className={`flex-1 px-4 py-3 text-sm font-medium transition-colors ${
-                          activeTab === "transform"
-                            ? "text-purple-600 border-b-2 border-purple-600 bg-purple-50"
-                            : "text-gray-600 hover:text-gray-900 hover:bg-gray-50"
-                        }`}
+                        className={`flex-1 px-4 py-3 text-sm font-medium transition-colors ${activeTab === "transform"
+                          ? "text-purple-600 border-b-2 border-purple-600 bg-purple-50"
+                          : "text-gray-600 hover:text-gray-900 hover:bg-gray-50"
+                          }`}
                       >
                         Transform
                       </button>
                       <button
                         onClick={() => setActiveTab("target")}
-                        className={`flex-1 px-4 py-3 text-sm font-medium transition-colors ${
-                          activeTab === "target"
-                            ? "text-green-600 border-b-2 border-green-600 bg-green-50"
-                            : "text-gray-600 hover:text-gray-900 hover:bg-gray-50"
-                        }`}
+                        className={`flex-1 px-4 py-3 text-sm font-medium transition-colors ${activeTab === "target"
+                          ? "text-green-600 border-b-2 border-green-600 bg-green-50"
+                          : "text-gray-600 hover:text-gray-900 hover:bg-gray-50"
+                          }`}
                       >
                         Target
                       </button>
@@ -992,6 +988,17 @@ export default function ETLJobPage() {
                         return "#6b7280";
                     }
                   }}
+                  nodeComponent={({ x, y, width, color }) => (
+                    <rect
+                      x={x}
+                      y={y}
+                      width={width}
+                      height={30}
+                      fill={color}
+                      rx={4}
+                      ry={4}
+                    />
+                  )}
                   className="bg-white border border-gray-200"
                 />
                 <Background
@@ -1131,13 +1138,13 @@ export default function ETLJobPage() {
                           nds.map((n) =>
                             n.id === selectedNode.id
                               ? {
-                                  ...n,
-                                  data: {
-                                    ...n.data,
-                                    ...data,
-                                    schema: updatedSchema,
-                                  },
-                                }
+                                ...n,
+                                data: {
+                                  ...n.data,
+                                  ...data,
+                                  schema: updatedSchema,
+                                },
+                              }
                               : n
                           )
                         );

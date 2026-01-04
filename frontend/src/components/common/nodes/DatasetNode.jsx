@@ -202,11 +202,6 @@ const DatasetNode = ({ data, selected }) => {
                                     </div>
                                 );
                             })}
-                            {data.schema.length > 10 && (
-                                <div className="text-center text-xs text-gray-400 py-1.5 bg-gray-50">
-                                    +{data.schema.length - 10} more
-                                </div>
-                            )}
                         </div>
                     ) : (
                         <div className="px-3 py-3 text-xs text-gray-400 italic text-center">

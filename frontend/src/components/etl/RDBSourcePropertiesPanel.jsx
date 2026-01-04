@@ -204,7 +204,7 @@ export default function RDBSourcePropertiesPanel({ node, selectedMetadataItem, o
     };
 
     return (
-        <div className="w-96 bg-white border-l border-gray-200 h-full flex flex-col">
+        <div className="w-96 bg-white border-l border-gray-200 flex flex-col overflow-hidden" style={{ maxHeight: 'calc(100vh - 10rem)' }}>
             {/* Header */}
             <div className="px-4 py-3 border-b border-gray-200 flex items-center justify-between">
                 <h2 className="text-lg font-semibold text-gray-900">

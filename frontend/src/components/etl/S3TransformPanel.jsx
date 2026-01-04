@@ -112,7 +112,7 @@ export default function S3TransformPanel({ node, sourceBucket, sourcePath, onClo
   }, [selectedFields, filters, transformName]);
 
   return (
-    <div className="w-96 bg-white border-l border-gray-200 h-full flex flex-col">
+    <div className="w-96 bg-white border-l border-gray-200 flex flex-col overflow-hidden" style={{ maxHeight: 'calc(100vh - 10rem)' }}>
       {/* Header */}
       <div className="px-4 py-3 border-b border-gray-200 flex items-center justify-between">
         <h2 className="text-lg font-semibold text-gray-900">S3 Transform Properties</h2>
@@ -169,20 +169,20 @@ export default function S3TransformPanel({ node, sourceBucket, sourcePath, onClo
                 {allFields.map((field) => (
                   <label key={field} className="flex items-center gap-2 p-1.5 rounded cursor-pointer transition hover:bg-white">
                     <input
-                    type="checkbox"
-                    className="h-4 w-4 cursor-pointer"
-                    checked={selectedFields.includes(field)}
-                    onChange={(e) => {
-                      if (e.target.checked) {
-                        setSelectedFields([...selectedFields, field]);
-                      } else {
-                        setSelectedFields(selectedFields.filter(f => f !== field));
-                      }
-                    }}
-                  />
-                  <span className="text-xs font-mono text-gray-900 select-none">{field}</span>
-                </label>
-              ))}
+                      type="checkbox"
+                      className="h-4 w-4 cursor-pointer"
+                      checked={selectedFields.includes(field)}
+                      onChange={(e) => {
+                        if (e.target.checked) {
+                          setSelectedFields([...selectedFields, field]);
+                        } else {
+                          setSelectedFields(selectedFields.filter(f => f !== field));
+                        }
+                      }}
+                    />
+                    <span className="text-xs font-mono text-gray-900 select-none">{field}</span>
+                  </label>
+                ))}
               </div>
             )}
 
