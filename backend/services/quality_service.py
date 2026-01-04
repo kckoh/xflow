@@ -193,6 +193,36 @@ class QualityService:
                     SET s3_secret_access_key='{S3_SECRET_KEY}';
                 """)
             
+                """)
+            
+            # DEBUG: Detailed logging
+            print("="*50)
+            print("[Quality DEBUG INFO]")
+            print(f"Timestamp: {datetime.utcnow()}")
+            print(f"Dataset ID: {dataset_id}")
+            print(f"Environment: {env}")
+            print(f"S3 Region: {S3_REGION}")
+            print(f"Target Path: {s3_path}")
+            
+            # Check loaded extensions
+            try:
+                exts = conn.execute("SELECT name, loaded FROM duckdb_extensions() WHERE loaded=true").fetchall()
+                print(f"Loaded Extensions: {exts}")
+            except Exception as e:
+                print(f"Error checking extensions: {e}")
+                
+            # Try to list files with various patterns
+            patterns = [s3_path, s3_path.replace("**/*.parquet", "*"), s3_path.replace("**/*.parquet", "**/*")]
+            for pat in patterns:
+                try:
+                    print(f"Testing pattern: {pat}")
+                    files = conn.execute(f"SELECT * FROM glob('{pat}') LIMIT 3").fetchall()
+                    print(f" -> Found: {files}")
+                except Exception as e:
+                    print(f" -> Error: {e}")
+            
+            print("="*50)
+            
             # Build query for S3 paths (use all files, TABLESAMPLE handles sampling)
             s3_target_paths = [f"s3://{bucket}/{k}" for k in parquet_keys]
             
