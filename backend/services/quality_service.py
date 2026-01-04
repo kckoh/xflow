@@ -227,11 +227,12 @@ class QualityService:
             # Build query for S3 paths (use all files, TABLESAMPLE handles sampling)
             s3_target_paths = [f"s3://{bucket}/{k}" for k in parquet_keys]
             
+            # Use union_by_name=True to handle files with different schemas
             if len(s3_target_paths) == 1:
-                from_clause = f"read_parquet('{s3_target_paths[0]}'){sample_clause}"
+                from_clause = f"read_parquet('{s3_target_paths[0]}', union_by_name=True){sample_clause}"
             else:
                 paths_str = ", ".join([f"'{p}'" for p in s3_target_paths])
-                from_clause = f"read_parquet([{paths_str}]){sample_clause}"
+                from_clause = f"read_parquet([{paths_str}], union_by_name=True){sample_clause}"
             
             checks = []
             
