@@ -69,38 +69,20 @@ class SparkService:
                     "cores": 1,
                     "memory": "2g",
                     "serviceAccount": "spark-sa",
-                    "nodeSelector": {
-                        "node-type": "spark",
-                        "lifecycle": "spot",
-                    },
-                    "tolerations": [{
-                        "key": "spark-only",
-                        "operator": "Equal",
-                        "value": "true",
-                        "effect": "NoSchedule",
-                    }],
                     "env": [
                         {"name": "AWS_REGION", "value": "ap-northeast-2"},
                         {"name": "KAFKA_BOOTSTRAP_SERVERS", "value": KAFKA_BOOTSTRAP_SERVERS},
+                        {"name": "ENVIRONMENT", "value": "production"},
                     ],
                 },
                 "executor": {
                     "cores": 2,
                     "instances": 1,
                     "memory": "4g",
-                    "nodeSelector": {
-                        "node-type": "spark",
-                        "lifecycle": "spot",
-                    },
-                    "tolerations": [{
-                        "key": "spark-only",
-                        "operator": "Equal",
-                        "value": "true",
-                        "effect": "NoSchedule",
-                    }],
                     "env": [
                         {"name": "AWS_REGION", "value": "ap-northeast-2"},
                         {"name": "KAFKA_BOOTSTRAP_SERVERS", "value": KAFKA_BOOTSTRAP_SERVERS},
+                        {"name": "ENVIRONMENT", "value": "production"},
                     ],
                 },
                 "restartPolicy": {
