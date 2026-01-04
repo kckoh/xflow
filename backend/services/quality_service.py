@@ -179,6 +179,7 @@ class QualityService:
                 # Production (AWS): Use IAM Role, minimal configuration
                 # DuckDB will use AWS SDK default credential chain
                 conn.execute(f"""
+                    CALL load_aws_credentials();
                     SET s3_region='{S3_REGION}';
                 """)
             else:
@@ -191,8 +192,6 @@ class QualityService:
                     SET s3_region='{S3_REGION}';
                     SET s3_access_key_id='{S3_ACCESS_KEY}';
                     SET s3_secret_access_key='{S3_SECRET_KEY}';
-                """)
-            
                 """)
             
             # DEBUG: Detailed logging
