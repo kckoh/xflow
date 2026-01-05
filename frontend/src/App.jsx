@@ -1,6 +1,5 @@
 import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
 import Home from "./pages/home";
-import SignUp from "./pages/signup";
 import Login from "./pages/login";
 import DomainPage from "./pages/domain/DomainPage";
 import DomainDetailPage from "./pages/domain/DomainDetailPage";
@@ -31,7 +30,6 @@ function App() {
         <Routes>
           {/* Public Routes */}
           <Route path="/login" element={<Login />} />
-          <Route path="/signup" element={<SignUp />} />
 
           {/* Protected Routes Application Shell */}
           <Route element={<ProtectedRoute />}>
