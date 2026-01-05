@@ -55,6 +55,7 @@ function Login() {
           <h1 className="text-4xl font-bold bg-clip-text text-transparent bg-gradient-to-r from-blue-600 to-indigo-600 mb-2">
             XFlow
           </h1>
+          {/* Description */}
           <p className="text-gray-600">The Complete Data Pipeline Platform</p>
         </div>
 
