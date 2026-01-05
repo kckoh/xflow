@@ -1,12 +1,320 @@
 import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
-import { Play, Pause, Plus, Search, RefreshCw, Trash2, GitBranch } from "lucide-react";
+import { Search, RefreshCw, GitBranch, Calendar, X, Clock, Zap } from "lucide-react";
 import { API_BASE_URL } from "../../config/api";
+import SchedulesPanel from "../../components/etl/SchedulesPanel";
+
+// Mock ETL Jobs Data
+const MOCK_ETL_JOBS = [
+  {
+    id: "etl-001",
+    name: "user_analytics_daily",
+    description: "Daily user behavior analytics pipeline",
+    is_active: true,
+    status: "running",
+    job_type: "batch",
+    schedule: "0 2 * * *",
+    schedule_frequency: "daily",
+    last_run: "2024-01-20T14:30:00Z",
+  },
+  {
+    id: "etl-002",
+    name: "order_sync_realtime",
+    description: "Real-time order synchronization from PostgreSQL",
+    is_active: true,
+    status: "running",
+    job_type: "cdc",
+    schedule: null,
+    schedule_frequency: null,
+    last_run: "2024-01-20T16:45:00Z",
+  },
+  {
+    id: "etl-003",
+    name: "product_catalog_sync",
+    description: "Hourly product catalog sync to data lake",
+    is_active: false,
+    status: "success",
+    job_type: "batch",
+    schedule: "0 * * * *",
+    schedule_frequency: "hourly",
+    last_run: "2024-01-20T15:00:00Z",
+  },
+  {
+    id: "etl-004",
+    name: "customer_360_aggregation",
+    description: "Weekly customer 360 view aggregation",
+    is_active: false,
+    status: "success",
+    job_type: "batch",
+    schedule: "0 3 * * 0",
+    schedule_frequency: "weekly",
+    last_run: "2024-01-14T03:00:00Z",
+  },
+  {
+    id: "etl-005",
+    name: "clickstream_ingestion",
+    description: "Real-time clickstream data ingestion from Kafka",
+    is_active: true,
+    status: "running",
+    job_type: "cdc",
+    schedule: null,
+    schedule_frequency: null,
+    last_run: "2024-01-20T16:50:00Z",
+  },
+  {
+    id: "etl-006",
+    name: "inventory_snapshot",
+    description: "Daily inventory snapshot for reporting",
+    is_active: false,
+    status: "failed",
+    job_type: "batch",
+    schedule: "0 6 * * *",
+    schedule_frequency: "daily",
+    last_run: "2024-01-20T06:00:00Z",
+  },
+  {
+    id: "etl-007",
+    name: "sales_report_monthly",
+    description: "Monthly sales aggregation report",
+    is_active: false,
+    status: "success",
+    job_type: "batch",
+    schedule: "0 1 1 * *",
+    schedule_frequency: "monthly",
+    last_run: "2024-01-01T01:30:00Z",
+  },
+  {
+    id: "etl-008",
+    name: "log_parser_s3",
+    description: "Parse application logs from S3 bucket",
+    is_active: true,
+    status: "running",
+    job_type: "batch",
+    schedule: "*/30 * * * *",
+    schedule_frequency: "interval",
+    last_run: "2024-01-20T16:30:00Z",
+  },
+  {
+    id: "etl-009",
+    name: "ml_feature_store_sync",
+    description: "Sync ML features to feature store",
+    is_active: false,
+    status: "success",
+    job_type: "batch",
+    schedule: "0 */4 * * *",
+    schedule_frequency: "hourly",
+    last_run: "2024-01-20T12:00:00Z",
+  },
+  {
+    id: "etl-010",
+    name: "payment_events_cdc",
+    description: "CDC pipeline for payment transaction events",
+    is_active: false,
+    status: "paused",
+    job_type: "cdc",
+    schedule: null,
+    schedule_frequency: null,
+    last_run: "2024-01-16T14:30:00Z",
+  },
+];
+
+// Schedule Edit Modal Component
+function ScheduleModal({ isOpen, onClose, job, onSave }) {
+  const [jobType, setJobType] = useState(job?.job_type || "batch");
+  const [schedules, setSchedules] = useState([]);
+
+  useEffect(() => {
+    if (job) {
+      setJobType(job.job_type || "batch");
+      // Convert existing schedule to schedules array format if needed
+      if (job.schedule) {
+        setSchedules([{
+          id: Date.now(),
+          name: "Schedule 1",
+          cron: job.schedule,
+          frequency: job.schedule_frequency,
+        }]);
+      } else {
+        setSchedules([]);
+      }
+    }
+  }, [job]);
+
+  if (!isOpen || !job) return null;
+
+  const handleSave = () => {
+    onSave(job.id, { jobType, schedules });
+    onClose();
+  };
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center">
+      {/* Backdrop */}
+      <div className="absolute inset-0 bg-black/50" onClick={onClose} />
+
+      {/* Modal */}
+      <div className="relative bg-white rounded-lg shadow-xl w-full max-w-2xl mx-4 max-h-[80vh] overflow-hidden flex flex-col">
+        {/* Header */}
+        <div className="flex items-center justify-between px-6 py-4 border-b border-gray-200">
+          <div className="flex items-center gap-3">
+            <Calendar className="w-5 h-5 text-blue-500" />
+            <div>
+              <h3 className="text-lg font-semibold text-gray-900">Edit Schedule</h3>
+              <p className="text-sm text-gray-500">{job.name}</p>
+            </div>
+          </div>
+          <button
+            onClick={onClose}
+            className="p-1 hover:bg-gray-100 rounded-md transition-colors"
+          >
+            <X className="w-5 h-5 text-gray-500" />
+          </button>
+        </div>
+
+        {/* Content */}
+        <div className="flex-1 overflow-y-auto p-6 space-y-6">
+          {/* Job Type Selection */}
+          <div>
+            <h4 className="text-sm font-medium text-gray-700 mb-3">Job Type</h4>
+            <div className="grid grid-cols-2 gap-4">
+              <button
+                onClick={() => setJobType("batch")}
+                className={`relative p-4 rounded-lg border-2 text-left transition-all ${
+                  jobType === "batch"
+                    ? "border-blue-500 bg-blue-50"
+                    : "border-gray-200 hover:border-gray-300"
+                }`}
+              >
+                <div className="flex items-center gap-2 mb-1">
+                  <Clock className={`w-4 h-4 ${jobType === "batch" ? "text-blue-600" : "text-gray-400"}`} />
+                  <span className={`font-medium ${jobType === "batch" ? "text-blue-700" : "text-gray-700"}`}>
+                    Batch ETL
+                  </span>
+                </div>
+                <p className="text-xs text-gray-500">Run on schedule or manual trigger</p>
+              </button>
+
+              <button
+                onClick={() => setJobType("cdc")}
+                className={`relative p-4 rounded-lg border-2 text-left transition-all ${
+                  jobType === "cdc"
+                    ? "border-purple-500 bg-purple-50"
+                    : "border-gray-200 hover:border-gray-300"
+                }`}
+              >
+                <div className="flex items-center gap-2 mb-1">
+                  <Zap className={`w-4 h-4 ${jobType === "cdc" ? "text-purple-600" : "text-gray-400"}`} />
+                  <span className={`font-medium ${jobType === "cdc" ? "text-purple-700" : "text-gray-700"}`}>
+                    CDC Streaming
+                  </span>
+                </div>
+                <p className="text-xs text-gray-500">Real-time change data capture</p>
+              </button>
+            </div>
+          </div>
+
+          {/* Schedule Configuration - Only for Batch */}
+          {jobType === "batch" ? (
+            <div className="border border-gray-200 rounded-lg overflow-hidden">
+              <SchedulesPanel
+                schedules={schedules}
+                onUpdate={(newSchedules) => setSchedules(newSchedules)}
+              />
+            </div>
+          ) : (
+            <div className="bg-purple-50 rounded-lg border border-purple-200 p-4">
+              <div className="flex items-start gap-3">
+                <Zap className="w-5 h-5 text-purple-600 mt-0.5" />
+                <div>
+                  <h4 className="font-medium text-purple-900">CDC Streaming Mode</h4>
+                  <p className="text-sm text-purple-700 mt-1">
+                    CDC mode continuously syncs changes in real-time. No schedule configuration needed.
+                  </p>
+                </div>
+              </div>
+            </div>
+          )}
+        </div>
+
+        {/* Footer */}
+        <div className="flex items-center justify-end gap-3 px-6 py-4 border-t border-gray-200 bg-gray-50">
+          <button
+            onClick={onClose}
+            className="px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-100 rounded-lg transition-colors"
+          >
+            Cancel
+          </button>
+          <button
+            onClick={handleSave}
+            className="px-4 py-2 text-sm font-medium text-white bg-blue-600 hover:bg-blue-700 rounded-lg transition-colors"
+          >
+            Save Changes
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// Schedule Display Badge
+function ScheduleBadge({ job, onClick }) {
+  if (job.job_type === "cdc") {
+    return (
+      <button
+        onClick={onClick}
+        className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs font-medium bg-purple-100 text-purple-700 hover:bg-purple-200 transition-colors"
+      >
+        <Zap className="w-3 h-3" />
+        CDC
+      </button>
+    );
+  }
+
+  if (!job.schedule) {
+    return (
+      <button
+        onClick={onClick}
+        className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs font-medium bg-gray-100 text-gray-600 hover:bg-gray-200 transition-colors"
+      >
+        <Calendar className="w-3 h-3" />
+        Manual
+      </button>
+    );
+  }
+
+  const getScheduleLabel = () => {
+    switch (job.schedule_frequency) {
+      case "daily":
+        return "Daily";
+      case "hourly":
+        return "Hourly";
+      case "weekly":
+        return "Weekly";
+      case "monthly":
+        return "Monthly";
+      case "interval":
+        return "Interval";
+      default:
+        return job.schedule;
+    }
+  };
+
+  return (
+    <button
+      onClick={onClick}
+      className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs font-medium bg-blue-100 text-blue-700 hover:bg-blue-200 transition-colors"
+    >
+      <Clock className="w-3 h-3" />
+      {getScheduleLabel()}
+    </button>
+  );
+}
 
 export default function EtlJobsPage() {
   const [jobs, setJobs] = useState([]);
   const [isLoading, setIsLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState("");
+  const [scheduleModal, setScheduleModal] = useState({ isOpen: false, job: null });
   const navigate = useNavigate();
 
   useEffect(() => {
@@ -21,13 +329,32 @@ export default function EtlJobsPage() {
       });
       if (response.ok) {
         const data = await response.json();
-        setJobs(data);
+        setJobs(data.length > 0 ? data : MOCK_ETL_JOBS);
+      } else {
+        setJobs(MOCK_ETL_JOBS);
       }
     } catch (error) {
       console.error("Failed to fetch jobs:", error);
+      setJobs(MOCK_ETL_JOBS);
     } finally {
       setIsLoading(false);
     }
+  };
+
+  const handleScheduleSave = (jobId, { jobType, schedules }) => {
+    // Update local state (in real app, would call API)
+    setJobs(prev => prev.map(job => {
+      if (job.id === jobId) {
+        return {
+          ...job,
+          job_type: jobType,
+          schedule: schedules[0]?.cron || null,
+          schedule_frequency: schedules[0]?.frequency || null,
+        };
+      }
+      return job;
+    }));
+    console.log("Schedule saved:", { jobId, jobType, schedules });
   };
 
   const filteredJobs = jobs.filter(
@@ -38,18 +365,9 @@ export default function EtlJobsPage() {
 
   return (
     <div className="p-6">
-      <div className="flex justify-between items-center mb-6">
-        <div>
-          <h1 className="text-2xl font-bold text-gray-900">ETL Jobs</h1>
-          <p className="text-gray-500 mt-1">Manage your ETL pipelines</p>
-        </div>
-        <button
-          onClick={() => navigate("/etl/visual")}
-          className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
-        >
-          <Plus className="w-4 h-4" />
-          New Job
-        </button>
+      <div className="mb-6">
+        <h1 className="text-2xl font-bold text-gray-900">ETL Jobs</h1>
+        <p className="text-gray-500 mt-1">Manage your ETL pipelines</p>
       </div>
 
       <div className="mb-6 flex gap-4">
@@ -86,6 +404,7 @@ export default function EtlJobsPage() {
               <tr>
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Name</th>
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Status</th>
+                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Schedule</th>
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Last Run</th>
                 <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase">Actions</th>
               </tr>
@@ -104,13 +423,26 @@ export default function EtlJobsPage() {
                   <td className="px-6 py-4">
                     <span
                       className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${
-                        job.is_active
+                        job.status === "running"
                           ? "bg-green-100 text-green-800"
+                          : job.status === "failed"
+                          ? "bg-red-100 text-red-800"
+                          : job.status === "paused"
+                          ? "bg-yellow-100 text-yellow-800"
                           : "bg-gray-100 text-gray-800"
                       }`}
                     >
-                      {job.is_active ? "Active" : "Inactive"}
+                      {job.status || (job.is_active ? "Active" : "Inactive")}
                     </span>
+                  </td>
+                  <td className="px-6 py-4">
+                    <ScheduleBadge
+                      job={job}
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        setScheduleModal({ isOpen: true, job });
+                      }}
+                    />
                   </td>
                   <td className="px-6 py-4 text-sm text-gray-500">
                     {job.last_run ? new Date(job.last_run).toLocaleString() : "-"}
@@ -132,6 +464,14 @@ export default function EtlJobsPage() {
           </table>
         )}
       </div>
+
+      {/* Schedule Edit Modal */}
+      <ScheduleModal
+        isOpen={scheduleModal.isOpen}
+        onClose={() => setScheduleModal({ isOpen: false, job: null })}
+        job={scheduleModal.job}
+        onSave={handleScheduleSave}
+      />
     </div>
   );
 }

@@ -15,6 +15,158 @@ import { useToast } from "../../components/common/Toast";
 import { API_BASE_URL } from "../../config/api";
 const ITEMS_PER_PAGE = 10;
 
+// Mock ETL Jobs Data
+const MOCK_ETL_JOBS = [
+  {
+    id: "etl-001",
+    name: "user_analytics_daily",
+    description: "Daily user behavior analytics pipeline",
+    dataset_type: "source",
+    job_type: "batch",
+    status: "active",
+    schedule: "0 2 * * *",
+    schedule_frequency: "daily",
+    ui_params: { startDate: "2024-01-15T02:00:00Z" },
+    is_active: false,
+    updated_at: "2024-01-20T14:30:00Z",
+  },
+  {
+    id: "etl-002",
+    name: "order_sync_realtime",
+    description: "Real-time order synchronization from PostgreSQL",
+    dataset_type: "source",
+    job_type: "cdc",
+    status: "active",
+    schedule: null,
+    is_active: true,
+    updated_at: "2024-01-20T10:15:00Z",
+  },
+  {
+    id: "etl-003",
+    name: "product_catalog_sync",
+    description: "Hourly product catalog sync to data lake",
+    dataset_type: "target",
+    job_type: "batch",
+    status: "active",
+    schedule: "0 * * * *",
+    schedule_frequency: "hourly",
+    ui_params: { hourInterval: 1 },
+    is_active: false,
+    updated_at: "2024-01-19T22:00:00Z",
+  },
+  {
+    id: "etl-004",
+    name: "customer_360_aggregation",
+    description: "Weekly customer 360 view aggregation",
+    dataset_type: "target",
+    job_type: "batch",
+    status: "paused",
+    schedule: "0 3 * * 0",
+    schedule_frequency: "weekly",
+    ui_params: { startDate: "2024-01-14T03:00:00Z" },
+    is_active: false,
+    updated_at: "2024-01-18T09:45:00Z",
+  },
+  {
+    id: "etl-005",
+    name: "clickstream_ingestion",
+    description: "Real-time clickstream data ingestion from Kafka",
+    dataset_type: "source",
+    job_type: "cdc",
+    status: "active",
+    schedule: null,
+    is_active: true,
+    updated_at: "2024-01-20T16:20:00Z",
+  },
+  {
+    id: "etl-006",
+    name: "inventory_snapshot",
+    description: "Daily inventory snapshot for reporting",
+    dataset_type: "source",
+    job_type: "batch",
+    status: "draft",
+    schedule: "0 6 * * *",
+    schedule_frequency: "daily",
+    ui_params: { startDate: "2024-01-15T06:00:00Z" },
+    is_active: false,
+    updated_at: "2024-01-17T11:30:00Z",
+  },
+  {
+    id: "etl-007",
+    name: "sales_report_monthly",
+    description: "Monthly sales aggregation report",
+    dataset_type: "target",
+    job_type: "batch",
+    status: "active",
+    schedule: "0 1 1 * *",
+    schedule_frequency: "monthly",
+    ui_params: { startDate: "2024-01-01T01:00:00Z" },
+    is_active: false,
+    updated_at: "2024-01-15T08:00:00Z",
+  },
+  {
+    id: "etl-008",
+    name: "log_parser_s3",
+    description: "Parse application logs from S3 bucket",
+    dataset_type: "source",
+    job_type: "batch",
+    status: "active",
+    schedule: "*/30 * * * *",
+    schedule_frequency: "interval",
+    ui_params: { intervalMinutes: 30 },
+    is_active: false,
+    updated_at: "2024-01-20T12:00:00Z",
+  },
+  {
+    id: "etl-009",
+    name: "ml_feature_store_sync",
+    description: "Sync ML features to feature store",
+    dataset_type: "target",
+    job_type: "batch",
+    status: "active",
+    schedule: "0 */4 * * *",
+    schedule_frequency: "hourly",
+    ui_params: { hourInterval: 4 },
+    is_active: false,
+    updated_at: "2024-01-20T08:00:00Z",
+  },
+  {
+    id: "etl-010",
+    name: "payment_events_cdc",
+    description: "CDC pipeline for payment transaction events",
+    dataset_type: "source",
+    job_type: "cdc",
+    status: "paused",
+    schedule: null,
+    is_active: false,
+    updated_at: "2024-01-16T14:30:00Z",
+  },
+  {
+    id: "etl-011",
+    name: "data_quality_check",
+    description: "Daily data quality validation pipeline",
+    dataset_type: "target",
+    job_type: "batch",
+    status: "active",
+    schedule: "0 5 * * *",
+    schedule_frequency: "daily",
+    ui_params: { startDate: "2024-01-15T05:00:00Z" },
+    is_active: false,
+    updated_at: "2024-01-20T05:00:00Z",
+  },
+  {
+    id: "etl-012",
+    name: "customer_churn_model_data",
+    description: "Prepare training data for churn prediction model",
+    dataset_type: "target",
+    job_type: "batch",
+    status: "draft",
+    schedule: null,
+    is_active: false,
+    updated_at: "2024-01-14T10:00:00Z",
+  },
+];
+
 export default function ETLMain() {
   const [jobs, setJobs] = useState([]);
   const [isLoading, setIsLoading] = useState(true);
@@ -69,10 +221,16 @@ export default function ETLMain() {
         const data = await response.json();
         // Sort by updated_at descending (newest first)
         const sortedData = data.sort((a, b) => new Date(b.updated_at) - new Date(a.updated_at));
-        setJobs(sortedData);
+        // Use mock data if API returns empty
+        setJobs(sortedData.length > 0 ? sortedData : MOCK_ETL_JOBS);
+      } else {
+        // Use mock data on API error
+        setJobs(MOCK_ETL_JOBS);
       }
     } catch (error) {
       console.error("Failed to fetch jobs:", error);
+      // Use mock data on network error
+      setJobs(MOCK_ETL_JOBS);
     } finally {
       setIsLoading(false);
     }
