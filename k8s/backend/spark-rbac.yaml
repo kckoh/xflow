@@ -1,0 +1,23 @@
+# RBAC for Backend to manage SparkApplications
+# Backend needs to create/delete SparkApplication CRDs in spark-jobs namespace
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: backend-spark-manager
+rules:
+  - apiGroups: ["sparkoperator.k8s.io"]
+    resources: ["sparkapplications"]
+    verbs: ["get", "list", "create", "delete", "update", "patch"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: backend-spark-manager-binding
+subjects:
+  - kind: ServiceAccount
+    name: backend-sa
+    namespace: xflow
+roleRef:
+  kind: ClusterRole
+  name: backend-spark-manager
+  apiGroup: rbac.authorization.k8s.io

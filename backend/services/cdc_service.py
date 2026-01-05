@@ -2,13 +2,14 @@
 CDC Service - Kafka Connect 커넥터 관리
 역할: Debezium 커넥터 등록/삭제/상태 확인
 """
+import os
 import httpx
 import logging
 from typing import Dict, List
 
 logger = logging.getLogger(__name__)
 
-KAFKA_CONNECT_URL = "http://kafka-connect:8083"
+KAFKA_CONNECT_URL = os.getenv("KAFKA_CONNECT_URL", "http://kafka-connect:8083")
 
 
 class CDCService:

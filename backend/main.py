@@ -1,9 +1,20 @@
 import os
+import logging
 from dotenv import load_dotenv
 
 # ⚠️ 중요: 다른 import보다 먼저 .env 파일 로드해야 함!
 # routers.logs → utils.log_utils → os.getenv() 순서로 실행되기 때문
 load_dotenv()
+
+# Logging 설정
+logging.basicConfig(
+    level=logging.INFO,
+    format='%(asctime)s [%(levelname)s] %(name)s: %(message)s',
+    force=True  # 기존 설정 덮어쓰기
+)
+# 모든 logger가 출력되도록 root logger 레벨 설정
+logging.getLogger().setLevel(logging.INFO)
+logging.getLogger("services").setLevel(logging.INFO)
 
 from contextlib import asynccontextmanager
 from fastapi import FastAPI
