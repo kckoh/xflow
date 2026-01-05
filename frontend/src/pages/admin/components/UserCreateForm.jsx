@@ -176,6 +176,9 @@ function DatasetPermissionSelector({ datasets, selectedDatasets, onChange }) {
     };
 
     const handleRowClick = (datasetId) => {
+        // Toggle selection when clicking row
+        handleToggle(datasetId);
+        // Also toggle pinned state for detail view
         if (pinnedDataset === datasetId) {
             setPinnedDataset(null);
         } else {
