@@ -19,13 +19,14 @@ export function QualityContent({ dataset, isDomainMode }) {
     const [showHistory, setShowHistory] = useState(false);
     const [s3Path, setS3Path] = useState(null);
 
-    // Get dataset ID (handle both domain node and direct dataset)
-    const datasetId = dataset?.mongoId || dataset?.data?.mongoId || dataset?.id || dataset?._id;
-
-    // Get source job ID from dataset or parse from node ID
+    // Get source job ID from dataset or parse from node ID format: "node-{jobId}-{index}-{timestamp}"
     const sourceJobId = dataset?.sourceJobId || dataset?.data?.sourceJobId ||
-        // Parse job ID from node ID format: "node-{jobId}-{index}-{timestamp}"
         (dataset?.id?.startsWith('node-') ? dataset.id.split('-')[1] : null);
+
+    // Use jobId as the key for quality results
+    // - Same job = shared quality (even across domains)
+    // - Different jobs = independent quality
+    const datasetId = sourceJobId || dataset?.mongoId || dataset?.data?.mongoId || dataset?.id || dataset?._id;
 
     // Get S3 path from dataset structure
     useEffect(() => {
@@ -73,9 +74,18 @@ export function QualityContent({ dataset, isDomainMode }) {
                             try {
                                 const { getEtlJob } = await import("../../api/domainApi");
                                 const jobData = await getEtlJob(nodeJobId);
-                                const path = jobData.destination?.s3_path ||
+                                let path = jobData.destination?.s3_path ||
                                     jobData.destination?.path ||
                                     jobData.destination?.config?.s3Location;
+
+                                // ETL writes to {path}/{job_name}/, so append job name
+                                if (path && jobData.name) {
+                                    if (!path.endsWith('/')) {
+                                        path = path + '/';
+                                    }
+                                    path = path + jobData.name + '/';
+                                }
+
                                 if (path) {
                                     console.log('[QualityContent] Fetched S3 path from node job:', path);
                                     setS3Path(path);
@@ -94,9 +104,17 @@ export function QualityContent({ dataset, isDomainMode }) {
                 const { getEtlJob } = await import("../../api/domainApi");
                 const jobData = await getEtlJob(jobId);
 
-                const path = jobData.destination?.s3_path ||
+                let path = jobData.destination?.s3_path ||
                     jobData.destination?.path ||
                     jobData.destination?.config?.s3_path;
+
+                // ETL writes to {path}/{job_name}/, so append job name for accurate quality check
+                if (path && jobData.name) {
+                    if (!path.endsWith('/')) {
+                        path = path + '/';
+                    }
+                    path = path + jobData.name + '/';
+                }
 
                 console.log('[QualityContent] Fetched S3 path from job:', path);
                 setS3Path(path);

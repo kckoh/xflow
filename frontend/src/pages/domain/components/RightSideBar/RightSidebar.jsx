@@ -93,7 +93,7 @@ export function RightSidebar({
             case "columns":
                 return <ColumnsContent dataset={dataset} isDomainMode={isDomainMode} onNodeSelect={onNodeSelect} nodePermissions={nodePermissions} canEditDomain={canEditDomain} />;
             case "quality":
-                return <QualityContent dataset={domain} isDomainMode={true} />;
+                return <QualityContent dataset={dataset} isDomainMode={isDomainMode} />;
             case "lineage":
                 return <StreamImpactContent streamData={streamData} onNodeSelect={onNodeSelect} />;
             case "docs":
