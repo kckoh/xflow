@@ -10,6 +10,7 @@ import {
   ChevronRight,
   Sparkles,
   Activity,
+  Wrench,
 } from "lucide-react";
 import { useAuth } from "../../context/AuthContext";
 import { useAICopilot } from "../../context/AICopilotContext";
@@ -26,6 +27,7 @@ export function Sidebar({ isCollapsed, onToggle }) {
     { name: "ETL Jobs", path: "/etl", icon: List, requiresEtlAccess: true },
     { name: "Catalog", path: "/catalog", icon: Activity },
     { name: "Query", path: "/query", icon: Search },
+    { name: "Admin", path: "/admin", icon: Wrench, adminOnly: true },
   ];
 
   // Filter items based on user permissions

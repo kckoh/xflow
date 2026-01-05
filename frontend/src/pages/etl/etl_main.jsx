@@ -9,6 +9,7 @@ import {
   Database,
 } from "lucide-react";
 import ConfirmationModal from "../../components/common/ConfirmationModal";
+import CreateDatasetModal from "../../components/etl/CreateDatasetModal";
 import { useToast } from "../../components/common/Toast";
 import { API_BASE_URL } from "../../config/api";
 const ITEMS_PER_PAGE = 10;
@@ -23,6 +24,7 @@ export default function ETLMain() {
     jobId: null,
     jobName: "",
   });
+  const [showCreateModal, setShowCreateModal] = useState(false);
   const navigate = useNavigate();
   const location = useLocation();
   const { showToast } = useToast();
@@ -163,6 +165,10 @@ export default function ETLMain() {
     setDeleteModal({ isOpen: false, jobId: null, jobName: "" });
   };
 
+  const handleCreateDataset = (jobType) => {
+    navigate("/etl/visual", { state: { jobType } });
+  };
+
   const getScheduleDisplay = (job) => {
     if (!job.schedule) return <span className="text-gray-400 italic">Manual</span>;
 
@@ -217,7 +223,7 @@ export default function ETLMain() {
       <div className="flex items-center justify-between mb-6">
         <h1 className="text-2xl font-bold text-gray-900">Dataset</h1>
         <button
-          onClick={() => navigate("/etl/visual")}
+          onClick={() => setShowCreateModal(true)}
           className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
         >
           <Plus className="w-4 h-4" />
@@ -485,6 +491,13 @@ export default function ETLMain() {
         confirmText="Delete"
         cancelText="Cancel"
         variant="danger"
+      />
+
+      {/* Create Dataset Modal */}
+      <CreateDatasetModal
+        isOpen={showCreateModal}
+        onClose={() => setShowCreateModal(false)}
+        onSelect={handleCreateDataset}
       />
     </div>
   );

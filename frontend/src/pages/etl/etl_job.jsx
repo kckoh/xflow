@@ -31,7 +31,7 @@ import { DeletionEdge } from "../domain/components/CustomEdges";
 import { SiPostgresql, SiMongodb } from "@icons-pack/react-simple-icons";
 import { useToast } from "../../components/common/Toast";
 import "./etl_job.css";
-import { useNavigate, useParams } from "react-router-dom";
+import { useNavigate, useParams, useLocation } from "react-router-dom";
 import { API_BASE_URL } from "../../config/api";
 import RDBSourcePropertiesPanel from "../../components/etl/RDBSourcePropertiesPanel";
 import MongoDBSourcePropertiesPanel from "../../components/etl/MongoDBSourcePropertiesPanel";
@@ -115,7 +115,9 @@ const resolveSourceTypesForNode = (nodeId, nodes, edges) => {
 
 export default function ETLJobPage() {
   const navigate = useNavigate();
+  const location = useLocation();
   const { jobId: urlJobId } = useParams();
+  const initialJobType = location.state?.jobType || "batch";
   const [nodes, setNodes, onNodesChange] = useNodesState(initialNodes);
   const [edges, setEdges, onEdgesChange] = useEdgesState(initialEdges);
   const [jobName, setJobName] = useState("Untitled Job");
@@ -125,7 +127,7 @@ export default function ETLJobPage() {
   const [selectedNode, setSelectedNode] = useState(null);
   const [jobDetails, setJobDetails] = useState({
     description: "",
-    jobType: "batch",
+    jobType: initialJobType,
     glueVersion: "4.0",
     workerType: "G.1X",
     numberOfWorkers: 2,
