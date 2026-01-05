@@ -165,8 +165,8 @@ export default function ETLMain() {
     setDeleteModal({ isOpen: false, jobId: null, jobName: "" });
   };
 
-  const handleCreateDataset = (jobType) => {
-    navigate("/etl/visual", { state: { jobType } });
+  const handleCreateDataset = (datasetType) => {
+    navigate("/etl/visual", { state: { datasetType } });
   };
 
   const getScheduleDisplay = (job) => {

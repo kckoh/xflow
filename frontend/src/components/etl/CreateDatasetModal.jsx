@@ -1,8 +1,8 @@
 import { useState } from "react";
-import { X, Database, Zap } from "lucide-react";
+import { X, Database, Upload, Download } from "lucide-react";
 
 export default function CreateDatasetModal({ isOpen, onClose, onSelect }) {
-  const [selectedType, setSelectedType] = useState("batch");
+  const [selectedType, setSelectedType] = useState("source");
 
   if (!isOpen) return null;
 
@@ -25,7 +25,7 @@ export default function CreateDatasetModal({ isOpen, onClose, onSelect }) {
         <div className="flex items-center justify-between px-6 py-4 border-b border-gray-200">
           <div className="flex items-center gap-3">
             <Database className="w-5 h-5 text-gray-500" />
-            <h3 className="text-lg font-semibold text-gray-900">Create Dataset</h3>
+            <h3 className="text-lg font-semibold text-gray-900">Select Type</h3>
           </div>
           <button
             onClick={onClose}
@@ -40,29 +40,36 @@ export default function CreateDatasetModal({ isOpen, onClose, onSelect }) {
           <p className="text-sm text-gray-600 mb-4">Select the dataset type:</p>
 
           <div className="grid grid-cols-2 gap-4">
-            {/* Batch Option */}
+            {/* Source Option */}
             <button
-              onClick={() => setSelectedType("batch")}
+              onClick={() => setSelectedType("source")}
               className={`relative flex items-start p-4 border-2 rounded-lg transition-all text-left cursor-pointer ${
-                selectedType === "batch"
-                  ? "border-blue-500 bg-blue-50"
+                selectedType === "source"
+                  ? "border-emerald-500 bg-emerald-50"
                   : "border-gray-200 hover:border-gray-300 hover:bg-gray-50"
               }`}
             >
               <div className="flex-1">
-                <span
-                  className={`block font-medium ${
-                    selectedType === "batch" ? "text-blue-700" : "text-gray-700"
-                  }`}
-                >
-                  Batch ETL
-                </span>
+                <div className="flex items-center gap-2">
+                  <span
+                    className={`font-medium ${
+                      selectedType === "source" ? "text-emerald-700" : "text-gray-700"
+                    }`}
+                  >
+                    Source
+                  </span>
+                  <Upload
+                    className={`w-4 h-4 ${
+                      selectedType === "source" ? "text-emerald-500" : "text-gray-400"
+                    }`}
+                  />
+                </div>
                 <span className="block text-sm text-gray-500 mt-1">
-                  Process data on schedule or manually
+                  Import data from external sources
                 </span>
               </div>
-              {selectedType === "batch" && (
-                <div className="absolute top-3 right-3 w-5 h-5 bg-blue-500 rounded-full flex items-center justify-center">
+              {selectedType === "source" && (
+                <div className="absolute top-3 right-3 w-5 h-5 bg-emerald-500 rounded-full flex items-center justify-center">
                   <svg
                     className="w-3 h-3 text-white"
                     fill="currentColor"
@@ -78,12 +85,12 @@ export default function CreateDatasetModal({ isOpen, onClose, onSelect }) {
               )}
             </button>
 
-            {/* CDC Option */}
+            {/* Target Option */}
             <button
-              onClick={() => setSelectedType("cdc")}
+              onClick={() => setSelectedType("target")}
               className={`relative flex items-start p-4 border-2 rounded-lg transition-all text-left cursor-pointer ${
-                selectedType === "cdc"
-                  ? "border-green-500 bg-green-50"
+                selectedType === "target"
+                  ? "border-orange-500 bg-orange-50"
                   : "border-gray-200 hover:border-gray-300 hover:bg-gray-50"
               }`}
             >
@@ -91,23 +98,23 @@ export default function CreateDatasetModal({ isOpen, onClose, onSelect }) {
                 <div className="flex items-center gap-2">
                   <span
                     className={`font-medium ${
-                      selectedType === "cdc" ? "text-green-700" : "text-gray-700"
+                      selectedType === "target" ? "text-orange-700" : "text-gray-700"
                     }`}
                   >
-                    CDC (Streaming)
+                    Target
                   </span>
-                  <Zap
+                  <Download
                     className={`w-4 h-4 ${
-                      selectedType === "cdc" ? "text-green-500" : "text-yellow-500"
+                      selectedType === "target" ? "text-orange-500" : "text-gray-400"
                     }`}
                   />
                 </div>
                 <span className="block text-sm text-gray-500 mt-1">
-                  Real-time sync changes to S3
+                  Export data to destination
                 </span>
               </div>
-              {selectedType === "cdc" && (
-                <div className="absolute top-3 right-3 w-5 h-5 bg-green-500 rounded-full flex items-center justify-center">
+              {selectedType === "target" && (
+                <div className="absolute top-3 right-3 w-5 h-5 bg-orange-500 rounded-full flex items-center justify-center">
                   <svg
                     className="w-3 h-3 text-white"
                     fill="currentColor"

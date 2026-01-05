@@ -117,7 +117,7 @@ export default function ETLJobPage() {
   const navigate = useNavigate();
   const location = useLocation();
   const { jobId: urlJobId } = useParams();
-  const initialJobType = location.state?.jobType || "batch";
+  const initialDatasetType = location.state?.datasetType || "source";
   const [nodes, setNodes, onNodesChange] = useNodesState(initialNodes);
   const [edges, setEdges, onEdgesChange] = useEdgesState(initialEdges);
   const [jobName, setJobName] = useState("Untitled Job");
@@ -127,7 +127,8 @@ export default function ETLJobPage() {
   const [selectedNode, setSelectedNode] = useState(null);
   const [jobDetails, setJobDetails] = useState({
     description: "",
-    jobType: initialJobType,
+    jobType: "batch",
+    datasetType: initialDatasetType,
     glueVersion: "4.0",
     workerType: "G.1X",
     numberOfWorkers: 2,
@@ -603,6 +604,7 @@ export default function ETLJobPage() {
       name: jobName,
       description: jobDetails.description || "",
       job_type: jobDetails.jobType || "batch",
+      dataset_type: jobDetails.datasetType || "source",
       sources,
       transforms,
       destination,
