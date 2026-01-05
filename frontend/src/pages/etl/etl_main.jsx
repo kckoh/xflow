@@ -3,14 +3,10 @@ import { useNavigate, useLocation } from "react-router-dom";
 import {
   Play,
   Pause,
-  Code,
-  FileText,
-  BarChart3,
   Plus,
-  Info,
-  RefreshCw,
   Trash2,
   Search,
+  Database,
 } from "lucide-react";
 import ConfirmationModal from "../../components/common/ConfirmationModal";
 import { useToast } from "../../components/common/Toast";
@@ -167,17 +163,6 @@ export default function ETLMain() {
     setDeleteModal({ isOpen: false, jobId: null, jobName: "" });
   };
 
-  const createJobOptions = [
-    {
-      title: "Visual Dataset",
-      description: "Author in a visual interface focused on data flow.",
-      icon: BarChart3,
-      color: "bg-blue-50 hover:bg-blue-100",
-      iconColor: "text-blue-600",
-      action: () => navigate("/etl/visual"),
-    },
-  ];
-
   const getScheduleDisplay = (job) => {
     if (!job.schedule) return <span className="text-gray-400 italic">Manual</span>;
 
@@ -228,32 +213,19 @@ export default function ETLMain() {
 
   return (
     <div className="min-h-screen bg-gray-50 px-6 pt-2 pb-6">
-      {/* Create a Dataset Section */}
-      <div className="mb-8">
-        <div className="flex items-center gap-2 mb-4">
-          <h2 className="text-lg font-semibold text-gray-900">
-            Create Dataset
-          </h2>
-        </div>
-
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-          {createJobOptions.map((option, index) => (
-            <button
-              key={index}
-              onClick={option.action}
-              className={`${option.color} p-6 rounded-lg border border-gray-200 transition-all duration-200 text-left hover:shadow-md`}
-            >
-              <option.icon className={`w-8 h-8 ${option.iconColor} mb-3`} />
-              <h3 className="font-semibold text-gray-900 mb-1">
-                {option.title}
-              </h3>
-              <p className="text-sm text-gray-600">{option.description}</p>
-            </button>
-          ))}
-        </div>
+      {/* Header with Create Button */}
+      <div className="flex items-center justify-between mb-6">
+        <h1 className="text-2xl font-bold text-gray-900">Dataset</h1>
+        <button
+          onClick={() => navigate("/etl/visual")}
+          className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
+        >
+          <Plus className="w-4 h-4" />
+          Create Dataset
+        </button>
       </div>
 
-      {/* Your Jobs Section */}
+      {/* Datasets Table */}
       <div className="bg-white rounded-lg shadow">
         {/* Header with Actions */}
         <div className="border-b border-gray-200 px-6 py-4 flex items-center justify-between">
@@ -282,7 +254,7 @@ export default function ETLMain() {
           /* Empty State */
           <div className="px-6 py-12 text-center">
             <div className="max-w-md mx-auto">
-              <BarChart3 className="w-16 h-16 text-gray-300 mx-auto mb-4" />
+              <Database className="w-16 h-16 text-gray-300 mx-auto mb-4" />
               <h3 className="text-lg font-medium text-gray-900 mb-2">
                 No jobs
               </h3>
