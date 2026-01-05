@@ -23,7 +23,7 @@ export function Sidebar({ isCollapsed, onToggle }) {
 
   const allNavItems = [
     { name: "Dataset", path: "/dataset", icon: Database },
-    { name: "ETL Jobs", path: "/", icon: List, requiresEtlAccess: true },
+    { name: "ETL Jobs", path: "/etl", icon: List, requiresEtlAccess: true },
     { name: "Catalog", path: "/catalog", icon: Activity },
     { name: "Query", path: "/query", icon: Search },
   ];

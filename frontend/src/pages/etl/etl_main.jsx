@@ -307,7 +307,13 @@ export default function ETLMain() {
                     Dataset name
                   </th>
                   <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                    Status
+                    ID
+                  </th>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                    Type
+                  </th>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                    Pattern
                   </th>
                   <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                     Schedule
@@ -331,6 +337,20 @@ export default function ETLMain() {
                       onClick={() => navigate(`/etl/job/${job.id}`)}
                     >
                       {job.name}
+                    </td>
+                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500 font-mono">
+                      {job.id}
+                    </td>
+                    <td className="px-6 py-4 whitespace-nowrap text-sm">
+                      <span
+                        className={`px-2 py-1 text-xs font-semibold rounded-full ${
+                          job.dataset_type === "source"
+                            ? "bg-emerald-100 text-emerald-800"
+                            : "bg-orange-100 text-orange-800"
+                        }`}
+                      >
+                        {job.dataset_type === "source" ? "Source" : "Target"}
+                      </span>
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap text-sm">
                       {job.job_type === "cdc" ? (

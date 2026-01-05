@@ -8,12 +8,12 @@ import ProtectedRoute from "./components/ProtectedRoute";
 import MainLayout from "./components/layout/MainLayout";
 import ETLJobPage from "./pages/etl/etl_job";
 import ETLPage from "./pages/etl/etl_main";
+import EtlJobsPage from "./pages/etl/EtlJobsPage";
 import ConnectionListPage from "./pages/sources/ConnectionListPage";
 import ConnectionCreatePage from "./pages/sources/ConnectionCreatePage";
 import QueryPage from "./pages/query/QueryPage";
 import AdminPage from "./pages/admin/AdminPage";
 import QualityDashboard from "./pages/Quality/QualityDashboard";
-import DatasetPage from "./pages/dataset/DatasetPage";
 import CatalogPage from "./pages/catalog/CatalogPage";
 import { ToastProvider } from "./components/common/Toast";
 
@@ -58,13 +58,7 @@ function App() {
           {/* Re-structuring for clarity: */}
           <Route
             path="/"
-            element={
-              <ProtectedRoute requireEtlAccess>
-                <MainLayout>
-                  <ETLPage />
-                </MainLayout>
-              </ProtectedRoute>
-            }
+            element={<Navigate to="/dataset" replace />}
           />
 
           <Route
@@ -72,7 +66,7 @@ function App() {
             element={
               <ProtectedRoute>
                 <MainLayout>
-                  <DatasetPage />
+                  <ETLPage />
                 </MainLayout>
               </ProtectedRoute>
             }
@@ -161,6 +155,17 @@ function App() {
               <ProtectedRoute requireAdmin>
                 <MainLayout>
                   <AdminPage />
+                </MainLayout>
+              </ProtectedRoute>
+            }
+          />
+
+          <Route
+            path="/etl"
+            element={
+              <ProtectedRoute requireEtlAccess>
+                <MainLayout>
+                  <EtlJobsPage />
                 </MainLayout>
               </ProtectedRoute>
             }
