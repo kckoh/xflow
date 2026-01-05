@@ -145,6 +145,7 @@ def health_check():
     return {"status": "healthy"}
 
 
+# add a test api
 @app.get("/test")
 def test_check():
     return {"status": "test"}
