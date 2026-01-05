@@ -29,10 +29,10 @@ webserver:
       eks.amazonaws.com/role-arn: "arn:aws:iam::134059028370:role/eksctl-xflow-cluster-addon-iamserviceaccount--Role1-bLIJeAhC8jWI"
   resources:
     requests:
-      memory: "1Gi"
+      memory: "2Gi"
       cpu: "250m"
     limits:
-      memory: "2Gi"
+      memory: "3Gi"
       cpu: "500m"
   service:
     type: ClusterIP
