@@ -63,23 +63,10 @@ function DatasetPermissionSelector({ datasets, selectedDatasets, onChange }) {
     useEffect(() => {
         const fetchDomains = async () => {
             try {
-                let allDomains = [];
-                let currentPage = 1;
-                let hasMore = true;
-
-                // Fetch all pages to get all domains (backend limit is 100 per page)
-                while (hasMore) {
-                    const data = await getDomains({ page: currentPage, limit: 100 });
-                    const domainList = data.items || data.domains || [];
-                    allDomains = [...allDomains, ...domainList];
-
-                    // Check if there are more pages
-                    const totalPages = data.total_pages || Math.ceil((data.total || 0) / 100);
-                    hasMore = currentPage < totalPages;
-                    currentPage++;
-                }
-
-                setDomains(allDomains);
+                // Fetch all domains in a single request with large limit
+                const data = await getDomains({ page: 1, limit: 500 });
+                const domainList = data.items || data.domains || [];
+                setDomains(domainList);
             } catch (err) {
                 console.error('Failed to fetch domains:', err);
                 setDomains([]);

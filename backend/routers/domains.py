@@ -23,7 +23,7 @@ router = APIRouter()
 @router.get("")
 async def get_all_domains(
     page: int = Query(1, ge=1, description="Page number"),
-    limit: int = Query(10, ge=1, le=100, description="Items per page"),
+    limit: int = Query(10, ge=1, le=500, description="Items per page"),
     search: Optional[str] = Query(None, description="Search term for domain name"),
     sort_by: str = Query("updated_at", description="Sort field: name, updated_at, owner, platform"),
     sort_order: str = Query("desc", description="Sort order: asc, desc"),
