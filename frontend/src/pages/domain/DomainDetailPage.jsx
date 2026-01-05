@@ -134,6 +134,20 @@ export default function DomainDetailPage() {
     const enrichedNodes = useMemo(() => {
         if (!domain?.nodes) return [];
 
+        // For target imports, skip user permission check (temporary viewing)
+        if (domain.isTargetImport) {
+            return domain.nodes.map(node => ({
+                ...node,
+                data: {
+                    ...node.data,
+                    hasPermission: true
+                },
+                selectable: true,
+                draggable: true,
+                connectable: true
+            }));
+        }
+
         // Wait for user to load before showing nodes
         if (!user) return [];
 

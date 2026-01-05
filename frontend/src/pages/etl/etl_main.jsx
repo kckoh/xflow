@@ -1,21 +1,171 @@
 import { useState, useEffect } from "react";
-import { useNavigate, useLocation } from "react-router-dom";
+import { useNavigate, useLocation, useSearchParams } from "react-router-dom";
 import {
   Play,
   Pause,
-  Code,
-  FileText,
-  BarChart3,
   Plus,
-  Info,
-  RefreshCw,
   Trash2,
   Search,
+  Database,
 } from "lucide-react";
 import ConfirmationModal from "../../components/common/ConfirmationModal";
+import CreateDatasetModal from "../../components/etl/CreateDatasetModal";
+import TargetImportModal from "../../components/etl/TargetImportModal";
 import { useToast } from "../../components/common/Toast";
 import { API_BASE_URL } from "../../config/api";
 const ITEMS_PER_PAGE = 10;
+
+// Mock ETL Jobs Data
+const MOCK_ETL_JOBS = [
+  {
+    id: "etl-001",
+    name: "user_analytics_daily",
+    description: "Daily user behavior analytics pipeline",
+    dataset_type: "source",
+    job_type: "batch",
+    status: "active",
+    schedule: "0 2 * * *",
+    schedule_frequency: "daily",
+    ui_params: { startDate: "2024-01-15T02:00:00Z" },
+    is_active: false,
+    updated_at: "2024-01-20T14:30:00Z",
+  },
+  {
+    id: "etl-002",
+    name: "order_sync_realtime",
+    description: "Real-time order synchronization from PostgreSQL",
+    dataset_type: "source",
+    job_type: "cdc",
+    status: "active",
+    schedule: null,
+    is_active: true,
+    updated_at: "2024-01-20T10:15:00Z",
+  },
+  {
+    id: "etl-003",
+    name: "product_catalog_sync",
+    description: "Hourly product catalog sync to data lake",
+    dataset_type: "target",
+    job_type: "batch",
+    status: "active",
+    schedule: "0 * * * *",
+    schedule_frequency: "hourly",
+    ui_params: { hourInterval: 1 },
+    is_active: false,
+    updated_at: "2024-01-19T22:00:00Z",
+  },
+  {
+    id: "etl-004",
+    name: "customer_360_aggregation",
+    description: "Weekly customer 360 view aggregation",
+    dataset_type: "target",
+    job_type: "batch",
+    status: "paused",
+    schedule: "0 3 * * 0",
+    schedule_frequency: "weekly",
+    ui_params: { startDate: "2024-01-14T03:00:00Z" },
+    is_active: false,
+    updated_at: "2024-01-18T09:45:00Z",
+  },
+  {
+    id: "etl-005",
+    name: "clickstream_ingestion",
+    description: "Real-time clickstream data ingestion from Kafka",
+    dataset_type: "source",
+    job_type: "cdc",
+    status: "active",
+    schedule: null,
+    is_active: true,
+    updated_at: "2024-01-20T16:20:00Z",
+  },
+  {
+    id: "etl-006",
+    name: "inventory_snapshot",
+    description: "Daily inventory snapshot for reporting",
+    dataset_type: "source",
+    job_type: "batch",
+    status: "draft",
+    schedule: "0 6 * * *",
+    schedule_frequency: "daily",
+    ui_params: { startDate: "2024-01-15T06:00:00Z" },
+    is_active: false,
+    updated_at: "2024-01-17T11:30:00Z",
+  },
+  {
+    id: "etl-007",
+    name: "sales_report_monthly",
+    description: "Monthly sales aggregation report",
+    dataset_type: "target",
+    job_type: "batch",
+    status: "active",
+    schedule: "0 1 1 * *",
+    schedule_frequency: "monthly",
+    ui_params: { startDate: "2024-01-01T01:00:00Z" },
+    is_active: false,
+    updated_at: "2024-01-15T08:00:00Z",
+  },
+  {
+    id: "etl-008",
+    name: "log_parser_s3",
+    description: "Parse application logs from S3 bucket",
+    dataset_type: "source",
+    job_type: "batch",
+    status: "active",
+    schedule: "*/30 * * * *",
+    schedule_frequency: "interval",
+    ui_params: { intervalMinutes: 30 },
+    is_active: false,
+    updated_at: "2024-01-20T12:00:00Z",
+  },
+  {
+    id: "etl-009",
+    name: "ml_feature_store_sync",
+    description: "Sync ML features to feature store",
+    dataset_type: "target",
+    job_type: "batch",
+    status: "active",
+    schedule: "0 */4 * * *",
+    schedule_frequency: "hourly",
+    ui_params: { hourInterval: 4 },
+    is_active: false,
+    updated_at: "2024-01-20T08:00:00Z",
+  },
+  {
+    id: "etl-010",
+    name: "payment_events_cdc",
+    description: "CDC pipeline for payment transaction events",
+    dataset_type: "source",
+    job_type: "cdc",
+    status: "paused",
+    schedule: null,
+    is_active: false,
+    updated_at: "2024-01-16T14:30:00Z",
+  },
+  {
+    id: "etl-011",
+    name: "data_quality_check",
+    description: "Daily data quality validation pipeline",
+    dataset_type: "target",
+    job_type: "batch",
+    status: "active",
+    schedule: "0 5 * * *",
+    schedule_frequency: "daily",
+    ui_params: { startDate: "2024-01-15T05:00:00Z" },
+    is_active: false,
+    updated_at: "2024-01-20T05:00:00Z",
+  },
+  {
+    id: "etl-012",
+    name: "customer_churn_model_data",
+    description: "Prepare training data for churn prediction model",
+    dataset_type: "target",
+    job_type: "batch",
+    status: "draft",
+    schedule: null,
+    is_active: false,
+    updated_at: "2024-01-14T10:00:00Z",
+  },
+];
 
 export default function ETLMain() {
   const [jobs, setJobs] = useState([]);
@@ -27,8 +177,11 @@ export default function ETLMain() {
     jobId: null,
     jobName: "",
   });
+  const [showCreateModal, setShowCreateModal] = useState(false);
+  const [showImportModal, setShowImportModal] = useState(false);
   const navigate = useNavigate();
   const location = useLocation();
+  const [searchParams, setSearchParams] = useSearchParams();
   const { showToast } = useToast();
 
   // Filter jobs by search query
@@ -50,6 +203,16 @@ export default function ETLMain() {
     fetchJobs();
   }, [location.key]);
 
+  // Check for openImport query parameter
+  useEffect(() => {
+    if (searchParams.get("openImport") === "true") {
+      setShowImportModal(true);
+      // Remove the query parameter
+      searchParams.delete("openImport");
+      setSearchParams(searchParams, { replace: true });
+    }
+  }, [searchParams, setSearchParams]);
+
   const fetchJobs = async () => {
     setIsLoading(true);
     try {
@@ -58,10 +221,16 @@ export default function ETLMain() {
         const data = await response.json();
         // Sort by updated_at descending (newest first)
         const sortedData = data.sort((a, b) => new Date(b.updated_at) - new Date(a.updated_at));
-        setJobs(sortedData);
+        // Use mock data if API returns empty
+        setJobs(sortedData.length > 0 ? sortedData : MOCK_ETL_JOBS);
+      } else {
+        // Use mock data on API error
+        setJobs(MOCK_ETL_JOBS);
       }
     } catch (error) {
       console.error("Failed to fetch jobs:", error);
+      // Use mock data on network error
+      setJobs(MOCK_ETL_JOBS);
     } finally {
       setIsLoading(false);
     }
@@ -167,16 +336,9 @@ export default function ETLMain() {
     setDeleteModal({ isOpen: false, jobId: null, jobName: "" });
   };
 
-  const createJobOptions = [
-    {
-      title: "Visual Dataset",
-      description: "Author in a visual interface focused on data flow.",
-      icon: BarChart3,
-      color: "bg-blue-50 hover:bg-blue-100",
-      iconColor: "text-blue-600",
-      action: () => navigate("/etl/visual"),
-    },
-  ];
+  const handleCreateDataset = (datasetType) => {
+    navigate("/etl/visual", { state: { datasetType } });
+  };
 
   const getScheduleDisplay = (job) => {
     if (!job.schedule) return <span className="text-gray-400 italic">Manual</span>;
@@ -228,32 +390,19 @@ export default function ETLMain() {
 
   return (
     <div className="min-h-screen bg-gray-50 px-6 pt-2 pb-6">
-      {/* Create a Dataset Section */}
-      <div className="mb-8">
-        <div className="flex items-center gap-2 mb-4">
-          <h2 className="text-lg font-semibold text-gray-900">
-            Create Dataset
-          </h2>
-        </div>
-
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-          {createJobOptions.map((option, index) => (
-            <button
-              key={index}
-              onClick={option.action}
-              className={`${option.color} p-6 rounded-lg border border-gray-200 transition-all duration-200 text-left hover:shadow-md`}
-            >
-              <option.icon className={`w-8 h-8 ${option.iconColor} mb-3`} />
-              <h3 className="font-semibold text-gray-900 mb-1">
-                {option.title}
-              </h3>
-              <p className="text-sm text-gray-600">{option.description}</p>
-            </button>
-          ))}
-        </div>
+      {/* Header with Create Button */}
+      <div className="flex items-center justify-between mb-6">
+        <h1 className="text-2xl font-bold text-gray-900">Dataset</h1>
+        <button
+          onClick={() => setShowCreateModal(true)}
+          className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
+        >
+          <Plus className="w-4 h-4" />
+          Create Dataset
+        </button>
       </div>
 
-      {/* Your Jobs Section */}
+      {/* Datasets Table */}
       <div className="bg-white rounded-lg shadow">
         {/* Header with Actions */}
         <div className="border-b border-gray-200 px-6 py-4 flex items-center justify-between">
@@ -282,7 +431,7 @@ export default function ETLMain() {
           /* Empty State */
           <div className="px-6 py-12 text-center">
             <div className="max-w-md mx-auto">
-              <BarChart3 className="w-16 h-16 text-gray-300 mx-auto mb-4" />
+              <Database className="w-16 h-16 text-gray-300 mx-auto mb-4" />
               <h3 className="text-lg font-medium text-gray-900 mb-2">
                 No jobs
               </h3>
@@ -307,7 +456,13 @@ export default function ETLMain() {
                     Dataset name
                   </th>
                   <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                    Status
+                    ID
+                  </th>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                    Type
+                  </th>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                    Pattern
                   </th>
                   <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                     Schedule
@@ -328,9 +483,29 @@ export default function ETLMain() {
                   <tr key={job.id} className="hover:bg-gray-50">
                     <td
                       className="px-6 py-4 whitespace-nowrap text-sm font-medium text-blue-600 hover:underline cursor-pointer"
-                      onClick={() => navigate(`/etl/job/${job.id}`)}
+                      onClick={() => {
+                        if (job.dataset_type === "target") {
+                          navigate(`/target`, { state: { jobId: job.id, editMode: true } });
+                        } else {
+                          navigate(`/source`, { state: { jobId: job.id, editMode: true } });
+                        }
+                      }}
                     >
                       {job.name}
+                    </td>
+                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500 font-mono">
+                      {job.id}
+                    </td>
+                    <td className="px-6 py-4 whitespace-nowrap text-sm">
+                      <span
+                        className={`px-2 py-1 text-xs font-semibold rounded-full ${
+                          job.dataset_type === "source"
+                            ? "bg-emerald-100 text-emerald-800"
+                            : "bg-orange-100 text-orange-800"
+                        }`}
+                      >
+                        {job.dataset_type === "source" ? "Source" : "Target"}
+                      </span>
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap text-sm">
                       {job.job_type === "cdc" ? (
@@ -493,6 +668,19 @@ export default function ETLMain() {
         confirmText="Delete"
         cancelText="Cancel"
         variant="danger"
+      />
+
+      {/* Create Dataset Modal */}
+      <CreateDatasetModal
+        isOpen={showCreateModal}
+        onClose={() => setShowCreateModal(false)}
+        onSelect={handleCreateDataset}
+      />
+
+      {/* Target Import Modal */}
+      <TargetImportModal
+        isOpen={showImportModal}
+        onClose={() => setShowImportModal(false)}
       />
     </div>
   );

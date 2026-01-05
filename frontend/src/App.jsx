@@ -8,11 +8,16 @@ import ProtectedRoute from "./components/ProtectedRoute";
 import MainLayout from "./components/layout/MainLayout";
 import ETLJobPage from "./pages/etl/etl_job";
 import ETLPage from "./pages/etl/etl_main";
+import EtlJobsPage from "./pages/etl/EtlJobsPage";
 import ConnectionListPage from "./pages/sources/ConnectionListPage";
 import ConnectionCreatePage from "./pages/sources/ConnectionCreatePage";
 import QueryPage from "./pages/query/QueryPage";
 import AdminPage from "./pages/admin/AdminPage";
 import QualityDashboard from "./pages/Quality/QualityDashboard";
+import CatalogPage from "./pages/catalog/CatalogPage";
+import CatalogDetailPage from "./pages/catalog/CatalogDetailPage";
+import SourceWizard from "./pages/source/SourceWizard";
+import TargetWizard from "./pages/target/TargetWizard";
 import { ToastProvider } from "./components/common/Toast";
 
 // Placeholder components for new routes
@@ -56,10 +61,59 @@ function App() {
           {/* Re-structuring for clarity: */}
           <Route
             path="/"
+            element={<Navigate to="/dataset" replace />}
+          />
+
+          <Route
+            path="/dataset"
             element={
-              <ProtectedRoute requireEtlAccess>
+              <ProtectedRoute>
                 <MainLayout>
                   <ETLPage />
+                </MainLayout>
+              </ProtectedRoute>
+            }
+          />
+
+          <Route
+            path="/catalog"
+            element={
+              <ProtectedRoute>
+                <MainLayout>
+                  <CatalogPage />
+                </MainLayout>
+              </ProtectedRoute>
+            }
+          />
+
+          <Route
+            path="/catalog/:id"
+            element={
+              <ProtectedRoute>
+                <MainLayout fullWidth={true}>
+                  <CatalogDetailPage />
+                </MainLayout>
+              </ProtectedRoute>
+            }
+          />
+
+          <Route
+            path="/source"
+            element={
+              <ProtectedRoute>
+                <MainLayout>
+                  <SourceWizard />
+                </MainLayout>
+              </ProtectedRoute>
+            }
+          />
+
+          <Route
+            path="/target"
+            element={
+              <ProtectedRoute>
+                <MainLayout>
+                  <TargetWizard />
                 </MainLayout>
               </ProtectedRoute>
             }
@@ -137,6 +191,17 @@ function App() {
               <ProtectedRoute requireAdmin>
                 <MainLayout>
                   <AdminPage />
+                </MainLayout>
+              </ProtectedRoute>
+            }
+          />
+
+          <Route
+            path="/etl"
+            element={
+              <ProtectedRoute requireEtlAccess>
+                <MainLayout>
+                  <EtlJobsPage />
                 </MainLayout>
               </ProtectedRoute>
             }

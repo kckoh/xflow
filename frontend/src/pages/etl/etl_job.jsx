@@ -26,12 +26,13 @@ import {
   ArrowUpDown,
   Combine,
   Archive,
+  Download,
 } from "lucide-react";
 import { DeletionEdge } from "../domain/components/CustomEdges";
 import { SiPostgresql, SiMongodb } from "@icons-pack/react-simple-icons";
 import { useToast } from "../../components/common/Toast";
 import "./etl_job.css";
-import { useNavigate, useParams } from "react-router-dom";
+import { useNavigate, useParams, useLocation } from "react-router-dom";
 import { API_BASE_URL } from "../../config/api";
 import RDBSourcePropertiesPanel from "../../components/etl/RDBSourcePropertiesPanel";
 import MongoDBSourcePropertiesPanel from "../../components/etl/MongoDBSourcePropertiesPanel";
@@ -43,6 +44,10 @@ import SchedulesPanel from "../../components/etl/SchedulesPanel";
 import RunsPanel from "../../components/etl/RunsPanel";
 import { applyTransformToSchema } from "../../utils/schemaTransforms";
 import DatasetNode from "../../components/common/nodes/DatasetNode";
+import { SchemaNode } from "../domain/components/schema-node/SchemaNode";
+import DomainImportModal from "../domain/components/DomainImportModal";
+import { RightSidebar } from "../domain/components/RightSideBar/RightSidebar";
+import { SidebarToggle } from "../domain/components/RightSideBar/SidebarToggle";
 import { useMetadataUpdate } from "../../hooks/useMetadataUpdate";
 import { saveScheduleToBackend, convertNodesToApiFormat, utcToLocalDatetimeString } from "../../utils/etl_job";
 
@@ -53,6 +58,9 @@ const initialEdges = [];
 // 커스텀 노드 타입 정의
 const nodeTypes = {
   datasetNode: DatasetNode,
+  custom: SchemaNode,  // Domain style node for lineage view
+  Table: SchemaNode,
+  Topic: SchemaNode,
 };
 
 // Custom edge type for deletion with hover effect
@@ -115,7 +123,9 @@ const resolveSourceTypesForNode = (nodeId, nodes, edges) => {
 
 export default function ETLJobPage() {
   const navigate = useNavigate();
+  const location = useLocation();
   const { jobId: urlJobId } = useParams();
+  const initialDatasetType = location.state?.datasetType || "source";
   const [nodes, setNodes, onNodesChange] = useNodesState(initialNodes);
   const [edges, setEdges, onEdgesChange] = useEdgesState(initialEdges);
   const [jobName, setJobName] = useState("Untitled Job");
@@ -126,6 +136,7 @@ export default function ETLJobPage() {
   const [jobDetails, setJobDetails] = useState({
     description: "",
     jobType: "batch",
+    datasetType: initialDatasetType,
     glueVersion: "4.0",
     workerType: "G.1X",
     numberOfWorkers: 2,
@@ -143,7 +154,20 @@ export default function ETLJobPage() {
   // 오른쪽 패널 하단에 표시할 메타데이터 아이템 (table 또는 column)
   const [selectedMetadataItem, setSelectedMetadataItem] = useState(null);
   const [isCdcActive, setIsCdcActive] = useState(false);
+  const [showImportModal, setShowImportModal] = useState(false);
+  const [isLineageMode, setIsLineageMode] = useState(false);
+  const [lineageNodes, setLineageNodes] = useState([]);
+  const [lineageEdges, setLineageEdges] = useState([]);
+  // Lineage sidebar state
+  const [isSidebarOpen, setIsSidebarOpen] = useState(true);
+  const [sidebarTab, setSidebarTab] = useState("summary");
+  const [selectedLineageNode, setSelectedLineageNode] = useState(null);
+  const [showLineageMenu, setShowLineageMenu] = useState(false);
+  const [lineageActiveTab, setLineageActiveTab] = useState("transform");
   const { showToast } = useToast();
+
+  // Check for target import from navigation state
+  const fromTargetImport = location.state?.fromTargetImport || false;
 
   // Custom hook for metadata updates (removes duplicate code)
   const handleMetadataUpdate = useMetadataUpdate(
@@ -182,6 +206,34 @@ export default function ETLJobPage() {
       loadJob(urlJobId);
     }
   }, [urlJobId]);
+
+  // Handle target import from navigation state
+  useEffect(() => {
+    if (fromTargetImport && location.state?.importedNodes) {
+      console.log("[ETLJob] Loading from target import");
+      console.log("[ETLJob] Imported nodes:", location.state.importedNodes);
+      console.log("[ETLJob] Imported edges:", location.state.importedEdges);
+
+      // Set lineage mode and data
+      setIsLineageMode(true);
+      setLineageNodes(location.state.importedNodes || []);
+      setLineageEdges(location.state.importedEdges || []);
+      setMainTab("Lineage");
+
+      // Set job name from imported data
+      if (location.state.jobName) {
+        setJobName(location.state.jobName);
+      }
+
+      // Set dataset type
+      if (location.state.datasetType) {
+        setJobDetails(prev => ({
+          ...prev,
+          datasetType: location.state.datasetType
+        }));
+      }
+    }
+  }, [fromTargetImport, location.state]);
 
   const loadJob = async (id) => {
     setIsLoading(true);
@@ -601,6 +653,7 @@ export default function ETLJobPage() {
       name: jobName,
       description: jobDetails.description || "",
       job_type: jobDetails.jobType || "batch",
+      dataset_type: jobDetails.datasetType || "source",
       sources,
       transforms,
       destination,
@@ -853,6 +906,97 @@ export default function ETLJobPage() {
     setEdges((eds) => eds.filter((e) => !deleted.some((d) => d.id === e.id)));
   };
 
+  // Lineage tab handlers
+  const handleLineageNodeClick = (event, node) => {
+    setSelectedLineageNode(node);
+  };
+
+  const handleLineagePaneClick = () => {
+    setSelectedLineageNode(null);
+  };
+
+  const handleSidebarTabClick = (tabId) => {
+    if (sidebarTab === tabId && isSidebarOpen) {
+      setIsSidebarOpen(false);
+    } else {
+      setSidebarTab(tabId);
+      setIsSidebarOpen(true);
+    }
+  };
+
+  // Get sidebar dataset (selected node or domain-level data)
+  const getSidebarDataset = () => {
+    if (selectedLineageNode) {
+      return {
+        id: selectedLineageNode.id,
+        name: selectedLineageNode.data?.label || selectedLineageNode.data?.name,
+        description: selectedLineageNode.data?.description,
+        columns: selectedLineageNode.data?.columns || [],
+        platform: selectedLineageNode.data?.platform,
+        ...selectedLineageNode.data
+      };
+    }
+    // Return domain-level data when no node selected
+    return {
+      id: 'lineage-root',
+      name: jobName,
+      description: jobDetails.description,
+      nodes: lineageNodes,
+      edges: lineageEdges
+    };
+  };
+
+  // Add node to lineage
+  const addLineageNode = (category, nodeOption) => {
+    // Calculate position
+    let position = { x: 400, y: 200 };
+    if (lineageNodes.length > 0) {
+      const rightMostNode = lineageNodes.reduce((right, node) =>
+        node.position.x > right.position.x ? node : right
+      , lineageNodes[0]);
+      position = {
+        x: rightMostNode.position.x + 350,
+        y: rightMostNode.position.y
+      };
+    }
+
+    const uniqueId = `lineage-${category}-${Date.now()}`;
+
+    const newNode = {
+      id: uniqueId,
+      type: "custom", // Use SchemaNode
+      position,
+      data: {
+        label: nodeOption.label,
+        name: nodeOption.label,
+        platform: nodeOption.label,
+        columns: [],
+        expanded: true,
+        nodeCategory: category,
+        transformType: category === "transform" ? nodeOption.id : undefined,
+      }
+    };
+
+    setLineageNodes(prev => [...prev, newNode]);
+    setShowLineageMenu(false);
+  };
+
+  // Lineage node options (transform + target)
+  const lineageNodeOptions = {
+    transform: [
+      { id: "select-fields", label: "Select Fields", icon: Columns },
+      { id: "filter", label: "Filter", icon: Filter },
+      { id: "union", label: "Union", icon: Combine },
+      { id: "map", label: "Map", icon: ArrowRightLeft },
+      { id: "join", label: "Join", icon: GitMerge },
+      { id: "aggregate", label: "Aggregate", icon: BarChart3 },
+      { id: "sort", label: "Sort", icon: ArrowUpDown },
+    ],
+    target: [
+      { id: "s3-target", label: "S3", icon: Archive, color: "#FF9900" }
+    ],
+  };
+
   return (
     <div className="h-full flex flex-col bg-gray-50 overflow-hidden">
       {/* Header */}
@@ -875,6 +1019,16 @@ export default function ETLJobPage() {
         </div>
 
         <div className="flex items-center gap-3">
+          {/* Import Button - shown in lineage mode */}
+          {isLineageMode && (
+            <button
+              onClick={() => setShowImportModal(true)}
+              className="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 transition-colors flex items-center gap-2"
+            >
+              <Download className="w-4 h-4" />
+              Import
+            </button>
+          )}
           <button
             onClick={handleSave}
             className="px-4 py-2 bg-white border border-gray-300 rounded-md hover:bg-gray-50 transition-colors flex items-center gap-2"
@@ -907,9 +1061,12 @@ export default function ETLJobPage() {
         </div>
       </div>
 
-      {/* Main Tabs (Visual / Job details / Runs / Schedules) */}
+      {/* Main Tabs (Visual / Lineage / Job details / Runs / Schedules) */}
       <div className="bg-white border-b border-gray-200 px-6 flex items-center gap-6">
-        {["Visual", "Job details", "Runs", "Schedules"].map((tab) => {
+        {(isLineageMode
+          ? ["Lineage", "Visual", "Job details", "Runs", "Schedules"]
+          : ["Visual", "Job details", "Runs", "Schedules"]
+        ).map((tab) => {
           const isDisabled = !jobId && (tab === "Runs" || tab === "Schedules");
           return (
             <button
@@ -1277,6 +1434,248 @@ export default function ETLJobPage() {
             </p>
           </div>
         </>
+      ) : mainTab === "Lineage" ? (
+        /* Lineage Tab - Shows imported ETL lineage with SchemaNode */
+        <div className="flex-1 flex overflow-hidden min-h-0 relative">
+          {/* Main Canvas Area */}
+          <div className="flex-1 relative overflow-hidden bg-gray-50">
+            {/* Add Node Button */}
+            <div className="absolute top-4 right-4 z-10">
+              <button
+                onClick={() => setShowLineageMenu(!showLineageMenu)}
+                className="w-12 h-12 bg-blue-600 hover:bg-blue-700 text-white rounded-full shadow-lg flex items-center justify-center transition-all hover:scale-110"
+                title="Add new node"
+              >
+                <Plus className="w-6 h-6" />
+              </button>
+
+              {/* Node Type Menu */}
+              {showLineageMenu && (
+                <div className="absolute top-14 right-0 bg-white rounded-lg shadow-xl border border-gray-200 w-64">
+                  {/* Tabs */}
+                  <div className="flex border-b border-gray-200">
+                    <button
+                      onClick={() => setLineageActiveTab("transform")}
+                      className={`flex-1 px-4 py-3 text-sm font-medium transition-colors ${lineageActiveTab === "transform"
+                        ? "text-purple-600 border-b-2 border-purple-600 bg-purple-50"
+                        : "text-gray-600 hover:text-gray-900 hover:bg-gray-50"
+                      }`}
+                    >
+                      Transform
+                    </button>
+                    <button
+                      onClick={() => setLineageActiveTab("target")}
+                      className={`flex-1 px-4 py-3 text-sm font-medium transition-colors ${lineageActiveTab === "target"
+                        ? "text-green-600 border-b-2 border-green-600 bg-green-50"
+                        : "text-gray-600 hover:text-gray-900 hover:bg-gray-50"
+                      }`}
+                    >
+                      Target
+                    </button>
+                  </div>
+
+                  {/* Tab Content */}
+                  <div className="p-2 max-h-64 overflow-y-auto">
+                    {lineageNodeOptions[lineageActiveTab].map((option) => (
+                      <button
+                        key={option.id}
+                        onClick={() => addLineageNode(lineageActiveTab, option)}
+                        className="w-full px-4 py-3 text-left hover:bg-gray-100 rounded-md flex items-center gap-3 transition-colors"
+                      >
+                        <option.icon
+                          className="w-5 h-5"
+                          style={{ color: option.color || "#4b5563" }}
+                        />
+                        <span className="text-sm font-medium text-gray-700">
+                          {option.label}
+                        </span>
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              )}
+            </div>
+
+            <ReactFlow
+              nodes={lineageNodes}
+              edges={lineageEdges}
+              nodeTypes={nodeTypes}
+              edgeTypes={edgeTypes}
+              onNodesChange={(changes) => {
+                setLineageNodes((nds) => {
+                  const updatedNodes = [...nds];
+                  changes.forEach((change) => {
+                    if (change.type === 'position' && change.position) {
+                      const nodeIndex = updatedNodes.findIndex(n => n.id === change.id);
+                      if (nodeIndex !== -1) {
+                        updatedNodes[nodeIndex] = {
+                          ...updatedNodes[nodeIndex],
+                          position: change.position
+                        };
+                      }
+                    }
+                  });
+                  return updatedNodes;
+                });
+              }}
+              onEdgesChange={(changes) => {
+                setLineageEdges((eds) => {
+                  let updatedEdges = [...eds];
+                  changes.forEach((change) => {
+                    if (change.type === 'remove') {
+                      updatedEdges = updatedEdges.filter(e => e.id !== change.id);
+                    }
+                  });
+                  return updatedEdges;
+                });
+              }}
+              onConnect={(params) => {
+                // Add edge with deletion type
+                const newEdge = {
+                  ...params,
+                  id: `edge-${params.source}-${params.target}`,
+                  type: 'deletion',
+                };
+                setLineageEdges(prev => [...prev, newEdge]);
+
+                // Propagate schema from source to target
+                setLineageNodes(nds => {
+                  const sourceNode = nds.find(n => n.id === params.source);
+                  const targetNode = nds.find(n => n.id === params.target);
+
+                  if (!sourceNode || !targetNode) return nds;
+
+                  // Get source schema (from columns or schema)
+                  const sourceSchema = sourceNode.data?.columns || sourceNode.data?.schema || [];
+
+                  return nds.map(n => {
+                    if (n.id === params.target) {
+                      return {
+                        ...n,
+                        data: {
+                          ...n.data,
+                          inputSchema: sourceSchema,
+                          schema: n.data.schema || sourceSchema,
+                          columns: n.data.columns?.length > 0 ? n.data.columns : sourceSchema,
+                        }
+                      };
+                    }
+                    return n;
+                  });
+                });
+              }}
+              onNodeClick={handleLineageNodeClick}
+              onPaneClick={handleLineagePaneClick}
+              fitView
+              fitViewOptions={{ maxZoom: 1, padding: 0.3 }}
+              nodesDraggable
+              nodesConnectable
+              className="bg-gray-50"
+            >
+              <Controls />
+              <MiniMap
+                nodeColor={(node) => {
+                  const platform = node.data?.platform?.toLowerCase() || "";
+                  if (platform.includes("s3") || platform.includes("archive")) return "#F59E0B";
+                  if (platform.includes("postgres")) return "#3B82F6";
+                  if (platform.includes("mongo")) return "#10B981";
+                  if (platform.includes("mysql")) return "#0EA5E9";
+                  if (platform.includes("kafka")) return "#1F2937";
+                  return "#64748B";
+                }}
+                className="bg-white border border-gray-200"
+              />
+              <Background variant={BackgroundVariant.Dots} gap={12} size={1} />
+            </ReactFlow>
+          </div>
+
+          {/* Sidebar Toggle Button - Only show when not displaying property panels */}
+          {(!selectedLineageNode || selectedLineageNode?.data?.jobs?.length > 0) && (
+            <SidebarToggle
+              isSidebarOpen={isSidebarOpen}
+              setIsSidebarOpen={setIsSidebarOpen}
+            />
+          )}
+
+          {/* Right Panel - Conditional based on selected node type */}
+          {selectedLineageNode?.data?.nodeCategory === "transform" ? (
+            /* Transform Properties Panel */
+            <TransformPropertiesPanel
+              node={{
+                ...selectedLineageNode,
+                data: {
+                  ...selectedLineageNode.data,
+                  // Find input schema from connected source node
+                  inputSchema: (() => {
+                    const incomingEdge = lineageEdges.find(e => e.target === selectedLineageNode.id);
+                    if (incomingEdge) {
+                      const sourceNode = lineageNodes.find(n => n.id === incomingEdge.source);
+                      return sourceNode?.data?.columns || sourceNode?.data?.schema || [];
+                    }
+                    return selectedLineageNode.data?.inputSchema || [];
+                  })(),
+                }
+              }}
+              selectedMetadataItem={null}
+              onClose={() => setSelectedLineageNode(null)}
+              onUpdate={(data) => {
+                setLineageNodes(prev => prev.map(n =>
+                  n.id === selectedLineageNode.id
+                    ? { ...n, data: { ...n.data, ...data } }
+                    : n
+                ));
+                setSelectedLineageNode(prev => ({
+                  ...prev,
+                  data: { ...prev.data, ...data }
+                }));
+              }}
+              onMetadataUpdate={() => {}}
+            />
+          ) : selectedLineageNode?.data?.nodeCategory === "target" ? (
+            /* Target Properties Panel */
+            <S3TargetPropertiesPanel
+              node={selectedLineageNode}
+              selectedMetadataItem={null}
+              nodes={lineageNodes}
+              onClose={() => setSelectedLineageNode(null)}
+              onUpdate={(data) => {
+                setLineageNodes(prev => prev.map(n =>
+                  n.id === selectedLineageNode.id
+                    ? { ...n, data: { ...n.data, ...data } }
+                    : n
+                ));
+                setSelectedLineageNode(prev => ({
+                  ...prev,
+                  data: { ...prev.data, ...data }
+                }));
+              }}
+              onMetadataUpdate={() => {}}
+            />
+          ) : (
+            /* Right Sidebar - For job nodes or no selection */
+            <RightSidebar
+              isSidebarOpen={isSidebarOpen}
+              sidebarTab={sidebarTab}
+              handleSidebarTabClick={handleSidebarTabClick}
+              streamData={null}
+              dataset={getSidebarDataset()}
+              domain={{ nodes: lineageNodes, edges: lineageEdges }}
+              onNodeSelect={(node) => {
+                const targetNode = lineageNodes.find(n => n.id === node.id);
+                if (targetNode) setSelectedLineageNode(targetNode);
+              }}
+              onUpdate={(entityId, updateData) => {
+                setLineageNodes(prev => prev.map(n =>
+                  n.id === entityId
+                    ? { ...n, data: { ...n.data, ...updateData } }
+                    : n
+                ));
+              }}
+              nodePermissions={{}}
+              canEditDomain={true}
+            />
+          )}
+        </div>
       ) : mainTab === "Job details" ? (
         <JobDetailsPanel
           jobDetails={jobDetails}
@@ -1321,6 +1720,23 @@ export default function ETLJobPage() {
             <p className="text-gray-500">This feature is coming soon.</p>
           </div>
         </div>
+      )}
+
+      {/* Import Modal for adding more ETL jobs to lineage */}
+      {showImportModal && (
+        <DomainImportModal
+          isOpen={showImportModal}
+          onClose={() => setShowImportModal(false)}
+          datasetId={jobId}
+          initialPos={() => ({ x: 400, y: 100 })}
+          onImport={(newNodes, newEdges) => {
+            console.log("[ETLJob] Importing nodes:", newNodes);
+            console.log("[ETLJob] Importing edges:", newEdges);
+            setLineageNodes(prev => [...prev, ...newNodes]);
+            setLineageEdges(prev => [...prev, ...newEdges]);
+            showToast(`Imported ${newNodes.length} nodes`, "success");
+          }}
+        />
       )}
     </div>
   );

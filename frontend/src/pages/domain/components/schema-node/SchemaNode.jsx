@@ -18,6 +18,7 @@ const SchemaNodeComponent = ({ id, data, selected }) => {
     const sourcePlatform = data.platform || "PostgreSQL";
     const config = getStyleConfig(sourcePlatform);
     const hasPermission = data.hasPermission !== false; // Default to true if not specified
+    const hasJobs = data.jobs && data.jobs.length > 0; // Only show ETL toggle for job nodes
 
     // Handlers
     const handleDelete = (e) => {
@@ -73,8 +74,8 @@ const SchemaNodeComponent = ({ id, data, selected }) => {
                 </button>
             )}
 
-            {/* ETL Toggle Button (Left Side, Aligned with Columns) */}
-            {hasPermission && (
+            {/* ETL Toggle Button (Left Side, Aligned with Columns) - Only for job nodes */}
+            {hasPermission && hasJobs && (
                 <button
                     onClick={handleEtlToggle}
                     className={clsx(
@@ -113,8 +114,8 @@ const SchemaNodeComponent = ({ id, data, selected }) => {
                 </div>
             )}
 
-            {/* ETL View: External Popover (Left of the Node) */}
-            {hasPermission && etlOpen && (
+            {/* ETL View: External Popover (Left of the Node) - Only for job nodes */}
+            {hasPermission && hasJobs && etlOpen && (
                 <div className="absolute right-full -top-11 mr-5 z-[100] min-w-max">
                     <SchemaEtlView
                         data={data}
