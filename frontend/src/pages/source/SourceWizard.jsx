@@ -1,5 +1,6 @@
-import { useState } from "react";
-import { useNavigate } from "react-router-dom";
+import { useState, useEffect } from "react";
+import { useNavigate, useLocation } from "react-router-dom";
+import { API_BASE_URL } from "../../config/api";
 import {
   ArrowLeft,
   ArrowRight,
@@ -53,6 +54,7 @@ const SOURCE_OPTIONS = [
 
 export default function SourceWizard() {
   const navigate = useNavigate();
+  const location = useLocation();
   const [currentStep, setCurrentStep] = useState(1);
   const [selectedSource, setSelectedSource] = useState(null);
   const [expandedColumns, setExpandedColumns] = useState({});
@@ -60,13 +62,71 @@ export default function SourceWizard() {
   const [columnMapping, setColumnMapping] = useState([]);
   const [jobType, setJobType] = useState("batch");
   const [schedules, setSchedules] = useState([]);
+  const [isEditMode, setIsEditMode] = useState(false);
+  const [isLoading, setIsLoading] = useState(false);
   const [config, setConfig] = useState({
+    id: `src-${Date.now()}`,
     name: "",
     description: "",
     connectionId: "",
     table: "",
     columns: [],
   });
+
+  // Load existing job data in edit mode
+  useEffect(() => {
+    const loadExistingJob = async () => {
+      const { jobId, editMode } = location.state || {};
+      if (!editMode || !jobId) return;
+
+      setIsEditMode(true);
+      setIsLoading(true);
+
+      try {
+        // Fetch job details
+        const jobResponse = await fetch(`${API_BASE_URL}/api/etl-jobs/${jobId}`);
+        if (!jobResponse.ok) throw new Error("Failed to fetch job");
+        const job = await jobResponse.json();
+
+        // Find source type from job data
+        const sourceType = job.source_type?.toLowerCase() || "postgres";
+        const matchedSource = SOURCE_OPTIONS.find(s => s.id === sourceType);
+        if (matchedSource) {
+          setSelectedSource(matchedSource);
+        }
+
+        // Set config
+        setConfig({
+          id: job.id,
+          name: job.name || "",
+          description: job.description || "",
+          connectionId: job.connection_id || "",
+          table: job.table_name || "",
+          columns: job.columns || [],
+        });
+
+        // Set job type and schedules
+        setJobType(job.job_type || "batch");
+        if (job.schedules) {
+          setSchedules(job.schedules);
+        }
+
+        // Set column mapping if available
+        if (job.column_mapping) {
+          setColumnMapping(job.column_mapping);
+        }
+
+        // Skip to Review step in edit mode
+        setCurrentStep(5);
+      } catch (err) {
+        console.error("Failed to load job:", err);
+      } finally {
+        setIsLoading(false);
+      }
+    };
+
+    loadExistingJob();
+  }, [location.state]);
 
   // Mock columns data - in real app, this would come from API
   const tableColumns = {
@@ -213,10 +273,10 @@ export default function SourceWizard() {
             </button>
             <div>
               <h1 className="text-xl font-semibold text-gray-900">
-                Create Source Dataset
+                {isEditMode ? "Edit Source Dataset" : "Create Source Dataset"}
               </h1>
               <p className="text-sm text-gray-500">
-                Import data from external sources
+                {isEditMode ? "Modify your source dataset configuration" : "Import data from external sources"}
               </p>
             </div>
           </div>
@@ -748,6 +808,14 @@ export default function SourceWizard() {
                 <div className="p-6 space-y-4">
                   <div className="flex items-start gap-3">
                     <span className="text-sm font-medium text-gray-500 w-32">
+                      ID:
+                    </span>
+                    <span className="text-gray-900 font-mono text-sm bg-gray-100 px-2 py-1 rounded">
+                      {config.id}
+                    </span>
+                  </div>
+                  <div className="flex items-start gap-3">
+                    <span className="text-sm font-medium text-gray-500 w-32">
                       Source Type:
                     </span>
                     <div className="flex items-center gap-2">
@@ -1023,7 +1091,7 @@ export default function SourceWizard() {
                 className="flex items-center gap-2 px-6 py-2 bg-emerald-600 text-white rounded-lg hover:bg-emerald-700 transition-colors"
               >
                 <Check className="w-4 h-4" />
-                Create Dataset
+                {isEditMode ? "Save Changes" : "Create Dataset"}
               </button>
             )}
           </div>

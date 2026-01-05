@@ -325,7 +325,13 @@ export default function ETLMain() {
                   <tr key={job.id} className="hover:bg-gray-50">
                     <td
                       className="px-6 py-4 whitespace-nowrap text-sm font-medium text-blue-600 hover:underline cursor-pointer"
-                      onClick={() => navigate(`/etl/job/${job.id}`)}
+                      onClick={() => {
+                        if (job.dataset_type === "target") {
+                          navigate(`/target`, { state: { jobId: job.id, editMode: true } });
+                        } else {
+                          navigate(`/source`, { state: { jobId: job.id, editMode: true } });
+                        }
+                      }}
                     >
                       {job.name}
                     </td>
