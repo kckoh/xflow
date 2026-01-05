@@ -63,9 +63,23 @@ function DatasetPermissionSelector({ datasets, selectedDatasets, onChange }) {
     useEffect(() => {
         const fetchDomains = async () => {
             try {
-                const data = await getDomains();
-                // Ensure data is an array
-                setDomains(Array.isArray(data) ? data : []);
+                let allDomains = [];
+                let currentPage = 1;
+                let hasMore = true;
+
+                // Fetch all pages to get all domains (backend limit is 100 per page)
+                while (hasMore) {
+                    const data = await getDomains({ page: currentPage, limit: 100 });
+                    const domainList = data.items || data.domains || [];
+                    allDomains = [...allDomains, ...domainList];
+
+                    // Check if there are more pages
+                    const totalPages = data.total_pages || Math.ceil((data.total || 0) / 100);
+                    hasMore = currentPage < totalPages;
+                    currentPage++;
+                }
+
+                setDomains(allDomains);
             } catch (err) {
                 console.error('Failed to fetch domains:', err);
                 setDomains([]);
@@ -218,16 +232,16 @@ function DatasetPermissionSelector({ datasets, selectedDatasets, onChange }) {
             )}
 
             {/* Three Panel Layout */}
-            <div className="border border-gray-200 rounded-lg overflow-hidden">
-                <div className="flex">
+            <div className="border border-gray-200 rounded-lg overflow-hidden" style={{ height: '400px' }}>
+                <div className="flex h-full">
                     {/* LEFT: Domain Filter Tabs (30%) */}
-                    <div className="w-[30%] border-r border-gray-200 bg-gray-50">
-                        <div className="p-3 border-b border-gray-200">
+                    <div className="w-[30%] border-r border-gray-200 bg-gray-50 flex flex-col">
+                        <div className="p-3 border-b border-gray-200 flex-shrink-0">
                             <h4 className="text-xs font-semibold text-gray-500 uppercase tracking-wider">
                                 Filter by Domain
                             </h4>
                         </div>
-                        <div className="p-2 space-y-1">
+                        <div className="p-2 space-y-1 overflow-y-auto flex-1">
                             {/* ALL Tab */}
                             <button
                                 type="button"
@@ -274,9 +288,9 @@ function DatasetPermissionSelector({ datasets, selectedDatasets, onChange }) {
                     </div>
 
                     {/* MIDDLE: Dataset List (40%) */}
-                    <div className="w-[40%] border-r border-gray-200">
+                    <div className="w-[40%] border-r border-gray-200 flex flex-col">
                         {/* Search */}
-                        <div className="p-3 border-b border-gray-100 bg-gray-50">
+                        <div className="p-3 border-b border-gray-100 bg-gray-50 flex-shrink-0">
                             <div className="relative">
                                 <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
                                 <input
@@ -290,7 +304,7 @@ function DatasetPermissionSelector({ datasets, selectedDatasets, onChange }) {
                         </div>
 
                         {/* Dataset List */}
-                        <div className="divide-y divide-gray-100">
+                        <div className="divide-y divide-gray-100 overflow-y-auto flex-1">
                             {paginatedDatasets.length === 0 ? (
                                 <p className="text-sm text-gray-500 text-center py-8">
                                     No datasets found
@@ -392,11 +406,11 @@ function DatasetPermissionSelector({ datasets, selectedDatasets, onChange }) {
                     </div>
 
                     {/* RIGHT: Schema Preview (30%) */}
-                    <div className="w-[30%] bg-gray-50">
+                    <div className="w-[30%] bg-gray-50 flex flex-col" style={{ height: '400px' }}>
                         {detailDataset ? (
                             <div className="flex flex-col h-full">
                                 {/* Header */}
-                                <div className="p-4 border-b border-gray-200 bg-white">
+                                <div className="p-4 border-b border-gray-200 bg-white flex-shrink-0">
                                     <div className="flex items-center gap-2 mb-2">
                                         <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-blue-500 to-blue-600 flex items-center justify-center shadow-sm">
                                             <Database className="w-4 h-4 text-white" />
@@ -441,8 +455,8 @@ function DatasetPermissionSelector({ datasets, selectedDatasets, onChange }) {
                                 </div>
 
                                 {/* Schema Section */}
-                                <div className="flex-1 overflow-hidden flex flex-col">
-                                    <div className="px-4 py-2 bg-gray-100 border-b border-gray-200">
+                                <div className="flex-1 overflow-hidden flex flex-col min-h-0">
+                                    <div className="px-4 py-2 bg-gray-100 border-b border-gray-200 flex-shrink-0">
                                         <span className="text-xs font-semibold text-gray-600 uppercase tracking-wider">
                                             Target Schema
                                         </span>
@@ -452,7 +466,7 @@ function DatasetPermissionSelector({ datasets, selectedDatasets, onChange }) {
                                     </div>
 
                                     {/* Scrollable Schema List */}
-                                    <div className="flex-1 overflow-y-auto max-h-64">
+                                    <div className="flex-1 overflow-y-auto">
                                         <div className="divide-y divide-gray-100">
                                             {detailDataset.schema.map((col, idx) => (
                                                 <div
