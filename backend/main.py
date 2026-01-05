@@ -1,16 +1,45 @@
+import logging
 import os
+
 from dotenv import load_dotenv
 
 # ⚠️ 중요: 다른 import보다 먼저 .env 파일 로드해야 함!
 # routers.logs → utils.log_utils → os.getenv() 순서로 실행되기 때문
 load_dotenv()
 
+# Logging 설정
+logging.basicConfig(
+    level=logging.INFO,
+    format="%(asctime)s [%(levelname)s] %(name)s: %(message)s",
+    force=True,  # 기존 설정 덮어쓰기
+)
+# 모든 logger가 출력되도록 root logger 레벨 설정
+logging.getLogger().setLevel(logging.INFO)
+logging.getLogger("services").setLevel(logging.INFO)
+
 from contextlib import asynccontextmanager
+
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
-from routers import auth, users, connections, catalog, etl_jobs, job_runs, opensearch, duckdb, metadata, domains, logs, admin, ai
-from routers.transforms import select_fields # 추후 type 추가 예정 (예: join ...)
-from database import init_db, close_db
+from routers import (
+    admin,
+    ai,
+    auth,
+    catalog,
+    connections,
+    domains,
+    duckdb,
+    etl_jobs,
+    job_runs,
+    logs,
+    metadata,
+    opensearch,
+    users,
+)
+from routers.transforms import select_fields  # 추후 type 추가 예정 (예: join ...)
+
+from database import close_db, init_db
+
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
@@ -22,6 +51,7 @@ async def lifespan(app: FastAPI):
 
     # Startup: Initialize OpenSearch connection
     from utils.opensearch_client import initialize_opensearch
+
     initialize_opensearch()
 
     yield
@@ -40,7 +70,7 @@ app = FastAPI(
     title="Jungle Data Structures API",
     version="1.0.0",
     lifespan=lifespan,
-    redirect_slashes=False
+    redirect_slashes=False,
 )
 
 app.state.limiter = limiter
@@ -67,7 +97,11 @@ app.include_router(catalog.router, prefix="/api/catalog", tags=["catalog"])
 app.include_router(metadata.router, prefix="/api/metadata", tags=["metadata"])
 app.include_router(opensearch.router, prefix="/api/opensearch", tags=["opensearch"])
 
-app.include_router(select_fields.router, prefix="/api/rdb-transform/select-fields", tags=["select-fields"])
+app.include_router(
+    select_fields.router,
+    prefix="/api/rdb-transform/select-fields",
+    tags=["select-fields"],
+)
 
 # ETL Jobs and Job Runs
 app.include_router(etl_jobs.router, prefix="/api/etl-jobs", tags=["etl-jobs"])
@@ -81,6 +115,7 @@ app.include_router(domains.router, prefix="/api/domains", tags=["domains"])
 
 # CDC (Change Data Capture)
 from routers import cdc
+
 app.include_router(cdc.router)
 
 # Logs (Event logging to S3/Local)
@@ -94,8 +129,8 @@ app.include_router(ai.router, prefix="/api/ai", tags=["ai"])
 
 # Quality (Data quality checks)
 from routers import quality
-app.include_router(quality.router, prefix="/api/quality", tags=["quality"])
 
+app.include_router(quality.router, prefix="/api/quality", tags=["quality"])
 
 
 # Root route - Test database connection
@@ -108,3 +143,9 @@ def read_root():
 @app.get("/health")
 def health_check():
     return {"status": "healthy"}
+
+
+# add a test api
+@app.get("/test")
+def test_check():
+    return {"status": "test"}

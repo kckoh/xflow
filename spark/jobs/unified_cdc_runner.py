@@ -7,6 +7,7 @@ Unified CDC Runner - Spark Streaming Job for Multiple Tables
 
 사용법: spark-submit unified_cdc_runner.py '{"connection_name": "...", "tables": [...]}'
 """
+import os
 import sys
 import json
 import logging
@@ -17,6 +18,10 @@ from pyspark.sql.types import LongType, TimestampType, StringType
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
+
+# K8s 환경 변수 (Docker Compose에서는 기본값 사용)
+KAFKA_BOOTSTRAP_SERVERS = os.getenv("KAFKA_BOOTSTRAP_SERVERS", "kafka:9092")
+ENVIRONMENT = os.getenv("ENVIRONMENT", "development")
 
 # === UDF 정의 ===
 def transform_json_payload(json_str: str, method: str, params_json: str) -> str:
@@ -164,32 +169,39 @@ def process_batch(batch_df, batch_id, tables_config: list, connection_name: str)
 def run_pipeline(config: dict):
     connection_name = config.get("connection_name")
     tables = config.get("tables", [])
-    
+
     if not connection_name or not tables:
         logger.error("Invalid Config: connection_name or tables missing")
         sys.exit(1)
-        
+
     logger.info(f"=== Unified CDC Pipeline Start: {connection_name} ===")
-    
+    logger.info(f"Kafka Bootstrap Servers: {KAFKA_BOOTSTRAP_SERVERS}")
+    logger.info(f"Environment: {ENVIRONMENT}")
+
     connection_id = config.get("connection_id", "unknown")
-    
-    spark = SparkSession.builder \
-        .appName(f"CDC-Unified-{connection_id}") \
-        .config("spark.hadoop.fs.s3a.endpoint", "http://localstack-main:4566") \
-        .config("spark.hadoop.fs.s3a.access.key", "test") \
-        .config("spark.hadoop.fs.s3a.secret.key", "test") \
-        .config("spark.hadoop.fs.s3a.path.style.access", "true") \
-        .config("spark.hadoop.fs.s3a.impl", "org.apache.hadoop.fs.s3a.S3AFileSystem") \
-        .getOrCreate()
-        
+
+    # SparkSession 설정 (K8s에서는 IAM Role 사용)
+    builder = SparkSession.builder.appName(f"CDC-Unified-{connection_id}")
+
+    if ENVIRONMENT == "development":
+        # Docker Compose: LocalStack 사용
+        builder = builder \
+            .config("spark.hadoop.fs.s3a.endpoint", "http://localstack-main:4566") \
+            .config("spark.hadoop.fs.s3a.access.key", "test") \
+            .config("spark.hadoop.fs.s3a.secret.key", "test") \
+            .config("spark.hadoop.fs.s3a.path.style.access", "true")
+
+    builder = builder.config("spark.hadoop.fs.s3a.impl", "org.apache.hadoop.fs.s3a.S3AFileSystem")
+    spark = builder.getOrCreate()
+
     spark.sparkContext.setLogLevel("WARN")
-    
+
     kafka_pattern = f"{connection_name}.*"
     logger.info(f"Subscribing to pattern: {kafka_pattern}")
-    
+
     kafka_stream = spark.readStream \
         .format("kafka") \
-        .option("kafka.bootstrap.servers", "kafka:9092") \
+        .option("kafka.bootstrap.servers", KAFKA_BOOTSTRAP_SERVERS) \
         .option("subscribePattern", kafka_pattern) \
         .option("startingOffsets", "earliest") \
         .load()

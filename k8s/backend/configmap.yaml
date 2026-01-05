@@ -15,3 +15,9 @@ data:
   # AWS/S3 configuration
   ENVIRONMENT: "production"
   AWS_REGION: "ap-northeast-2"
+  # Kafka Connect configuration
+  KAFKA_CONNECT_URL: "http://kafka-connect:8083"
+  KAFKA_BOOTSTRAP_SERVERS: "xflow-kafka-kafka-bootstrap.kafka:9092"
+  # Spark configuration for CDC
+  SPARK_IMAGE: "134059028370.dkr.ecr.ap-northeast-2.amazonaws.com/xflow-spark:latest"
+  SPARK_NAMESPACE: "spark-jobs"
