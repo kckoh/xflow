@@ -12,6 +12,9 @@ export default function CreateDatasetModal({ isOpen, onClose, onSelect }) {
     if (selectedType === "source") {
       onClose();
       navigate("/source");
+    } else if (selectedType === "target") {
+      onClose();
+      navigate("/dataset?openImport=true");
     } else {
       onSelect(selectedType);
       onClose();

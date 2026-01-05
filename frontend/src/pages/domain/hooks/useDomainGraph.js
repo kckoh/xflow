@@ -1,4 +1,4 @@
-import { useCallback } from 'react';
+import { useCallback, useEffect } from 'react';
 import {
     useNodesState,
     useEdgesState,
@@ -10,6 +10,19 @@ export const useDomainGraph = ({ initialNodes = [], initialEdges = [] } = {}) =>
     const [nodes, setNodes, onNodesChange] = useNodesState(initialNodes);
     const [edges, setEdges, onEdgesChange] = useEdgesState(initialEdges);
     const { fitView, getNodes } = useReactFlow();
+
+    // Sync nodes/edges when initialNodes/initialEdges change (e.g., after async load)
+    useEffect(() => {
+        if (initialNodes.length > 0) {
+            setNodes(initialNodes);
+        }
+    }, [initialNodes, setNodes]);
+
+    useEffect(() => {
+        if (initialEdges.length > 0) {
+            setEdges(initialEdges);
+        }
+    }, [initialEdges, setEdges]);
 
     // Handle node expand/collapse
     const handleToggleExpand = useCallback((nodeId, newExpandedState) => {

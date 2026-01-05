@@ -1,28 +1,64 @@
 import { useState, useCallback, useEffect } from "react";
-import { useParams } from "react-router-dom";
+import { useParams, useLocation } from "react-router-dom";
 import { getDomain, saveDomainGraph, updateDomain as apiUpdateDomain } from "../api/domainApi";
 import { useToast } from "../../../components/common/Toast";
 
 export const useDomainDetail = (canvasRef) => {
     const { id } = useParams();
+    const location = useLocation();
     const [domain, setDomain] = useState(null);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState(null);
     const { showToast } = useToast();
 
-    // 1. Fetch Domain
+    // 1. Fetch Domain or Load from Target Import
     const fetchDataset = useCallback(async () => {
         try {
             setLoading(true);
-            const data = await getDomain(id);
-            setDomain(data);
+
+            console.log("[useDomainDetail] Fetching dataset, id:", id);
+            console.log("[useDomainDetail] Location state:", location.state);
+
+            // Check if this is a target import (id starts with "target-")
+            if (id && id.startsWith("target-")) {
+                console.log("[useDomainDetail] Detected target import ID");
+
+                if (location.state?.fromTargetImport) {
+                    console.log("[useDomainDetail] Creating temp domain from import");
+                    console.log("[useDomainDetail] Imported nodes:", location.state.importedNodes?.length);
+                    console.log("[useDomainDetail] Imported edges:", location.state.importedEdges?.length);
+
+                    // Create a temporary domain from imported lineage
+                    const tempDomain = {
+                        id: id,
+                        name: location.state.jobName || "Target Dataset",
+                        description: "Imported from ETL job",
+                        nodes: location.state.importedNodes || [],
+                        edges: location.state.importedEdges || [],
+                        isTargetImport: true,
+                        jobId: location.state.jobId
+                    };
+
+                    console.log("[useDomainDetail] Created temp domain:", tempDomain);
+                    setDomain(tempDomain);
+                } else {
+                    console.error("[useDomainDetail] Target import ID but no state data");
+                    showToast("No import data found. Please import a job first.", "error");
+                    setError("No import data found");
+                }
+            } else {
+                // Normal domain fetch
+                console.log("[useDomainDetail] Fetching normal domain from API");
+                const data = await getDomain(id);
+                setDomain(data);
+            }
         } catch (err) {
-            console.error(err);
+            console.error("[useDomainDetail] Error:", err);
             setError(err.message);
         } finally {
             setLoading(false);
         }
-    }, [id]);
+    }, [id, location.state, showToast]);
 
     useEffect(() => {
         if (id && id !== "undefined") {

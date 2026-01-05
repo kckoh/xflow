@@ -26,6 +26,7 @@ import {
   ArrowUpDown,
   Combine,
   Archive,
+  Download,
 } from "lucide-react";
 import { DeletionEdge } from "../domain/components/CustomEdges";
 import { SiPostgresql, SiMongodb } from "@icons-pack/react-simple-icons";
@@ -43,6 +44,8 @@ import SchedulesPanel from "../../components/etl/SchedulesPanel";
 import RunsPanel from "../../components/etl/RunsPanel";
 import { applyTransformToSchema } from "../../utils/schemaTransforms";
 import DatasetNode from "../../components/common/nodes/DatasetNode";
+import { SchemaNode } from "../domain/components/schema-node/SchemaNode";
+import DomainImportModal from "../domain/components/DomainImportModal";
 import { useMetadataUpdate } from "../../hooks/useMetadataUpdate";
 import { saveScheduleToBackend, convertNodesToApiFormat, utcToLocalDatetimeString } from "../../utils/etl_job";
 
@@ -53,6 +56,9 @@ const initialEdges = [];
 // 커스텀 노드 타입 정의
 const nodeTypes = {
   datasetNode: DatasetNode,
+  custom: SchemaNode,  // Domain style node for lineage view
+  Table: SchemaNode,
+  Topic: SchemaNode,
 };
 
 // Custom edge type for deletion with hover effect
@@ -146,7 +152,14 @@ export default function ETLJobPage() {
   // 오른쪽 패널 하단에 표시할 메타데이터 아이템 (table 또는 column)
   const [selectedMetadataItem, setSelectedMetadataItem] = useState(null);
   const [isCdcActive, setIsCdcActive] = useState(false);
+  const [showImportModal, setShowImportModal] = useState(false);
+  const [isLineageMode, setIsLineageMode] = useState(false);
+  const [lineageNodes, setLineageNodes] = useState([]);
+  const [lineageEdges, setLineageEdges] = useState([]);
   const { showToast } = useToast();
+
+  // Check for target import from navigation state
+  const fromTargetImport = location.state?.fromTargetImport || false;
 
   // Custom hook for metadata updates (removes duplicate code)
   const handleMetadataUpdate = useMetadataUpdate(
@@ -185,6 +198,34 @@ export default function ETLJobPage() {
       loadJob(urlJobId);
     }
   }, [urlJobId]);
+
+  // Handle target import from navigation state
+  useEffect(() => {
+    if (fromTargetImport && location.state?.importedNodes) {
+      console.log("[ETLJob] Loading from target import");
+      console.log("[ETLJob] Imported nodes:", location.state.importedNodes);
+      console.log("[ETLJob] Imported edges:", location.state.importedEdges);
+
+      // Set lineage mode and data
+      setIsLineageMode(true);
+      setLineageNodes(location.state.importedNodes || []);
+      setLineageEdges(location.state.importedEdges || []);
+      setMainTab("Lineage");
+
+      // Set job name from imported data
+      if (location.state.jobName) {
+        setJobName(location.state.jobName);
+      }
+
+      // Set dataset type
+      if (location.state.datasetType) {
+        setJobDetails(prev => ({
+          ...prev,
+          datasetType: location.state.datasetType
+        }));
+      }
+    }
+  }, [fromTargetImport, location.state]);
 
   const loadJob = async (id) => {
     setIsLoading(true);
@@ -879,6 +920,16 @@ export default function ETLJobPage() {
         </div>
 
         <div className="flex items-center gap-3">
+          {/* Import Button - shown in lineage mode */}
+          {isLineageMode && (
+            <button
+              onClick={() => setShowImportModal(true)}
+              className="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 transition-colors flex items-center gap-2"
+            >
+              <Download className="w-4 h-4" />
+              Import
+            </button>
+          )}
           <button
             onClick={handleSave}
             className="px-4 py-2 bg-white border border-gray-300 rounded-md hover:bg-gray-50 transition-colors flex items-center gap-2"
@@ -911,9 +962,12 @@ export default function ETLJobPage() {
         </div>
       </div>
 
-      {/* Main Tabs (Visual / Job details / Runs / Schedules) */}
+      {/* Main Tabs (Visual / Lineage / Job details / Runs / Schedules) */}
       <div className="bg-white border-b border-gray-200 px-6 flex items-center gap-6">
-        {["Visual", "Job details", "Runs", "Schedules"].map((tab) => {
+        {(isLineageMode
+          ? ["Lineage", "Visual", "Job details", "Runs", "Schedules"]
+          : ["Visual", "Job details", "Runs", "Schedules"]
+        ).map((tab) => {
           const isDisabled = !jobId && (tab === "Runs" || tab === "Schedules");
           return (
             <button
@@ -1281,6 +1335,54 @@ export default function ETLJobPage() {
             </p>
           </div>
         </>
+      ) : mainTab === "Lineage" ? (
+        /* Lineage Tab - Shows imported ETL lineage with SchemaNode */
+        <div className="flex-1 flex overflow-hidden min-h-0">
+          <div className="flex-1 relative">
+            <ReactFlow
+              nodes={lineageNodes}
+              edges={lineageEdges}
+              nodeTypes={nodeTypes}
+              edgeTypes={edgeTypes}
+              onNodesChange={(changes) => {
+                setLineageNodes((nds) => {
+                  const updatedNodes = [...nds];
+                  changes.forEach((change) => {
+                    if (change.type === 'position' && change.position) {
+                      const nodeIndex = updatedNodes.findIndex(n => n.id === change.id);
+                      if (nodeIndex !== -1) {
+                        updatedNodes[nodeIndex] = {
+                          ...updatedNodes[nodeIndex],
+                          position: change.position
+                        };
+                      }
+                    }
+                  });
+                  return updatedNodes;
+                });
+              }}
+              fitView
+              fitViewOptions={{ maxZoom: 1, padding: 0.3 }}
+              nodesDraggable
+              className="bg-gray-50 flex-1"
+            >
+              <Controls />
+              <MiniMap
+                nodeColor={(node) => {
+                  const platform = node.data?.platform?.toLowerCase() || "";
+                  if (platform.includes("s3") || platform.includes("archive")) return "#F59E0B";
+                  if (platform.includes("postgres")) return "#3B82F6";
+                  if (platform.includes("mongo")) return "#10B981";
+                  if (platform.includes("mysql")) return "#0EA5E9";
+                  if (platform.includes("kafka")) return "#1F2937";
+                  return "#64748B";
+                }}
+                className="bg-white border border-gray-200"
+              />
+              <Background variant={BackgroundVariant.Dots} gap={12} size={1} />
+            </ReactFlow>
+          </div>
+        </div>
       ) : mainTab === "Job details" ? (
         <JobDetailsPanel
           jobDetails={jobDetails}
@@ -1325,6 +1427,23 @@ export default function ETLJobPage() {
             <p className="text-gray-500">This feature is coming soon.</p>
           </div>
         </div>
+      )}
+
+      {/* Import Modal for adding more ETL jobs to lineage */}
+      {showImportModal && (
+        <DomainImportModal
+          isOpen={showImportModal}
+          onClose={() => setShowImportModal(false)}
+          datasetId={jobId}
+          initialPos={() => ({ x: 400, y: 100 })}
+          onImport={(newNodes, newEdges) => {
+            console.log("[ETLJob] Importing nodes:", newNodes);
+            console.log("[ETLJob] Importing edges:", newEdges);
+            setLineageNodes(prev => [...prev, ...newNodes]);
+            setLineageEdges(prev => [...prev, ...newEdges]);
+            showToast(`Imported ${newNodes.length} nodes`, "success");
+          }}
+        />
       )}
     </div>
   );

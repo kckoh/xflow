@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import { useNavigate, useLocation } from "react-router-dom";
+import { useNavigate, useLocation, useSearchParams } from "react-router-dom";
 import {
   Play,
   Pause,
@@ -10,6 +10,7 @@ import {
 } from "lucide-react";
 import ConfirmationModal from "../../components/common/ConfirmationModal";
 import CreateDatasetModal from "../../components/etl/CreateDatasetModal";
+import TargetImportModal from "../../components/etl/TargetImportModal";
 import { useToast } from "../../components/common/Toast";
 import { API_BASE_URL } from "../../config/api";
 const ITEMS_PER_PAGE = 10;
@@ -25,8 +26,10 @@ export default function ETLMain() {
     jobName: "",
   });
   const [showCreateModal, setShowCreateModal] = useState(false);
+  const [showImportModal, setShowImportModal] = useState(false);
   const navigate = useNavigate();
   const location = useLocation();
+  const [searchParams, setSearchParams] = useSearchParams();
   const { showToast } = useToast();
 
   // Filter jobs by search query
@@ -47,6 +50,16 @@ export default function ETLMain() {
   useEffect(() => {
     fetchJobs();
   }, [location.key]);
+
+  // Check for openImport query parameter
+  useEffect(() => {
+    if (searchParams.get("openImport") === "true") {
+      setShowImportModal(true);
+      // Remove the query parameter
+      searchParams.delete("openImport");
+      setSearchParams(searchParams, { replace: true });
+    }
+  }, [searchParams, setSearchParams]);
 
   const fetchJobs = async () => {
     setIsLoading(true);
@@ -498,6 +511,12 @@ export default function ETLMain() {
         isOpen={showCreateModal}
         onClose={() => setShowCreateModal(false)}
         onSelect={handleCreateDataset}
+      />
+
+      {/* Target Import Modal */}
+      <TargetImportModal
+        isOpen={showImportModal}
+        onClose={() => setShowImportModal(false)}
       />
     </div>
   );
