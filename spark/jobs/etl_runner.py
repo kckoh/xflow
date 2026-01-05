@@ -213,19 +213,7 @@ def read_rdb_source(spark: SparkSession, source_config: dict) -> DataFrame:
     else:
         raise ValueError("Either 'table' or 'query' must be specified in source config")
 
-    df = reader.load()
-    
-    # Apply Incremental Load Filtering (Watermark)
-    incremental_config = source_config.get("incremental_config", {})
-    if incremental_config.get("enabled"):
-        timestamp_col = incremental_config.get("timestamp_column")
-        last_sync = incremental_config.get("last_sync_timestamp")
-        
-        if timestamp_col and last_sync:
-            print(f"   [Incremental] Filtering data: {timestamp_col} > '{last_sync}'")
-            df = df.filter(f"{timestamp_col} > '{last_sync}'")
-            
-    return df
+    return reader.load()
 
 
 def read_nosql_source(spark: SparkSession, source_config: dict) -> DataFrame:
@@ -320,181 +308,43 @@ def read_s3_logs_source(spark: SparkSession, source_config: dict) -> DataFrame:
     spark.conf.set("spark.hadoop.fs.s3a.access.key", access_key)
     spark.conf.set("spark.hadoop.fs.s3a.secret.key", secret_key)
 
-    # Build S3 path
+    # Read log files from S3
     s3_path = f"s3a://{bucket}/{path}"
     print(f"   Reading logs from: {s3_path}")
     print(f"   Using custom regex pattern with named groups")
 
-    # Check for incremental load (hybrid file + record filtering)
-    incremental_config = source_config.get("incremental_config", {})
+    # Read as text
+    raw_df = spark.read.text(s3_path)
 
-    if incremental_config.get("enabled") and incremental_config.get("last_sync_timestamp"):
-        import boto3
-        from datetime import datetime, timedelta
+    # Extract named groups from Python regex pattern
+    # Python regex: (?P<name>pattern) -> extract group names
+    try:
+        compiled_pattern = re.compile(custom_regex)
+        named_groups = list(compiled_pattern.groupindex.keys())
+        if not named_groups:
+            raise ValueError("Regex pattern must contain at least one named group (?P<field_name>pattern)")
+        print(f"   Detected fields from regex: {named_groups}")
+    except re.error as e:
+        raise ValueError(f"Invalid regex pattern: {str(e)}")
 
-        last_sync_str = incremental_config.get("last_sync_timestamp")
-        last_sync = datetime.fromisoformat(last_sync_str.replace('Z', '+00:00'))
+    # Convert Python named group regex to Spark regex (remove ?P<name>)
+    # Python: (?P<field>\S+) -> Spark: (\S+)
+    spark_regex = re.sub(r'\?P<[^>]+>', '', custom_regex)
 
-        # Grace period: files that might still be updated
-        grace_period = timedelta(hours=1)
-        grace_cutoff = last_sync - grace_period
-
-        print(f"   [Incremental] Hybrid filtering: file-level + record-level")
-        print(f"      last_sync: {last_sync}")
-        print(f"      grace_period: {grace_period}")
-
-        # Initialize S3 client
-        s3_client = boto3.client(
-            's3',
-            endpoint_url=endpoint,
-            aws_access_key_id=access_key,
-            aws_secret_access_key=secret_key
+    # Build select expressions for each named group
+    select_exprs = []
+    for idx, field_name in enumerate(named_groups, start=1):
+        select_exprs.append(
+            F.regexp_extract('value', spark_regex, idx).alias(field_name)
         )
 
-        # List all files in the path
-        response = s3_client.list_objects_v2(Bucket=bucket, Prefix=path)
+    # Extract fields using regex
+    parsed_df = raw_df.select(*select_exprs)
 
-        new_files = []      # Files created after last_sync (read all records)
-        recent_files = []   # Files within grace period (read with timestamp filter)
-
-        if 'Contents' in response:
-            for obj in response['Contents']:
-                # Skip directories
-                if obj['Key'].endswith('/'):
-                    continue
-
-                file_modified = obj['LastModified'].replace(tzinfo=None)
-                file_path = f"s3a://{bucket}/{obj['Key']}"
-
-                if file_modified > last_sync:
-                    # Case 1: New file - read all records
-                    new_files.append(file_path)
-                    print(f"      → [NEW] {obj['Key']} (modified: {file_modified})")
-                elif file_modified > grace_cutoff:
-                    # Case 2: Recent file (might still be updated) - read with timestamp filter
-                    recent_files.append(file_path)
-                    print(f"      → [RECENT] {obj['Key']} (modified: {file_modified}) - will filter by timestamp")
-                # Case 3: Old file - skip
-                # else:
-                #     print(f"      → [SKIP] {obj['Key']} (modified: {file_modified})")
-
-        # Helper function to parse logs with regex
-        def parse_logs(raw_df):
-            """Parse raw text DataFrame using custom regex"""
-            # Extract named groups from Python regex pattern
-            try:
-                compiled_pattern = re.compile(custom_regex)
-                named_groups = list(compiled_pattern.groupindex.keys())
-                if not named_groups:
-                    raise ValueError("Regex pattern must contain at least one named group (?P<field_name>pattern)")
-            except re.error as e:
-                raise ValueError(f"Invalid regex pattern: {str(e)}")
-
-            # Convert Python named group regex to Spark regex (remove ?P<name>)
-            spark_regex = re.sub(r'\?P<[^>]+>', '', custom_regex)
-
-            # Build select expressions for each named group
-            select_exprs = []
-            for idx, field_name in enumerate(named_groups, start=1):
-                select_exprs.append(
-                    F.regexp_extract('value', spark_regex, idx).alias(field_name)
-                )
-
-            # Extract fields using regex
-            parsed = raw_df.select(*select_exprs)
-
-            # Filter out failed parsing (if first field is empty, parsing likely failed)
-            if named_groups:
-                first_field = named_groups[0]
-                parsed = parsed.filter(F.col(first_field) != '')
-
-            return parsed, named_groups
-
-        # Process files with incremental filtering
-        parsed_dfs_to_union = []
-
-        if new_files:
-            print(f"   [Incremental] Reading {len(new_files)} new files (all records)")
-            df_new = spark.read.text(new_files)
-            parsed_new, named_groups = parse_logs(df_new)
-            parsed_dfs_to_union.append(parsed_new)
-            print(f"      → Parsed {parsed_new.count()} records from new files")
-
-        if recent_files:
-            print(f"   [Incremental] Reading {len(recent_files)} recent files (with timestamp filter)")
-            df_recent = spark.read.text(recent_files)
-            parsed_recent, named_groups = parse_logs(df_recent)
-
-            # Apply record-level timestamp filter to recent files
-            # Find timestamp field in the parsed schema
-            timestamp_field = incremental_config.get("timestamp_column", "timestamp")
-            if timestamp_field in parsed_recent.columns:
-                # Convert timestamp string to comparable format and filter
-                # Assuming timestamp is in format like "02/Jan/2026:10:56:00 +0900"
-                parsed_ts = F.to_timestamp(F.col(timestamp_field), "dd/MMM/yyyy:HH:mm:ss Z")
-                last_sync_ts = F.to_timestamp(F.lit(last_sync_str), "yyyy-MM-dd'T'HH:mm:ss.SSSSSS")
-
-                before_filter = parsed_recent.count()
-                parsed_recent = parsed_recent.filter(parsed_ts > last_sync_ts)
-                after_filter = parsed_recent.count()
-
-                print(f"      → Parsed {before_filter} records, filtered to {after_filter} records (timestamp > {last_sync})")
-            else:
-                print(f"      ⚠️ Warning: timestamp field '{timestamp_field}' not found in parsed schema, skipping record-level filter")
-                print(f"      → Available fields: {parsed_recent.columns}")
-
-            parsed_dfs_to_union.append(parsed_recent)
-
-        if not parsed_dfs_to_union:
-            print(f"   [Incremental] No new or recent files - returning empty DataFrame")
-            # Need to get named_groups for empty schema
-            try:
-                compiled_pattern = re.compile(custom_regex)
-                named_groups = list(compiled_pattern.groupindex.keys())
-            except:
-                named_groups = ["value"]
-
-            from pyspark.sql.types import StructType, StructField, StringType
-            schema = StructType([StructField(name, StringType(), True) for name in named_groups])
-            return spark.createDataFrame([], schema)
-
-        # Union all parsed DataFrames
-        print(f"   Detected fields from regex: {named_groups}")
-        parsed_df = parsed_dfs_to_union[0]
-        for df in parsed_dfs_to_union[1:]:
-            parsed_df = parsed_df.union(df)
-
-    else:
-        # No incremental - read all files and parse
-        raw_df = spark.read.text(s3_path)
-
-        # Extract named groups from Python regex pattern
-        try:
-            compiled_pattern = re.compile(custom_regex)
-            named_groups = list(compiled_pattern.groupindex.keys())
-            if not named_groups:
-                raise ValueError("Regex pattern must contain at least one named group (?P<field_name>pattern)")
-            print(f"   Detected fields from regex: {named_groups}")
-        except re.error as e:
-            raise ValueError(f"Invalid regex pattern: {str(e)}")
-
-        # Convert Python named group regex to Spark regex (remove ?P<name>)
-        spark_regex = re.sub(r'\?P<[^>]+>', '', custom_regex)
-
-        # Build select expressions for each named group
-        select_exprs = []
-        for idx, field_name in enumerate(named_groups, start=1):
-            select_exprs.append(
-                F.regexp_extract('value', spark_regex, idx).alias(field_name)
-            )
-
-        # Extract fields using regex
-        parsed_df = raw_df.select(*select_exprs)
-
-        # Filter out failed parsing (if first field is empty, parsing likely failed)
-        if named_groups:
-            first_field = named_groups[0]
-            parsed_df = parsed_df.filter(F.col(first_field) != '')
+    # Filter out failed parsing (if first field is empty, parsing likely failed)
+    if named_groups:
+        first_field = named_groups[0]
+        parsed_df = parsed_df.filter(F.col(first_field) != '')
 
     record_count = parsed_df.count()
     print(f"   ✅ Parsed {record_count} log records")
@@ -524,13 +374,7 @@ def write_s3_destination(df: DataFrame, dest_config: dict, job_name: str = "outp
 
     options = dest_config.get("options", {})
     compression = options.get("compression", "snappy")
-    
-    # Determine write mode: Enforce 'append' if incremental load is enabled
-    incremental_config = dest_config.get("incremental_config", {})
-    if incremental_config.get("enabled"):
-        mode = "append"
-    else:
-        mode = options.get("mode", "overwrite")
+    mode = options.get("mode", "overwrite")
     partition_by = options.get("partitionBy", [])
     coalesce_num = options.get("coalesce")  # None means use default partitions
 
