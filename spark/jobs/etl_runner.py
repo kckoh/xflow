@@ -313,28 +313,31 @@ def read_s3_logs_source(spark: SparkSession, source_config: dict) -> DataFrame:
 
     # Configure S3 access
     # Support both old field names (access_key, secret_key, endpoint) and new (access_key_id, secret_access_key, region)
-    access_key = connection.get("access_key_id") or connection.get("access_key", "test")
-    secret_key = connection.get("secret_access_key") or connection.get("secret_key", "test")
-
-    # Handle endpoint: use explicit endpoint if provided, or construct from region
+    access_key = connection.get("access_key_id") or connection.get("access_key")
+    secret_key = connection.get("secret_access_key") or connection.get("secret_key")
     endpoint = connection.get("endpoint")
-    if not endpoint:
-        region = connection.get("region", "ap-northeast-2")
-        # If region is provided but no endpoint, construct AWS S3 endpoint
-        if access_key != "test":
-            # Real AWS - use standard endpoint
-            endpoint = f"s3.{region}.amazonaws.com"
+
+    # Only configure S3 credentials if explicitly provided in connection
+    # Otherwise, use Spark's global credentials (from IRSA in Kubernetes)
+    if access_key and secret_key:
+        # Explicit credentials provided (LocalStack or user-specific AWS)
+        spark.conf.set("spark.hadoop.fs.s3a.access.key", access_key)
+        spark.conf.set("spark.hadoop.fs.s3a.secret.key", secret_key)
+
+        # Handle endpoint
+        if endpoint:
+            spark.conf.set("spark.hadoop.fs.s3a.endpoint", endpoint)
         else:
-            # LocalStack default
-            endpoint = "http://localstack-main:4566"
+            region = connection.get("region", "ap-northeast-2")
+            endpoint = f"s3.{region}.amazonaws.com"
+            spark.conf.set("spark.hadoop.fs.s3a.endpoint", endpoint)
 
-    spark.conf.set("spark.hadoop.fs.s3a.endpoint", endpoint)
-    spark.conf.set("spark.hadoop.fs.s3a.access.key", access_key)
-    spark.conf.set("spark.hadoop.fs.s3a.secret.key", secret_key)
-
-    # For real AWS, disable path-style access
-    if not endpoint.startswith("http://"):
-        spark.conf.set("spark.hadoop.fs.s3a.path.style.access", "false")
+        # Path-style access for LocalStack
+        if endpoint.startswith("http://"):
+            spark.conf.set("spark.hadoop.fs.s3a.path.style.access", "true")
+    else:
+        # No credentials in connection - use Spark's global credentials (IRSA)
+        print("   Using Spark's global S3 credentials (IRSA)")
 
     # Build S3 path
     s3_path = f"s3a://{bucket}/{path}"
@@ -360,15 +363,18 @@ def read_s3_logs_source(spark: SparkSession, source_config: dict) -> DataFrame:
         print(f"      grace_period: {grace_period}")
 
         # Initialize S3 client
-        boto3_kwargs = {
-            'aws_access_key_id': access_key,
-            'aws_secret_access_key': secret_key
-        }
+        boto3_kwargs = {}
 
-        # Only add endpoint_url for LocalStack (not for real AWS)
-        if endpoint.startswith("http://"):
-            boto3_kwargs['endpoint_url'] = endpoint
+        # Only add credentials if explicitly provided
+        if access_key and secret_key:
+            boto3_kwargs['aws_access_key_id'] = access_key
+            boto3_kwargs['aws_secret_access_key'] = secret_key
 
+            # Only add endpoint_url for LocalStack (not for real AWS)
+            if endpoint and endpoint.startswith("http://"):
+                boto3_kwargs['endpoint_url'] = endpoint
+
+        # If no credentials, boto3 will use default credential chain (IRSA)
         s3_client = boto3.client('s3', **boto3_kwargs)
 
         # List all files in the path
@@ -605,34 +611,37 @@ def create_spark_session(config: dict) -> SparkSession:
                 .config("spark.hadoop.fs.s3a.endpoint", f"s3.{region}.amazonaws.com") \
                 .config("spark.hadoop.fs.s3a.fast.upload", "true")
         else:
-            # Local: Use LocalStack/MinIO with explicit credentials
+            # Non-IAM: Use explicit credentials (LocalStack or user-provided)
             # Support both old field names (access_key, secret_key, endpoint) and new (access_key_id, secret_access_key, region)
-            access_key = s3_config.get("access_key_id") or s3_config.get("access_key", "test")
-            secret_key = s3_config.get("secret_access_key") or s3_config.get("secret_key", "test")
-
-            # Handle endpoint: use explicit endpoint if provided, or construct from region
+            access_key = s3_config.get("access_key_id") or s3_config.get("access_key")
+            secret_key = s3_config.get("secret_access_key") or s3_config.get("secret_key")
             endpoint = s3_config.get("endpoint")
-            if not endpoint:
-                region = s3_config.get("region", "ap-northeast-2")
-                if access_key != "test":
-                    # Real AWS
-                    endpoint = f"s3.{region}.amazonaws.com"
-                else:
-                    # LocalStack default
-                    endpoint = "http://localstack-main:4566"
-
-            # Determine if using real AWS or LocalStack
-            use_path_style = endpoint.startswith("http://") or endpoint.startswith("https://localhost")
 
             builder = builder \
-                .config("spark.hadoop.fs.s3a.endpoint", endpoint) \
-                .config("spark.hadoop.fs.s3a.access.key", access_key) \
-                .config("spark.hadoop.fs.s3a.secret.key", secret_key) \
-                .config("spark.hadoop.fs.s3a.path.style.access", "true" if use_path_style else "false") \
                 .config("spark.hadoop.fs.s3a.impl", "org.apache.hadoop.fs.s3a.S3AFileSystem") \
                 .config("spark.hadoop.fs.s3a.fast.upload", "true") \
                 .config("spark.hadoop.fs.s3a.fast.upload.buffer", "disk") \
                 .config("spark.hadoop.fs.s3a.multipart.size", "5M")
+
+            # Only configure credentials if explicitly provided
+            if access_key and secret_key:
+                builder = builder \
+                    .config("spark.hadoop.fs.s3a.access.key", access_key) \
+                    .config("spark.hadoop.fs.s3a.secret.key", secret_key)
+
+                # Handle endpoint
+                if endpoint:
+                    builder = builder.config("spark.hadoop.fs.s3a.endpoint", endpoint)
+                else:
+                    region = s3_config.get("region", "ap-northeast-2")
+                    builder = builder.config("spark.hadoop.fs.s3a.endpoint", f"s3.{region}.amazonaws.com")
+
+                # Path-style access for LocalStack
+                if endpoint and endpoint.startswith("http://"):
+                    builder = builder.config("spark.hadoop.fs.s3a.path.style.access", "true")
+            else:
+                # No explicit credentials - will use Spark's global credentials (IRSA)
+                print("Using Spark's global S3 credentials for destination (IRSA)")
 
     return builder.getOrCreate()
 
