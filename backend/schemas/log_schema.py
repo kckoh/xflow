@@ -56,12 +56,18 @@ class LogFormatGuide(BaseModel):
 class TestConnectionRequest(BaseModel):
     bucket: str = Field(..., description="S3 bucket name")
     path: str = Field(..., description="S3 path/prefix")
+    region: Optional[str] = Field(None, description="AWS region")
+    access_key_id: Optional[str] = Field(None, description="AWS Access Key ID")
+    secret_access_key: Optional[str] = Field(None, description="AWS Secret Access Key")
 
 
 class PreviewLogsRequest(BaseModel):
     bucket: str = Field(..., description="S3 bucket name")
     path: str = Field(..., description="S3 path/prefix")
     limit: int = Field(5, description="Number of logs to preview")
+    region: Optional[str] = Field(None, description="AWS region")
+    access_key_id: Optional[str] = Field(None, description="AWS Access Key ID")
+    secret_access_key: Optional[str] = Field(None, description="AWS Secret Access Key")
 
 
 class TransformLogsRequest(BaseModel):
@@ -71,3 +77,6 @@ class TransformLogsRequest(BaseModel):
     target_path: str = Field(..., description="Target S3 path/prefix (can be s3://bucket/path format)")
     selected_fields: Optional[List[str]] = Field(None, description="Fields to include")
     filters: Optional[Dict[str, Any]] = Field(None, description="Transform filters")
+    region: Optional[str] = Field(None, description="AWS region")
+    access_key_id: Optional[str] = Field(None, description="AWS Access Key ID")
+    secret_access_key: Optional[str] = Field(None, description="AWS Secret Access Key")

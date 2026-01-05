@@ -71,6 +71,7 @@ async def test_connection(request: TestConnectionRequest):
         request: 연결 테스트 요청 (JSON body)
             - bucket: 유저의 S3 버킷명 (필수!)
             - path: S3 경로 (필수!, 예: logs/)
+            - region, access_key_id, secret_access_key: AWS 자격 증명 (선택)
 
     Returns:
         {
@@ -80,7 +81,16 @@ async def test_connection(request: TestConnectionRequest):
         }
     """
     try:
-        result = check_connection(request.bucket, request.path)
+        # AWS config 구성 (제공된 경우)
+        aws_config = None
+        if request.access_key_id and request.secret_access_key:
+            aws_config = {
+                'region': request.region,
+                'access_key_id': request.access_key_id,
+                'secret_access_key': request.secret_access_key
+            }
+
+        result = check_connection(request.bucket, request.path, aws_config)
         return result
     except Exception as e:
         raise HTTPException(
@@ -102,6 +112,7 @@ async def preview_logs_data(request: PreviewLogsRequest):
             - bucket: 유저의 S3 버킷명 (필수!)
             - path: S3 경로 (필수!)
             - limit: 미리보기 할 로그 개수 (기본값: 5)
+            - region, access_key_id, secret_access_key: AWS 자격 증명 (선택)
 
     Returns:
         {
@@ -112,8 +123,17 @@ async def preview_logs_data(request: PreviewLogsRequest):
         }
     """
     try:
+        # AWS config 구성 (제공된 경우)
+        aws_config = None
+        if request.access_key_id and request.secret_access_key:
+            aws_config = {
+                'region': request.region,
+                'access_key_id': request.access_key_id,
+                'secret_access_key': request.secret_access_key
+            }
+
         # 1. 유저 S3에서 Apache 로그 읽기
-        result = read_apache_logs(request.bucket, request.path, request.limit)
+        result = read_apache_logs(request.bucket, request.path, request.limit, aws_config)
         logs_data = result["logs_data"]
         total_files = result["total_files"]
 
@@ -218,13 +238,23 @@ async def transform_logs_api(request: TransformLogsRequest):
         )
 
     try:
+        # AWS config 구성 (제공된 경우)
+        aws_config = None
+        if request.access_key_id and request.secret_access_key:
+            aws_config = {
+                'region': request.region,
+                'access_key_id': request.access_key_id,
+                'secret_access_key': request.secret_access_key
+            }
+
         result = transform_apache_logs(
             source_bucket=source_bucket,
             source_path=source_path,
             target_bucket=target_bucket,
             target_path=target_path,
             selected_fields=selected_fields,
-            filters=filters
+            filters=filters,
+            aws_config=aws_config
         )
 
         if result["status"] == "failed":

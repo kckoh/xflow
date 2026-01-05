@@ -25,43 +25,54 @@ AWS_SECRET_ACCESS_KEY = os.getenv("AWS_SECRET_ACCESS_KEY", "test")
 
 
 # ============================================================
-# S3 클라이언트 초기화
+# S3 클라이언트 생성 헬퍼 함수
 # ============================================================
-s3_client = None
-if USE_S3:
+def create_s3_client(aws_config: Dict[str, Any] = None):
+    """
+    S3 클라이언트 생성
+
+    Args:
+        aws_config: 사용자별 AWS 설정 (선택)
+            - region: AWS 리전
+            - access_key_id: AWS Access Key ID
+            - secret_access_key: AWS Secret Access Key
+
+    Returns:
+        boto3 S3 client 또는 None
+    """
     try:
         import boto3
 
+        # 사용자별 AWS 자격 증명이 제공된 경우
+        if aws_config and aws_config.get('access_key_id') and aws_config.get('secret_access_key'):
+            return boto3.client(
+                's3',
+                region_name=aws_config.get('region', AWS_REGION),
+                aws_access_key_id=aws_config['access_key_id'],
+                aws_secret_access_key=aws_config['secret_access_key']
+            )
+
         # LocalStack (로컬 개발 환경)용 설정
         if AWS_ENDPOINT:
-            s3_client = boto3.client(
+            return boto3.client(
                 's3',
-                endpoint_url=AWS_ENDPOINT,  # LocalStack 엔드포인트
+                endpoint_url=AWS_ENDPOINT,
                 region_name=AWS_REGION,
                 aws_access_key_id=AWS_ACCESS_KEY_ID,
                 aws_secret_access_key=AWS_SECRET_ACCESS_KEY,
-                use_ssl=False,  # LocalStack은 SSL 미사용
-                verify=False    # 인증서 검증 비활성화
+                use_ssl=False,
+                verify=False
             )
-            print(f"✅ S3 client initialized with LocalStack: {AWS_ENDPOINT}")
 
-        # 실제 AWS S3 (프로덕션 배포 환경)용 설정
-        else:
-            # 배포 시: AWS_ENDPOINT 환경 변수를 제거하거나 빈 문자열로 설정
-            # IAM Role 또는 ~/.aws/credentials 사용
-            s3_client = boto3.client(
-                's3',
-                region_name=AWS_REGION
-                # aws_access_key_id, aws_secret_access_key는 IAM Role에서 자동 로드
-            )
-            print(f"✅ S3 client initialized with AWS: {AWS_REGION}")
+        # 환경 변수 또는 IAM Role 사용
+        return boto3.client('s3', region_name=AWS_REGION)
 
     except ImportError:
         print("⚠️  boto3 not installed. Using local file system.")
-        USE_S3 = False
+        return None
     except Exception as e:
-        print(f"⚠️  Failed to initialize S3 client: {e}")
-        USE_S3 = False
+        print(f"⚠️  Failed to create S3 client: {e}")
+        return None
 
 
 # Apache Combined Log Format 정규식 패턴
@@ -166,7 +177,7 @@ def extract_schema_from_apache_log() -> List[Dict[str, str]]:
     ]
 
 
-def read_apache_logs_from_s3(bucket: str, path: str, limit: int = None) -> Tuple[List[dict], int]:
+def read_apache_logs_from_s3(bucket: str, path: str, limit: int = None, aws_config: Dict[str, Any] = None) -> Tuple[List[dict], int]:
     """
     S3에서 Apache 로그 읽기
 
@@ -174,10 +185,12 @@ def read_apache_logs_from_s3(bucket: str, path: str, limit: int = None) -> Tuple
         bucket: S3 버킷명
         path: S3 경로
         limit: 읽을 로그 개수 (None이면 전체)
+        aws_config: 사용자별 AWS 설정 (선택)
 
     Returns:
         (logs_data, total_files)
     """
+    s3_client = create_s3_client(aws_config)
     if not s3_client:
         raise Exception("S3 client not available")
 
@@ -268,7 +281,7 @@ def read_apache_logs_from_local(path: str, limit: int = None) -> Tuple[List[dict
     return logs_data, total_files
 
 
-def read_apache_logs(bucket: str = None, path: str = None, limit: int = None) -> Dict[str, Any]:
+def read_apache_logs(bucket: str = None, path: str = None, limit: int = None, aws_config: Dict[str, Any] = None) -> Dict[str, Any]:
     """
     S3 또는 로컬에서 Apache 로그 읽기 (통합 함수)
 
@@ -276,6 +289,7 @@ def read_apache_logs(bucket: str = None, path: str = None, limit: int = None) ->
         bucket: S3 버킷명 (필수!)
         path: 경로 (필수!)
         limit: 읽을 로그 개수 (옵션)
+        aws_config: 사용자별 AWS 설정 (선택)
 
     Returns:
         {
@@ -295,8 +309,8 @@ def read_apache_logs(bucket: str = None, path: str = None, limit: int = None) ->
         raise Exception("path is required. Please specify which path to read from.")
 
     try:
-        if USE_S3 and s3_client:
-            logs_data, total_files = read_apache_logs_from_s3(bucket, path, limit)
+        if USE_S3 or aws_config:
+            logs_data, total_files = read_apache_logs_from_s3(bucket, path, limit, aws_config)
             storage_type = "s3"
         else:
             logs_data, total_files = read_apache_logs_from_local(path, limit)
@@ -311,13 +325,14 @@ def read_apache_logs(bucket: str = None, path: str = None, limit: int = None) ->
         raise Exception(f"Failed to read Apache logs: {str(e)}")
 
 
-def check_connection(bucket: str = None, path: str = None) -> Dict[str, Any]:
+def check_connection(bucket: str = None, path: str = None, aws_config: Dict[str, Any] = None) -> Dict[str, Any]:
     """
     S3/로컬 연결 테스트
 
     Args:
         bucket: S3 버킷명 (필수!)
         path: 경로 (필수!)
+        aws_config: 사용자별 AWS 설정 (선택)
 
     Returns:
         {
@@ -337,8 +352,16 @@ def check_connection(bucket: str = None, path: str = None) -> Dict[str, Any]:
         raise Exception("path is required. Please specify which path to test.")
 
     try:
-        if USE_S3 and s3_client:
+        if USE_S3 or aws_config:
             # S3 연결 테스트
+            s3_client = create_s3_client(aws_config)
+            if not s3_client:
+                return {
+                    "connection_valid": False,
+                    "message": "S3 client not available",
+                    "storage_type": "s3"
+                }
+
             prefix = normalize_s3_prefix(path)
             response = s3_client.list_objects_v2(
                 Bucket=bucket,
@@ -389,7 +412,7 @@ def check_connection(bucket: str = None, path: str = None) -> Dict[str, Any]:
         return {
             "connection_valid": False,
             "message": f"Connection error: {str(e)}",
-            "storage_type": "s3" if USE_S3 else "local"
+            "storage_type": "s3" if (USE_S3 or aws_config) else "local"
         }
 
 
@@ -399,7 +422,8 @@ def transform_apache_logs(
     target_bucket: str = None,
     target_path: str = None,
     selected_fields: List[str] = None,
-    filters: Dict[str, Any] = None
+    filters: Dict[str, Any] = None,
+    aws_config: Dict[str, Any] = None
 ) -> Dict[str, Any]:
     """
     Apache 로그 Transform 실행
@@ -417,6 +441,7 @@ def transform_apache_logs(
             - status_code_max: int (최대 status code)
             - ip_patterns: List[str] (IP 패턴 리스트)
             - path_pattern: str (path regex 패턴)
+        aws_config: 사용자별 AWS 설정 (선택)
 
     Returns:
         {
@@ -440,7 +465,7 @@ def transform_apache_logs(
             raise Exception("target_path is required. Please specify which path to save to.")
 
         # 1. Apache 로그 읽기 (모든 로그)
-        result = read_apache_logs(source_bucket, source_path, limit=None)
+        result = read_apache_logs(source_bucket, source_path, limit=None, aws_config=aws_config)
         logs_data = result["logs_data"]
         storage_type = result["storage_type"]
 
@@ -488,7 +513,12 @@ def transform_apache_logs(
 
         # 5. Parquet 저장 (모든 값이 필수이므로 기본값 없음)
 
-        if USE_S3 and s3_client:
+        if USE_S3 or aws_config:
+            # S3 클라이언트 생성
+            s3_client = create_s3_client(aws_config)
+            if not s3_client:
+                raise Exception("S3 client not available")
+
             # 타겟 버킷 존재 여부 확인 (없으면 에러)
             try:
                 s3_client.head_bucket(Bucket=target_bucket)
@@ -503,17 +533,32 @@ def transform_apache_logs(
             clean_target_path = target_path.rstrip('/')
             output_path = f"s3://{target_bucket}/{clean_target_path}/data.parquet"
 
-            # s3fs용 storage_options 설정 (LocalStack 지원)
-            storage_options = {
-                'key': AWS_ACCESS_KEY_ID,
-                'secret': AWS_SECRET_ACCESS_KEY,
-            }
+            # s3fs용 storage_options 설정
+            storage_options = {}
 
-            # LocalStack 사용 시 endpoint_url 추가
-            if AWS_ENDPOINT:
-                storage_options['client_kwargs'] = {
-                    'endpoint_url': AWS_ENDPOINT,
-                    'region_name': AWS_REGION
+            # 사용자별 AWS 자격 증명 사용
+            if aws_config and aws_config.get('access_key_id') and aws_config.get('secret_access_key'):
+                storage_options = {
+                    'key': aws_config['access_key_id'],
+                    'secret': aws_config['secret_access_key'],
+                }
+                if aws_config.get('region'):
+                    storage_options['client_kwargs'] = {'region_name': aws_config['region']}
+            # LocalStack 사용 시
+            elif AWS_ENDPOINT:
+                storage_options = {
+                    'key': AWS_ACCESS_KEY_ID,
+                    'secret': AWS_SECRET_ACCESS_KEY,
+                    'client_kwargs': {
+                        'endpoint_url': AWS_ENDPOINT,
+                        'region_name': AWS_REGION
+                    }
+                }
+            # 환경 변수 사용
+            else:
+                storage_options = {
+                    'key': AWS_ACCESS_KEY_ID,
+                    'secret': AWS_SECRET_ACCESS_KEY,
                 }
 
             df.to_parquet(
@@ -523,7 +568,7 @@ def transform_apache_logs(
                 storage_options=storage_options
             )
         else:
-            raise Exception("Local output is disabled. Please enable S3 or configure S3 settings.")
+            raise Exception("S3 is not configured. Please enable S3 or provide AWS credentials.")
 
         return {
             "status": "success",

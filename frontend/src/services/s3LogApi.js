@@ -2,13 +2,13 @@ const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8000
 
 export const s3LogApi = {
   // POST /api/logs/test-connection
-  async testConnection({ bucket, path }) {
+  async testConnection({ bucket, path, region, access_key_id, secret_access_key }) {
     const response = await fetch(`${API_BASE_URL}/api/logs/test-connection`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
       },
-      body: JSON.stringify({ bucket, path }),
+      body: JSON.stringify({ bucket, path, region, access_key_id, secret_access_key }),
     });
 
     const data = await response.json();
@@ -21,13 +21,13 @@ export const s3LogApi = {
   },
 
   // POST /api/logs/preview
-  async previewLogs({ bucket, path, limit = 10 }) {
+  async previewLogs({ bucket, path, limit = 10, region, access_key_id, secret_access_key }) {
     const response = await fetch(`${API_BASE_URL}/api/logs/preview`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
       },
-      body: JSON.stringify({ bucket, path, limit }),
+      body: JSON.stringify({ bucket, path, limit, region, access_key_id, secret_access_key }),
     });
 
     const data = await response.json();
@@ -40,7 +40,7 @@ export const s3LogApi = {
   },
 
   // POST /api/logs/transform
-  async transformLogs({ source_bucket, source_path, target_bucket, target_path, selected_fields, filters }) {
+  async transformLogs({ source_bucket, source_path, target_bucket, target_path, selected_fields, filters, region, access_key_id, secret_access_key }) {
     const response = await fetch(`${API_BASE_URL}/api/logs/transform`, {
       method: 'POST',
       headers: {
@@ -53,6 +53,9 @@ export const s3LogApi = {
         target_path,
         selected_fields,
         filters,
+        region,
+        access_key_id,
+        secret_access_key,
       }),
     });
 
