@@ -81,6 +81,7 @@ services:
       AWS_SECRET_ACCESS_KEY: test
       AIRFLOW_BASE_URL: http://airflow-webserver:8080/api/v1
       ENVIRONMENT: local
+      USE_S3: "true"
     depends_on:
       - mongodb
       - opensearch
