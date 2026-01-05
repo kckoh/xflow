@@ -34,8 +34,10 @@ async def run_query(
         
         if user_session:
             is_admin = user_session.get("is_admin", False)
+            all_datasets = user_session.get("all_datasets", False)
             
-            if not is_admin:
+            # Only check permissions if not admin and not all_datasets
+            if not is_admin and not all_datasets:
                 # Extract S3 paths from SQL
                 s3_paths = re.findall(r's3://[\w\-]+/[\w\-]+', request.sql)
                 
@@ -147,8 +149,10 @@ async def list_bucket_files(
         
         if user_session:
             is_admin = user_session.get("is_admin", False)
+            all_datasets = user_session.get("all_datasets", False)
             
-            if not is_admin:
+            # Only filter if not admin and not all_datasets
+            if not is_admin and not all_datasets:
                 dataset_access = user_session.get("dataset_access", [])
                 
                 # Get allowed dataset names

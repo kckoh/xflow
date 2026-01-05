@@ -41,8 +41,10 @@ async def get_all_domains(
     # Filter domains based on dataset permissions    
     if user_session:
         is_admin = user_session.get("is_admin", False)
+        all_datasets = user_session.get("all_datasets", False)
         
-        if not is_admin:
+        # Admin or all_datasets users see everything
+        if not is_admin and not all_datasets:
             dataset_access = user_session.get("dataset_access", [])
             
             # Get all datasets to map names to IDs
@@ -169,10 +171,11 @@ async def list_domain_jobs(
         # Filter jobs based on dataset_access permissions
         if user_session:
             is_admin = user_session.get("is_admin", False)
+            all_datasets = user_session.get("all_datasets", False)
             dataset_access = user_session.get("dataset_access", [])
             
-            # Admin sees all jobs
-            if not is_admin and dataset_access is not None:
+            # Admin or all_datasets users see all jobs
+            if not is_admin and not all_datasets and dataset_access is not None:
                 # Get all datasets to map job_id to dataset_id
                 datasets = await Dataset.find_all().to_list()
                 job_to_dataset = {d.job_id: str(d.id) for d in datasets if d.job_id}
