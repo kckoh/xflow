@@ -23,7 +23,7 @@ router = APIRouter()
 @router.get("")
 async def get_all_domains(
     page: int = Query(1, ge=1, description="Page number"),
-    limit: int = Query(10, ge=1, le=100, description="Items per page"),
+    limit: int = Query(10, ge=1, le=500, description="Items per page"),
     search: Optional[str] = Query(None, description="Search term for domain name"),
     sort_by: str = Query("updated_at", description="Sort field: name, updated_at, owner, platform"),
     sort_order: str = Query("desc", description="Sort order: asc, desc"),
@@ -41,8 +41,10 @@ async def get_all_domains(
     # Filter domains based on dataset permissions    
     if user_session:
         is_admin = user_session.get("is_admin", False)
+        all_datasets = user_session.get("all_datasets", False)
         
-        if not is_admin:
+        # Admin or all_datasets users see everything
+        if not is_admin and not all_datasets:
             dataset_access = user_session.get("dataset_access", [])
             
             # Get all datasets to map names to IDs
@@ -169,10 +171,11 @@ async def list_domain_jobs(
         # Filter jobs based on dataset_access permissions
         if user_session:
             is_admin = user_session.get("is_admin", False)
+            all_datasets = user_session.get("all_datasets", False)
             dataset_access = user_session.get("dataset_access", [])
             
-            # Admin sees all jobs
-            if not is_admin and dataset_access is not None:
+            # Admin or all_datasets users see all jobs
+            if not is_admin and not all_datasets and dataset_access is not None:
                 # Get all datasets to map job_id to dataset_id
                 datasets = await Dataset.find_all().to_list()
                 job_to_dataset = {d.job_id: str(d.id) for d in datasets if d.job_id}
