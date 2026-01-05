@@ -172,6 +172,7 @@ services:
     volumes:
       - ./spark/jars:/opt/spark/jars/extra
       - ./spark/jobs:/opt/spark/jobs
+      - ./spark/conf:/opt/spark/conf
 
   spark-worker:
     build:
@@ -193,6 +194,7 @@ services:
     volumes:
       - ./spark/jars:/opt/spark/jars/extra
       - ./spark/jobs:/opt/spark/jobs
+      - ./spark/conf:/opt/spark/conf
 
   # ============ Kafka + Debezium (CDC) ============
   kafka:
