@@ -66,14 +66,10 @@ export function RightSidebar({
         ];
 
     // Add Quality tab only if S3 data is available
-    if (showQualityTab) {
-        if (isDomainMode) {
-            // Add quality at index 2 (after columns)
-            TABS.splice(2, 0, { id: "quality", label: "Quality", icon: ShieldCheck, color: "green" });
-        } else {
-            // Add quality at index 2
-            TABS.splice(2, 0, { id: "quality", label: "Quality", icon: ShieldCheck, color: "green" });
-        }
+    // Add Quality tab ONLY if NOT in domain mode (individual node selected)
+    if (showQualityTab && !isDomainMode) {
+        // Add quality at index 2
+        TABS.splice(2, 0, { id: "quality", label: "Quality", icon: ShieldCheck, color: "green" });
     }
 
     // Reset tab if current tab is invalid for the new mode
