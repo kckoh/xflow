@@ -214,7 +214,10 @@ airflow/logs/
 minio-data/
 trino/jars/
 hive/lib/
+kafka-data/
 
+# MongoDB keyfile (sensitive)
+mongodb/keyfile
 # Log data files (ETL logs stored in S3/local)
 backend/data/logs/
 
