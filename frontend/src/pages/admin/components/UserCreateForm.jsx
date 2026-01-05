@@ -64,7 +64,8 @@ function DatasetPermissionSelector({ datasets, selectedDatasets, onChange }) {
         const fetchDomains = async () => {
             try {
                 const data = await getDomains();
-                setDomains(data);
+                // Ensure data is an array
+                setDomains(Array.isArray(data) ? data : []);
             } catch (err) {
                 console.error('Failed to fetch domains:', err);
                 setDomains([]);
@@ -83,6 +84,12 @@ function DatasetPermissionSelector({ datasets, selectedDatasets, onChange }) {
         console.log('=== Domain-Dataset Mapping Debug ===');
         console.log('Domains:', domains);
         console.log('Datasets:', datasets);
+
+        // Safety check: ensure domains and datasets are arrays
+        if (!Array.isArray(domains) || !Array.isArray(datasets)) {
+            console.warn('domains or datasets is not an array', { domains, datasets });
+            return map;
+        }
 
         // Parse each domain's nodes to find datasets
         domains.forEach(domain => {
@@ -513,7 +520,8 @@ export default function UserCreateForm({ editingUser, onUserCreated, onCancel })
         const fetchDatasets = async () => {
             try {
                 const data = await getDatasets();
-                setDatasets(data);
+                // Ensure data is an array
+                setDatasets(Array.isArray(data) ? data : []);
             } catch (err) {
                 console.error('Failed to fetch datasets:', err);
                 setDatasets([]);
