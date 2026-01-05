@@ -4,12 +4,10 @@ import {
   GitMerge,
   Settings,
   Search,
-  User,
   LogOut,
   List,
   ChevronLeft,
   ChevronRight,
-  Wrench,
   Sparkles,
   Activity,
 } from "lucide-react";
@@ -23,41 +21,19 @@ export function Sidebar({ isCollapsed, onToggle }) {
   const location = useLocation();
   const { logout, user } = useAuth();
 
-  const allNavSections = [
-    {
-      title: "DATA CATALOG",
-      items: [{ name: "Dataset", path: "/", icon: List }],
-      requiresEtlAccess: true, // Show only if user has ETL access
-    },
-    {
-      title: "QUALITY",
-      items: [{ name: "Dashboard", path: "/quality", icon: Activity }],
-    },
-    {
-      title: "LINEAGE",
-      items: [
-        { name: "Domain", path: "/domain", icon: Database },
-      ],
-    },
-    {
-      title: "ANALYSIS",
-      items: [{ name: "Query", path: "/query", icon: Search }],
-    },
-    {
-      title: "ADMINISTRATION",
-      items: [{ name: "Admin", path: "/admin", icon: Wrench }],
-      adminOnly: true,
-    },
+  const allNavItems = [
+    { name: "Dataset", path: "/dataset", icon: Database },
+    { name: "ETL Jobs", path: "/", icon: List, requiresEtlAccess: true },
+    { name: "Catalog", path: "/catalog", icon: Activity },
+    { name: "Query", path: "/query", icon: Search },
   ];
 
-  // Filter sections based on user permissions
-  const navSections = allNavSections.filter((section) => {
-    // Admin-only sections
-    if (section.adminOnly) {
+  // Filter items based on user permissions
+  const navItems = allNavItems.filter((item) => {
+    if (item.adminOnly) {
       return user?.is_admin === true;
     }
-    // ETL access required sections (Data Catalog)
-    if (section.requiresEtlAccess) {
+    if (item.requiresEtlAccess) {
       return user?.etl_access === true || user?.is_admin === true;
     }
     return true;
@@ -116,47 +92,38 @@ export function Sidebar({ isCollapsed, onToggle }) {
           </div>
         )}
 
-        {navSections.map((section, idx) => (
-          <div key={idx}>
-            {!isCollapsed && (
-              <h3 className="px-3 text-xs font-semibold text-gray-500 uppercase tracking-wider mb-2 truncate">
-                {section.title}
-              </h3>
-            )}
-            <div className="space-y-1">
-              {section.items.map((item) => {
-                const isActive = location.pathname === item.path;
-                return (
-                  <button
-                    key={item.path}
-                    onClick={() => navigate(item.path)}
-                    title={isCollapsed ? item.name : ""}
-                    className={clsx(
-                      "w-full flex items-center p-2 text-sm font-medium rounded-md transition-all duration-200 group",
-                      isCollapsed ? "justify-center" : "px-3",
-                      isActive
-                        ? "bg-blue-50 text-blue-600"
-                        : "text-gray-600 hover:bg-gray-50 hover:text-gray-900",
-                    )}
-                  >
-                    <item.icon
-                      className={clsx(
-                        "w-5 h-5 transition-colors shrink-0",
-                        !isCollapsed && "mr-3",
-                        isActive
-                          ? "text-blue-600"
-                          : "text-gray-400 group-hover:text-gray-600",
-                      )}
-                    />
-                    {!isCollapsed && (
-                      <span className="truncate">{item.name}</span>
-                    )}
-                  </button>
-                );
-              })}
-            </div>
-          </div>
-        ))}
+        <div className="space-y-1">
+          {navItems.map((item) => {
+            const isActive = location.pathname === item.path;
+            return (
+              <button
+                key={item.path}
+                onClick={() => navigate(item.path)}
+                title={isCollapsed ? item.name : ""}
+                className={clsx(
+                  "w-full flex items-center p-2 text-sm font-medium rounded-md transition-all duration-200 group",
+                  isCollapsed ? "justify-center" : "px-3",
+                  isActive
+                    ? "bg-blue-50 text-blue-600"
+                    : "text-gray-600 hover:bg-gray-50 hover:text-gray-900",
+                )}
+              >
+                <item.icon
+                  className={clsx(
+                    "w-5 h-5 transition-colors shrink-0",
+                    !isCollapsed && "mr-3",
+                    isActive
+                      ? "text-blue-600"
+                      : "text-gray-400 group-hover:text-gray-600",
+                  )}
+                />
+                {!isCollapsed && (
+                  <span className="truncate">{item.name}</span>
+                )}
+              </button>
+            );
+          })}
+        </div>
       </nav>
 
       {/* User & Logout */}

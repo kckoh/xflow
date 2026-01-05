@@ -13,6 +13,8 @@ import ConnectionCreatePage from "./pages/sources/ConnectionCreatePage";
 import QueryPage from "./pages/query/QueryPage";
 import AdminPage from "./pages/admin/AdminPage";
 import QualityDashboard from "./pages/Quality/QualityDashboard";
+import DatasetPage from "./pages/dataset/DatasetPage";
+import CatalogPage from "./pages/catalog/CatalogPage";
 import { ToastProvider } from "./components/common/Toast";
 
 // Placeholder components for new routes
@@ -60,6 +62,28 @@ function App() {
               <ProtectedRoute requireEtlAccess>
                 <MainLayout>
                   <ETLPage />
+                </MainLayout>
+              </ProtectedRoute>
+            }
+          />
+
+          <Route
+            path="/dataset"
+            element={
+              <ProtectedRoute>
+                <MainLayout>
+                  <DatasetPage />
+                </MainLayout>
+              </ProtectedRoute>
+            }
+          />
+
+          <Route
+            path="/catalog"
+            element={
+              <ProtectedRoute>
+                <MainLayout>
+                  <CatalogPage />
                 </MainLayout>
               </ProtectedRoute>
             }
