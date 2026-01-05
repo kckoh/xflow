@@ -15,6 +15,7 @@ import QueryPage from "./pages/query/QueryPage";
 import AdminPage from "./pages/admin/AdminPage";
 import QualityDashboard from "./pages/Quality/QualityDashboard";
 import CatalogPage from "./pages/catalog/CatalogPage";
+import SourceWizard from "./pages/source/SourceWizard";
 import { ToastProvider } from "./components/common/Toast";
 
 // Placeholder components for new routes
@@ -78,6 +79,17 @@ function App() {
               <ProtectedRoute>
                 <MainLayout>
                   <CatalogPage />
+                </MainLayout>
+              </ProtectedRoute>
+            }
+          />
+
+          <Route
+            path="/source"
+            element={
+              <ProtectedRoute>
+                <MainLayout>
+                  <SourceWizard />
                 </MainLayout>
               </ProtectedRoute>
             }

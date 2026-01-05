@@ -1,14 +1,21 @@
 import { useState } from "react";
+import { useNavigate } from "react-router-dom";
 import { X, Database, Upload, Download } from "lucide-react";
 
 export default function CreateDatasetModal({ isOpen, onClose, onSelect }) {
+  const navigate = useNavigate();
   const [selectedType, setSelectedType] = useState("source");
 
   if (!isOpen) return null;
 
   const handleCreate = () => {
-    onSelect(selectedType);
-    onClose();
+    if (selectedType === "source") {
+      onClose();
+      navigate("/source");
+    } else {
+      onSelect(selectedType);
+      onClose();
+    }
   };
 
   return (
