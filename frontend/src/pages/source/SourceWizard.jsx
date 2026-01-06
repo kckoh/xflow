@@ -19,13 +19,13 @@ import {
 import { SiPostgresql, SiMongodb } from "@icons-pack/react-simple-icons";
 import { Archive } from "lucide-react";
 import SchedulesPanel from "../../components/etl/SchedulesPanel";
+import { connectionApi } from "../../services/connectionApi";
+import ConnectionForm from "../../components/sources/ConnectionForm";
 
 const STEPS = [
   { id: 1, name: "Select Source", icon: Database },
   { id: 2, name: "Configure", icon: Settings },
-  { id: 3, name: "Transform", icon: Wand2 },
-  { id: 4, name: "Schedule", icon: Calendar },
-  { id: 5, name: "Review", icon: Check },
+  { id: 3, name: "Review", icon: Check },
 ];
 
 const SOURCE_OPTIONS = [
@@ -64,6 +64,13 @@ export default function SourceWizard() {
   const [schedules, setSchedules] = useState([]);
   const [isEditMode, setIsEditMode] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
+  const [connections, setConnections] = useState([]);
+  const [loadingConnections, setLoadingConnections] = useState(false);
+  const [showCreateConnectionModal, setShowCreateConnectionModal] =
+    useState(false);
+  const [tables, setTables] = useState([]);
+  const [collections, setCollections] = useState([]);
+  const [loadingTables, setLoadingTables] = useState(false);
   const [config, setConfig] = useState({
     id: `src-${Date.now()}`,
     name: "",
@@ -71,26 +78,33 @@ export default function SourceWizard() {
     connectionId: "",
     table: "",
     columns: [],
+    // S3-specific fields
+    bucket: "",
+    path: "",
+    // MongoDB-specific fields
+    collection: "",
   });
 
   // Load existing job data in edit mode
   useEffect(() => {
     const loadExistingJob = async () => {
-      const { jobId, editMode } = location.state || {};
+      const { jobId, editMode, dataset_type } = location.state || {};
       if (!editMode || !jobId) return;
 
       setIsEditMode(true);
       setIsLoading(true);
 
       try {
-        // Fetch job details
-        const jobResponse = await fetch(`${API_BASE_URL}/api/etl-jobs/${jobId}`);
-        if (!jobResponse.ok) throw new Error("Failed to fetch job");
+        // Fetch from source-datasets API (since this is SourceWizard)
+        const jobResponse = await fetch(
+          `${API_BASE_URL}/api/source-datasets/${jobId}`
+        );
+        if (!jobResponse.ok) throw new Error("Failed to fetch source dataset");
         const job = await jobResponse.json();
 
         // Find source type from job data
         const sourceType = job.source_type?.toLowerCase() || "postgres";
-        const matchedSource = SOURCE_OPTIONS.find(s => s.id === sourceType);
+        const matchedSource = SOURCE_OPTIONS.find((s) => s.id === sourceType);
         if (matchedSource) {
           setSelectedSource(matchedSource);
         }
@@ -101,25 +115,18 @@ export default function SourceWizard() {
           name: job.name || "",
           description: job.description || "",
           connectionId: job.connection_id || "",
-          table: job.table_name || "",
+          table: job.table || "",
+          collection: job.collection || "",
+          bucket: job.bucket || "",
+          path: job.path || "",
           columns: job.columns || [],
         });
 
-        // Set job type and schedules
-        setJobType(job.job_type || "batch");
-        if (job.schedules) {
-          setSchedules(job.schedules);
-        }
-
-        // Set column mapping if available
-        if (job.column_mapping) {
-          setColumnMapping(job.column_mapping);
-        }
-
         // Skip to Review step in edit mode
-        setCurrentStep(5);
+        setCurrentStep(3);
       } catch (err) {
-        console.error("Failed to load job:", err);
+        console.error("Failed to load source dataset:", err);
+        alert("Failed to load source dataset. Please try again.");
       } finally {
         setIsLoading(false);
       }
@@ -128,50 +135,149 @@ export default function SourceWizard() {
     loadExistingJob();
   }, [location.state]);
 
-  // Mock columns data - in real app, this would come from API
-  const tableColumns = {
-    users: [
-      { name: "id", type: "INTEGER" },
-      { name: "email", type: "VARCHAR" },
-      { name: "name", type: "VARCHAR" },
-      { name: "created_at", type: "TIMESTAMP" },
-    ],
-    orders: [
-      { name: "id", type: "INTEGER" },
-      { name: "user_id", type: "INTEGER" },
-      { name: "total", type: "DECIMAL" },
-      { name: "status", type: "VARCHAR" },
-    ],
-    products: [
-      { name: "id", type: "INTEGER" },
-      { name: "name", type: "VARCHAR" },
-      { name: "price", type: "DECIMAL" },
-      { name: "stock", type: "INTEGER" },
-    ],
+  // Load connections when entering Configure step
+  useEffect(() => {
+    const loadConnections = async () => {
+      if (currentStep === 2 && selectedSource) {
+        setLoadingConnections(true);
+        try {
+          const allConnections = await connectionApi.fetchConnections();
+          // Filter connections by source type
+          const filtered = allConnections.filter(
+            (conn) => conn.type === selectedSource.id
+          );
+          setConnections(filtered);
+        } catch (err) {
+          console.error("Failed to load connections:", err);
+          setConnections([]);
+        } finally {
+          setLoadingConnections(false);
+        }
+      }
+    };
+
+    loadConnections();
+  }, [currentStep, selectedSource]);
+
+  // Load tables/collections when connection is selected
+  useEffect(() => {
+    const loadTablesOrCollections = async () => {
+      if (!config.connectionId) {
+        setTables([]);
+        setCollections([]);
+        return;
+      }
+
+      setLoadingTables(true);
+      try {
+        if (selectedSource?.id === "postgres") {
+          const response = await connectionApi.fetchSourceTables(
+            config.connectionId
+          );
+          setTables(response.tables || []);
+        } else if (selectedSource?.id === "mongodb") {
+          const response = await connectionApi.fetchMongoDBCollections(
+            config.connectionId
+          );
+          setCollections(response.collections || []);
+        }
+      } catch (err) {
+        console.error("Failed to load tables/collections:", err);
+        setTables([]);
+        setCollections([]);
+      } finally {
+        setLoadingTables(false);
+      }
+    };
+
+    loadTablesOrCollections();
+  }, [config.connectionId, selectedSource]);
+
+  const handleTableChange = async (tableName) => {
+    if (!tableName) {
+      setConfig({ ...config, table: "", columns: [] });
+      setColumnMapping([]);
+      return;
+    }
+
+    try {
+      // Fetch columns from API
+      const columns = await connectionApi.fetchTableColumns(
+        config.connectionId,
+        tableName
+      );
+
+      setConfig({
+        ...config,
+        table: tableName,
+        columns: columns.map((col) => ({
+          ...col,
+          description: "",
+        })),
+      });
+
+      // Reset expanded state when changing tables
+      setExpandedColumns({});
+
+      // Initialize column mapping
+      setColumnMapping(
+        columns.map((col) => ({
+          source: col,
+          selected: true,
+          targetName: col.name,
+          targetType: col.type,
+          filter: null,
+        }))
+      );
+    } catch (err) {
+      console.error("Failed to fetch table schema:", err);
+      setConfig({ ...config, table: tableName, columns: [] });
+      setColumnMapping([]);
+    }
   };
 
-  const handleTableChange = (tableName) => {
-    const columns = tableColumns[tableName] || [];
-    setConfig({
-      ...config,
-      table: tableName,
-      columns: columns.map((col) => ({
-        ...col,
-        description: "",
-      })),
-    });
-    // Reset expanded state when changing tables
-    setExpandedColumns({});
-    // Initialize column mapping
-    setColumnMapping(
-      columns.map((col) => ({
-        source: col,
-        selected: true,
-        targetName: col.name,
-        targetType: col.type,
-        filter: null,
-      }))
-    );
+  const handleCollectionChange = async (collectionName) => {
+    if (!collectionName) {
+      setConfig({ ...config, collection: "", columns: [] });
+      setColumnMapping([]);
+      return;
+    }
+
+    try {
+      // Fetch MongoDB collection schema from API
+      const schema = await connectionApi.fetchCollectionSchema(
+        config.connectionId,
+        collectionName
+      );
+      const columns = schema.fields || [];
+
+      setConfig({
+        ...config,
+        collection: collectionName,
+        columns: columns.map((col) => ({
+          ...col,
+          description: "",
+        })),
+      });
+
+      // Reset expanded state
+      setExpandedColumns({});
+
+      // Initialize column mapping
+      setColumnMapping(
+        columns.map((col) => ({
+          source: col,
+          selected: true,
+          targetName: col.name,
+          targetType: col.type,
+          filter: null,
+        }))
+      );
+    } catch (err) {
+      console.error("Failed to fetch collection schema:", err);
+      setConfig({ ...config, collection: collectionName, columns: [] });
+      setColumnMapping([]);
+    }
   };
 
   const updateColumnMetadata = (columnIndex, field, value) => {
@@ -237,36 +343,59 @@ export default function SourceWizard() {
 
   const handleCreate = async () => {
     try {
-      const payload = {
+      setIsLoading(true);
+
+      // Prepare the data to send (simple and clean)
+      const sourceData = {
         name: config.name,
         description: config.description,
-        dataset_type: "source",
-        job_type: jobType,
-        source_type: selectedSource?.id,
+        source_type: selectedSource.id, // postgres, mongodb, s3
         connection_id: config.connectionId,
-        table_name: config.table,
         columns: config.columns,
-        column_mapping: columnMapping,
-        schedules: schedules,
       };
 
+      // Add type-specific fields
+      if (selectedSource.id === "postgres") {
+        sourceData.table = config.table;
+      } else if (selectedSource.id === "mongodb") {
+        sourceData.collection = config.collection;
+      } else if (selectedSource.id === "s3") {
+        sourceData.bucket = config.bucket;
+        sourceData.path = config.path;
+      }
+
+      // API call to create/update source dataset
       const url = isEditMode
-        ? `${API_BASE_URL}/api/etl-jobs/${config.id}`
-        : `${API_BASE_URL}/api/etl-jobs`;
+        ? `${API_BASE_URL}/api/source-datasets/${config.id}`
+        : `${API_BASE_URL}/api/source-datasets`;
+
+      console.log("Sending data:", sourceData);
+      console.log("URL:", url);
 
       const response = await fetch(url, {
         method: isEditMode ? "PUT" : "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(payload),
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify(sourceData),
       });
 
       if (!response.ok) {
-        throw new Error("Failed to save source dataset");
+        const errorData = await response.json();
+        console.error("API Error:", errorData);
+        throw new Error(errorData.detail || "Failed to save source dataset");
       }
 
+      const result = await response.json();
+      console.log("Save successful:", result);
+
+      // Navigate to dataset page after successful save
       navigate("/dataset");
-    } catch (error) {
-      console.error("Failed to save source dataset:", error);
+    } catch (err) {
+      console.error("Failed to save source dataset:", err);
+      alert(`Failed to save source dataset: ${err.message}`);
+    } finally {
+      setIsLoading(false);
     }
   };
 
@@ -275,12 +404,8 @@ export default function SourceWizard() {
       case 1:
         return selectedSource !== null;
       case 2:
-        return config.name.trim() !== "";
+        return config.name.trim() !== "" && config.connectionId !== "";
       case 3:
-        return true; // Transform step
-      case 4:
-        return true; // Schedule step
-      case 5:
         return true; // Review step
       default:
         return false;
@@ -305,7 +430,9 @@ export default function SourceWizard() {
                 {isEditMode ? "Edit Source Dataset" : "Create Source Dataset"}
               </h1>
               <p className="text-sm text-gray-500">
-                {isEditMode ? "Modify your source dataset configuration" : "Import data from external sources"}
+                {isEditMode
+                  ? "Modify your source dataset configuration"
+                  : "Import data from external sources"}
               </p>
             </div>
           </div>
@@ -315,7 +442,10 @@ export default function SourceWizard() {
         <div className="max-w-4xl mx-auto px-6 py-4">
           <div className="flex items-start">
             {STEPS.map((step, index) => (
-              <div key={step.id} className="flex items-center flex-1 last:flex-none">
+              <div
+                key={step.id}
+                className="flex items-center flex-1 last:flex-none"
+              >
                 <div className="flex flex-col items-center">
                   <div
                     className={`w-10 h-10 rounded-full flex items-center justify-center transition-colors shrink-0 ${
@@ -356,725 +486,439 @@ export default function SourceWizard() {
       {/* Content */}
       <div className="flex-1 overflow-y-auto">
         <div className="max-w-4xl mx-auto px-6 py-8">
-        {/* Step 1: Select Source */}
-        {currentStep === 1 && (
-          <div>
-            <h2 className="text-lg font-semibold text-gray-900 mb-2">
-              Select a data source
-            </h2>
-            <p className="text-gray-500 mb-6">
-              Choose the type of data source you want to connect
-            </p>
+          {/* Step 1: Select Source */}
+          {currentStep === 1 && (
+            <div>
+              <h2 className="text-lg font-semibold text-gray-900 mb-2">
+                Select a data source
+              </h2>
+              <p className="text-gray-500 mb-6">
+                Choose the type of data source you want to connect
+              </p>
 
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-              {SOURCE_OPTIONS.map((source) => (
-                <button
-                  key={source.id}
-                  onClick={() => setSelectedSource(source)}
-                  className={`relative p-6 rounded-lg border-2 text-left transition-all ${
-                    selectedSource?.id === source.id
-                      ? "border-emerald-500 bg-emerald-50"
-                      : "border-gray-200 hover:border-gray-300 hover:bg-gray-50"
-                  }`}
-                >
-                  <source.icon
-                    className="w-10 h-10 mb-4"
-                    style={{ color: source.color }}
-                  />
-                  <h3 className="font-semibold text-gray-900">{source.name}</h3>
-                  <p className="text-sm text-gray-500 mt-1">
-                    {source.description}
-                  </p>
-                  {selectedSource?.id === source.id && (
-                    <div className="absolute top-3 right-3 w-6 h-6 bg-emerald-500 rounded-full flex items-center justify-center">
-                      <Check className="w-4 h-4 text-white" />
-                    </div>
-                  )}
-                </button>
-              ))}
-            </div>
-          </div>
-        )}
-
-        {/* Step 2: Configure */}
-        {currentStep === 2 && (
-          <div>
-            <h2 className="text-lg font-semibold text-gray-900 mb-2">
-              Configure your source
-            </h2>
-            <p className="text-gray-500 mb-6">
-              Set up the connection details for {selectedSource?.name}
-            </p>
-
-            <div className="bg-white rounded-lg border border-gray-200 p-6 space-y-6">
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">
-                  Dataset Name *
-                </label>
-                <input
-                  type="text"
-                  value={config.name}
-                  onChange={(e) =>
-                    setConfig({ ...config, name: e.target.value })
-                  }
-                  placeholder="Enter dataset name"
-                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-emerald-500"
-                />
-              </div>
-
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">
-                  Description
-                </label>
-                <textarea
-                  value={config.description}
-                  onChange={(e) =>
-                    setConfig({ ...config, description: e.target.value })
-                  }
-                  placeholder="Enter description (optional)"
-                  rows={3}
-                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-emerald-500 resize-none"
-                />
-              </div>
-
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">
-                  Connection
-                </label>
-                <select
-                  value={config.connectionId}
-                  onChange={(e) =>
-                    setConfig({ ...config, connectionId: e.target.value })
-                  }
-                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-emerald-500"
-                >
-                  <option value="">Select a connection...</option>
-                  <option value="conn-1">Production Database</option>
-                  <option value="conn-2">Staging Database</option>
-                </select>
-                <p className="mt-2 text-sm text-gray-500">
-                  Don't have a connection?{" "}
-                  <button className="text-emerald-600 hover:underline">
-                    Create one
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                {SOURCE_OPTIONS.map((source) => (
+                  <button
+                    key={source.id}
+                    onClick={() => setSelectedSource(source)}
+                    className={`relative p-6 rounded-lg border-2 text-left transition-all ${
+                      selectedSource?.id === source.id
+                        ? "border-emerald-500 bg-emerald-50"
+                        : "border-gray-200 hover:border-gray-300 hover:bg-gray-50"
+                    }`}
+                  >
+                    <source.icon
+                      className="w-10 h-10 mb-4"
+                      style={{ color: source.color }}
+                    />
+                    <h3 className="font-semibold text-gray-900">
+                      {source.name}
+                    </h3>
+                    <p className="text-sm text-gray-500 mt-1">
+                      {source.description}
+                    </p>
+                    {selectedSource?.id === source.id && (
+                      <div className="absolute top-3 right-3 w-6 h-6 bg-emerald-500 rounded-full flex items-center justify-center">
+                        <Check className="w-4 h-4 text-white" />
+                      </div>
+                    )}
                   </button>
-                </p>
+                ))}
               </div>
-
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">
-                  Table
-                </label>
-                <select
-                  value={config.table}
-                  onChange={(e) => handleTableChange(e.target.value)}
-                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-emerald-500"
-                >
-                  <option value="">Select a table...</option>
-                  <option value="users">users</option>
-                  <option value="orders">orders</option>
-                  <option value="products">products</option>
-                </select>
-              </div>
-
-              {/* Columns Section */}
-              {config.columns.length > 0 && (
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-3">
-                    Columns ({config.columns.length})
-                  </label>
-                  <div className="space-y-3">
-                    {config.columns.map((column, index) => (
-                      <div
-                        key={index}
-                        className="border border-gray-200 rounded-lg bg-gray-50 overflow-hidden"
-                      >
-                        <div className="flex items-center justify-between p-4">
-                          <div className="flex items-center gap-2">
-                            <span className="font-medium text-gray-900">
-                              {column.name}
-                            </span>
-                            <span className="text-xs text-gray-500 bg-white px-2 py-1 rounded border border-gray-200">
-                              {column.type}
-                            </span>
-                          </div>
-                          <button
-                            onClick={() => toggleColumnExpansion(index)}
-                            className="p-1 hover:bg-gray-200 rounded transition-colors"
-                            title={expandedColumns[index] ? "Hide description" : "Show description"}
-                          >
-                            {expandedColumns[index] ? (
-                              <ChevronUp className="w-4 h-4 text-gray-600" />
-                            ) : (
-                              <ChevronDown className="w-4 h-4 text-gray-600" />
-                            )}
-                          </button>
-                        </div>
-
-                        {expandedColumns[index] && (
-                          <div className="px-4 pb-4 pt-0">
-                            <div>
-                              <label className="block text-xs font-medium text-gray-600 mb-1">
-                                Description
-                              </label>
-                              <input
-                                type="text"
-                                value={column.description}
-                                onChange={(e) =>
-                                  updateColumnMetadata(
-                                    index,
-                                    "description",
-                                    e.target.value
-                                  )
-                                }
-                                placeholder="Enter column description"
-                                className="w-full px-3 py-2 text-sm border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-emerald-500 bg-white"
-                              />
-                            </div>
-                          </div>
-                        )}
-                      </div>
-                    ))}
-                  </div>
-                </div>
-              )}
             </div>
-          </div>
-        )}
+          )}
 
-        {/* Step 3: Transform */}
-        {currentStep === 3 && (
-          <div>
-            <h2 className="text-lg font-semibold text-gray-900 mb-2">
-              Schema Mapping & Transformation
-            </h2>
-            <p className="text-gray-500 mb-6">
-              Map source columns to output schema and configure transformations
-            </p>
+          {/* Step 2: Configure */}
+          {currentStep === 2 && (
+            <div>
+              <h2 className="text-lg font-semibold text-gray-900 mb-2">
+                Configure your source
+              </h2>
+              <p className="text-gray-500 mb-6">
+                Set up the connection details for {selectedSource?.name}
+              </p>
 
-            {columnMapping.length === 0 ? (
-              <div className="bg-white rounded-lg border border-gray-200 p-12 text-center">
-                <p className="text-gray-500 text-sm">
-                  No columns available. Please select a table in the Configure step.
-                </p>
-              </div>
-            ) : (
-              <div className="bg-white rounded-lg border border-gray-200">
-                {/* Header */}
-                <div className="px-6 py-4 border-b border-gray-200 bg-gray-50">
-                  <div className="grid grid-cols-[auto,1fr,auto,1fr] gap-4 items-center">
-                    <div className="w-4"></div>
-                    <div>
-                      <h3 className="text-sm font-semibold text-gray-900">
-                        Source Schema
-                      </h3>
-                      <p className="text-xs text-gray-500 mt-0.5">
-                        {config.table || "No table"}
-                      </p>
-                    </div>
-                    <div className="flex items-center justify-center px-6">
-                      <ArrowRight className="w-5 h-5 text-gray-400" />
-                    </div>
-                    <div>
-                      <h3 className="text-sm font-semibold text-gray-900">
-                        Output Schema
-                      </h3>
-                      <p className="text-xs text-gray-500 mt-0.5">
-                        {columnMapping.filter((m) => m.selected).length} columns selected
-                      </p>
-                    </div>
-                  </div>
+              <div className="bg-white rounded-lg border border-gray-200 p-6 space-y-6">
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                    Dataset Name *
+                  </label>
+                  <input
+                    type="text"
+                    value={config.name}
+                    onChange={(e) =>
+                      setConfig({ ...config, name: e.target.value })
+                    }
+                    placeholder="Enter dataset name"
+                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-emerald-500"
+                  />
                 </div>
 
-                {/* Column Mappings */}
-                <div className="p-6 space-y-3">
-                  {columnMapping.map((mapping, index) => (
-                    <div
-                      key={index}
-                      className={`grid grid-cols-[auto,1fr,auto,1fr] gap-4 items-center p-4 rounded-lg border transition-all ${
-                        mapping.selected
-                          ? "border-emerald-200 bg-emerald-50/50"
-                          : "border-gray-200 bg-gray-50"
-                      }`}
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                    Description
+                  </label>
+                  <textarea
+                    value={config.description}
+                    onChange={(e) =>
+                      setConfig({ ...config, description: e.target.value })
+                    }
+                    placeholder="Enter description (optional)"
+                    rows={3}
+                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-emerald-500 resize-none"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                    Connection
+                  </label>
+                  <select
+                    value={config.connectionId}
+                    onChange={(e) => {
+                      const value = e.target.value;
+                      if (value === "__create_new__") {
+                        setShowCreateConnectionModal(true);
+                      } else {
+                        setConfig({ ...config, connectionId: value });
+                      }
+                    }}
+                    disabled={loadingConnections}
+                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-emerald-500 disabled:bg-gray-100 disabled:cursor-not-allowed"
+                  >
+                    <option value="">
+                      {loadingConnections
+                        ? "Loading connections..."
+                        : connections.length === 0
+                        ? "No connections available"
+                        : "Select a connection..."}
+                    </option>
+                    {connections.map((conn) => (
+                      <option key={conn.id} value={conn.id}>
+                        {conn.name}
+                      </option>
+                    ))}
+                    {!loadingConnections && (
+                      <option
+                        value="__create_new__"
+                        className="font-semibold text-emerald-600"
+                      >
+                        + Create new connection...
+                      </option>
+                    )}
+                  </select>
+                </div>
+
+                {/* PostgreSQL - Table selection */}
+                {selectedSource?.id === "postgres" && (
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-2">
+                      Table
+                    </label>
+                    <select
+                      value={config.table}
+                      onChange={(e) => handleTableChange(e.target.value)}
+                      disabled={loadingTables || !config.connectionId}
+                      className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-emerald-500 disabled:bg-gray-100 disabled:cursor-not-allowed"
                     >
-                      {/* Checkbox */}
+                      <option value="">
+                        {loadingTables
+                          ? "Loading tables..."
+                          : !config.connectionId
+                          ? "Select a connection first"
+                          : tables.length === 0
+                          ? "No tables available"
+                          : "Select a table..."}
+                      </option>
+                      {tables.map((table) => (
+                        <option key={table} value={table}>
+                          {table}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+                )}
+
+                {/* MongoDB - Collection selection */}
+                {selectedSource?.id === "mongodb" && (
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-2">
+                      Collection
+                    </label>
+                    <select
+                      value={config.collection}
+                      onChange={(e) => handleCollectionChange(e.target.value)}
+                      disabled={loadingTables || !config.connectionId}
+                      className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-emerald-500 disabled:bg-gray-100 disabled:cursor-not-allowed"
+                    >
+                      <option value="">
+                        {loadingTables
+                          ? "Loading collections..."
+                          : !config.connectionId
+                          ? "Select a connection first"
+                          : collections.length === 0
+                          ? "No collections available"
+                          : "Select a collection..."}
+                      </option>
+                      {collections.map((collection) => (
+                        <option key={collection} value={collection}>
+                          {collection}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+                )}
+
+                {/* Amazon S3 - Bucket and Path */}
+                {selectedSource?.id === "s3" && (
+                  <>
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-2">
+                        Bucket Name
+                      </label>
                       <input
-                        type="checkbox"
-                        checked={mapping.selected}
-                        onChange={() => toggleColumnSelection(index)}
-                        className="w-4 h-4 text-emerald-600 rounded focus:ring-emerald-500"
+                        type="text"
+                        value={config.bucket}
+                        onChange={(e) =>
+                          setConfig({ ...config, bucket: e.target.value })
+                        }
+                        placeholder="Enter S3 bucket name"
+                        className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-emerald-500"
                       />
+                    </div>
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-2">
+                        Path/Prefix
+                      </label>
+                      <input
+                        type="text"
+                        value={config.path}
+                        onChange={(e) =>
+                          setConfig({ ...config, path: e.target.value })
+                        }
+                        placeholder="e.g., logs/2024/"
+                        className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-emerald-500"
+                      />
+                    </div>
+                  </>
+                )}
 
-                      {/* Source Column (Before) */}
-                      <div className="flex items-center gap-2">
-                        <span className="font-medium text-gray-900 text-sm">
-                          {mapping.source.name}
-                        </span>
-                        <span className="text-xs px-2 py-0.5 rounded bg-blue-100 text-blue-700 border border-blue-200">
-                          {mapping.source.type}
-                        </span>
-                      </div>
+                {/* Columns Section */}
+                {config.columns.length > 0 && (
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-3">
+                      Columns ({config.columns.length})
+                    </label>
+                    <div className="space-y-3">
+                      {config.columns.map((column, index) => (
+                        <div
+                          key={index}
+                          className="border border-gray-200 rounded-lg bg-gray-50 overflow-hidden"
+                        >
+                          <div className="flex items-center justify-between p-4">
+                            <div className="flex items-center gap-2">
+                              <span className="font-medium text-gray-900">
+                                {column.name}
+                              </span>
+                              <span className="text-xs text-gray-500 bg-white px-2 py-1 rounded border border-gray-200">
+                                {column.type}
+                              </span>
+                            </div>
+                            <button
+                              onClick={() => toggleColumnExpansion(index)}
+                              className="p-1 hover:bg-gray-200 rounded transition-colors"
+                              title={
+                                expandedColumns[index]
+                                  ? "Hide description"
+                                  : "Show description"
+                              }
+                            >
+                              {expandedColumns[index] ? (
+                                <ChevronUp className="w-4 h-4 text-gray-600" />
+                              ) : (
+                                <ChevronDown className="w-4 h-4 text-gray-600" />
+                              )}
+                            </button>
+                          </div>
 
-                      {/* Arrow */}
-                      <div className="flex items-center justify-center">
-                        {mapping.selected ? (
-                          <ArrowRight className="w-5 h-5 text-emerald-500" />
-                        ) : (
-                          <X className="w-4 h-4 text-gray-300" />
-                        )}
-                      </div>
-
-                      {/* Output Column (After) */}
-                      <div>
-                        {mapping.selected ? (
-                          <div>
-                            {/* Before Column Info (높이 위치) */}
-                            <div className="mb-3 pb-2 border-b border-gray-200">
-                              <div className="flex items-center gap-2 text-xs text-gray-500">
-                                <span className="font-medium">{mapping.source.name}</span>
-                                <span className="px-2 py-0.5 rounded bg-blue-50 text-blue-600 border border-blue-200">
-                                  {mapping.source.type}
-                                </span>
+                          {expandedColumns[index] && (
+                            <div className="px-4 pb-4 pt-0">
+                              <div>
+                                <label className="block text-xs font-medium text-gray-600 mb-1">
+                                  Description
+                                </label>
+                                <input
+                                  type="text"
+                                  value={column.description}
+                                  onChange={(e) =>
+                                    updateColumnMetadata(
+                                      index,
+                                      "description",
+                                      e.target.value
+                                    )
+                                  }
+                                  placeholder="Enter column description"
+                                  className="w-full px-3 py-2 text-sm border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-emerald-500 bg-white"
+                                />
                               </div>
                             </div>
-
-                            {/* After Column Info */}
-                            <div className="space-y-2">
-                              <input
-                                type="text"
-                                value={mapping.targetName}
-                                onChange={(e) =>
-                                  updateColumnMapping(index, "targetName", e.target.value)
-                                }
-                                placeholder="Column name"
-                                className="w-full px-3 py-2 text-sm border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-emerald-500 bg-white font-medium text-gray-900"
-                              />
-                              <select
-                                value={mapping.targetType}
-                                onChange={(e) =>
-                                  updateColumnMapping(index, "targetType", e.target.value)
-                                }
-                                className="w-full px-3 py-2 text-sm border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-emerald-500 bg-white"
-                              >
-                                <option value="VARCHAR">VARCHAR</option>
-                                <option value="INTEGER">INTEGER</option>
-                                <option value="DECIMAL">DECIMAL</option>
-                                <option value="BOOLEAN">BOOLEAN</option>
-                                <option value="TIMESTAMP">TIMESTAMP</option>
-                                <option value="DATE">DATE</option>
-                                <option value="TEXT">TEXT</option>
-                                <option value="JSON">JSON</option>
-                              </select>
-                            </div>
-                          </div>
-                        ) : (
-                          <div className="text-center text-sm text-gray-400 italic py-4">
-                            Not included
-                          </div>
-                        )}
-                      </div>
-                    </div>
-                  ))}
-                </div>
-
-                {/* Summary Footer */}
-                <div className="px-6 py-4 bg-gray-50 border-t border-gray-200 rounded-b-lg">
-                  <div className="flex items-center justify-between text-sm">
-                    <span className="text-gray-600">
-                      {columnMapping.filter((m) => m.selected).length} of{" "}
-                      {columnMapping.length} columns will be included
-                    </span>
-                    <button
-                      onClick={() => {
-                        const allSelected = columnMapping.every((m) => m.selected);
-                        setColumnMapping(
-                          columnMapping.map((m) => ({ ...m, selected: !allSelected }))
-                        );
-                      }}
-                      className="text-emerald-600 hover:text-emerald-700 font-medium"
-                    >
-                      {columnMapping.every((m) => m.selected)
-                        ? "Deselect All"
-                        : "Select All"}
-                    </button>
-                  </div>
-                </div>
-              </div>
-            )}
-          </div>
-        )}
-
-        {/* Step 4: Schedule */}
-        {currentStep === 4 && (
-          <div>
-            <h2 className="text-lg font-semibold text-gray-900 mb-2">
-              Job Type & Schedule
-            </h2>
-            <p className="text-gray-500 mb-6">
-              Configure job type and execution schedule
-            </p>
-
-            <div className="space-y-6">
-              {/* Job Type Selection */}
-              <div className="bg-white rounded-lg border border-gray-200 shadow-sm">
-                <div className="px-6 py-4 border-b border-gray-200 flex items-center gap-3">
-                  <Database className="w-5 h-5 text-gray-500" />
-                  <h3 className="text-lg font-semibold text-gray-900">Job Type</h3>
-                </div>
-                <div className="p-6">
-                  <div className="grid grid-cols-2 gap-4">
-                    {/* Batch Option */}
-                    <button
-                      onClick={() => setJobType("batch")}
-                      className={`relative flex items-start p-4 border-2 rounded-lg transition-all text-left cursor-pointer ${
-                        jobType === "batch"
-                          ? "border-blue-500 bg-blue-50"
-                          : "border-gray-200 hover:border-gray-300 hover:bg-gray-50"
-                      }`}
-                    >
-                      <div className="flex-1">
-                        <span
-                          className={`block font-medium ${
-                            jobType === "batch" ? "text-blue-700" : "text-gray-700"
-                          }`}
-                        >
-                          Batch ETL
-                        </span>
-                        <span className="block text-sm text-gray-500 mt-1">
-                          스케줄 또는 수동으로 전체 데이터 처리
-                        </span>
-                      </div>
-                      {jobType === "batch" && (
-                        <div className="absolute top-3 right-3 w-5 h-5 bg-blue-500 rounded-full flex items-center justify-center">
-                          <Check className="w-3 h-3 text-white" />
+                          )}
                         </div>
-                      )}
-                    </button>
-
-                    {/* CDC Option */}
-                    <button
-                      onClick={() => setJobType("cdc")}
-                      className={`relative flex items-start p-4 border-2 rounded-lg transition-all text-left cursor-pointer ${
-                        jobType === "cdc"
-                          ? "border-green-500 bg-green-50"
-                          : "border-gray-200 hover:border-gray-300 hover:bg-gray-50"
-                      }`}
-                    >
-                      <div className="flex-1">
-                        <div className="flex items-center gap-2">
-                          <span
-                            className={`font-medium ${
-                              jobType === "cdc" ? "text-green-700" : "text-gray-700"
-                            }`}
-                          >
-                            CDC (Streaming)
-                          </span>
-                          <Zap
-                            className={`w-4 h-4 ${
-                              jobType === "cdc" ? "text-green-500" : "text-yellow-500"
-                            }`}
-                          />
-                        </div>
-                        <span className="block text-sm text-gray-500 mt-1">
-                          실시간으로 변경사항만 동기화
-                        </span>
-                      </div>
-                      {jobType === "cdc" && (
-                        <div className="absolute top-3 right-3 w-5 h-5 bg-green-500 rounded-full flex items-center justify-center">
-                          <Check className="w-3 h-3 text-white" />
-                        </div>
-                      )}
-                    </button>
-                  </div>
-                </div>
-              </div>
-
-              {/* Schedules Panel - Only show for Batch */}
-              {jobType === "batch" && (
-                <div className="bg-white rounded-lg border border-gray-200 shadow-sm overflow-hidden">
-                  <SchedulesPanel schedules={schedules} onUpdate={setSchedules} />
-                </div>
-              )}
-
-              {/* CDC Info */}
-              {jobType === "cdc" && (
-                <div className="bg-white rounded-lg border border-gray-200 p-6">
-                  <div className="flex items-start gap-3">
-                    <Zap className="w-5 h-5 text-green-500 shrink-0 mt-0.5" />
-                    <div>
-                      <h4 className="font-medium text-gray-900 mb-1">
-                        Real-time Streaming Mode
-                      </h4>
-                      <p className="text-sm text-gray-600">
-                        CDC (Change Data Capture) 모드는 실시간으로 변경사항을 감지하여 자동으로 동기화됩니다.
-                        별도의 스케줄 설정이 필요하지 않습니다.
-                      </p>
+                      ))}
                     </div>
                   </div>
-                </div>
-              )}
+                )}
+              </div>
             </div>
-          </div>
-        )}
+          )}
 
-        {/* Step 5: Review */}
-        {currentStep === 5 && (
-          <div>
-            <h2 className="text-lg font-semibold text-gray-900 mb-2">
-              Review and create
-            </h2>
-            <p className="text-gray-500 mb-6">
-              Review your configuration before creating the dataset
-            </p>
+          {/* Step 3: Review */}
+          {currentStep === 3 && (
+            <div>
+              <h2 className="text-lg font-semibold text-gray-900 mb-2">
+                Review Configuration
+              </h2>
+              <p className="text-gray-500 mb-6">
+                Review your source configuration before saving
+              </p>
 
-            <div className="space-y-6">
-              {/* Source & Basic Info */}
-              <div className="bg-white rounded-lg border border-gray-200">
-                <div className="px-6 py-4 border-b border-gray-200 bg-gray-50">
-                  <h3 className="text-sm font-semibold text-gray-900">
-                    Basic Information
-                  </h3>
-                </div>
-                <div className="p-6 space-y-4">
-                  <div className="flex items-start gap-3">
-                    <span className="text-sm font-medium text-gray-500 w-32">
-                      ID:
-                    </span>
-                    <span className="text-gray-900 font-mono text-sm bg-gray-100 px-2 py-1 rounded">
-                      {config.id}
-                    </span>
-                  </div>
-                  <div className="flex items-start gap-3">
-                    <span className="text-sm font-medium text-gray-500 w-32">
-                      Source Type:
-                    </span>
-                    <div className="flex items-center gap-2">
-                      {selectedSource && (
-                        <>
-                          <selectedSource.icon
-                            className="w-5 h-5"
-                            style={{ color: selectedSource.color }}
-                          />
-                          <span className="font-medium text-gray-900">
-                            {selectedSource.name}
-                          </span>
-                        </>
-                      )}
-                    </div>
-                  </div>
-                  <div className="flex items-start gap-3">
-                    <span className="text-sm font-medium text-gray-500 w-32">
-                      Dataset Name:
-                    </span>
-                    <span className="text-gray-900">{config.name || "-"}</span>
-                  </div>
-                  <div className="flex items-start gap-3">
-                    <span className="text-sm font-medium text-gray-500 w-32">
-                      Description:
-                    </span>
-                    <span className="text-gray-900">
-                      {config.description || "-"}
-                    </span>
-                  </div>
-                  <div className="flex items-start gap-3">
-                    <span className="text-sm font-medium text-gray-500 w-32">
-                      Connection:
-                    </span>
-                    <span className="text-gray-900">
-                      {config.connectionId || "Not selected"}
-                    </span>
-                  </div>
-                  <div className="flex items-start gap-3">
-                    <span className="text-sm font-medium text-gray-500 w-32">
-                      Table:
-                    </span>
-                    <span className="text-gray-900 font-medium">
-                      {config.table || "Not selected"}
-                    </span>
-                  </div>
-                </div>
-              </div>
-
-              {/* Column Mapping Review */}
-              {columnMapping.length > 0 && (
+              <div className="space-y-6">
+                {/* Basic Information */}
                 <div className="bg-white rounded-lg border border-gray-200">
                   <div className="px-6 py-4 border-b border-gray-200 bg-gray-50">
                     <h3 className="text-sm font-semibold text-gray-900">
-                      Schema Mapping
-                      <span className="ml-2 text-xs font-normal text-gray-500">
-                        ({columnMapping.filter((m) => m.selected).length} of{" "}
-                        {columnMapping.length} columns selected)
-                      </span>
+                      Basic Information
                     </h3>
                   </div>
-                  <div className="p-6">
-                    <div className="space-y-3">
-                      {columnMapping
-                        .filter((m) => m.selected)
-                        .map((mapping, index) => (
-                          <div
-                            key={index}
-                            className="border border-gray-200 rounded-lg p-4 bg-gray-50"
-                          >
-                            <div className="grid grid-cols-[1fr,auto,1fr] gap-4 items-center">
-                              {/* Source Column */}
-                              <div>
-                                <p className="text-xs text-gray-500 mb-1">
-                                  Source
-                                </p>
-                                <div className="flex items-center gap-2">
-                                  <span className="font-medium text-gray-900">
-                                    {mapping.source.name}
-                                  </span>
-                                  <span className="text-xs px-2 py-0.5 rounded bg-blue-100 text-blue-700 border border-blue-200">
-                                    {mapping.source.type}
-                                  </span>
-                                </div>
-                                {config.columns[index]?.description && (
-                                  <p className="text-xs text-gray-500 mt-1">
-                                    {config.columns[index].description}
-                                  </p>
-                                )}
-                              </div>
-
-                              {/* Arrow */}
-                              <ArrowRight className="w-5 h-5 text-emerald-500" />
-
-                              {/* Output Column */}
-                              <div>
-                                <p className="text-xs text-gray-500 mb-1">
-                                  Output
-                                </p>
-                                <div className="flex items-center gap-2">
-                                  <span className="font-medium text-gray-900">
-                                    {mapping.targetName}
-                                  </span>
-                                  <span className="text-xs px-2 py-0.5 rounded bg-emerald-100 text-emerald-700 border border-emerald-200">
-                                    {mapping.targetType}
-                                  </span>
-                                </div>
-                                {mapping.targetName !== mapping.source.name && (
-                                  <p className="text-xs text-amber-600 mt-1">
-                                    ⚠ Renamed
-                                  </p>
-                                )}
-                                {mapping.targetType !== mapping.source.type && (
-                                  <p className="text-xs text-amber-600 mt-1">
-                                    ⚠ Type converted
-                                  </p>
-                                )}
-                              </div>
-                            </div>
+                  <div className="p-6 space-y-4">
+                    <div className="grid grid-cols-2 gap-6">
+                      <div>
+                        <label className="text-xs font-medium text-gray-500">
+                          Source Type
+                        </label>
+                        <div className="mt-1 flex items-center gap-2">
+                          {selectedSource && (
+                            <>
+                              <selectedSource.icon
+                                className="w-5 h-5"
+                                style={{ color: selectedSource.color }}
+                              />
+                              <span className="font-medium text-gray-900">
+                                {selectedSource.name}
+                              </span>
+                            </>
+                          )}
+                        </div>
+                      </div>
+                      <div>
+                        <label className="text-xs font-medium text-gray-500">
+                          Dataset Name
+                        </label>
+                        <p className="mt-1 text-gray-900 font-medium">
+                          {config.name}
+                        </p>
+                      </div>
+                      <div>
+                        <label className="text-xs font-medium text-gray-500">
+                          Connection
+                        </label>
+                        <p className="mt-1 text-gray-900">
+                          {connections.find((c) => c.id === config.connectionId)
+                            ?.name || config.connectionId}
+                        </p>
+                      </div>
+                      {selectedSource?.id === "postgres" && config.table && (
+                        <div>
+                          <label className="text-xs font-medium text-gray-500">
+                            Table
+                          </label>
+                          <p className="mt-1 text-gray-900 font-medium">
+                            {config.table}
+                          </p>
+                        </div>
+                      )}
+                      {selectedSource?.id === "mongodb" &&
+                        config.collection && (
+                          <div>
+                            <label className="text-xs font-medium text-gray-500">
+                              Collection
+                            </label>
+                            <p className="mt-1 text-gray-900 font-medium">
+                              {config.collection}
+                            </p>
                           </div>
-                        ))}
+                        )}
+                      {selectedSource?.id === "s3" && (
+                        <>
+                          <div>
+                            <label className="text-xs font-medium text-gray-500">
+                              Bucket
+                            </label>
+                            <p className="mt-1 text-gray-900 font-medium">
+                              {config.bucket}
+                            </p>
+                          </div>
+                          <div>
+                            <label className="text-xs font-medium text-gray-500">
+                              Path/Prefix
+                            </label>
+                            <p className="mt-1 text-gray-900">
+                              {config.path || "-"}
+                            </p>
+                          </div>
+                        </>
+                      )}
                     </div>
-
-                    {columnMapping.filter((m) => !m.selected).length > 0 && (
-                      <div className="mt-4 p-3 bg-gray-100 rounded-lg border border-gray-200">
-                        <p className="text-xs text-gray-600">
-                          <span className="font-medium">Excluded columns:</span>{" "}
-                          {columnMapping
-                            .filter((m) => !m.selected)
-                            .map((m) => m.source.name)
-                            .join(", ")}
+                    {config.description && (
+                      <div>
+                        <label className="text-xs font-medium text-gray-500">
+                          Description
+                        </label>
+                        <p className="mt-1 text-gray-600">
+                          {config.description}
                         </p>
                       </div>
                     )}
                   </div>
                 </div>
-              )}
 
-              {/* Job Type & Schedule */}
-              <div className="bg-white rounded-lg border border-gray-200">
-                <div className="px-6 py-4 border-b border-gray-200 bg-gray-50">
-                  <h3 className="text-sm font-semibold text-gray-900">
-                    Execution Configuration
-                  </h3>
-                </div>
-                <div className="p-6 space-y-4">
-                  <div className="flex items-start gap-3">
-                    <span className="text-sm font-medium text-gray-500 w-32">
-                      Job Type:
-                    </span>
-                    <div className="flex items-center gap-2">
-                      {jobType === "batch" ? (
-                        <>
-                          <span className="px-3 py-1 bg-blue-100 text-blue-700 rounded-lg text-sm font-medium border border-blue-200">
-                            Batch ETL
-                          </span>
-                          <span className="text-sm text-gray-500">
-                            - 스케줄 또는 수동으로 전체 데이터 처리
-                          </span>
-                        </>
-                      ) : (
-                        <>
-                          <span className="px-3 py-1 bg-green-100 text-green-700 rounded-lg text-sm font-medium border border-green-200 flex items-center gap-1">
-                            <Zap className="w-3 h-3" />
-                            CDC (Streaming)
-                          </span>
-                          <span className="text-sm text-gray-500">
-                            - 실시간으로 변경사항만 동기화
-                          </span>
-                        </>
-                      )}
+                {/* Schema */}
+                {config.columns.length > 0 && (
+                  <div className="bg-white rounded-lg border border-gray-200">
+                    <div className="px-6 py-4 border-b border-gray-200 bg-gray-50">
+                      <h3 className="text-sm font-semibold text-gray-900">
+                        Schema ({config.columns.length} columns)
+                      </h3>
                     </div>
-                  </div>
-
-                  {jobType === "batch" && schedules.length > 0 && (
-                    <div className="flex items-start gap-3">
-                      <span className="text-sm font-medium text-gray-500 w-32">
-                        Schedule:
-                      </span>
-                      <div className="flex-1 space-y-2">
-                        {schedules.map((schedule) => (
+                    <div className="p-6">
+                      <div className="grid grid-cols-2 gap-4">
+                        {config.columns.map((column, index) => (
                           <div
-                            key={schedule.id}
-                            className="p-3 bg-gray-50 rounded-lg border border-gray-200"
+                            key={index}
+                            className="border border-gray-200 rounded-lg p-4 bg-gray-50"
                           >
                             <div className="flex items-center gap-2 mb-1">
-                              <Calendar className="w-4 h-4 text-gray-500" />
                               <span className="font-medium text-gray-900">
-                                {schedule.name}
+                                {column.name}
+                              </span>
+                              <span className="text-xs px-2 py-0.5 rounded bg-blue-100 text-blue-700 border border-blue-200">
+                                {column.type}
                               </span>
                             </div>
-                            <p className="text-sm text-gray-600">
-                              <span className="capitalize font-medium">
-                                {schedule.frequency}
-                              </span>
-                              {schedule.uiParams && (
-                                <span className="ml-2 text-xs text-gray-500">
-                                  Starting{" "}
-                                  {new Date(
-                                    schedule.uiParams.startDate
-                                  ).toLocaleString()}
-                                </span>
-                              )}
-                            </p>
-                            {schedule.description && (
+                            {column.description && (
                               <p className="text-xs text-gray-500 mt-1">
-                                {schedule.description}
+                                {column.description}
                               </p>
                             )}
                           </div>
                         ))}
                       </div>
                     </div>
-                  )}
-
-                  {jobType === "batch" && schedules.length === 0 && (
-                    <div className="flex items-start gap-3">
-                      <span className="text-sm font-medium text-gray-500 w-32">
-                        Schedule:
-                      </span>
-                      <span className="text-sm text-gray-400 italic">
-                        No schedule configured (Manual execution only)
-                      </span>
-                    </div>
-                  )}
-                </div>
+                  </div>
+                )}
               </div>
             </div>
-          </div>
-        )}
+          )}
         </div>
       </div>
 
@@ -1117,15 +961,69 @@ export default function SourceWizard() {
             ) : (
               <button
                 onClick={handleCreate}
-                className="flex items-center gap-2 px-6 py-2 bg-emerald-600 text-white rounded-lg hover:bg-emerald-700 transition-colors"
+                disabled={isLoading}
+                className={`flex items-center gap-2 px-6 py-2 rounded-lg transition-colors ${
+                  isLoading
+                    ? "bg-gray-400 cursor-not-allowed"
+                    : "bg-emerald-600 hover:bg-emerald-700"
+                } text-white`}
               >
                 <Check className="w-4 h-4" />
-                {isEditMode ? "Save Changes" : "Create Dataset"}
+                {isLoading ? "Saving..." : "Save"}
               </button>
             )}
           </div>
         </div>
       </div>
+
+      {/* Create Connection Modal */}
+      {showCreateConnectionModal && (
+        <div
+          className="fixed inset-0 flex items-center justify-center z-50 p-4"
+          style={{ backgroundColor: "rgba(0, 0, 0, 0.5)" }}
+          onClick={() => setShowCreateConnectionModal(false)}
+        >
+          <div
+            className="bg-white rounded-xl shadow-2xl max-w-2xl w-full max-h-[90vh] overflow-y-auto transform transition-all"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="sticky top-0 bg-white border-b border-gray-200 px-6 py-4 flex items-center justify-between rounded-t-xl">
+              <h2 className="text-lg font-semibold text-gray-900">
+                Create New Connection
+              </h2>
+              <button
+                onClick={() => setShowCreateConnectionModal(false)}
+                className="p-2 hover:bg-gray-100 rounded-lg transition-colors"
+              >
+                <X className="w-5 h-5 text-gray-500" />
+              </button>
+            </div>
+            <div className="p-6">
+              <ConnectionForm
+                initialType={selectedSource?.id}
+                onSuccess={async (newConnection) => {
+                  // Close modal
+                  setShowCreateConnectionModal(false);
+                  // Reload connections
+                  try {
+                    const allConnections =
+                      await connectionApi.fetchConnections();
+                    const filtered = allConnections.filter(
+                      (conn) => conn.type === selectedSource.id
+                    );
+                    setConnections(filtered);
+                    // Auto-select the newly created connection
+                    setConfig({ ...config, connectionId: newConnection.id });
+                  } catch (err) {
+                    console.error("Failed to reload connections:", err);
+                  }
+                }}
+                onCancel={() => setShowCreateConnectionModal(false)}
+              />
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

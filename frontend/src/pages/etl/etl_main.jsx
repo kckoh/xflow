@@ -62,15 +62,35 @@ export default function ETLMain() {
   const fetchJobs = async () => {
     setIsLoading(true);
     try {
-      const response = await fetch(`${API_BASE_URL}/api/etl-jobs`);
-      if (response.ok) {
-        const data = await response.json();
-        // Sort by updated_at descending (newest first)
-        const sortedData = data.sort((a, b) => new Date(b.updated_at) - new Date(a.updated_at));
-        setJobs(sortedData);
-      } else {
-        setJobs([]);
+      // Fetch both ETL jobs and source datasets
+      const [etlResponse, sourceResponse] = await Promise.all([
+        fetch(`${API_BASE_URL}/api/etl-jobs`),
+        fetch(`${API_BASE_URL}/api/source-datasets`),
+      ]);
+
+      let allJobs = [];
+
+      // Get ETL jobs
+      if (etlResponse.ok) {
+        const etlData = await etlResponse.json();
+        allJobs = [...etlData];
       }
+
+      // Get source datasets and add dataset_type marker
+      if (sourceResponse.ok) {
+        const sourceData = await sourceResponse.json();
+        const markedSources = sourceData.map((src) => ({
+          ...src,
+          dataset_type: "source", // Mark as source dataset
+        }));
+        allJobs = [...allJobs, ...markedSources];
+      }
+
+      // Sort by updated_at descending (newest first)
+      const sortedData = allJobs.sort(
+        (a, b) => new Date(b.updated_at) - new Date(a.updated_at)
+      );
+      setJobs(sortedData);
     } catch (error) {
       console.error("Failed to fetch jobs:", error);
       setJobs([]);
@@ -80,10 +100,16 @@ export default function ETLMain() {
   };
 
   const handleDelete = async () => {
-    const { jobId } = deleteModal;
+    const { jobId, dataset_type } = deleteModal;
 
     try {
-      const response = await fetch(`${API_BASE_URL}/api/etl-jobs/${jobId}`, {
+      // Determine which API to call based on dataset type
+      const url =
+        dataset_type === "source"
+          ? `${API_BASE_URL}/api/source-datasets/${jobId}`
+          : `${API_BASE_URL}/api/etl-jobs/${jobId}`;
+
+      const response = await fetch(url, {
         method: "DELETE",
       });
 
@@ -95,7 +121,7 @@ export default function ETLMain() {
       // Refresh the list after deletion
       fetchJobs();
       setCurrentPage(1);
-      showToast("Pipeline deleted successfully", "success");
+      showToast("Dataset deleted successfully", "success");
     } catch (error) {
       console.error("Delete failed:", error);
       showToast(`Delete failed: ${error.message}`, "error");
@@ -159,17 +185,11 @@ export default function ETLMain() {
             <div className="max-w-md mx-auto">
               <Database className="w-16 h-16 text-gray-300 mx-auto mb-4" />
               <h3 className="text-lg font-medium text-gray-900 mb-2">
-                No jobs
+                No datasets
               </h3>
-              <p className="text-gray-600 mb-6">
-                You have not created a job yet.
+              <p className="text-gray-600">
+                Create a dataset using the button above.
               </p>
-              <button
-                onClick={() => navigate("/etl/visual")}
-                className="px-6 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 transition-colors"
-              >
-                Create job from a blank graph
-              </button>
             </div>
           </div>
         ) : (
