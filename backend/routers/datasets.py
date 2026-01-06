@@ -94,6 +94,7 @@ AIRFLOW_BASE_URL = os.getenv("AIRFLOW_BASE_URL", "http://airflow-webserver.airfl
 AIRFLOW_AUTH = ("admin", "admin")
 # DAG ID: "dataset_dag" for local, "dataset_dag_k8s" for production (EKS)
 AIRFLOW_DAG_ID = os.getenv("AIRFLOW_DAG_ID", "dataset_dag")
+print(f"[STARTUP] datasets.py loaded - AIRFLOW_DAG_ID={AIRFLOW_DAG_ID}")
 
 
 @router.post("", response_model=DatasetResponse, status_code=status.HTTP_201_CREATED)
@@ -533,6 +534,7 @@ async def deactivate_dataset(dataset_id: str):
 @router.post("/{dataset_id}/run")
 async def run_dataset(dataset_id: str):
     """Trigger a Dataset execution or activate schedule"""
+    print(f"[DEBUG] run_dataset called - dataset_id={dataset_id}, AIRFLOW_DAG_ID={AIRFLOW_DAG_ID}")
     try:
         dataset = await Dataset.get(PydanticObjectId(dataset_id))
     except Exception:
@@ -555,10 +557,12 @@ async def run_dataset(dataset_id: str):
     await job_run.insert()
 
     # Trigger Airflow DAG
+    airflow_url = f"{AIRFLOW_BASE_URL}/dags/{AIRFLOW_DAG_ID}/dagRuns"
+    print(f"[DEBUG] Triggering Airflow DAG: URL={airflow_url}, DAG_ID={AIRFLOW_DAG_ID}")
     try:
         async with httpx.AsyncClient() as client:
             response = await client.post(
-                f"{AIRFLOW_BASE_URL}/dags/{AIRFLOW_DAG_ID}/dagRuns",
+                airflow_url,
                 json={
                     "conf": {"dataset_id": dataset_id},
                     "dag_run_id": f"dataset_{dataset_id}_{job_run.id}",
