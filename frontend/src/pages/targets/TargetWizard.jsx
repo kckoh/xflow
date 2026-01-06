@@ -1065,12 +1065,13 @@ export default function TargetWizard() {
                           <h4 className="text-xs font-semibold text-gray-500 uppercase">Columns</h4>
                           <span className="text-xs text-gray-400">{focusedDataset.columns?.length || 0} columns</span>
                         </div>
-                        {focusedDataset.destination?.type === 's3' && !focusedDataset.columns ? (
+                        {/* S3 source or target: check both source_type and destination.type */}
+                        {(focusedDataset.source_type === 's3' || focusedDataset.destination?.type === 's3') && !focusedDataset.columns ? (
                           <div className="text-center py-8 text-gray-500">
                             <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-orange-600 mx-auto mb-3"></div>
                             <p className="text-sm">Loading schema from S3...</p>
                           </div>
-                        ) : focusedDataset.destination?.type === 's3' && focusedDataset.columns?.length === 0 ? (
+                        ) : (focusedDataset.source_type === 's3' || focusedDataset.destination?.type === 's3') && focusedDataset.columns?.length === 0 ? (
                           <div className="text-center py-8 text-red-600">
                             <X className="w-8 h-8 mx-auto mb-3" />
                             <p className="text-sm font-medium">Failed to load schema</p>
