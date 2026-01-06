@@ -196,6 +196,7 @@ function ScheduleBadge({ job, onClick }) {
 
 export default function JobsPage() {
   const [jobs, setJobs] = useState([]);
+  const [jobRuns, setJobRuns] = useState({}); // Store runs for each job by job ID
   const [isLoading, setIsLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState("");
   const [scheduleModal, setScheduleModal] = useState({ isOpen: false, job: null });
@@ -216,6 +217,8 @@ export default function JobsPage() {
         // Filter only target datasets
         const targetJobs = data.filter(job => job.dataset_type === "target");
         setJobs(targetJobs);
+        // Fetch runs for each job
+        fetchAllJobRuns(targetJobs);
       } else {
         setJobs([]);
       }
@@ -225,6 +228,27 @@ export default function JobsPage() {
     } finally {
       setIsLoading(false);
     }
+  };
+
+  const fetchAllJobRuns = async (jobsList) => {
+    const runsData = {};
+    await Promise.all(
+      jobsList.map(async (job) => {
+        try {
+          const response = await fetch(`${API_BASE_URL}/api/job-runs?dataset_id=${job.id}`);
+          if (response.ok) {
+            const runs = await response.json();
+            // Store runs sorted by started_at descending (most recent first)
+            runsData[job.id] = runs.sort((a, b) =>
+              new Date(b.started_at) - new Date(a.started_at)
+            );
+          }
+        } catch (error) {
+          console.error(`Failed to fetch runs for job ${job.id}:`, error);
+        }
+      })
+    );
+    setJobRuns(runsData);
   };
 
   const handleScheduleSave = (jobId, { jobType, schedules }) => {
@@ -334,6 +358,28 @@ export default function JobsPage() {
       job.description?.toLowerCase().includes(searchQuery.toLowerCase())
   );
 
+  const getJobStatus = (job, runs) => {
+    // If no run logs, show -
+    if (!runs || runs.length === 0) {
+      return { label: "-", color: "gray" };
+    }
+
+    // CDC job: running if active, otherwise -
+    if (job.job_type === "cdc") {
+      return job.is_active ? { label: "Running", color: "green" } : { label: "-", color: "gray" };
+    }
+
+    // Batch job with schedule
+    if (job.schedule) {
+      return job.is_active
+        ? { label: "Running", color: "green" }
+        : { label: "Ready", color: "blue" };
+    }
+
+    // No schedule (draft)
+    return { label: "-", color: "gray" };
+  };
+
   return (
     <div className="p-6">
       <div className="mb-6">
@@ -373,6 +419,8 @@ export default function JobsPage() {
           <table className="w-full">
             <thead className="bg-gray-50 border-b border-gray-200">
               <tr>
+                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">ID</th>
+                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Owner</th>
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Name</th>
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Status</th>
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Schedule</th>
@@ -387,8 +435,78 @@ export default function JobsPage() {
                   className="hover:bg-gray-50 cursor-pointer"
                   onClick={() => navigate(`/etl/job/${job.id}/runs`)}
                 >
+                  <td className="px-6 py-4 text-sm text-gray-500">
+                    {job.id}
+                  </td>
+                  <td className="px-6 py-4 text-sm text-gray-500">
+                    {job.owner || "-"}
+                  </td>
                   <td className="px-6 py-4">
-                    <div className="flex items-center gap-3">
+                    <div>
+                      <div className="font-medium text-gray-900">{job.name}</div>
+                      <div className="text-sm text-gray-500">{job.description}</div>
+                    </div>
+                  </td>
+                  <td className="px-6 py-4">
+                    {(() => {
+                      const status = getJobStatus(job, jobRuns[job.id]);
+                      const colorClass =
+                        status.color === "green" ? "bg-green-100 text-green-800" :
+                          status.color === "blue" ? "bg-blue-100 text-blue-800" :
+                            "bg-gray-100 text-gray-500";
+
+                      return (
+                        <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${colorClass}`}>
+                          {status.label}
+                        </span>
+                      );
+                    })()}
+                  </td>
+                  <td className="px-6 py-4">
+                    <ScheduleBadge
+                      job={job}
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        setScheduleModal({ isOpen: true, job });
+                      }}
+                    />
+                  </td>
+                  <td className="px-6 py-4">
+                    {jobRuns[job.id]?.[0] ? (
+                      <div className="text-sm">
+                        <div className="text-gray-900">
+                          {new Date(jobRuns[job.id][0].started_at).toLocaleString('ko-KR', {
+                            year: 'numeric',
+                            month: '2-digit',
+                            day: '2-digit',
+                            hour: '2-digit',
+                            minute: '2-digit',
+                          })}
+                        </div>
+                        <div className="text-xs text-gray-500">
+                          {jobRuns[job.id][0].status === 'success' ? 'Succeeded' :
+                            jobRuns[job.id][0].status.charAt(0).toUpperCase() + jobRuns[job.id][0].status.slice(1)}
+                        </div>
+                      </div>
+                    ) : (
+                      <span className="text-sm text-gray-500">-</span>
+                    )}
+                  </td>
+                  <td className="px-6 py-4 text-right">
+                    <div className="flex items-center justify-end gap-3">
+                      {job.job_type !== "cdc" && (
+                        <button
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            handleRun(job.id);
+                          }}
+                          className="inline-flex items-center gap-1 px-3 py-1.5 text-sm font-medium text-green-600 bg-green-50 hover:bg-green-100 rounded-lg transition-colors"
+                          title="Run"
+                        >
+                          <Play className="w-4 h-4" />
+                          Run
+                        </button>
+                      )}
                       <button
                         onClick={(e) => {
                           e.stopPropagation();
@@ -402,52 +520,7 @@ export default function JobsPage() {
                             }`}
                         />
                       </button>
-                      <div>
-                        <div className="font-medium text-gray-900">{job.name}</div>
-                        <div className="text-sm text-gray-500">{job.description}</div>
-                      </div>
                     </div>
-                  </td>
-                  <td className="px-6 py-4">
-                    <span
-                      className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${job.status === "running"
-                        ? "bg-green-100 text-green-800"
-                        : job.status === "failed"
-                          ? "bg-red-100 text-red-800"
-                          : job.status === "paused"
-                            ? "bg-yellow-100 text-yellow-800"
-                            : "bg-gray-100 text-gray-800"
-                        }`}
-                    >
-                      {job.status || (job.is_active ? "Active" : "Inactive")}
-                    </span>
-                  </td>
-                  <td className="px-6 py-4">
-                    <ScheduleBadge
-                      job={job}
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        setScheduleModal({ isOpen: true, job });
-                      }}
-                    />
-                  </td>
-                  <td className="px-6 py-4 text-sm text-gray-500">
-                    {job.last_run ? new Date(job.last_run).toLocaleString() : "-"}
-                  </td>
-                  <td className="px-6 py-4 text-right">
-                    {job.job_type !== "cdc" && (
-                      <button
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          handleRun(job.id);
-                        }}
-                        className="inline-flex items-center gap-1 px-3 py-1.5 text-sm font-medium text-green-600 bg-green-50 hover:bg-green-100 rounded-lg transition-colors"
-                        title="Run"
-                      >
-                        <Play className="w-4 h-4" />
-                        Run
-                      </button>
-                    )}
                   </td>
                 </tr>
               ))}
