@@ -60,9 +60,23 @@ async def get_catalog(
         if "properties" in doc and "layer" in doc["properties"]:
             doc["layer"] = doc["properties"]["layer"]
             
-        # Map schema -> columns if needed for list view (though usually not needed for list)
-        if "schema" in doc:
-             doc["columns"] = doc["schema"]
+        # Map schema -> columns if needed for list view
+        # Try multiple sources: top-level schema, targets[0].schema, or nodes
+        schema = None
+        if "schema" in doc and doc["schema"]:
+            schema = doc["schema"]
+        elif "targets" in doc and len(doc["targets"]) > 0 and "schema" in doc["targets"][0]:
+            schema = doc["targets"][0]["schema"]
+        elif "nodes" in doc:
+            # Extract from transform node's outputSchema
+            transform_node = next((n for n in doc["nodes"] if n.get("data", {}).get("nodeCategory") == "transform" or n.get("data", {}).get("transformType")), None)
+            if transform_node and "outputSchema" in transform_node.get("data", {}):
+                schema = transform_node["data"]["outputSchema"]
+        
+        if schema:
+            doc["columns"] = schema
+        else:
+            doc["columns"] = []
              
         # Add is_active flag (based on import_ready)
         doc["is_active"] = doc.get("import_ready", False)
