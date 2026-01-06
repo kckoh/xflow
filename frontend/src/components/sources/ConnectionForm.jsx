@@ -1,6 +1,7 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { connectionApi } from '../../services/connectionApi';
 import { s3LogApi } from '../../services/s3LogApi';
+import Combobox from '../common/Combobox';
 
 // Connection Type Definitions
 const CONNECTION_TYPES = [
@@ -11,14 +12,19 @@ const CONNECTION_TYPES = [
     { id: 's3', label: 'Amazon S3', category: 'Storage' },   // Placeholder
 ];
 
-export default function ConnectionForm({ onSuccess, onCancel }) {
+const S3_REGIONS = [
+    'us-east-1',
+    'us-west-2',
+    'ap-northeast-2',
+    'ap-northeast-1',
+    'eu-west-1',
+];
+
+export default function ConnectionForm({ onSuccess, onCancel, initialType }) {
     // Basic Info
     const [name, setName] = useState('');
     const [description, setDescription] = useState('');
-    const [type, setType] = useState('postgres');
-
-    // Configuration Fields (Dynamic)
-    const [config, setConfig] = useState({});
+    const [type, setType] = useState(initialType || 'postgres');
 
     const [loading, setLoading] = useState(false);
     const [error, setError] = useState(null);
@@ -43,7 +49,7 @@ export default function ConnectionForm({ onSuccess, onCancel }) {
             case 's3':
                 return {
                     bucket: '',
-                    path: '',
+                    region: 'us-east-1',
                     storageType: 's3'
                 };
             case 'mongodb':
@@ -55,6 +61,11 @@ export default function ConnectionForm({ onSuccess, onCancel }) {
                 return {};
         }
     };
+
+    // Configuration Fields (Dynamic)
+    const [config, setConfig] = useState(() =>
+        getConfigTemplate(initialType || 'postgres')
+    );
 
     // Handle Type Change
     const handleTypeChange = (newType) => {
@@ -78,6 +89,16 @@ export default function ConnectionForm({ onSuccess, onCancel }) {
         setError(null);
     };
 
+    // Respect initial type when provided (e.g., from Source Wizard)
+    useEffect(() => {
+        if (!initialType) {
+            return;
+        }
+        setType(initialType);
+        setConfig(getConfigTemplate(initialType));
+        resetTestStatus();
+    }, [initialType]);
+
     const handleTest = async () => {
         setTestLoading(true);
         setTestMessage(null);
@@ -86,11 +107,11 @@ export default function ConnectionForm({ onSuccess, onCancel }) {
         try {
             let result;
 
-            // S3 Apache Log connection test
+            // S3 connection test
             if (type === 's3') {
                 result = await s3LogApi.testConnection({
                     bucket: config.bucket,
-                    path: config.path
+                    region: config.region || 'us-east-1'
                 });
 
                 if (result.connection_valid) {
@@ -211,27 +232,44 @@ export default function ConnectionForm({ onSuccess, onCancel }) {
                         <input
                             type="text"
                             required
-                            placeholder="e.g., user-logs"
+                            placeholder="e.g., company-logs"
                             className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:ring-blue-500 focus:border-blue-500 sm:text-sm"
                             value={config.bucket || ''}
                             onChange={(e) => handleConfigChange('bucket', e.target.value)}
                         />
                         <p className="mt-1 text-xs text-gray-500">
-                            The S3 bucket where your Apache logs are stored
+                            The S3 bucket name (path will be specified in the dataset)
                         </p>
                     </div>
                     <div>
-                        <label className="block text-sm font-medium text-gray-700">Path (Prefix)</label>
-                        <input
-                            type="text"
-                            required
-                            placeholder="e.g., logs or 2025/01/logs"
-                            className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:ring-blue-500 focus:border-blue-500 sm:text-sm"
-                            value={config.path || ''}
-                            onChange={(e) => handleConfigChange('path', e.target.value)}
-                        />
+                        <label className="block text-sm font-medium text-gray-700">Region</label>
+                        <div className="mt-1">
+                            <Combobox
+                                options={S3_REGIONS}
+                                value={config.region || 'us-east-1'}
+                                onChange={(region) => {
+                                    if (!region) {
+                                        return;
+                                    }
+                                    handleConfigChange('region', region);
+                                }}
+                                getKey={(region) => region}
+                                getLabel={(region) => region}
+                                placeholder="Select a region..."
+                                classNames={{
+                                    button:
+                                        "px-4 py-2.5 rounded-xl border-emerald-200/70 bg-gradient-to-r from-white via-emerald-50/50 to-emerald-100/40 shadow-sm shadow-emerald-100/70 hover:shadow-md hover:shadow-emerald-200/70 focus:ring-2 focus:ring-emerald-400/60 focus:border-emerald-300 transition-all",
+                                    panel:
+                                        "mt-2 rounded-xl border-emerald-100/90 bg-white/95 shadow-xl shadow-emerald-100/60 ring-1 ring-emerald-100/70 backdrop-blur",
+                                    option:
+                                        "rounded-lg mx-1 my-0.5 hover:bg-emerald-50/70",
+                                    optionSelected: "bg-emerald-50/80",
+                                    icon: "text-emerald-500",
+                                }}
+                            />
+                        </div>
                         <p className="mt-1 text-xs text-gray-500">
-                            The folder path within the bucket (without leading/trailing slashes)
+                            AWS region where the bucket is located
                         </p>
                     </div>
                 </div>
@@ -283,29 +321,33 @@ export default function ConnectionForm({ onSuccess, onCancel }) {
 
 
             {/* Connection Type Selection */}
-            <div>
-                <label className="block text-sm font-bold text-gray-900 mb-2">Connection Type</label>
-                <div className="grid grid-cols-3 gap-3">
-                    {CONNECTION_TYPES.map((t) => (
-                        <button
-                            key={t.id}
-                            type="button"
-                            onClick={() => handleTypeChange(t.id)}
-                            className={`
-                                flex flex-col items-center justify-center p-3 border rounded-lg transition-all
-                                ${type === t.id
-                                    ? 'border-blue-500 bg-blue-50 ring-1 ring-blue-500 text-blue-700'
-                                    : 'border-gray-200 hover:bg-gray-50 text-gray-600'
-                                }
-                            `}
-                        >
-                            <span className="font-medium text-sm">{t.label}</span>
-                        </button>
-                    ))}
-                </div>
-            </div>
+            {!initialType && (
+                <>
+                    <div>
+                        <label className="block text-sm font-bold text-gray-900 mb-2">Connection Type</label>
+                        <div className="grid grid-cols-3 gap-3">
+                            {CONNECTION_TYPES.map((t) => (
+                                <button
+                                    key={t.id}
+                                    type="button"
+                                    onClick={() => handleTypeChange(t.id)}
+                                    className={`
+                                        flex flex-col items-center justify-center p-3 border rounded-lg transition-all
+                                        ${type === t.id
+                                            ? 'border-blue-500 bg-blue-50 ring-1 ring-blue-500 text-blue-700'
+                                            : 'border-gray-200 hover:bg-gray-50 text-gray-600'
+                                        }
+                                    `}
+                                >
+                                    <span className="font-medium text-sm">{t.label}</span>
+                                </button>
+                            ))}
+                        </div>
+                    </div>
 
-            <div className="border-t border-gray-200 pt-4"></div>
+                    <div className="border-t border-gray-200 pt-4"></div>
+                </>
+            )}
 
             {/* Basic Information */}
             <div>

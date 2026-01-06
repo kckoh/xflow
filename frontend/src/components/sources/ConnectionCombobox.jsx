@@ -16,6 +16,7 @@ export default function ConnectionCombobox({
     onSelect,
     onCreate,
     onDelete,
+    classNames,
 }) {
     const [deleteModalOpen, setDeleteModalOpen] = useState(false);
     const [pendingDeleteId, setPendingDeleteId] = useState(null);
@@ -56,11 +57,12 @@ export default function ConnectionCombobox({
                         </span>
                     </>
                 )}
+                classNames={classNames}
                 renderItemActions={(conn) => (
                     onDelete && (
                         <button
                             onClick={(e) => handleDeleteClick(e, conn.id)}
-                            className="p-1 text-gray-300 hover:text-red-500 hover:bg-red-50 rounded transition-colors"
+                            className="p-1 text-red-400 hover:text-red-600 hover:bg-red-50 rounded transition-colors"
                             title="Delete connection"
                         >
                             <Trash2 className="w-4 h-4" />

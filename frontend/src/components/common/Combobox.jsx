@@ -30,6 +30,7 @@ export default function Combobox({
     renderItemActions,
     footerContent,
     emptyMessage = 'No options available',
+    classNames = {},
 }) {
     const [isOpen, setIsOpen] = useState(false);
     const [hoveredKey, setHoveredKey] = useState(null);
@@ -54,15 +55,15 @@ export default function Combobox({
     };
 
     return (
-        <div ref={containerRef} className="relative">
+        <div ref={containerRef} className={`relative ${classNames.container ?? ''}`.trim()}>
             {/* Trigger Button */}
             <button
                 type="button"
                 onClick={() => !disabled && setIsOpen(!isOpen)}
                 disabled={disabled || isLoading}
-                className="w-full px-3 py-2 border border-gray-300 rounded-md bg-white text-left flex items-center justify-between hover:border-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-colors disabled:bg-gray-100 disabled:cursor-not-allowed"
+                className={`w-full px-3 py-2 border border-gray-300 rounded-md bg-white text-left flex items-center justify-between hover:border-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-colors disabled:bg-gray-100 disabled:cursor-not-allowed ${classNames.button ?? ''}`.trim()}
             >
-                <span className={selectedOption ? 'text-gray-900' : 'text-gray-500'}>
+                <span className={`${selectedOption ? 'text-gray-900' : 'text-gray-500'} ${classNames.label ?? ''}`.trim()}>
                     {isLoading
                         ? 'Loading...'
                         : selectedOption
@@ -70,12 +71,12 @@ export default function Combobox({
                             : placeholder
                     }
                 </span>
-                <ChevronDown className={`w-4 h-4 text-gray-400 transition-transform ${isOpen ? 'rotate-180' : ''}`} />
+                <ChevronDown className={`w-4 h-4 text-gray-400 transition-transform ${isOpen ? 'rotate-180' : ''} ${classNames.icon ?? ''}`.trim()} />
             </button>
 
             {/* Dropdown Panel */}
             {isOpen && (
-                <div className="absolute z-50 mt-1 w-full bg-white border border-gray-200 rounded-md shadow-lg max-h-64 overflow-auto">
+                <div className={`absolute z-50 mt-1 w-full bg-white border border-gray-200 rounded-md shadow-lg max-h-64 overflow-auto ${classNames.panel ?? ''}`.trim()}>
                     {/* Options List */}
                     {options.length > 0 ? (
                         <div className="py-1">
@@ -89,7 +90,7 @@ export default function Combobox({
                                         onClick={() => handleSelect(option)}
                                         onMouseEnter={() => setHoveredKey(key)}
                                         onMouseLeave={() => setHoveredKey(null)}
-                                        className="px-3 py-2 flex items-center justify-between cursor-pointer hover:bg-gray-50 transition-colors"
+                                        className={`px-3 py-2 flex items-center justify-between cursor-pointer hover:bg-gray-50 transition-colors ${classNames.option ?? ''} ${isSelected ? classNames.optionSelected ?? '' : ''} ${hoveredKey === key ? classNames.optionHovered ?? '' : ''}`.trim()}
                                     >
                                         <div className="flex items-center gap-2 flex-1 min-w-0">
                                             {/* 선택 표시 */}
@@ -116,7 +117,7 @@ export default function Combobox({
                             })}
                         </div>
                     ) : (
-                        <div className="px-3 py-4 text-sm text-gray-500 text-center">
+                        <div className={`px-3 py-4 text-sm text-gray-500 text-center ${classNames.empty ?? ''}`.trim()}>
                             {emptyMessage}
                         </div>
                     )}
@@ -125,7 +126,9 @@ export default function Combobox({
                     {footerContent && (
                         <>
                             <div className="border-t border-gray-200" />
-                            {footerContent}
+                            <div className={classNames.footer ?? ''}>
+                                {footerContent}
+                            </div>
                         </>
                     )}
                 </div>
