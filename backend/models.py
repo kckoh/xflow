@@ -1,24 +1,27 @@
 from datetime import datetime
-from typing import Optional, List, Dict, Any
+from typing import Any, Dict, List, Optional
+
 from beanie import Document, Link
-from pydantic import Field, BaseModel
+from pydantic import BaseModel, Field
+
 
 class User(Document):
     """
     User document for MongoDB.
     Beanie automatically handles the _id field as a PydanticObjectId.
     """
+
     email: str = Field(..., unique=True, index=True)
     password: str
     name: Optional[str] = None
-    
+
     # Permission fields
     is_admin: bool = False
     etl_access: bool = False
     domain_edit_access: bool = False
     dataset_access: List[str] = Field(default_factory=list)  # dataset IDs
     all_datasets: bool = False
-    
+
     created_at: datetime = Field(default_factory=datetime.utcnow)
     updated_at: datetime = Field(default_factory=datetime.utcnow)
 
@@ -34,17 +37,18 @@ class Connection(Document):
     Generic Connection document for storing connection info for various sources.
     Supports RDB (PostgreSQL, MySQL), NoSQL (MongoDB), Object Storage (S3), etc.
     """
+
     name: str
     description: Optional[str] = None
     type: str  # postgres / mysql / s3 / mongodb / etc.
-    
+
     # Generic configuration storage
     # - RDB: { host, port, database, user, password, ... }
     # - S3: { bucket, access_key, secret_key, region, ... }
     config: dict = Field(default_factory=dict)
-    
+
     status: str = "disconnected"  # connected / error / disconnected
-    
+
     created_at: datetime = Field(default_factory=datetime.utcnow)
     updated_at: datetime = Field(default_factory=datetime.utcnow)
 
@@ -58,6 +62,7 @@ class Transform(Document):
     Supports multiple transform types: select-fields, filter, join, etc.
     Note: source_id and source_table are managed by Pipeline, not Transform.
     """
+
     name: str  # Transform name
     transform_type: str  # Transform type: "select-fields", "filter", "join", etc.
     config: dict = Field(default_factory=dict)  # Type-specific configuration
@@ -71,11 +76,13 @@ class Transform(Document):
 
 class ETLJob(Document):
     """
-    ETL Job document for storing ETL pipeline configurations.
+    dataset document for storing ETL pipeline configurations.
     Defines source, transforms, and destination for data processing.
     """
+
     name: str
     description: Optional[str] = None
+    dataset_type: str = "source"  # "source" or "target"
     job_type: str = "batch"  # "batch" or "cdc"
 
     # Multiple sources support (new)
@@ -96,9 +103,9 @@ class ETLJob(Document):
     schedule: Optional[str] = None  # Cron expression or @interval string
     schedule_frequency: Optional[str] = None  # daily, weekly, interval, etc.
     ui_params: Optional[dict] = None  # Raw UI parameters for restoration
-    
+
     status: str = "draft"  # draft, active, paused
-    
+
     # Incremental Load Support
     last_sync_timestamp: Optional[datetime] = None
     incremental_config: Optional[dict] = None
@@ -125,6 +132,7 @@ class JobRun(Document):
     """
     Job Run document for tracking ETL job executions.
     """
+
     job_id: str  # Reference to ETLJob
     status: str = "pending"  # pending, running, success, failed
     started_at: Optional[datetime] = None
@@ -136,7 +144,6 @@ class JobRun(Document):
         name = "job_runs"
 
 
-
 class Attachment(BaseModel):
     id: str  # UUID
     name: str  # Original filename
@@ -144,6 +151,7 @@ class Attachment(BaseModel):
     size: int  # Bytes
     type: str  # MIME type
     uploaded_at: datetime = Field(default_factory=datetime.utcnow)
+
 
 class Domain(Document):
     name: str
@@ -165,51 +173,50 @@ class Domain(Document):
 # Dataset Model (MongoDB - Replaces Neo4j Models)
 class DatasetNode(BaseModel):
     nodeId: str
-    urn: str # Global Unique Identifier
-    type: str # rdb, s3, filter, etc.
+    urn: str  # Global Unique Identifier
+    type: str  # rdb, s3, filter, etc.
     schema: List[dict] = Field(default_factory=list)
     config: dict = Field(default_factory=dict)
     inputNodeIds: List[str] = Field(default_factory=list)
+
 
 class Dataset(Document):
     """
     MongoDB Document representing a Logical Dataset / Pipeline.
     Designed to be synced from ETLJob.
     """
-    name: str # Pipeline Name
-    description: Optional[str] = None # Pipeline Description
-    job_id: Optional[str] = None # Reference to the ETLJob that defined this dataset
-    
+
+    name: str  # Pipeline Name
+    description: Optional[str] = None  # Pipeline Description
+    job_id: Optional[str] = None  # Reference to the ETLJob that defined this dataset
+
     # 1. Inputs (Sources)
     sources: List[DatasetNode] = Field(default_factory=list)
-    
+
     # 2. Transformations
     transforms: List[DatasetNode] = Field(default_factory=list)
-    
+
     # 3. Outputs (Targets)
     targets: List[DatasetNode] = Field(default_factory=list)
-    
+
     is_active: bool = False
-    
+
     created_at: datetime = Field(default_factory=datetime.utcnow)
     updated_at: datetime = Field(default_factory=datetime.utcnow)
 
     class Settings:
         name = "datasets"
-        indexes = [
-            "job_id",
-            "sources.urn",
-            "targets.urn"
-        ]
+        indexes = ["job_id", "sources.urn", "targets.urn"]
 
 
 class QualityCheck(BaseModel):
     """Individual quality check result"""
-    name: str                    # "null_check", "duplicate_check", etc.
-    column: Optional[str] = None # Column name (if applicable)
-    passed: bool                 # Did it pass the threshold?
-    value: float                 # Actual value (e.g., 0.5 = 0.5% nulls)
-    threshold: float             # Threshold to pass (e.g., 5.0 = 5%)
+
+    name: str  # "null_check", "duplicate_check", etc.
+    column: Optional[str] = None  # Column name (if applicable)
+    passed: bool  # Did it pass the threshold?
+    value: float  # Actual value (e.g., 0.5 = 0.5% nulls)
+    threshold: float  # Threshold to pass (e.g., 5.0 = 5%)
     message: Optional[str] = None
 
 
@@ -218,33 +225,30 @@ class QualityResult(Document):
     Quality check result for a Dataset.
     Each run creates a new document, allowing historical tracking.
     """
-    dataset_id: str              # Reference to Dataset._id
-    job_id: Optional[str] = None # Reference to ETLJob._id (if triggered by job)
-    s3_path: str                 # S3 path that was checked
-    
+
+    dataset_id: str  # Reference to Dataset._id
+    job_id: Optional[str] = None  # Reference to ETLJob._id (if triggered by job)
+    s3_path: str  # S3 path that was checked
+
     # Summary metrics
     row_count: int = 0
     column_count: int = 0
     null_counts: Dict[str, int] = Field(default_factory=dict)  # { column: null_count }
     duplicate_count: int = 0
-    
+
     # Overall score (0-100)
     overall_score: float = 0.0
-    
+
     # Detailed check results
     checks: List[QualityCheck] = Field(default_factory=list)
-    
+
     # Metadata
-    status: str = "pending"      # pending / running / completed / failed
+    status: str = "pending"  # pending / running / completed / failed
     error_message: Optional[str] = None
     run_at: datetime = Field(default_factory=datetime.utcnow)
     completed_at: Optional[datetime] = None
     duration_ms: int = 0
-    
+
     class Settings:
         name = "quality_results"
-        indexes = [
-            "dataset_id",
-            "job_id",
-            "run_at"
-        ]
+        indexes = ["dataset_id", "job_id", "run_at"]

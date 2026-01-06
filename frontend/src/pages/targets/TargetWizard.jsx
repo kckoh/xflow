@@ -242,11 +242,41 @@ export default function TargetWizard() {
     }
   };
 
-  const handleCreate = () => {
-    // TODO: API call to create target dataset
-    console.log("Creating target:", { config, lineageNodes, lineageEdges });
-    showToast("Target dataset created successfully!", "success");
-    navigate("/dataset");
+  const handleCreate = async () => {
+    try {
+      const payload = {
+        name: config.name,
+        description: config.description,
+        dataset_type: "target",
+        job_type: jobType,
+        nodes: lineageNodes,
+        edges: lineageEdges,
+        schedules: schedules,
+      };
+
+      const url = isEditMode
+        ? `${API_BASE_URL}/api/etl-jobs/${config.id}`
+        : `${API_BASE_URL}/api/etl-jobs`;
+
+      const response = await fetch(url, {
+        method: isEditMode ? "PUT" : "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload),
+      });
+
+      if (!response.ok) {
+        throw new Error("Failed to save target dataset");
+      }
+
+      showToast(
+        isEditMode ? "Target dataset updated successfully!" : "Target dataset created successfully!",
+        "success"
+      );
+      navigate("/dataset");
+    } catch (error) {
+      console.error("Failed to save target dataset:", error);
+      showToast(`Failed to save: ${error.message}`, "error");
+    }
   };
 
   const canProceed = () => {

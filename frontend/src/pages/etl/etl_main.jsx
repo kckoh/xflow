@@ -207,7 +207,8 @@ export default function ETLMain() {
                     <td
                       className="px-6 py-4 whitespace-nowrap text-sm font-medium text-blue-600 hover:underline cursor-pointer"
                       onClick={() => {
-                        if (job.dataset_type === "target") {
+                        const datasetType = job.dataset_type || "source";
+                        if (datasetType === "target") {
                           navigate(`/target`, { state: { jobId: job.id, editMode: true } });
                         } else {
                           navigate(`/source`, { state: { jobId: job.id, editMode: true } });
@@ -219,12 +220,12 @@ export default function ETLMain() {
                     <td className="px-6 py-4 whitespace-nowrap text-sm">
                       <span
                         className={`px-2 py-1 text-xs font-semibold rounded-full ${
-                          job.dataset_type === "source"
+                          (job.dataset_type || "source") === "source"
                             ? "bg-emerald-100 text-emerald-800"
                             : "bg-orange-100 text-orange-800"
                         }`}
                       >
-                        {job.dataset_type === "source" ? "Source" : "Target"}
+                        {(job.dataset_type || "source") === "source" ? "Source" : "Target"}
                       </span>
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap text-sm">
