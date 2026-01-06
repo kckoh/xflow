@@ -30,6 +30,7 @@ class DestinationConfig(BaseModel):
 class ETLJobCreate(BaseModel):
     name: str
     description: Optional[str] = None
+    dataset_type: str = "source"  # "source" or "target"
     job_type: str = "batch"  # "batch" or "cdc"
     # Multiple sources support (new)
     sources: Optional[List[SourceConfig]] = None
@@ -51,6 +52,7 @@ class ETLJobCreate(BaseModel):
 class ETLJobUpdate(BaseModel):
     name: Optional[str] = None
     description: Optional[str] = None
+    dataset_type: Optional[str] = None  # "source" or "target"
     job_type: Optional[str] = None  # "batch" or "cdc"
     # Multiple sources support (new)
     sources: Optional[List[SourceConfig]] = None

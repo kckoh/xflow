@@ -147,6 +147,7 @@ async def create_etl_job(job: ETLJobCreate):
     new_job = ETLJob(
         name=job.name,
         description=job.description,
+        dataset_type=job.dataset_type,
         job_type=job.job_type,
         sources=sources_data,
         source=sources_data[0] if sources_data else {},  # Legacy compatibility
@@ -180,6 +181,7 @@ async def create_etl_job(job: ETLJobCreate):
         id=str(new_job.id),
         name=new_job.name,
         description=new_job.description,
+        dataset_type=new_job.dataset_type,
         job_type=new_job.job_type,
         sources=new_job.sources,
         source=new_job.source,
@@ -217,6 +219,7 @@ async def list_etl_jobs(import_ready: bool = None):
             id=str(job.id),
             name=job.name,
             description=job.description,
+            dataset_type=getattr(job, 'dataset_type', 'source'),
             job_type=getattr(job, 'job_type', 'batch'),
             sources=job.sources,
             source=job.source,
@@ -254,6 +257,7 @@ async def get_etl_job(job_id: str):
         id=str(job.id),
         name=job.name,
         description=job.description,
+        dataset_type=getattr(job, 'dataset_type', 'source'),
         job_type=job.job_type,
         sources=job.sources,
         source=job.source,
@@ -331,6 +335,8 @@ async def update_etl_job(job_id: str, job_update: ETLJobUpdate):
         job.nodes = job_update.nodes
     if job_update.edges is not None:
         job.edges = job_update.edges
+    if job_update.dataset_type is not None:
+        job.dataset_type = job_update.dataset_type
     if job_update.job_type is not None:
         job.job_type = job_update.job_type
 
@@ -347,6 +353,7 @@ async def update_etl_job(job_id: str, job_update: ETLJobUpdate):
         id=str(job.id),
         name=job.name,
         description=job.description,
+        dataset_type=getattr(job, 'dataset_type', 'source'),
         job_type=job.job_type,
         sources=job.sources,
         source=job.source,

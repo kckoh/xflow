@@ -84,6 +84,19 @@ export const getImportReadyJobs = async () => {
     return response.json();
 };
 
+// Source Dataset APIs
+export const getSourceDatasets = async () => {
+    const response = await fetch(`${API_BASE_URL}/api/source-datasets`);
+    if (!response.ok) throw new Error(`Failed to fetch source datasets: ${response.status}`);
+    return response.json();
+};
+
+export const getSourceDataset = async (id) => {
+    const response = await fetch(`${API_BASE_URL}/api/source-datasets/${id}`);
+    if (!response.ok) throw new Error(`Failed to fetch source dataset: ${response.status}`);
+    return response.json();
+};
+
 export const getJobExecution = async (jobId) => {
     const response = await fetch(`${BASE_URL}/jobs/${jobId}/execution`);
     if (!response.ok) throw new Error(`Failed to fetch job execution: ${response.status}`);
