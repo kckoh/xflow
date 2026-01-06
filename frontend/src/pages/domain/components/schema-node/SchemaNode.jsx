@@ -16,6 +16,9 @@ const SchemaNodeComponent = ({ id, data, selected }) => {
 
     // Data extraction
     const columns = data.columns || [];
+    const activeColumnName = data.activeColumnName || null;
+    const relatedColumnNames = data.relatedColumnNames || null;
+    const onColumnClick = data.onColumnClick || null;
     const sourcePlatform = data.platform || "PostgreSQL";
     const config = getStyleConfig(sourcePlatform);
     const hasPermission = data.hasPermission !== false; // Default to true if not specified
@@ -48,7 +51,9 @@ const SchemaNodeComponent = ({ id, data, selected }) => {
                 "bg-white rounded-lg shadow-md border transition-all duration-200 group relative",
                 selected ? "ring-2 ring-blue-500 shadow-lg" : "border-gray-200",
                 "min-w-[220px] max-w-[280px]",
-                !hasPermission && "cursor-not-allowed"
+                !hasPermission && "cursor-not-allowed",
+                data.dimmed && "opacity-30",
+                data.highlighted && "ring-2 ring-orange-400"
             )}
         >
             {/* Permission Denied Overlay - Lighter, cleaner design */}
@@ -90,26 +95,6 @@ const SchemaNodeComponent = ({ id, data, selected }) => {
                 </button>
             )}
 
-            {/* Node-level Handles for connections */}
-            {hasPermission && (
-                <>
-                    <Handle
-                        type="target"
-                        position={Position.Left}
-                        id="node-target"
-                        className="!w-3 !h-3 !bg-blue-500 !border-2 !border-white"
-                        style={{ top: '50%' }}
-                    />
-                    <Handle
-                        type="source"
-                        position={Position.Right}
-                        id="node-source"
-                        className="!w-3 !h-3 !bg-green-500 !border-2 !border-white"
-                        style={{ top: '50%' }}
-                    />
-                </>
-            )}
-
             {/* Header */}
             <SchemaNodeHeader
                 data={{
@@ -131,6 +116,9 @@ const SchemaNodeComponent = ({ id, data, selected }) => {
                         nodeId={id}
                         withHandles={hasPermission}
                         onScroll={() => setMainNodeScrollVersion(v => v + 1)}
+                        onColumnClick={onColumnClick ? (colName) => onColumnClick(id, colName) : undefined}
+                        activeColumnName={activeColumnName}
+                        relatedColumnNames={relatedColumnNames}
                     />
                 </div>
             )}
