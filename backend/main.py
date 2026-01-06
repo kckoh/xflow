@@ -35,6 +35,7 @@ from routers import (
     metadata,
     opensearch,
     source_datasets,
+    sql_test,
     users,
 )
 from routers.transforms import select_fields  # 추후 type 추가 예정 (예: join ...)
@@ -113,6 +114,9 @@ app.include_router(source_datasets.router, tags=["source-datasets"])
 
 # DuckDB Query Engine
 app.include_router(duckdb.router, prefix="/api/duckdb", tags=["duckdb"])
+
+# SQL Test (DuckDB-based query testing)
+app.include_router(sql_test.router, prefix="/api/sql", tags=["sql-test"])
 
 # Domains (CRUD + ETL Job Import)
 app.include_router(domains.router, prefix="/api/domains", tags=["domains"])

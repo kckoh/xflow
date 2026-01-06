@@ -124,6 +124,35 @@ def transform_s3_filter(df: DataFrame, config: dict) -> DataFrame:
 
     return filtered_df
 
+
+def transform_sql(df: DataFrame, config: dict) -> DataFrame:
+    """
+    Execute SQL query on DataFrame using temp view
+    
+    User writes SQL like: SELECT id, UPPER(name) as name_upper FROM input
+    "input" refers to the upstream DataFrame
+    """
+    from pyspark.sql import SparkSession
+    
+    sql_query = config.get("sql")
+    if not sql_query:
+        raise ValueError("SQL query is required in transform config")
+    
+    # Get or create Spark session
+    spark = SparkSession.builder.getOrCreate()
+    
+    # Create temporary view named "input"
+    df.createOrReplaceTempView("input")
+    
+    # Execute user's SQL query
+    result_df = spark.sql(sql_query)
+    
+    print(f"   Executed SQL: {sql_query[:100]}...")
+    print(f"   Result schema: {result_df.schema}")
+    
+    return result_df
+
+
 # Single-input transforms
 TRANSFORMS = {
     "select-fields": transform_select_fields,
@@ -131,6 +160,7 @@ TRANSFORMS = {
     "filter": transform_filter,
     "s3-select-fields": transform_s3_select_fields,
     "s3-filter": transform_s3_filter,
+    "sql": transform_sql,
 }
 
 
