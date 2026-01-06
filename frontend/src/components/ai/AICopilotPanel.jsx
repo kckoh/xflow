@@ -49,7 +49,7 @@ export default function AICopilotPanel() {
       {/* Backdrop */}
       {isOpen && (
         <div
-          className="fixed inset-0 bg-black/20 backdrop-blur-sm z-40 lg:hidden"
+          className="fixed inset-0 bg-black/20 backdrop-blur-sm z-[999] lg:hidden"
           onClick={closePanel}
         />
       )}
@@ -57,7 +57,7 @@ export default function AICopilotPanel() {
       {/* Panel */}
       <div
         className={`
-          fixed right-0 top-0 h-full w-full sm:w-96 bg-white shadow-2xl z-50
+          fixed right-0 top-0 h-full w-full sm:w-96 bg-white shadow-2xl z-[1001]
           transform transition-transform duration-300 ease-out
           flex flex-col
           ${isOpen ? "translate-x-0" : "translate-x-full"}

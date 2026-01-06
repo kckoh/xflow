@@ -40,19 +40,6 @@ async def create_connection(connection: ConnectionCreate):
                     detail=f"Connection to {connection.config.get('host')}:{connection.config.get('port')}/{connection.config.get('database_name')} already exists."
                 )
         
-        # S3 Identity: Bucket + Path
-        elif connection.type == 's3':
-             if (conn.config.get('bucket') == connection.config.get('bucket') and
-                 conn.config.get('path') == connection.config.get('path')):
-                 raise HTTPException(
-                    status_code=status.HTTP_400_BAD_REQUEST,
-                    detail=(
-                        "Connection to S3 bucket "
-                        f"'{connection.config.get('bucket')}' with path "
-                        f"'{connection.config.get('path')}' already exists."
-                    )
-                )
-        
         # MongoDB Identity: URI + Database
         elif connection.type == 'mongodb':
              if (conn.config.get('uri') == connection.config.get('uri') and

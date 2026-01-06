@@ -78,8 +78,8 @@ export default function SourceWizard() {
     connectionId: "",
     table: "",
     columns: [],
-    // S3-specific fields
     bucket: "",
+    // S3-specific fields
     path: "",
     // MongoDB-specific fields
     collection: "",
@@ -107,6 +107,21 @@ export default function SourceWizard() {
         const matchedSource = SOURCE_OPTIONS.find((s) => s.id === sourceType);
         if (matchedSource) {
           setSelectedSource(matchedSource);
+        }
+
+        // Load connections so Review can resolve connection name in edit mode
+        setLoadingConnections(true);
+        try {
+          const allConnections = await connectionApi.fetchConnections();
+          const filtered = allConnections.filter(
+            (conn) => conn.type === sourceType
+          );
+          setConnections(filtered);
+        } catch (err) {
+          console.error("Failed to load connections:", err);
+          setConnections([]);
+        } finally {
+          setLoadingConnections(false);
         }
 
         // Set config
@@ -180,6 +195,14 @@ export default function SourceWizard() {
             config.connectionId
           );
           setCollections(response.collections || []);
+        } else if (selectedSource?.id === "s3") {
+          const matchedConnection = connections.find(
+            (conn) => conn.id === config.connectionId
+          );
+          setConfig((prev) => ({
+            ...prev,
+            bucket: matchedConnection?.config?.bucket || "",
+          }));
         }
       } catch (err) {
         console.error("Failed to load tables/collections:", err);
@@ -191,7 +214,7 @@ export default function SourceWizard() {
     };
 
     loadTablesOrCollections();
-  }, [config.connectionId, selectedSource]);
+  }, [config.connectionId, selectedSource, connections]);
 
   const handleTableChange = async (tableName) => {
     if (!tableName) {
@@ -413,12 +436,12 @@ export default function SourceWizard() {
   };
 
   return (
-    <div className="h-full bg-gray-50 flex flex-col -m-6">
+    <div className="h-full bg-gray-50 flex flex-col -m-8">
       {/* Header + Progress Steps */}
       <div className="bg-white border-b border-gray-200">
         {/* Header */}
-        <div className="px-6 py-4 border-b border-gray-100">
-          <div className="flex items-center gap-4">
+        <div className="py-4 border-b border-gray-100">
+          <div className="flex items-center gap-4 px-6">
             <button
               onClick={() => navigate("/dataset")}
               className="p-2 hover:bg-gray-100 rounded-lg transition-colors"
@@ -580,7 +603,18 @@ export default function SourceWizard() {
                       if (value === "__create_new__") {
                         setShowCreateConnectionModal(true);
                       } else {
-                        setConfig({ ...config, connectionId: value });
+                        const matchedConnection = connections.find(
+                          (conn) => conn.id === value
+                        );
+                        const bucket =
+                          selectedSource?.id === "s3"
+                            ? matchedConnection?.config?.bucket || ""
+                            : "";
+                        setConfig({
+                          ...config,
+                          connectionId: value,
+                          bucket,
+                        });
                       }
                     }}
                     disabled={loadingConnections}
@@ -669,38 +703,25 @@ export default function SourceWizard() {
                   </div>
                 )}
 
-                {/* Amazon S3 - Bucket and Path */}
+                {/* Amazon S3 - Path only */}
                 {selectedSource?.id === "s3" && (
-                  <>
-                    <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-2">
-                        Bucket Name
-                      </label>
-                      <input
-                        type="text"
-                        value={config.bucket}
-                        onChange={(e) =>
-                          setConfig({ ...config, bucket: e.target.value })
-                        }
-                        placeholder="Enter S3 bucket name"
-                        className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-emerald-500"
-                      />
-                    </div>
-                    <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-2">
-                        Path/Prefix
-                      </label>
-                      <input
-                        type="text"
-                        value={config.path}
-                        onChange={(e) =>
-                          setConfig({ ...config, path: e.target.value })
-                        }
-                        placeholder="e.g., logs/2024/"
-                        className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-emerald-500"
-                      />
-                    </div>
-                  </>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-2">
+                      Path/Prefix
+                    </label>
+                    <input
+                      type="text"
+                      value={config.path}
+                      onChange={(e) =>
+                        setConfig({ ...config, path: e.target.value })
+                      }
+                      placeholder="e.g., logs/2024/ or production/app-logs/"
+                      className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-emerald-500"
+                    />
+                    <p className="mt-1 text-xs text-gray-500">
+                      The folder path within the bucket (bucket is defined in the connection)
+                    </p>
+                  </div>
                 )}
 
                 {/* Columns Section */}
@@ -923,8 +944,8 @@ export default function SourceWizard() {
       </div>
 
       {/* Footer */}
-      <div className="mt-auto bg-white border-t border-gray-200 px-6 py-4">
-        <div className="max-w-4xl mx-auto flex items-center justify-between">
+      <div className="mt-auto bg-white border-t border-gray-200 py-4">
+        <div className="max-w-4xl mx-auto px-6 flex items-center justify-between">
           <button
             onClick={handleBack}
             disabled={currentStep === 1}
@@ -979,7 +1000,7 @@ export default function SourceWizard() {
       {/* Create Connection Modal */}
       {showCreateConnectionModal && (
         <div
-          className="fixed inset-0 flex items-center justify-center z-50 p-4"
+          className="fixed inset-0 flex items-center justify-center z-[1001] p-4"
           style={{ backgroundColor: "rgba(0, 0, 0, 0.5)" }}
           onClick={() => setShowCreateConnectionModal(false)}
         >

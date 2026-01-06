@@ -43,7 +43,7 @@ export default function ConnectionForm({ onSuccess, onCancel }) {
             case 's3':
                 return {
                     bucket: '',
-                    path: '',
+                    region: 'us-east-1',
                     storageType: 's3'
                 };
             case 'mongodb':
@@ -86,11 +86,11 @@ export default function ConnectionForm({ onSuccess, onCancel }) {
         try {
             let result;
 
-            // S3 Apache Log connection test
+            // S3 connection test
             if (type === 's3') {
                 result = await s3LogApi.testConnection({
                     bucket: config.bucket,
-                    path: config.path
+                    region: config.region || 'us-east-1'
                 });
 
                 if (result.connection_valid) {
@@ -211,27 +211,30 @@ export default function ConnectionForm({ onSuccess, onCancel }) {
                         <input
                             type="text"
                             required
-                            placeholder="e.g., user-logs"
+                            placeholder="e.g., company-logs"
                             className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:ring-blue-500 focus:border-blue-500 sm:text-sm"
                             value={config.bucket || ''}
                             onChange={(e) => handleConfigChange('bucket', e.target.value)}
                         />
                         <p className="mt-1 text-xs text-gray-500">
-                            The S3 bucket where your Apache logs are stored
+                            The S3 bucket name (path will be specified in the dataset)
                         </p>
                     </div>
                     <div>
-                        <label className="block text-sm font-medium text-gray-700">Path (Prefix)</label>
-                        <input
-                            type="text"
-                            required
-                            placeholder="e.g., logs or 2025/01/logs"
+                        <label className="block text-sm font-medium text-gray-700">Region</label>
+                        <select
                             className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:ring-blue-500 focus:border-blue-500 sm:text-sm"
-                            value={config.path || ''}
-                            onChange={(e) => handleConfigChange('path', e.target.value)}
-                        />
+                            value={config.region || 'us-east-1'}
+                            onChange={(e) => handleConfigChange('region', e.target.value)}
+                        >
+                            <option value="us-east-1">US East (N. Virginia)</option>
+                            <option value="us-west-2">US West (Oregon)</option>
+                            <option value="ap-northeast-2">Asia Pacific (Seoul)</option>
+                            <option value="ap-northeast-1">Asia Pacific (Tokyo)</option>
+                            <option value="eu-west-1">Europe (Ireland)</option>
+                        </select>
                         <p className="mt-1 text-xs text-gray-500">
-                            The folder path within the bucket (without leading/trailing slashes)
+                            AWS region where the bucket is located
                         </p>
                     </div>
                 </div>

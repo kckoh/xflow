@@ -51,20 +51,28 @@ class ConnectionTester:
     @staticmethod
     def _test_s3(config: Dict[str, Any]) -> Tuple[bool, str]:
         try:
-            session = boto3.Session(
-                aws_access_key_id=config['access_key'],
-                aws_secret_access_key=config['secret_key'],
-                region_name=config['region']
-            )
-            s3 = session.client('s3')
+            # Use IAM role from Kubernetes pod (no access keys needed)
+            # boto3 automatically uses pod's IAM role in Kubernetes
+            region = config.get('region', 'us-east-1')
+            s3 = boto3.client('s3', region_name=region)
             
-            # Try to list objects in the bucket (checking access)
-            s3.list_objects_v2(Bucket=config['bucket'], MaxKeys=1)
+            bucket = config.get('bucket')
+            if not bucket:
+                return False, "Bucket name is required"
             
-            return True, "Successfully connected to S3 bucket."
+            # Test bucket access by checking if bucket exists and is accessible
+            s3.head_bucket(Bucket=bucket)
+            
+            return True, f"Successfully connected to S3 bucket '{bucket}'."
             
         except ClientError as e:
-            return False, f"S3 Connection failed: {str(e)}"
+            error_code = e.response.get('Error', {}).get('Code', '')
+            if error_code == '404':
+                return False, f"Bucket '{config.get('bucket')}' does not exist."
+            elif error_code == '403':
+                return False, f"Access denied to bucket '{config.get('bucket')}'. Check IAM permissions."
+            else:
+                return False, f"S3 Connection failed: {str(e)}"
         except Exception as e:
             return False, f"Error: {str(e)}"
 
