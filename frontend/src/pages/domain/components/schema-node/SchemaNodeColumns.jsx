@@ -19,8 +19,20 @@ const ColumnHandle = ({ type, position, colId }) => (
     />
 );
 
-export const SchemaNodeColumns = ({ columns = [], withHandles = true, nodeId = null, onScroll }) => {
+export const SchemaNodeColumns = ({
+    columns = [],
+    withHandles = true,
+    nodeId = null,
+    onScroll,
+    onColumnClick,
+    activeColumnName = null,
+    relatedColumnNames = null
+}) => {
     const updateNodeInternals = useUpdateNodeInternals();
+    const activeKey = activeColumnName ? activeColumnName.toLowerCase() : null;
+    const relatedKeys = relatedColumnNames
+        ? new Set(relatedColumnNames.map((name) => name.toLowerCase()))
+        : null;
 
     const handleScroll = (e) => {
         if (nodeId) {
@@ -58,11 +70,22 @@ export const SchemaNodeColumns = ({ columns = [], withHandles = true, nodeId = n
                             colTags ? `Tags: ${colTags}` : null
                         ].filter(Boolean).join('\n');
 
+                        const colKey = colName.toLowerCase();
+                        const isActive = activeKey && colKey === activeKey;
+                        const isRelated = !relatedKeys || relatedKeys.has(colKey);
+
                         return (
                             <div
                                 key={idx}
                                 title={tooltipText}
-                                className="relative flex items-center px-3 py-1.5 hover:bg-blue-50 cursor-pointer text-xs transition-colors group/row"
+                                onClick={onColumnClick ? () => onColumnClick(colName) : undefined}
+                                className={clsx(
+                                    "relative flex items-center px-3 py-1.5 text-xs transition-colors group/row",
+                                    onColumnClick && "cursor-pointer hover:bg-blue-50",
+                                    relatedKeys && !isRelated && "opacity-30",
+                                    isRelated && relatedKeys && "bg-orange-100",
+                                    isActive && "ring-1 ring-orange-300"
+                                )}
                             >
                                 {/* Left Handle */}
                                 {withHandles && (
