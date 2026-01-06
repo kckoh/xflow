@@ -273,10 +273,9 @@ export default function SchemaTransformEditor({
 
     return (
         <div className="flex flex-col h-full bg-gray-50 rounded-lg border border-gray-200">
-            {/* Main Editor Area */}
-            <div className="flex flex-1 p-4 gap-4 min-h-0">
+            <div className="flex flex-1 p-4 gap-4 min-h-[150px]">
                 {/* Before Schema (Left) */}
-                <div className="flex-1 basis-0 flex flex-col bg-white rounded-xl border border-slate-200 shadow-sm transition-all overflow-hidden">
+                <div className="flex-1 basis-0 flex flex-col bg-white rounded-xl border border-slate-200 shadow-sm transition-all overflow-hidden min-w-0">
                     <div className="px-4 py-3 border-b border-slate-200 bg-slate-50/50 flex items-center justify-between">
                         <h3 className="text-xs font-bold text-slate-900 uppercase tracking-wider flex items-center gap-2">
                             <span className="w-1 h-3 bg-indigo-600 rounded-full"></span>
@@ -367,7 +366,7 @@ export default function SchemaTransformEditor({
                 </div>
 
                 {/* After Schema (Right) */}
-                <div className="flex-1 basis-0 flex flex-col bg-white rounded-xl border border-slate-200 shadow-sm transition-all overflow-hidden">
+                <div className="flex-1 basis-0 flex flex-col bg-white rounded-xl border border-slate-200 shadow-sm transition-all overflow-hidden min-w-0">
                     <div className="px-4 py-3 border-b border-slate-200 bg-slate-50/50">
                         <h3 className="text-xs font-bold text-slate-900 uppercase tracking-wider flex items-center gap-2">
                             <span className="w-1 h-3 bg-indigo-600 rounded-full"></span>
@@ -550,11 +549,11 @@ export default function SchemaTransformEditor({
 
                     {/* Results Container */}
                     {testResult && (
-                        <div className="flex gap-4 h-60">
+                        <div className="flex gap-4 h-36">
                             {/* Before */}
-                            <div className="flex-1 flex flex-col min-w-0">
+                            <div className="flex-1 flex flex-col min-w-0 w-0">
                                 <h5 className="text-[9px] font-bold text-slate-400 uppercase mb-1.5 tracking-tight">Source Sample</h5>
-                                <div className="flex-1 overflow-auto border border-slate-200 rounded-xl bg-slate-50/50">
+                                <div className="flex-1 overflow-auto border border-slate-200 rounded-xl bg-slate-50/50 max-w-full">
                                     {testResult.beforeRows.length > 0 ? (
                                         <table className="w-full text-xs box-border border-separate border-spacing-0">
                                             <thead className="bg-slate-100 sticky top-0 z-10">
@@ -587,9 +586,9 @@ export default function SchemaTransformEditor({
                             </div>
 
                             {/* After */}
-                            <div className="flex-1 flex flex-col min-w-0">
+                            <div className="flex-1 flex flex-col min-w-0 w-0">
                                 <h5 className="text-[9px] font-bold text-indigo-500 uppercase mb-1.5 tracking-tight">Transformed Sample</h5>
-                                <div className="flex-1 overflow-auto border border-indigo-100 rounded-xl bg-white shadow-sm ring-1 ring-slate-200">
+                                <div className="flex-1 overflow-auto border border-indigo-100 rounded-xl bg-white shadow-sm ring-1 ring-slate-200 max-w-full">
                                     <table className="w-full text-xs box-border border-separate border-spacing-0">
                                         <thead className="bg-indigo-600 sticky top-0 z-10">
                                             <tr>
