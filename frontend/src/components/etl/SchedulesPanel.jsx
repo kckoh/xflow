@@ -1,5 +1,5 @@
 import { useState, useRef, useEffect } from 'react';
-import { Calendar, Plus, Clock, X, ChevronDown, Check } from 'lucide-react';
+import { Calendar, Clock, X, ChevronDown, Check } from 'lucide-react';
 
 export default function SchedulesPanel({ schedules = [], onUpdate }) {
     const [showCreateForm, setShowCreateForm] = useState(false);
@@ -9,11 +9,11 @@ export default function SchedulesPanel({ schedules = [], onUpdate }) {
     const [scheduleName, setScheduleName] = useState('');
     const [frequency, setFrequency] = useState('');
     const [description, setDescription] = useState('');
-    
+
     // UI States for schedule parameters
     const [hourInterval, setHourInterval] = useState(1);
     const [startDate, setStartDate] = useState(''); // YYYY-MM-DDThh:mm
-    
+
     // Custom Time (Interval) states
     const [intervalDays, setIntervalDays] = useState(0);
     const [intervalHours, setIntervalHours] = useState(0);
@@ -47,11 +47,11 @@ export default function SchedulesPanel({ schedules = [], onUpdate }) {
         if (!uiParams) return s.cron || ''; // Fallback for legacy
 
         // If backend hasn't generated cron yet, we can still show summary based on params
-        
+
         if (frequency === 'hourly') {
             return `Runs every ${uiParams.hourInterval} hour${uiParams.hourInterval > 1 ? 's' : ''}`;
         }
-        
+
         if (frequency === 'interval') {
             const parts = [];
             if (uiParams.intervalDays > 0) parts.push(`${uiParams.intervalDays} day${uiParams.intervalDays > 1 ? 's' : ''}`);
@@ -63,12 +63,12 @@ export default function SchedulesPanel({ schedules = [], onUpdate }) {
         if (['daily', 'weekly', 'monthly'].includes(frequency) && uiParams.startDate) {
             const date = new Date(uiParams.startDate);
             const timeStr = date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
-            
+
             if (frequency === 'daily') return `Runs daily at ${timeStr}`;
             if (frequency === 'weekly') return `Runs every ${date.toLocaleDateString([], { weekday: 'long' })} at ${timeStr}`;
             if (frequency === 'monthly') return `Runs on day ${date.getDate()} of every month at ${timeStr}`;
         }
-        
+
         return s.cron;
     };
 
@@ -77,7 +77,7 @@ export default function SchedulesPanel({ schedules = [], onUpdate }) {
 
     const handleCreateSchedule = () => {
         if (!frequency) return;
-        
+
         // Validate required fields
         if (frequency === 'interval' && !startDate && (intervalDays === 0 && intervalHours === 0 && intervalMinutes === 0)) return;
         if (['hourly', 'daily', 'weekly', 'monthly', 'interval'].includes(frequency) && !startDate) return;
@@ -117,7 +117,7 @@ export default function SchedulesPanel({ schedules = [], onUpdate }) {
         setScheduleName(schedule.name);
         setFrequency(schedule.frequency);
         setDescription(schedule.description || '');
-        
+
         // Restore UI params if available
         if (schedule.uiParams) {
             setHourInterval(schedule.uiParams.hourInterval || 1);
@@ -133,7 +133,7 @@ export default function SchedulesPanel({ schedules = [], onUpdate }) {
             setIntervalHours(0);
             setIntervalMinutes(0);
         }
-        
+
         setShowCreateForm(true);
     };
 
@@ -327,13 +327,6 @@ export default function SchedulesPanel({ schedules = [], onUpdate }) {
                     <Calendar className="w-5 h-5 text-gray-500" />
                     <h3 className="text-lg font-semibold text-gray-900">Schedules</h3>
                 </div>
-                <button
-                    onClick={() => setShowCreateForm(true)}
-                    className="flex items-center gap-2 px-3 py-1.5 text-sm text-blue-600 hover:bg-blue-50 rounded-lg transition-colors"
-                >
-                    <Plus className="w-4 h-4" />
-                    Add Schedule
-                </button>
             </div>
 
             {/* Content */}
