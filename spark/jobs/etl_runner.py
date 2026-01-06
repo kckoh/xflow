@@ -887,15 +887,25 @@ def run_etl(config: dict):
 if __name__ == "__main__":
     if len(sys.argv) < 2:
         print("Usage: spark-submit etl_runner.py '<json_config>'")
-        print("       spark-submit etl_runner.py --config-file /path/to/config.json")
-        sys.exit(1)
+    import sys
+    import json
 
     # Parse config from command line
-    if sys.argv[1] == "--config-file":
-        config_path = sys.argv[2]
-        with open(config_path, "r") as f:
-            config = json.load(f)
+    if len(sys.argv) > 1:
+        if sys.argv[1] == "--config-file":
+            with open(sys.argv[2], "r") as f:
+                config = json.load(f)
+        elif sys.argv[1] == "--base64":
+            import base64
+            # Decode base64 config string
+            decoded_bytes = base64.b64decode(sys.argv[2])
+            decoded_str = decoded_bytes.decode("utf-8")
+            config = json.loads(decoded_str)
+        else:
+            # Assume raw JSON string
+            config = json.loads(sys.argv[1])
+            
+        run_etl(config)
     else:
-        config = json.loads(sys.argv[1])
-
-    run_etl(config)
+        print("Usage: etl_runner.py <json_config> OR --base64 <b64_config> OR --config-file <path>")
+        sys.exit(1)
