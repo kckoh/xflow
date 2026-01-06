@@ -41,6 +41,7 @@ class DatasetCreate(BaseModel):
     destination: DestinationConfig
     schedule: Optional[str] = None  # Created by backend
     schedule_frequency: Optional[str] = None
+    schedules: Optional[List[dict]] = None
     ui_params: Optional[dict] = None
     incremental_config: Optional[dict] = None
 
@@ -64,6 +65,7 @@ class DatasetUpdate(BaseModel):
 
     schedule: Optional[str] = None
     schedule_frequency: Optional[str] = None
+    schedules: Optional[List[dict]] = None
     ui_params: Optional[dict] = None
     incremental_config: Optional[dict] = None
 
@@ -87,6 +89,7 @@ class DatasetResponse(DatasetCreate):
 
     schedule: Optional[str] = None
     schedule_frequency: Optional[str] = None
+    schedules: Optional[List[dict]] = None
     ui_params: Optional[dict] = None
     incremental_config: Optional[dict] = None
     last_sync_timestamp: Optional[datetime] = None

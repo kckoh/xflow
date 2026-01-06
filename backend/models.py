@@ -102,6 +102,7 @@ class Dataset(Document):
 
     schedule: Optional[str] = None  # Cron expression or @interval string
     schedule_frequency: Optional[str] = None  # daily, weekly, interval, etc.
+    schedules: List[dict] = Field(default_factory=list)  # Multiple schedules support
     ui_params: Optional[dict] = None  # Raw UI parameters for restoration
 
     status: str = "draft"  # draft, active, paused

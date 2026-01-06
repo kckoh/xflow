@@ -158,6 +158,7 @@ async def create_dataset(dataset: DatasetCreate):
         # Schedule info
         schedule=schedule,
         schedule_frequency=dataset.schedule_frequency,
+        schedules=dataset.schedules or [],
         ui_params=dataset.ui_params,
         incremental_config=dataset.incremental_config,
 
@@ -323,6 +324,15 @@ async def update_dataset(dataset_id: str, dataset_update: DatasetUpdate):
         dataset.schedule_frequency = freq
         dataset.ui_params = params
         dataset.schedule = generate_schedule(freq, params)
+
+    if dataset_update.schedules is not None:
+        dataset.schedules = dataset_update.schedules
+        # Sync legacy fields from first schedule if available and not explicitly set
+        if dataset.schedules and (dataset_update.schedule_frequency is None):
+            first_schedule = dataset.schedules[0]
+            dataset.schedule = first_schedule.get("cron")
+            dataset.schedule_frequency = first_schedule.get("frequency")
+
 
     if dataset_update.status is not None:
         dataset.status = dataset_update.status
