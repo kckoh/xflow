@@ -9,8 +9,10 @@ export default function SQLTransformConfig({ node, transformName, onUpdate, onCl
 
     useEffect(() => {
         // Load existing SQL from node
-        if (node?.data?.sql) {
-            setSql(node.data.sql);
+        // Check both locations: transformConfig (backend structure) and direct data (legacy)
+        const savedSql = node?.data?.transformConfig?.sql || node?.data?.sql;
+        if (savedSql) {
+            setSql(savedSql);
         }
     }, [node]);
 
