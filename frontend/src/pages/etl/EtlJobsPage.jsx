@@ -4,120 +4,6 @@ import { Search, RefreshCw, GitBranch, Calendar, X, Clock, Zap, Play } from "luc
 import { API_BASE_URL } from "../../config/api";
 import SchedulesPanel from "../../components/etl/SchedulesPanel";
 
-// Mock ETL Jobs Data
-const MOCK_ETL_JOBS = [
-  {
-    id: "etl-001",
-    name: "user_analytics_daily",
-    description: "Daily user behavior analytics pipeline",
-    is_active: true,
-    status: "running",
-    job_type: "batch",
-    schedule: "0 2 * * *",
-    schedule_frequency: "daily",
-    last_run: "2024-01-20T14:30:00Z",
-  },
-  {
-    id: "etl-002",
-    name: "order_sync_realtime",
-    description: "Real-time order synchronization from PostgreSQL",
-    is_active: true,
-    status: "running",
-    job_type: "cdc",
-    schedule: null,
-    schedule_frequency: null,
-    last_run: "2024-01-20T16:45:00Z",
-  },
-  {
-    id: "etl-003",
-    name: "product_catalog_sync",
-    description: "Hourly product catalog sync to data lake",
-    is_active: false,
-    status: "success",
-    job_type: "batch",
-    schedule: "0 * * * *",
-    schedule_frequency: "hourly",
-    last_run: "2024-01-20T15:00:00Z",
-  },
-  {
-    id: "etl-004",
-    name: "customer_360_aggregation",
-    description: "Weekly customer 360 view aggregation",
-    is_active: false,
-    status: "success",
-    job_type: "batch",
-    schedule: "0 3 * * 0",
-    schedule_frequency: "weekly",
-    last_run: "2024-01-14T03:00:00Z",
-  },
-  {
-    id: "etl-005",
-    name: "clickstream_ingestion",
-    description: "Real-time clickstream data ingestion from Kafka",
-    is_active: true,
-    status: "running",
-    job_type: "cdc",
-    schedule: null,
-    schedule_frequency: null,
-    last_run: "2024-01-20T16:50:00Z",
-  },
-  {
-    id: "etl-006",
-    name: "inventory_snapshot",
-    description: "Daily inventory snapshot for reporting",
-    is_active: false,
-    status: "failed",
-    job_type: "batch",
-    schedule: "0 6 * * *",
-    schedule_frequency: "daily",
-    last_run: "2024-01-20T06:00:00Z",
-  },
-  {
-    id: "etl-007",
-    name: "sales_report_monthly",
-    description: "Monthly sales aggregation report",
-    is_active: false,
-    status: "success",
-    job_type: "batch",
-    schedule: "0 1 1 * *",
-    schedule_frequency: "monthly",
-    last_run: "2024-01-01T01:30:00Z",
-  },
-  {
-    id: "etl-008",
-    name: "log_parser_s3",
-    description: "Parse application logs from S3 bucket",
-    is_active: true,
-    status: "running",
-    job_type: "batch",
-    schedule: "*/30 * * * *",
-    schedule_frequency: "interval",
-    last_run: "2024-01-20T16:30:00Z",
-  },
-  {
-    id: "etl-009",
-    name: "ml_feature_store_sync",
-    description: "Sync ML features to feature store",
-    is_active: false,
-    status: "success",
-    job_type: "batch",
-    schedule: "0 */4 * * *",
-    schedule_frequency: "hourly",
-    last_run: "2024-01-20T12:00:00Z",
-  },
-  {
-    id: "etl-010",
-    name: "payment_events_cdc",
-    description: "CDC pipeline for payment transaction events",
-    is_active: false,
-    status: "paused",
-    job_type: "cdc",
-    schedule: null,
-    schedule_frequency: null,
-    last_run: "2024-01-16T14:30:00Z",
-  },
-];
-
 // Schedule Edit Modal Component
 function ScheduleModal({ isOpen, onClose, job, onSave }) {
   const [jobType, setJobType] = useState(job?.job_type || "batch");
@@ -324,18 +210,20 @@ export default function EtlJobsPage() {
   const fetchJobs = async () => {
     setIsLoading(true);
     try {
-      const response = await fetch(`${API_BASE_URL}/api/etl/jobs`, {
+      const response = await fetch(`${API_BASE_URL}/api/etl-jobs`, {
         credentials: "include",
       });
       if (response.ok) {
         const data = await response.json();
-        setJobs(data.length > 0 ? data : MOCK_ETL_JOBS);
+        // Filter only target datasets
+        const targetJobs = data.filter(job => job.dataset_type === "target");
+        setJobs(targetJobs);
       } else {
-        setJobs(MOCK_ETL_JOBS);
+        setJobs([]);
       }
     } catch (error) {
       console.error("Failed to fetch jobs:", error);
-      setJobs(MOCK_ETL_JOBS);
+      setJobs([]);
     } finally {
       setIsLoading(false);
     }
@@ -358,19 +246,88 @@ export default function EtlJobsPage() {
   };
 
   const handleToggle = async (jobId) => {
-    // Toggle scheduling on/off
-    setJobs(prev => prev.map(job => {
-      if (job.id === jobId) {
-        return { ...job, is_active: !job.is_active };
+    const job = jobs.find(j => j.id === jobId);
+    if (!job) return;
+
+    const newActiveState = !job.is_active;
+
+    try {
+      // If job has a schedule, use activate/deactivate API
+      if (job.schedule) {
+        const endpoint = newActiveState ? "activate" : "deactivate";
+        const response = await fetch(`${API_BASE_URL}/api/etl-jobs/${jobId}/${endpoint}`, {
+          method: "POST",
+        });
+
+        if (response.ok) {
+          setJobs(prev => prev.map(j => {
+            if (j.id === jobId) {
+              return { ...j, is_active: newActiveState };
+            }
+            return j;
+          }));
+        } else {
+          console.error("Failed to toggle job status");
+        }
+      } else {
+        // Manual job: update Dataset's is_active field
+        // First, find the dataset by job_id
+        const datasetsResponse = await fetch(`${API_BASE_URL}/api/catalog`);
+        if (datasetsResponse.ok) {
+          const datasets = await datasetsResponse.json();
+          const dataset = datasets.find(d => d.job_id === jobId);
+
+          if (dataset) {
+            // Update dataset's is_active
+            const updateResponse = await fetch(`${API_BASE_URL}/api/catalog/${dataset.id}`, {
+              method: "PATCH",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({ is_active: newActiveState }),
+            });
+
+            if (updateResponse.ok) {
+              setJobs(prev => prev.map(j => {
+                if (j.id === jobId) {
+                  return { ...j, is_active: newActiveState };
+                }
+                return j;
+              }));
+            } else {
+              console.error("Failed to update dataset status");
+            }
+          } else {
+            // No dataset found, just update local state
+            setJobs(prev => prev.map(j => {
+              if (j.id === jobId) {
+                return { ...j, is_active: newActiveState };
+              }
+              return j;
+            }));
+          }
+        }
       }
-      return job;
-    }));
+    } catch (error) {
+      console.error("Failed to toggle job:", error);
+    }
   };
 
   const handleRun = async (jobId) => {
-    // One-time execution
-    console.log("Running job:", jobId);
-    // In real app, would call API to trigger job execution
+    try {
+      const response = await fetch(`${API_BASE_URL}/api/etl-jobs/${jobId}/run`, {
+        method: "POST",
+      });
+
+      if (response.ok) {
+        const result = await response.json();
+        console.log("Job triggered:", result);
+        // Refresh jobs to update status
+        fetchJobs();
+      } else {
+        console.error("Failed to run job");
+      }
+    } catch (error) {
+      console.error("Failed to run job:", error);
+    }
   };
 
   const filteredJobs = jobs.filter(
