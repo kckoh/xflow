@@ -3,6 +3,7 @@ import { useNavigate } from "react-router-dom";
 import { Search, RefreshCw, GitBranch, Calendar, X, Clock, Zap, Play, Copy, Check } from "lucide-react";
 import { API_BASE_URL } from "../../config/api";
 import SchedulesPanel from "../../components/etl/SchedulesPanel";
+import { useToast } from "../../components/common/Toast/ToastContext";
 
 // Schedule Edit Modal Component
 function ScheduleModal({ isOpen, onClose, job, onSave }) {
@@ -141,40 +142,22 @@ function ScheduleModal({ isOpen, onClose, job, onSave }) {
 }
 
 // Schedule Display Badge
-function ScheduleBadge({ job, onClick }) {
+function ScheduleBadge({ job }) {
   if (job.job_type === "cdc") {
     return (
-      <div className="inline-flex items-center gap-2">
-        <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md text-xs font-medium bg-purple-100 text-purple-700">
-          <Zap className="w-3 h-3" />
-          CDC
-        </span>
-        <button
-          onClick={onClick}
-          className="p-1.5 rounded-md text-purple-600 hover:bg-purple-100 transition-colors"
-          title="Edit schedule"
-        >
-          <Calendar className="w-3.5 h-3.5" />
-        </button>
-      </div>
+      <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md text-xs font-medium bg-purple-100 text-purple-700">
+        <Zap className="w-3 h-3" />
+        CDC
+      </span>
     );
   }
 
   if (!job.schedule) {
     return (
-      <div className="inline-flex items-center gap-2">
-        <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md text-xs font-medium bg-gray-100 text-gray-600">
-          <Calendar className="w-3 h-3" />
-          Manual
-        </span>
-        <button
-          onClick={onClick}
-          className="p-1.5 rounded-md text-gray-600 hover:bg-gray-100 transition-colors"
-          title="Edit schedule"
-        >
-          <Calendar className="w-3.5 h-3.5" />
-        </button>
-      </div>
+      <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md text-xs font-medium bg-gray-100 text-gray-600">
+        <Calendar className="w-3 h-3" />
+        Manual
+      </span>
     );
   }
 
@@ -196,19 +179,10 @@ function ScheduleBadge({ job, onClick }) {
   };
 
   return (
-    <div className="inline-flex items-center gap-2">
-      <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md text-xs font-medium bg-blue-100 text-blue-700">
-        <Clock className="w-3 h-3" />
-        {getScheduleLabel()}
-      </span>
-      <button
-        onClick={onClick}
-        className="p-1.5 rounded-md text-blue-600 hover:bg-blue-100 transition-colors"
-        title="Edit schedule"
-      >
-        <Calendar className="w-3.5 h-3.5" />
-      </button>
-    </div>
+    <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md text-xs font-medium bg-blue-100 text-blue-700">
+      <Clock className="w-3 h-3" />
+      {getScheduleLabel()}
+    </span>
   );
 }
 
@@ -219,7 +193,7 @@ export default function JobsPage() {
   const [searchQuery, setSearchQuery] = useState("");
   const [scheduleModal, setScheduleModal] = useState({ isOpen: false, job: null });
   const [copiedId, setCopiedId] = useState(null);
-  const [toast, setToast] = useState(null);
+  const { showToast } = useToast();
   const navigate = useNavigate();
 
   useEffect(() => {
@@ -386,11 +360,6 @@ export default function JobsPage() {
     }
   };
 
-  const showToast = (message, type = "success") => {
-    setToast({ message, type });
-    setTimeout(() => setToast(null), 3000);
-  };
-
   const filteredJobs = jobs.filter(
     (job) =>
       job.name?.toLowerCase().includes(searchQuery.toLowerCase()) ||
@@ -459,8 +428,8 @@ export default function JobsPage() {
             <thead className="bg-gray-50 border-b border-gray-200">
               <tr>
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">ID</th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Owner</th>
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Name</th>
+                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Owner</th>
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Status</th>
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Schedule</th>
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Last Run</th>
@@ -490,14 +459,14 @@ export default function JobsPage() {
                       </button>
                     </div>
                   </td>
-                  <td className="px-6 py-4 text-sm text-gray-500">
-                    {job.owner || "-"}
-                  </td>
                   <td className="px-6 py-4">
                     <div>
                       <div className="font-medium text-gray-900">{job.name}</div>
-                      <div className="text-sm text-gray-500">{job.description}</div>
+                      {/* <div className="text-sm text-gray-500">{job.description}</div> */}
                     </div>
+                  </td>
+                  <td className="px-6 py-4 text-sm text-gray-500">
+                    {job.owner || "-"}
                   </td>
                   <td className="px-6 py-4">
                     {(() => {
@@ -515,13 +484,7 @@ export default function JobsPage() {
                     })()}
                   </td>
                   <td className="px-6 py-4">
-                    <ScheduleBadge
-                      job={job}
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        setScheduleModal({ isOpen: true, job });
-                      }}
-                    />
+                    <ScheduleBadge job={job} />
                   </td>
                   <td className="px-6 py-4">
                     {jobRuns[job.id]?.[0] ? (
@@ -559,8 +522,8 @@ export default function JobsPage() {
                           Run
                         </button>
                       )}
-                      {/* Only show toggle if job has a schedule (not manual) */}
-                      {job.schedule && (
+                      {/* Show toggle for CDC jobs or jobs with schedules (not manual) */}
+                      {(job.job_type === "cdc" || job.schedule) && (
                         <button
                           onClick={(e) => {
                             e.stopPropagation();
@@ -591,24 +554,6 @@ export default function JobsPage() {
         job={scheduleModal.job}
         onSave={handleScheduleSave}
       />
-
-      {/* Toast Notification */}
-      {toast && (
-        <div className="fixed bottom-6 right-6 z-[1002] animate-slide-up">
-          <div className={`flex items-center gap-3 px-4 py-3 rounded-lg shadow-lg ${toast.type === "success" ? "bg-green-50 border border-green-200" : "bg-red-50 border border-red-200"
-            }`}>
-            {toast.type === "success" ? (
-              <Check className="w-5 h-5 text-green-600" />
-            ) : (
-              <X className="w-5 h-5 text-red-600" />
-            )}
-            <span className={`text-sm font-medium ${toast.type === "success" ? "text-green-900" : "text-red-900"
-              }`}>
-              {toast.message}
-            </span>
-          </div>
-        </div>
-      )}
     </div>
   );
 }

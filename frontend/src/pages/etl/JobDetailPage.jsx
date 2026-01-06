@@ -1,8 +1,9 @@
 import { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import { ArrowLeft, Play, CheckCircle, XCircle, Clock, RefreshCw, Search, AlertCircle, Calendar, Info, Zap, BarChart3 } from 'lucide-react';
+import { ArrowLeft, Play, CheckCircle, XCircle, Clock, RefreshCw, Search, AlertCircle, Calendar, Info, Zap, BarChart3, Copy, Check } from 'lucide-react';
 import { API_BASE_URL } from '../../config/api';
 import SchedulesPanel from '../../components/etl/SchedulesPanel';
+import { useToast } from '../../components/common/Toast/ToastContext';
 
 export default function JobDetailPage() {
     const { jobId } = useParams();
@@ -13,6 +14,8 @@ export default function JobDetailPage() {
     const [activeTab, setActiveTab] = useState('info');
     const [searchFilter, setSearchFilter] = useState('');
     const [statusFilter, setStatusFilter] = useState('all');
+    const [copiedId, setCopiedId] = useState(false);
+    const { showToast } = useToast();
 
     // Fetch job details
     useEffect(() => {
@@ -63,6 +66,9 @@ export default function JobDetailPage() {
 
                 if (response.ok) {
                     setJob(prev => ({ ...prev, is_active: newActiveState }));
+                    showToast(`Job ${newActiveState ? 'activated' : 'deactivated'} successfully!`, "success");
+                } else {
+                    showToast(`Failed to ${newActiveState ? 'activate' : 'deactivate'} job`, "error");
                 }
             } else {
                 const datasetsResponse = await fetch(`${API_BASE_URL}/api/catalog`);
@@ -79,12 +85,16 @@ export default function JobDetailPage() {
 
                         if (updateResponse.ok) {
                             setJob(prev => ({ ...prev, is_active: newActiveState }));
+                            showToast(`Job ${newActiveState ? 'activated' : 'deactivated'} successfully!`, "success");
+                        } else {
+                            showToast(`Failed to ${newActiveState ? 'activate' : 'deactivate'} job`, "error");
                         }
                     }
                 }
             }
         } catch (error) {
             console.error("Failed to toggle job:", error);
+            showToast("Network error: Failed to toggle job", "error");
         }
     };
 
@@ -96,11 +106,25 @@ export default function JobDetailPage() {
 
             if (response.ok) {
                 console.log("Job triggered");
+                showToast("Job started successfully!", "success");
                 fetchRuns();
                 fetchJobDetails();
+            } else {
+                showToast("Failed to start job", "error");
             }
         } catch (error) {
             console.error("Failed to run job:", error);
+            showToast("Network error: Failed to start job", "error");
+        }
+    };
+
+    const handleCopyId = async () => {
+        try {
+            await navigator.clipboard.writeText(job?.id || '');
+            setCopiedId(true);
+            setTimeout(() => setCopiedId(false), 2000);
+        } catch (error) {
+            console.error("Failed to copy:", error);
         }
     };
 
@@ -250,7 +274,24 @@ export default function JobDetailPage() {
                                 <dl className="grid grid-cols-2 gap-6">
                                     <div>
                                         <dt className="text-sm font-medium text-gray-500">ID</dt>
-                                        <dd className="mt-1 text-sm text-gray-900">{job?.id || '-'}</dd>
+                                        <dd className="mt-1 text-sm text-gray-900">
+                                            <div className="flex items-center gap-2">
+                                                <span>{job?.id || '-'}</span>
+                                                {job?.id && (
+                                                    <button
+                                                        onClick={handleCopyId}
+                                                        className="p-1 hover:bg-gray-200 rounded transition-colors"
+                                                        title="Copy ID"
+                                                    >
+                                                        {copiedId ? (
+                                                            <Check className="w-3.5 h-3.5 text-green-600" />
+                                                        ) : (
+                                                            <Copy className="w-3.5 h-3.5 text-gray-400" />
+                                                        )}
+                                                    </button>
+                                                )}
+                                            </div>
+                                        </dd>
                                     </div>
                                     <div>
                                         <dt className="text-sm font-medium text-gray-500">Owner</dt>
