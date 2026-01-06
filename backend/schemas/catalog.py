@@ -41,6 +41,7 @@ class DatasetUpdate(BaseModel):
     tags: Optional[List[str]] = None
     domain: Optional[str] = None
     schema: Optional[List[ColumnItem]] = None
+    is_active: Optional[bool] = None
 
 class DatasetCreate(BaseModel):
     """

@@ -12,6 +12,283 @@ from airflow.models import Variable
 
 
 
+def convert_nodes_to_sources(nodes, edges, db):
+    """Convert Target Wizard nodes/edges format to sources/transforms format"""
+    from bson import ObjectId
+
+    sources = []
+    transforms = []
+
+    # Build edge map (target -> source)
+    edge_map = {}
+    for edge in edges:
+        target_id = edge.get("target")
+        source_id = edge.get("source")
+        if target_id not in edge_map:
+            edge_map[target_id] = []
+        edge_map[target_id].append(source_id)
+
+    # Process nodes
+    for node in nodes:
+        node_id = node.get("id")
+        node_data = node.get("data", {})
+
+        # Determine node category from multiple possible sources
+        node_category = node_data.get("nodeCategory")
+
+        # If nodeCategory not set, infer from node id or other fields
+        if not node_category:
+            if node_id.startswith("source-"):
+                node_category = "source"
+            elif node_id.startswith("target-"):
+                node_category = "target"
+            elif node_id.startswith("transform-"):
+                node_category = "transform"
+            elif node_data.get("sourceJobId") or node_data.get("sourceDatasetId"):
+                node_category = "source"
+            elif node_data.get("transformType"):
+                node_category = "transform"
+            else:
+                # Check if this node has jobs array (lineage node from import)
+                if node_data.get("jobs"):
+                    node_category = "source"
+                else:
+                    node_category = "source"  # Default to source
+
+        if node_category == "source":
+            # This is a source node - need to fetch the source dataset details
+            source_dataset_id = node_data.get("sourceDatasetId")
+            source_job_id = node_data.get("sourceJobId")
+
+            # Determine which ID to use for fetching source info
+            fetch_id = source_dataset_id or source_job_id
+            print(f"   Processing source node: {node_id}, sourceDatasetId={source_dataset_id}, sourceJobId={source_job_id}, fetch_id={fetch_id}")
+
+            if fetch_id:
+                # Try to fetch from source_datasets collection first
+                source_dataset = None
+                try:
+                    source_dataset = db.source_datasets.find_one({"_id": ObjectId(fetch_id)})
+                except:
+                    pass
+
+                # If not found in source_datasets, try etl_jobs collection
+                if not source_dataset:
+                    try:
+                        source_dataset = db.etl_jobs.find_one({"_id": ObjectId(fetch_id)})
+                    except:
+                        pass
+
+                print(f"   Found source_dataset: {source_dataset is not None}")
+
+                if source_dataset:
+                    # Check if this is from source_datasets collection (has source_type field)
+                    if "source_type" in source_dataset:
+                        # Source dataset format
+                        source_type = source_dataset.get("source_type", "postgres")
+                        connection_id = source_dataset.get("connection_id")
+                        table_name = source_dataset.get("table")
+                        collection_name = source_dataset.get("collection")
+
+                        # Map source_type to type
+                        if source_type in ["postgres", "mysql"]:
+                            mapped_type = "rdb"
+                        else:
+                            mapped_type = source_type
+
+                        source_config = {
+                            "nodeId": node_id,
+                            "type": mapped_type,
+                            "connection_id": str(connection_id) if connection_id else None,
+                            "table": table_name,
+                            "collection": collection_name,
+                        }
+
+                        # Add S3-specific fields
+                        if source_type == "s3":
+                            source_config["bucket"] = source_dataset.get("bucket")
+                            source_config["path"] = source_dataset.get("path")
+
+                        sources.append(source_config)
+                        print(f"   Converted source node: {node_id} -> {source_type} (table: {table_name or collection_name or source_config.get('bucket')})")
+                    else:
+                        # ETL Job format - get source info from the ETL job's source config
+                        job_source = source_dataset.get("source", {})
+                        job_sources = source_dataset.get("sources", [])
+
+                        if job_sources:
+                            job_source = job_sources[0]
+
+                        # Check if we found source config, otherwise look in the job's nodes
+                        if not job_source.get("type") and not job_source.get("table"):
+                            # Job doesn't have sources, check if it has nodes with source info
+                            job_nodes = source_dataset.get("nodes", [])
+                            print(f"   Job has no sources field, checking {len(job_nodes)} nodes")
+                            for jn in job_nodes:
+                                jn_data = jn.get("data", {})
+                                jn_category = jn_data.get("nodeCategory")
+                                jn_id = jn.get("id", "")
+
+                                # Check if this is a source node
+                                if jn_category == "source" or jn_id.startswith("source-"):
+                                    # Found a source node in the referenced job
+                                    # Try to get its sourceDatasetId
+                                    nested_source_id = jn_data.get("sourceDatasetId")
+                                    if nested_source_id:
+                                        print(f"   Found nested sourceDatasetId: {nested_source_id}")
+                                        try:
+                                            nested_source = db.source_datasets.find_one({"_id": ObjectId(nested_source_id)})
+                                            if nested_source and "source_type" in nested_source:
+                                                source_type = nested_source.get("source_type", "postgres")
+                                                if source_type in ["postgres", "mysql"]:
+                                                    mapped_type = "rdb"
+                                                else:
+                                                    mapped_type = source_type
+
+                                                source_config = {
+                                                    "nodeId": node_id,
+                                                    "type": mapped_type,
+                                                    "connection_id": str(nested_source.get("connection_id")) if nested_source.get("connection_id") else None,
+                                                    "table": nested_source.get("table"),
+                                                    "collection": nested_source.get("collection"),
+                                                }
+                                                if source_type == "s3":
+                                                    source_config["bucket"] = nested_source.get("bucket")
+                                                    source_config["path"] = nested_source.get("path")
+                                                sources.append(source_config)
+                                                print(f"   Converted nested source: {node_id} -> {mapped_type} (table: {source_config.get('table') or source_config.get('bucket')})")
+                                                break
+                                        except Exception as e:
+                                            print(f"   Failed to fetch nested source: {e}")
+                            # If we added a source from nested lookup, continue to next node
+                            if sources and sources[-1].get("nodeId") == node_id:
+                                continue
+
+                        source_type = job_source.get("type", "rdb")
+                        connection_id = job_source.get("connection_id")
+                        table_name = job_source.get("table")
+
+                        source_config = {
+                            "nodeId": node_id,
+                            "type": source_type,
+                            "connection_id": str(connection_id) if connection_id else None,
+                            "table": table_name,
+                            "collection": job_source.get("collection"),
+                        }
+
+                        # Add S3-specific fields
+                        if source_type == "s3":
+                            source_config["bucket"] = job_source.get("bucket")
+                            source_config["path"] = job_source.get("path")
+
+                        sources.append(source_config)
+                        print(f"   Converted source node: {node_id} -> {source_type} (table: {table_name or source_config.get('bucket')})")
+                else:
+                    # Fallback: use data from the node itself
+                    print(f"   source_dataset not found, using node data fallback")
+                    print(f"   Node data keys: {list(node_data.keys())}")
+
+                    # Try to get source info from node's config or nested data
+                    config_data = node_data.get("config", {})
+                    source_info = config_data.get("source", {}) if config_data else {}
+
+                    platform = node_data.get("platform") or source_info.get("type") or "postgres"
+                    source_type = "rdb" if platform.lower() in ["postgres", "mysql", "postgresql", "rdb"] else platform.lower()
+
+                    # Get table from various possible locations
+                    table_name = (
+                        node_data.get("table") or
+                        node_data.get("name") or
+                        source_info.get("table") or
+                        config_data.get("table")
+                    )
+
+                    source_config = {
+                        "nodeId": node_id,
+                        "type": source_type,
+                        "table": table_name,
+                    }
+
+                    # Check if node has connection_id directly
+                    connection_id = node_data.get("connection_id") or source_info.get("connection_id") or config_data.get("connection_id")
+                    if connection_id:
+                        source_config["connection_id"] = str(connection_id)
+
+                    # Add collection for MongoDB
+                    collection = node_data.get("collection") or source_info.get("collection")
+                    if collection:
+                        source_config["collection"] = collection
+
+                    # Add S3-specific fields
+                    if source_type == "s3":
+                        source_config["bucket"] = node_data.get("bucket") or source_info.get("bucket")
+                        source_config["path"] = node_data.get("path") or source_info.get("path")
+
+                    sources.append(source_config)
+                    print(f"   Converted source node (fallback): {node_id} -> {source_type} (table: {table_name})")
+            else:
+                # No fetch_id, try to extract source info directly from node data
+                print(f"   No fetch_id for source node {node_id}, checking node data")
+                print(f"   Node data keys: {list(node_data.keys())}")
+
+                # Try to get source info from node's config or nested data
+                config_data = node_data.get("config", {})
+                source_info = config_data.get("source", {}) if config_data else {}
+
+                # Check if this node has source configuration in data
+                platform = node_data.get("platform") or node_data.get("type") or source_info.get("type") or "postgres"
+                source_type = "rdb" if platform.lower() in ["postgres", "mysql", "postgresql", "rdb"] else platform.lower()
+
+                # Get table from various possible locations
+                table_name = (
+                    node_data.get("table") or
+                    node_data.get("name") or
+                    source_info.get("table") or
+                    config_data.get("table")
+                )
+
+                source_config = {
+                    "nodeId": node_id,
+                    "type": source_type,
+                    "table": table_name,
+                    "collection": node_data.get("collection") or source_info.get("collection"),
+                }
+
+                connection_id = node_data.get("connection_id") or source_info.get("connection_id") or config_data.get("connection_id")
+                if connection_id:
+                    source_config["connection_id"] = str(connection_id)
+
+                # Add S3-specific fields
+                if source_type == "s3":
+                    source_config["bucket"] = node_data.get("bucket") or source_info.get("bucket")
+                    source_config["path"] = node_data.get("path") or source_info.get("path")
+
+                sources.append(source_config)
+                print(f"   Converted source node (from node data): {node_id} -> {source_type} (table: {table_name})")
+
+        elif node_category == "transform":
+            # This is a transform node
+            transform_type = node_data.get("transformType", "select-fields")
+            transform_config = node_data.get("transformConfig", {})
+            input_node_ids = edge_map.get(node_id, [])
+
+            transform = {
+                "nodeId": node_id,
+                "type": transform_type,
+                "config": transform_config,
+                "inputNodeIds": input_node_ids,
+            }
+            transforms.append(transform)
+            print(f"   Converted transform node: {node_id} -> {transform_type}")
+
+        elif node_category == "target":
+            # This is a target node - we'll use the destination config from the job
+            print(f"   Target node found: {node_id}")
+
+    print(f"   Summary: Extracted {len(sources)} source(s) and {len(transforms)} transform(s)")
+    return sources, transforms
+
+
 def fetch_job_config(**context):
     """Fetch job configuration from MongoDB"""
     import pymongo
@@ -35,9 +312,19 @@ def fetch_job_config(**context):
     if not job:
         raise ValueError(f"ETL job not found: {job_id}")
 
-    # Handle multiple sources (new) or single source (legacy)
+    # Check if this is a Target Wizard job (has nodes/edges but no sources)
+    nodes = job.get("nodes", [])
+    edges = job.get("edges", [])
+
+    # Handle multiple sources (new) or single source (legacy) or nodes (Target Wizard)
     sources = job.get("sources", [])
-    if not sources and job.get("source"):
+    transforms = job.get("transforms", [])
+
+    if not sources and nodes:
+        # This is a Target Wizard job - convert nodes/edges to sources/transforms
+        print(f"Converting Target Wizard nodes/edges to sources/transforms...")
+        sources, transforms = convert_nodes_to_sources(nodes, edges, db)
+    elif not sources and job.get("source"):
         # Legacy single source - wrap in list
         sources = [job.get("source")]
 
@@ -82,14 +369,13 @@ def fetch_job_config(**context):
     print(f"Estimated source size from job config: {estimated_size_gb:.2f} GB")
 
     # Build complete config for Spark
-    # Build complete config for Spark
     config = {
         "job_id": job_id,
         "name": job.get("name"),
         "sources": enriched_sources,
-        "transforms": job.get("transforms", []),
+        "transforms": transforms,  # Use converted transforms (from nodes or original)
         "destination": job.get("destination", {}),
-        "nodes": job.get("nodes", []),
+        "nodes": nodes,
         "estimated_size_gb": estimated_size_gb,
     }
     
