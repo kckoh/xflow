@@ -156,7 +156,7 @@ function ScheduleBadge({ job }) {
     return (
       <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md text-xs font-medium bg-gray-100 text-gray-600">
         <Calendar className="w-3 h-3" />
-        Manual
+        Batch
       </span>
     );
   }
@@ -367,11 +367,6 @@ export default function JobsPage() {
   );
 
   const getJobStatus = (job, runs) => {
-    // If no run logs, show -
-    if (!runs || runs.length === 0) {
-      return { label: "-", color: "gray" };
-    }
-
     // CDC job: running if active, otherwise -
     if (job.job_type === "cdc") {
       return job.is_active ? { label: "Running", color: "green" } : { label: "-", color: "gray" };
@@ -379,12 +374,21 @@ export default function JobsPage() {
 
     // Batch job with schedule
     if (job.schedule) {
-      return job.is_active
-        ? { label: "Running", color: "green" }
-        : { label: "Ready", color: "blue" };
+      // If toggle is OFF, show -
+      if (!job.is_active) {
+        return { label: "-", color: "gray" };
+      }
+
+      // Toggle is ON - check if there's an active run
+      const hasActiveRun = runs && runs.length > 0 &&
+        (runs[0].status === "running" || runs[0].status === "pending");
+
+      return hasActiveRun
+        ? { label: "Running", color: "green" }   // DAG is executing
+        : { label: "Ready", color: "blue" };     // Waiting for next schedule
     }
 
-    // No schedule (draft)
+    // No schedule (manual job)
     return { label: "-", color: "gray" };
   };
 
@@ -484,17 +488,7 @@ export default function JobsPage() {
                     })()}
                   </td>
                   <td className="px-6 py-4">
-                    {job.job_type === "cdc" ? (
-                      <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md text-xs font-medium bg-purple-100 text-purple-700">
-                        <Zap className="w-3 h-3" />
-                        CDC
-                      </span>
-                    ) : (
-                      <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md text-xs font-medium bg-blue-100 text-blue-700">
-                        <Clock className="w-3 h-3" />
-                        Batch
-                      </span>
-                    )}
+                    <ScheduleBadge job={job} />
                   </td>
                   <td className="px-6 py-4">
                     {jobRuns[job.id]?.[0] ? (
