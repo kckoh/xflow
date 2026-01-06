@@ -261,6 +261,30 @@ export default function SourceWizard() {
     }
   };
 
+  const handleDeleteConnection = async (connectionId) => {
+    try {
+      await connectionApi.deleteConnection(connectionId);
+      setConnections((prev) => prev.filter((conn) => conn.id !== connectionId));
+
+      if (config.connectionId === connectionId) {
+        setConfig((prev) => ({
+          ...prev,
+          connectionId: "",
+          table: "",
+          collection: "",
+          bucket: "",
+          path: "",
+          columns: [],
+        }));
+        setTables([]);
+        setCollections([]);
+      }
+    } catch (err) {
+      console.error("Failed to delete connection:", err);
+      alert("Failed to delete connection. Please try again.");
+    }
+  };
+
   const handleCollectionChange = async (collectionName) => {
     if (!collectionName) {
       setConfig({ ...config, collection: "", columns: [] });
@@ -618,6 +642,7 @@ export default function SourceWizard() {
                       });
                     }}
                     onCreate={() => setShowCreateConnectionModal(true)}
+                    onDelete={handleDeleteConnection}
                     classNames={{
                       button:
                         "px-4 py-2.5 rounded-xl border-emerald-200/70 bg-gradient-to-r from-white via-emerald-50/50 to-emerald-100/40 shadow-sm shadow-emerald-100/70 hover:shadow-md hover:shadow-emerald-200/70 focus:ring-2 focus:ring-emerald-400/60 focus:border-emerald-300 transition-all",

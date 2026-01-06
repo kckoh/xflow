@@ -62,7 +62,7 @@ export default function ConnectionCombobox({
                     onDelete && (
                         <button
                             onClick={(e) => handleDeleteClick(e, conn.id)}
-                            className="p-1 text-gray-300 hover:text-red-500 hover:bg-red-50 rounded transition-colors"
+                            className="p-1 text-red-400 hover:text-red-600 hover:bg-red-50 rounded transition-colors"
                             title="Delete connection"
                         >
                             <Trash2 className="w-4 h-4" />

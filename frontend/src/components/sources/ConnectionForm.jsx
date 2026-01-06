@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { connectionApi } from '../../services/connectionApi';
 import { s3LogApi } from '../../services/s3LogApi';
 import Combobox from '../common/Combobox';
@@ -20,14 +20,11 @@ const S3_REGIONS = [
     'eu-west-1',
 ];
 
-export default function ConnectionForm({ onSuccess, onCancel }) {
+export default function ConnectionForm({ onSuccess, onCancel, initialType }) {
     // Basic Info
     const [name, setName] = useState('');
     const [description, setDescription] = useState('');
-    const [type, setType] = useState('postgres');
-
-    // Configuration Fields (Dynamic)
-    const [config, setConfig] = useState({});
+    const [type, setType] = useState(initialType || 'postgres');
 
     const [loading, setLoading] = useState(false);
     const [error, setError] = useState(null);
@@ -65,6 +62,11 @@ export default function ConnectionForm({ onSuccess, onCancel }) {
         }
     };
 
+    // Configuration Fields (Dynamic)
+    const [config, setConfig] = useState(() =>
+        getConfigTemplate(initialType || 'postgres')
+    );
+
     // Handle Type Change
     const handleTypeChange = (newType) => {
         setType(newType);
@@ -86,6 +88,16 @@ export default function ConnectionForm({ onSuccess, onCancel }) {
         setTestMessage(null);
         setError(null);
     };
+
+    // Respect initial type when provided (e.g., from Source Wizard)
+    useEffect(() => {
+        if (!initialType) {
+            return;
+        }
+        setType(initialType);
+        setConfig(getConfigTemplate(initialType));
+        resetTestStatus();
+    }, [initialType]);
 
     const handleTest = async () => {
         setTestLoading(true);
@@ -309,29 +321,33 @@ export default function ConnectionForm({ onSuccess, onCancel }) {
 
 
             {/* Connection Type Selection */}
-            <div>
-                <label className="block text-sm font-bold text-gray-900 mb-2">Connection Type</label>
-                <div className="grid grid-cols-3 gap-3">
-                    {CONNECTION_TYPES.map((t) => (
-                        <button
-                            key={t.id}
-                            type="button"
-                            onClick={() => handleTypeChange(t.id)}
-                            className={`
-                                flex flex-col items-center justify-center p-3 border rounded-lg transition-all
-                                ${type === t.id
-                                    ? 'border-blue-500 bg-blue-50 ring-1 ring-blue-500 text-blue-700'
-                                    : 'border-gray-200 hover:bg-gray-50 text-gray-600'
-                                }
-                            `}
-                        >
-                            <span className="font-medium text-sm">{t.label}</span>
-                        </button>
-                    ))}
-                </div>
-            </div>
+            {!initialType && (
+                <>
+                    <div>
+                        <label className="block text-sm font-bold text-gray-900 mb-2">Connection Type</label>
+                        <div className="grid grid-cols-3 gap-3">
+                            {CONNECTION_TYPES.map((t) => (
+                                <button
+                                    key={t.id}
+                                    type="button"
+                                    onClick={() => handleTypeChange(t.id)}
+                                    className={`
+                                        flex flex-col items-center justify-center p-3 border rounded-lg transition-all
+                                        ${type === t.id
+                                            ? 'border-blue-500 bg-blue-50 ring-1 ring-blue-500 text-blue-700'
+                                            : 'border-gray-200 hover:bg-gray-50 text-gray-600'
+                                        }
+                                    `}
+                                >
+                                    <span className="font-medium text-sm">{t.label}</span>
+                                </button>
+                            ))}
+                        </div>
+                    </div>
 
-            <div className="border-t border-gray-200 pt-4"></div>
+                    <div className="border-t border-gray-200 pt-4"></div>
+                </>
+            )}
 
             {/* Basic Information */}
             <div>
