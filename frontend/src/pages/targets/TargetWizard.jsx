@@ -59,6 +59,7 @@ export default function TargetWizard() {
   const [tagInput, setTagInput] = useState("");
   const [isNameDuplicate, setIsNameDuplicate] = useState(false);
   const [isCheckingName, setIsCheckingName] = useState(false);
+  const [detailPanelTab, setDetailPanelTab] = useState("details"); // 'details' or 'schema'
 
   // Step 3: Transformation
   const [sourceNodes, setSourceNodes] = useState([]); // Store source nodes for schema
@@ -779,7 +780,7 @@ export default function TargetWizard() {
           <div className="flex-1 overflow-hidden">
             <div className="h-full flex">
               {/* Left: Table */}
-              <div className="w-1/2 flex flex-col border-r border-gray-200 bg-white">
+              <div className="w-2/3 flex flex-col border-r border-gray-200 bg-white">
                 {/* Search and Filter Bar */}
                 <div className="p-4 border-b border-gray-200">
                   <div className="flex items-center gap-3">
@@ -824,6 +825,9 @@ export default function TargetWizard() {
                         <th className="w-10 px-3 py-2"></th>
                         <th className="px-3 py-2 text-left text-xs font-semibold text-gray-500 uppercase">
                           Name
+                        </th>
+                        <th className="px-3 py-2 text-left text-xs font-semibold text-gray-500 uppercase">
+                          Owner
                         </th>
                         <th className="px-3 py-2 text-left text-xs font-semibold text-gray-500 uppercase">
                           Status
@@ -889,6 +893,9 @@ export default function TargetWizard() {
                                   {dataset.name}
                                 </div>
                               </td>
+                              <td className="px-3 py-2 text-sm text-gray-600 truncate max-w-[100px]">
+                                {dataset.owner || "-"}
+                              </td>
                               <td className="px-3 py-2">
                                 <span
                                   className={`inline-flex items-center px-1.5 py-0.5 rounded text-xs font-medium ${dataset.status === "active" ||
@@ -937,10 +944,31 @@ export default function TargetWizard() {
               </div>
 
               {/* Right: Detail Panel */}
-              <div className="w-1/2 flex flex-col bg-white">
-                <div className="p-4 border-b border-gray-200">
-                  <h3 className="text-sm font-semibold text-gray-700">Details</h3>
+              <div className="w-1/3 flex flex-col bg-white">
+                {/* Tabs Header */}
+                <div className="flex border-b border-gray-200">
+                  <button
+                    onClick={() => setDetailPanelTab("details")}
+                    className={`flex-1 px-4 py-3 text-sm font-medium transition-colors ${
+                      detailPanelTab === "details"
+                        ? "text-orange-600 border-b-2 border-orange-600 bg-orange-50"
+                        : "text-gray-600 hover:bg-gray-50"
+                    }`}
+                  >
+                    Details
+                  </button>
+                  <button
+                    onClick={() => setDetailPanelTab("schema")}
+                    className={`flex-1 px-4 py-3 text-sm font-medium transition-colors ${
+                      detailPanelTab === "schema"
+                        ? "text-orange-600 border-b-2 border-orange-600 bg-orange-50"
+                        : "text-gray-600 hover:bg-gray-50"
+                    }`}
+                  >
+                    Schema
+                  </button>
                 </div>
+
                 {!focusedDataset ? (
                   <div className="flex-1 flex flex-col items-center justify-center text-gray-400 p-6">
                     <Database className="w-12 h-12 mb-3 opacity-30" />
@@ -948,17 +976,47 @@ export default function TargetWizard() {
                   </div>
                 ) : (
                   <div className="flex-1 overflow-y-auto p-4">
-                    <div className="pb-4 mb-4 border-b border-gray-100">
-                      <h3 className="font-semibold text-gray-900">{focusedDataset.name}</h3>
-                      <p className="text-sm text-gray-500 mt-1">{focusedDataset.source_type || focusedDataset.datasetType}</p>
-                    </div>
-                    <div className="space-y-4">
+                    {/* Details Tab */}
+                    {detailPanelTab === "details" && (
+                      <>
+                        <div className="pb-4 mb-4 border-b border-gray-100">
+                          <h3 className="font-semibold text-gray-900">{focusedDataset.name}</h3>
+                          <p className="text-sm text-gray-500 mt-1">{focusedDataset.source_type || focusedDataset.datasetType}</p>
+                        </div>
+                        <div className="space-y-4">
+                          <div>
+                            <h4 className="text-xs font-semibold text-gray-500 uppercase mb-1">Description</h4>
+                            <p className="text-sm text-gray-700">{focusedDataset.description || "-"}</p>
+                          </div>
+                          <div>
+                            <h4 className="text-xs font-semibold text-gray-500 uppercase mb-1">Type</h4>
+                            <p className="text-sm text-gray-700 capitalize">{focusedDataset.datasetType || "-"}</p>
+                          </div>
+                          <div>
+                            <h4 className="text-xs font-semibold text-gray-500 uppercase mb-1">Source</h4>
+                            <p className="text-sm text-gray-700">{focusedDataset.source_type || focusedDataset.sourceType || "-"}</p>
+                          </div>
+                          <div>
+                            <h4 className="text-xs font-semibold text-gray-500 uppercase mb-1">Columns</h4>
+                            <p className="text-sm text-gray-700">{focusedDataset.columns?.length || 0}</p>
+                          </div>
+                          {focusedDataset.updated_at && (
+                            <div>
+                              <h4 className="text-xs font-semibold text-gray-500 uppercase mb-1">Last Modified</h4>
+                              <p className="text-sm text-gray-700">{new Date(focusedDataset.updated_at).toLocaleString()}</p>
+                            </div>
+                          )}
+                        </div>
+                      </>
+                    )}
+
+                    {/* Schema Tab */}
+                    {detailPanelTab === "schema" && (
                       <div>
-                        <h4 className="text-xs font-semibold text-gray-500 uppercase mb-1">Description</h4>
-                        <p className="text-sm text-gray-700">{focusedDataset.description || "-"}</p>
-                      </div>
-                      <div>
-                        <h4 className="text-xs font-semibold text-gray-500 uppercase mb-2">Schema ({focusedDataset.columns?.length || 0} columns)</h4>
+                        <div className="flex items-center justify-between mb-3">
+                          <h4 className="text-xs font-semibold text-gray-500 uppercase">Columns</h4>
+                          <span className="text-xs text-gray-400">{focusedDataset.columns?.length || 0} columns</span>
+                        </div>
                         {focusedDataset.columns?.length > 0 ? (
                           <div className="border border-gray-200 rounded-lg overflow-hidden">
                             <table className="w-full">
@@ -981,10 +1039,12 @@ export default function TargetWizard() {
                             </table>
                           </div>
                         ) : (
-                          <p className="text-sm text-gray-400">No schema available</p>
+                          <div className="text-center py-8 text-gray-400">
+                            <p className="text-sm">No schema available</p>
+                          </div>
                         )}
                       </div>
-                    </div>
+                    )}
                   </div>
                 )}
               </div>

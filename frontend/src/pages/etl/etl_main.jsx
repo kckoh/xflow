@@ -198,19 +198,19 @@ export default function ETLMain() {
             <table className="w-full divide-y divide-gray-200 table-fixed">
               <thead className="bg-gray-50">
                 <tr>
-                  <th className="w-[13%] px-3 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                  <th className="w-[16%] px-3 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                     Dataset name
                   </th>
                   <th className="w-[10%] px-3 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                    ID
+                    Owner
                   </th>
-                  <th className="w-[7%] px-3 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                  <th className="w-[8%] px-3 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                     Type
                   </th>
-                  <th className="w-[7%] px-3 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                  <th className="w-[8%] px-3 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                     Status
                   </th>
-                  <th className="w-[7%] px-3 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                  <th className="w-[8%] px-3 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                     Pattern
                   </th>
                   <th className="w-[18%] px-3 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
@@ -219,7 +219,7 @@ export default function ETLMain() {
                   <th className="w-[16%] px-3 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                     Last modified
                   </th>
-                  <th className="w-[8%] px-3 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                  <th className="w-[6%] px-3 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                     Action
                   </th>
                 </tr>
@@ -240,8 +240,8 @@ export default function ETLMain() {
                     >
                       {job.name}
                     </td>
-                    <td className="px-3 py-3 text-sm text-gray-500 font-mono truncate">
-                      {job.id}
+                    <td className="px-3 py-3 text-sm text-gray-600 truncate">
+                      {job.owner || "-"}
                     </td>
                     <td className="px-3 py-3 text-sm">
                       <span
