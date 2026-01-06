@@ -236,7 +236,7 @@ async def list_datasets(import_ready: bool = None):
             edges=dataset.edges,
             created_at=dataset.created_at,
             updated_at=dataset.updated_at,
-            is_active=status_map.get(str(dataset.id), False),
+            is_active=dataset.status == "active",  # Derive from status for consistency
             import_ready=getattr(dataset, 'import_ready', False)
         )
         for dataset in datasets
@@ -274,6 +274,7 @@ async def get_dataset(dataset_id: str):
         edges=dataset.edges,
         created_at=dataset.created_at,
         updated_at=dataset.updated_at,
+        is_active=dataset.status == "active",  # Derive from status
         import_ready=getattr(dataset, 'import_ready', False),
     )
 
@@ -470,6 +471,9 @@ async def activate_dataset(dataset_id: str):
     dataset.updated_at = datetime.utcnow()
     await dataset.save()
 
+    # Sync to ETLJob to update is_active
+    await sync_pipeline_to_etljob(dataset)
+
     return {"message": "Dataset schedule activated", "status": "active"}
 
 
@@ -488,13 +492,16 @@ async def deactivate_dataset(dataset_id: str):
     dataset.updated_at = datetime.utcnow()
     await dataset.save()
 
+    # Sync to ETLJob to update is_active
+    await sync_pipeline_to_etljob(dataset)
+
     return {"message": "Dataset schedule paused", "status": "paused"}
 
 
 
 @router.post("/{dataset_id}/run")
 async def run_dataset(dataset_id: str):
-    """Trigger a Dataset execution or activate schedule"""
+    """Trigger immediate execution of a dataset (manual run)"""
     print(f"[DEBUG] run_dataset called - dataset_id={dataset_id}, AIRFLOW_DAG_ID={AIRFLOW_DAG_ID}")
     try:
         dataset = await Dataset.get(PydanticObjectId(dataset_id))
@@ -504,28 +511,9 @@ async def run_dataset(dataset_id: str):
     if not dataset:
         raise HTTPException(status_code=404, detail="Dataset not found")
 
-    # [Logic for Action Button]
-    # Case 1: Dataset has a schedule → Activate schedule, don't run immediately
-    if dataset.schedule:
-        if dataset.status != "active":
-            dataset.status = "active"
-            dataset.updated_at = datetime.utcnow()
-            await dataset.save()
-            return {
-                "message": "Schedule activated. Dataset will run according to schedule.",
-                "dataset_id": dataset_id,
-                "schedule": dataset.schedule,
-                "schedule_activated": True,
-            }
-        else:
-            return {
-                "message": "Schedule is already active",
-                "dataset_id": dataset_id,
-                "schedule": dataset.schedule,
-                "schedule_activated": False,
-            }
+    # Always trigger immediate execution (manual run)
+    # Schedule state is managed separately by activate/deactivate endpoints
 
-    # Case 2: No schedule → Run immediately (one-time execution)
     # Create job run record
     job_run = JobRun(
         dataset_id=dataset_id,
@@ -573,7 +561,7 @@ async def run_dataset(dataset_id: str):
         )
 
     return {
-        "message": "Dataset triggered successfully (one-time execution)",
+        "message": "Job triggered successfully (manual run)",
         "dataset_id": dataset_id,
         "run_id": str(job_run.id),
         "airflow_run_id": job_run.airflow_run_id,

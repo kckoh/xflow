@@ -15,7 +15,7 @@ logger = logging.getLogger(__name__)
 
 # Config
 # Use the backend service name in Docker Compose usually, or host.docker.internal
-BACKEND_URL = os.getenv("BACKEND_URL", "http://backend:8000/api/etl-jobs")
+BACKEND_URL = os.getenv("BACKEND_URL", "http://backend:8000/api/datasets")
 GENERIC_DAG_ID = os.getenv("AIRFLOW_DAG_ID", "dataset_dag_k8s")
 
 
@@ -125,25 +125,9 @@ try:
 
                     # Adjust start_date to make first run at the specified time (not after interval)
                     # Airflow executes after the interval, so we subtract it
-                    if schedule_interval:
-                        if isinstance(schedule_interval, timedelta):
-                            # Interval schedules (custom time)
-                            start_date = start_date - schedule_interval
-                        elif schedule_frequency == "hourly" and ui_params.get(
-                            "hourInterval"
-                        ):
-                            # Hourly schedules
-                            hours = int(ui_params["hourInterval"])
-                            start_date = start_date - timedelta(hours=hours)
-                        elif schedule_frequency == "daily":
-                            # Daily schedules
-                            start_date = start_date - timedelta(days=1)
-                        elif schedule_frequency == "weekly":
-                            # Weekly schedules
-                            start_date = start_date - timedelta(weeks=1)
-                        elif schedule_frequency == "monthly":
-                            # Monthly schedules (approximate)
-                            start_date = start_date - timedelta(days=30)
+                    if schedule_interval and isinstance(schedule_interval, timedelta):
+                        # Interval schedules (custom time)
+                        start_date = start_date - schedule_interval
 
                     if schedule_interval:
                         dag = create_scheduler_dag(
