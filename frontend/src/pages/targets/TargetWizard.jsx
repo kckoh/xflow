@@ -30,9 +30,8 @@ import {
   Clock,
 } from "lucide-react";
 import { useToast } from "../../components/common/Toast";
-import JobSelector from "../domain/components/JobSelector";
-import { getJobExecution, getEtlJob } from "../domain/api/domainApi";
-import { calculateDomainLayoutHorizontal } from "../../utils/domainLayout";
+import SourceDatasetSelector from "../domain/components/SourceDatasetSelector";
+import { getSourceDataset } from "../domain/api/domainApi";
 import { SchemaNode } from "../domain/components/schema-node/SchemaNode";
 import { DeletionEdge } from "../domain/components/CustomEdges";
 import TransformPropertiesPanel from "../../components/etl/TransformPropertiesPanel";
@@ -43,7 +42,7 @@ import SchedulesPanel from "../../components/etl/SchedulesPanel";
 import { API_BASE_URL } from "../../config/api";
 
 const STEPS = [
-  { id: 1, name: "Select Jobs", icon: Database },
+  { id: 1, name: "Select Sources", icon: Database },
   { id: 2, name: "Configure", icon: Settings },
   { id: 3, name: "Transform", icon: GitBranch },
   { id: 4, name: "Schedule", icon: Calendar },
@@ -73,7 +72,7 @@ const nodeOptions = {
     { id: "sort", label: "Sort", icon: ArrowUpDown },
   ],
   target: [
-    { id: "s3-target", label: "S3", icon: Archive, color: "#FF9900" }
+    { id: "s3-target", label: "Data Lake", icon: Archive, color: "#FF9900" }
   ],
 };
 
@@ -138,16 +137,23 @@ export default function TargetWizard() {
           setSchedules(job.schedules);
         }
 
-        // Fetch lineage data
-        const executionResponse = await getJobExecution(jobId);
-        const jobDefResponse = await getEtlJob(jobId);
-
-        const jobMap = { [jobId]: jobDefResponse };
-        const { nodes, edges } = calculateDomainLayoutHorizontal([executionResponse], jobMap, 100, 100);
-
-        setLineageNodes(nodes);
-        setLineageEdges(edges);
-        setSelectedJobIds([jobId]);
+        // Load saved nodes and edges directly
+        if (job.nodes && job.nodes.length > 0) {
+          // Add onDelete handler to loaded nodes
+          const nodesWithHandlers = job.nodes.map(node => ({
+            ...node,
+            data: {
+              ...node.data,
+              onDelete: (nodeId) => {
+                setLineageNodes(prev => prev.filter(n => n.id !== nodeId));
+                setLineageEdges(prev => prev.filter(e => e.source !== nodeId && e.target !== nodeId));
+                setSelectedNode(null);
+              }
+            }
+          }));
+          setLineageNodes(nodesWithHandlers);
+          setLineageEdges(job.edges || []);
+        }
 
         // Skip to Transform step in edit mode
         setCurrentStep(3);
@@ -164,6 +170,12 @@ export default function TargetWizard() {
     loadExistingJob();
   }, [location.state]);
 
+  const handleDeleteNode = useCallback((nodeId) => {
+    setLineageNodes(prev => prev.filter(n => n.id !== nodeId));
+    setLineageEdges(prev => prev.filter(e => e.source !== nodeId && e.target !== nodeId));
+    setSelectedNode(null);
+  }, []);
+
   const handleToggleJob = (jobId) => {
     setSelectedJobIds(prev => {
       if (prev.includes(jobId)) {
@@ -174,47 +186,62 @@ export default function TargetWizard() {
     });
   };
 
-  const handleImportJobs = async () => {
+  const handleImportSources = async () => {
     if (selectedJobIds.length === 0) {
-      showToast("Please select at least one job", "error");
+      showToast("Please select at least one source dataset", "error");
       return;
     }
 
     setIsLoading(true);
     try {
-      // Fetch execution data AND Job Definitions
-      const executionPromises = selectedJobIds.map(id => getJobExecution(id));
-      const jobPromises = selectedJobIds.map(id => getEtlJob(id));
+      // Fetch source dataset details
+      const sourcePromises = selectedJobIds.map(id => getSourceDataset(id));
+      const sources = await Promise.all(sourcePromises);
 
-      const [results, jobs] = await Promise.all([
-        Promise.all(executionPromises),
-        Promise.all(jobPromises)
-      ]);
+      // Convert source datasets to lineage nodes
+      const nodes = [];
+      let xPos = 100;
 
-      const jobMap = {};
-      jobs.forEach(j => { jobMap[j.id] = j; });
-
-      // Use Shared Utility for Layout
-      const startPos = { x: 100, y: 100 };
-      const { nodes, edges } = calculateDomainLayoutHorizontal(results, jobMap, startPos.x, startPos.y);
+      sources.forEach((source, idx) => {
+        const columns = source.columns || [];
+        nodes.push({
+          id: `source-${source.id}`,
+          type: "custom",
+          position: { x: xPos, y: 100 + idx * 200 },
+          data: {
+            label: source.name,
+            name: source.name,
+            platform: source.source_type || "PostgreSQL",
+            columns: columns.map(col => ({
+              name: col.name,
+              type: col.type,
+              description: col.description || "",
+            })),
+            expanded: true,
+            nodeCategory: "source",
+            sourceDatasetId: source.id,
+            onDelete: handleDeleteNode,
+          },
+        });
+      });
 
       if (nodes.length === 0) {
-        showToast("No lineage data found for selected jobs", "warning");
+        showToast("No source data found", "warning");
         return;
       }
 
       setLineageNodes(nodes);
-      setLineageEdges(edges);
+      setLineageEdges([]);
 
-      // Set default name from first job
-      if (jobs[0]?.name && !config.name) {
-        setConfig(prev => ({ ...prev, name: jobs[0].name }));
+      // Set default name from first source
+      if (sources[0]?.name && !config.name) {
+        setConfig(prev => ({ ...prev, name: `${sources[0].name}_target` }));
       }
 
-      showToast(`Imported ${nodes.length} nodes from ${selectedJobIds.length} job(s)`, "success");
+      showToast(`Imported ${nodes.length} source dataset(s)`, "success");
     } catch (err) {
-      console.error("Failed to import lineage:", err);
-      showToast(`Failed to import lineage: ${err.message}`, "error");
+      console.error("Failed to import sources:", err);
+      showToast(`Failed to import sources: ${err.message}`, "error");
     } finally {
       setIsLoading(false);
     }
@@ -222,12 +249,12 @@ export default function TargetWizard() {
 
   const handleNext = async () => {
     if (currentStep === 1) {
-      // Import jobs before moving to step 2
-      await handleImportJobs();
+      // Import source datasets before moving to step 2
+      await handleImportSources();
       if (lineageNodes.length > 0 || selectedJobIds.length > 0) {
         // Re-import if we have selections but no nodes yet
         if (lineageNodes.length === 0) {
-          await handleImportJobs();
+          await handleImportSources();
         }
       }
     }
@@ -244,14 +271,31 @@ export default function TargetWizard() {
 
   const handleCreate = async () => {
     try {
+      // Clean nodes by removing functions (onDelete, etc.) that can't be serialized
+      const cleanNodes = lineageNodes.map(node => ({
+        ...node,
+        data: {
+          ...node.data,
+          onDelete: undefined,
+          onToggleEtl: undefined,
+          onEtlStepSelect: undefined,
+        }
+      }));
+
       const payload = {
         name: config.name,
         description: config.description,
         dataset_type: "target",
         job_type: jobType,
-        nodes: lineageNodes,
+        nodes: cleanNodes,
         edges: lineageEdges,
         schedules: schedules,
+        destination: {
+          type: "s3",
+          path: "s3a://xflows-output/",
+          format: "parquet",
+          options: {}
+        }
       };
 
       const url = isEditMode
@@ -265,7 +309,8 @@ export default function TargetWizard() {
       });
 
       if (!response.ok) {
-        throw new Error("Failed to save target dataset");
+        const errorData = await response.json().catch(() => ({}));
+        throw new Error(errorData.detail || `Failed to save target dataset (${response.status})`);
       }
 
       showToast(
@@ -360,6 +405,7 @@ export default function TargetWizard() {
         expanded: true,
         nodeCategory: category,
         transformType: category === "transform" ? nodeOption.id : undefined,
+        onDelete: handleDeleteNode,
       }
     };
 
@@ -469,19 +515,19 @@ export default function TargetWizard() {
 
       {/* Content */}
       <div className="flex-1 overflow-hidden flex flex-col">
-        {/* Step 1: Select Jobs */}
+        {/* Step 1: Select Source Datasets */}
         {currentStep === 1 && (
           <div className="flex-1 overflow-y-auto">
             <div className="max-w-4xl mx-auto px-6 py-8">
               <h2 className="text-lg font-semibold text-gray-900 mb-2">
-                Select ETL Jobs
+                Select Source Datasets
               </h2>
               <p className="text-gray-500 mb-6">
-                Choose the ETL jobs to import lineage from
+                Choose the source datasets to include in your target
               </p>
 
-              <div className="bg-white rounded-lg border border-gray-200 p-6">
-                <JobSelector
+              <div className="bg-white rounded-lg border border-gray-200 p-6 h-[500px]">
+                <SourceDatasetSelector
                   selectedIds={selectedJobIds}
                   onToggle={handleToggleJob}
                 />
@@ -616,7 +662,7 @@ export default function TargetWizard() {
                 edgeTypes={edgeTypes}
                 onNodesChange={(changes) => {
                   setLineageNodes((nds) => {
-                    const updatedNodes = [...nds];
+                    let updatedNodes = [...nds];
                     changes.forEach((change) => {
                       if (change.type === 'position' && change.position) {
                         const nodeIndex = updatedNodes.findIndex(n => n.id === change.id);
@@ -627,10 +673,16 @@ export default function TargetWizard() {
                           };
                         }
                       }
+                      if (change.type === 'remove') {
+                        updatedNodes = updatedNodes.filter(n => n.id !== change.id);
+                        // Also remove connected edges
+                        setLineageEdges(eds => eds.filter(e => e.source !== change.id && e.target !== change.id));
+                      }
                     });
                     return updatedNodes;
                   });
                 }}
+                deleteKeyCode={['Backspace', 'Delete']}
                 onEdgesChange={(changes) => {
                   setLineageEdges((eds) => {
                     let updatedEdges = [...eds];
@@ -890,9 +942,9 @@ export default function TargetWizard() {
                     Lineage Summary
                   </h3>
                   <div className="grid grid-cols-3 gap-4">
-                    <div className="text-center p-4 bg-gray-50 rounded-lg">
-                      <div className="text-2xl font-bold text-gray-900">{selectedJobIds.length}</div>
-                      <div className="text-sm text-gray-500">ETL Jobs</div>
+                    <div className="text-center p-4 bg-emerald-50 rounded-lg">
+                      <div className="text-2xl font-bold text-emerald-600">{selectedJobIds.length}</div>
+                      <div className="text-sm text-gray-500">Source Datasets</div>
                     </div>
                     <div className="text-center p-4 bg-orange-50 rounded-lg">
                       <div className="text-2xl font-bold text-orange-600">{lineageNodes.length}</div>

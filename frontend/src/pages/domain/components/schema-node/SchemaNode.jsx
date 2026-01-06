@@ -1,4 +1,5 @@
 import { memo, useState } from "react";
+import { Handle, Position } from "@xyflow/react";
 import { X, ChevronLeft, ChevronRight } from "lucide-react";
 import clsx from "clsx";
 import { SchemaNodeHeader, getStyleConfig } from "./SchemaNodeHeader";
@@ -87,6 +88,26 @@ const SchemaNodeComponent = ({ id, data, selected }) => {
                 >
                     {etlOpen ? <ChevronRight className="w-4 h-4" /> : <ChevronLeft className="w-4 h-4" />}
                 </button>
+            )}
+
+            {/* Node-level Handles for connections */}
+            {hasPermission && (
+                <>
+                    <Handle
+                        type="target"
+                        position={Position.Left}
+                        id="node-target"
+                        className="!w-3 !h-3 !bg-blue-500 !border-2 !border-white"
+                        style={{ top: '50%' }}
+                    />
+                    <Handle
+                        type="source"
+                        position={Position.Right}
+                        id="node-source"
+                        className="!w-3 !h-3 !bg-green-500 !border-2 !border-white"
+                        style={{ top: '50%' }}
+                    />
+                </>
             )}
 
             {/* Header */}
