@@ -105,35 +105,18 @@ export default function ConnectionForm({ onSuccess, onCancel, initialType }) {
     setError(null);
 
     try {
-      let result;
-
-      // S3 connection test
-      if (type === "s3") {
-        const payload = {
-          name: name || "Test Connection",
-          description,
-          type,
-          config: {
-            ...config,
-            region: config.region || "ap-northeast-2",
-          },
-        };
-        result = await connectionApi.testConnection(payload);
-        setTested(true);
-        setTestMessage({ type: "success", text: result.message });
-      }
-      // RDB and other connection types
-      else {
-        const payload = {
-          name: name || "Test Connection",
-          description,
-          type,
-          config,
-        };
-        result = await connectionApi.testConnection(payload);
-        setTested(true);
-        setTestMessage({ type: "success", text: result.message });
-      }
+      const payload = {
+        name: name || "Test Connection",
+        description,
+        type,
+        config:
+          type === "s3"
+            ? { ...config, region: config.region || "ap-northeast-2" }
+            : config,
+      };
+      const result = await connectionApi.testConnection(payload);
+      setTested(true);
+      setTestMessage({ type: "success", text: result.message });
     } catch (err) {
       setTested(false);
       setTestMessage({ type: "error", text: err.message });
@@ -236,7 +219,6 @@ export default function ConnectionForm({ onSuccess, onCancel, initialType }) {
               onChange={(e) => handleConfigChange("password", e.target.value)}
             />
           </div>
-          pt
         </div>
       );
     } else if (type === "s3") {
