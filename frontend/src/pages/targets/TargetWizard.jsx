@@ -99,6 +99,7 @@ export default function TargetWizard() {
   const [isLoading, setIsLoading] = useState(false);
   const [sourceSearchTerm, setSourceSearchTerm] = useState('');
   const [sourceDatasets, setSourceDatasets] = useState([]);
+  const [focusedDataset, setFocusedDataset] = useState(null);
 
   // Step 2: Configuration
   const [config, setConfig] = useState({
@@ -666,20 +667,68 @@ export default function TargetWizard() {
       <div className="bg-white border-b border-gray-200">
         {/* Header */}
         <div className="px-6 py-4 border-b border-gray-100">
-          <div className="flex items-center gap-4">
-            <button
-              onClick={() => navigate("/dataset")}
-              className="p-2 hover:bg-gray-100 rounded-lg transition-colors"
-            >
-              <ArrowLeft className="w-5 h-5 text-gray-500" />
-            </button>
-            <div>
-              <h1 className="text-xl font-semibold text-gray-900">
-                {isEditMode ? "Edit Target Dataset" : "Create Target Dataset"}
-              </h1>
-              <p className="text-sm text-gray-500">
-                {isEditMode ? "Modify your target dataset configuration" : "Import lineage from existing ETL jobs"}
-              </p>
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-4">
+              <button
+                onClick={() => navigate("/dataset")}
+                className="p-2 hover:bg-gray-100 rounded-lg transition-colors"
+              >
+                <ArrowLeft className="w-5 h-5 text-gray-500" />
+              </button>
+              <div>
+                <h1 className="text-xl font-semibold text-gray-900">
+                  {isEditMode ? "Edit Target Dataset" : "Create Target Dataset"}
+                </h1>
+                <p className="text-sm text-gray-500">
+                  {isEditMode ? "Modify your target dataset configuration" : "Import lineage from existing ETL jobs"}
+                </p>
+              </div>
+            </div>
+
+            {/* Navigation Buttons */}
+            <div className="flex items-center gap-3">
+              <button
+                onClick={handleBack}
+                disabled={currentStep === 1}
+                className={`flex items-center gap-2 px-4 py-2 rounded-lg transition-colors ${currentStep === 1
+                  ? "text-gray-300 cursor-not-allowed"
+                  : "text-gray-600 hover:bg-gray-100"
+                  }`}
+              >
+                <ArrowLeft className="w-4 h-4" />
+                Back
+              </button>
+
+              {currentStep < STEPS.length ? (
+                <button
+                  onClick={handleNext}
+                  disabled={!canProceed() || isLoading}
+                  className={`flex items-center gap-2 px-5 py-2 rounded-lg transition-colors ${canProceed() && !isLoading
+                    ? "bg-orange-600 text-white hover:bg-orange-700"
+                    : "bg-gray-200 text-gray-400 cursor-not-allowed"
+                    }`}
+                >
+                  {isLoading ? (
+                    <>
+                      <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                      Loading...
+                    </>
+                  ) : (
+                    <>
+                      Next
+                      <ArrowRight className="w-4 h-4" />
+                    </>
+                  )}
+                </button>
+              ) : (
+                <button
+                  onClick={handleCreate}
+                  className="flex items-center gap-2 px-5 py-2 bg-orange-600 text-white rounded-lg hover:bg-orange-700 transition-colors"
+                >
+                  <Check className="w-4 h-4" />
+                  {isEditMode ? "Save Changes" : "Create"}
+                </button>
+              )}
             </div>
           </div>
         </div>
@@ -814,16 +863,13 @@ export default function TargetWizard() {
 
         {/* Step 2: Source */}
         {currentStep === 2 && (
-          <div className="flex-1 overflow-y-auto">
-            <div className="max-w-6xl mx-auto px-6 py-8">
-              <h2 className="text-lg font-semibold text-gray-900 mb-6">
-                Select Datasets
-              </h2>
-
-              <div className="bg-white rounded-lg border border-gray-200">
+          <div className="flex-1 overflow-hidden">
+            <div className="h-full flex">
+              {/* Left: Table */}
+              <div className="w-1/2 flex flex-col border-r border-gray-200 bg-white">
                 {/* Search and Filter Bar */}
                 <div className="p-4 border-b border-gray-200">
-                  <div className="flex items-center gap-4">
+                  <div className="flex items-center gap-3">
                     <div className="relative flex-1">
                       <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 w-4 h-4" />
                       <input
@@ -834,42 +880,41 @@ export default function TargetWizard() {
                         onChange={(e) => setSourceSearchTerm(e.target.value)}
                       />
                     </div>
-                    <div className="flex items-center gap-2">
+                    <div className="flex items-center gap-1">
                       <button
                         onClick={() => setSourceTab('source')}
-                        className={`px-4 py-2 rounded-lg text-sm font-medium transition-all ${sourceTab === 'source'
+                        className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-all ${sourceTab === 'source'
                           ? 'bg-blue-600 text-white'
                           : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
                           }`}
                       >
-                        Source Datasets
+                        Source
                       </button>
                       <button
                         onClick={() => setSourceTab('target')}
-                        className={`px-4 py-2 rounded-lg text-sm font-medium transition-all ${sourceTab === 'target'
+                        className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-all ${sourceTab === 'target'
                           ? 'bg-orange-600 text-white'
                           : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
                           }`}
                       >
-                        Target Datasets
+                        Target
                       </button>
                     </div>
                   </div>
                 </div>
 
                 {/* Table */}
-                <div className="overflow-x-auto">
+                <div className="flex-1 overflow-y-auto">
                   <table className="w-full">
-                    <thead className="bg-gray-50 border-b border-gray-200">
+                    <thead className="bg-gray-50 border-b border-gray-200 sticky top-0">
                       <tr>
-                        <th className="w-12 px-4 py-3"></th>
-                        <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">Name</th>
-                        <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">Type</th>
-                        <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">Source</th>
-                        <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">Columns</th>
+                        <th className="w-10 px-3 py-2"></th>
+                        <th className="px-3 py-2 text-left text-xs font-semibold text-gray-500 uppercase">Name</th>
+                        <th className="px-3 py-2 text-left text-xs font-semibold text-gray-500 uppercase">Status</th>
+                        <th className="px-3 py-2 text-left text-xs font-semibold text-gray-500 uppercase">Pattern</th>
                       </tr>
                     </thead>
-                    <tbody className="divide-y divide-gray-200">
+                    <tbody className="divide-y divide-gray-100">
                       {sourceDatasets
                         .filter(ds => {
                           const matchesSearch = ds.name?.toLowerCase().includes(sourceSearchTerm.toLowerCase()) ||
@@ -881,11 +926,13 @@ export default function TargetWizard() {
                           const isSelected = dataset.datasetType === 'source'
                             ? selectedJobIds.includes(dataset.id)
                             : selectedTargetIds.includes(dataset.id);
+                          const isFocused = focusedDataset?.id === dataset.id;
 
                           return (
                             <tr
                               key={dataset.id}
                               onClick={() => {
+                                setFocusedDataset(dataset);
                                 if (dataset.datasetType === 'source') {
                                   handleToggleJob(dataset.id);
                                 } else {
@@ -896,33 +943,32 @@ export default function TargetWizard() {
                                   );
                                 }
                               }}
-                              className={`cursor-pointer transition-colors ${isSelected ? 'bg-orange-50' : 'hover:bg-gray-50'}`}
+                              className={`cursor-pointer transition-colors ${isFocused ? 'bg-orange-50' : isSelected ? 'bg-blue-50' : 'hover:bg-gray-50'}`}
                             >
-                              <td className="px-4 py-3">
-                                <div className={`w-5 h-5 rounded border flex items-center justify-center transition-colors ${isSelected
-                                  ? 'bg-orange-600 border-orange-600'
-                                  : 'border-gray-300 bg-white'
-                                  }`}>
-                                  {isSelected && <Check className="w-3 h-3 text-white" />}
+                              <td className="px-3 py-2">
+                                <div
+                                  className={`w-4 h-4 rounded border flex items-center justify-center transition-colors ${isSelected
+                                    ? 'bg-orange-600 border-orange-600'
+                                    : 'border-gray-300 bg-white hover:border-gray-400'
+                                    }`}
+                                >
+                                  {isSelected && <Check className="w-2.5 h-2.5 text-white" />}
                                 </div>
                               </td>
-                              <td className="px-4 py-3">
-                                <div className="font-medium text-gray-900 text-sm">{dataset.name}</div>
-                                <div className="text-xs text-gray-500 truncate max-w-xs">{dataset.description || '-'}</div>
+                              <td className="px-3 py-2">
+                                <div className="font-medium text-gray-900 text-sm truncate max-w-[150px]">{dataset.name}</div>
                               </td>
-                              <td className="px-4 py-3">
-                                <span className={`inline-flex items-center px-2 py-1 rounded-full text-xs font-medium ${dataset.datasetType === 'source'
-                                  ? 'bg-blue-100 text-blue-700'
-                                  : 'bg-orange-100 text-orange-700'
+                              <td className="px-3 py-2">
+                                <span className={`inline-flex items-center px-1.5 py-0.5 rounded text-xs font-medium ${
+                                  dataset.status === 'active' || dataset.is_active
+                                    ? 'bg-green-100 text-green-700'
+                                    : 'bg-gray-100 text-gray-600'
                                   }`}>
-                                  {dataset.datasetType === 'source' ? 'Source' : 'Target'}
+                                  {dataset.status || (dataset.is_active ? 'Active' : '-')}
                                 </span>
                               </td>
-                              <td className="px-4 py-3 text-sm text-gray-600">
-                                {dataset.source_type || dataset.sourceType || '-'}
-                              </td>
-                              <td className="px-4 py-3 text-sm text-gray-600">
-                                {dataset.columns?.length || dataset.columnCount || 0}
+                              <td className="px-3 py-2 text-xs text-gray-500 truncate max-w-[120px]">
+                                {dataset.pattern || dataset.path || '-'}
                               </td>
                             </tr>
                           );
@@ -937,18 +983,130 @@ export default function TargetWizard() {
                     return matchesSearch && matchesType;
                   }).length === 0 && (
                     <div className="text-center py-12 text-gray-500">
-                      <Database className="w-12 h-12 mx-auto mb-4 text-gray-300" />
-                      <p>No datasets found</p>
+                      <Database className="w-10 h-10 mx-auto mb-3 text-gray-300" />
+                      <p className="text-sm">No datasets found</p>
                     </div>
                   )}
                 </div>
 
-                {/* Footer with selection count */}
-                <div className="px-4 py-3 bg-gray-50 border-t border-gray-200 flex items-center justify-between">
-                  <span className="text-sm text-gray-600">
-                    {selectedJobIds.length + selectedTargetIds.length} dataset(s) selected
+                {/* Footer */}
+                <div className="px-4 py-2 bg-gray-50 border-t border-gray-200">
+                  <span className="text-xs text-gray-600">
+                    {selectedJobIds.length + selectedTargetIds.length} selected
                   </span>
                 </div>
+              </div>
+
+              {/* Right: Detail Panel */}
+              <div className="w-1/2 flex flex-col bg-gray-50">
+                {!focusedDataset ? (
+                  <div className="flex-1 flex flex-col items-center justify-center text-gray-400 p-6">
+                    <Database className="w-12 h-12 mb-3 opacity-30" />
+                    <p className="text-sm text-center">Select a dataset to view details</p>
+                  </div>
+                ) : (
+                  <div className="flex-1 overflow-y-auto p-6">
+                    <div className="bg-white rounded-lg border border-gray-200 p-5">
+                      {/* Header */}
+                      <div className="mb-5 pb-4 border-b border-gray-100">
+                        <h3 className="font-semibold text-gray-900 text-lg">{focusedDataset.name}</h3>
+                        <p className="text-sm text-gray-500 mt-1">
+                          {focusedDataset.source_type || focusedDataset.datasetType}
+                        </p>
+                      </div>
+
+                      <div className="space-y-4">
+                        {/* Description */}
+                        <div>
+                          <h4 className="text-xs font-semibold text-gray-500 uppercase mb-1">Description</h4>
+                          <p className="text-sm text-gray-700">{focusedDataset.description || '-'}</p>
+                        </div>
+
+                        {/* Tags */}
+                        <div>
+                          <h4 className="text-xs font-semibold text-gray-500 uppercase mb-2">Tags</h4>
+                          {focusedDataset.tags && focusedDataset.tags.length > 0 ? (
+                            <div className="flex flex-wrap gap-1">
+                              {focusedDataset.tags.map((tag, idx) => (
+                                <span
+                                  key={idx}
+                                  className="px-2 py-0.5 bg-gray-100 text-gray-600 rounded text-xs"
+                                >
+                                  {tag}
+                                </span>
+                              ))}
+                            </div>
+                          ) : (
+                            <p className="text-sm text-gray-400">-</p>
+                          )}
+                        </div>
+
+                        {/* Last Modified */}
+                        <div>
+                          <h4 className="text-xs font-semibold text-gray-500 uppercase mb-1">Last Modified</h4>
+                          <p className="text-sm text-gray-700">
+                            {focusedDataset.updated_at
+                              ? new Date(focusedDataset.updated_at).toLocaleString()
+                              : focusedDataset.created_at
+                                ? new Date(focusedDataset.created_at).toLocaleString()
+                                : '-'}
+                          </p>
+                        </div>
+
+                        {/* Source */}
+                        <div>
+                          <h4 className="text-xs font-semibold text-gray-500 uppercase mb-1">Source</h4>
+                          <p className="text-sm text-gray-700 font-mono bg-gray-50 px-2 py-1 rounded">
+                            {focusedDataset.source_type || focusedDataset.connection_id || focusedDataset.table || '-'}
+                          </p>
+                        </div>
+
+                        {/* Pattern/Path */}
+                        {(focusedDataset.pattern || focusedDataset.path) && (
+                          <div>
+                            <h4 className="text-xs font-semibold text-gray-500 uppercase mb-1">Pattern</h4>
+                            <p className="text-sm text-gray-700 font-mono bg-gray-50 px-2 py-1 rounded break-all">
+                              {focusedDataset.pattern || focusedDataset.path}
+                            </p>
+                          </div>
+                        )}
+
+                        {/* Schema */}
+                        <div>
+                          <h4 className="text-xs font-semibold text-gray-500 uppercase mb-2">
+                            Schema {focusedDataset.columns?.length > 0 && `(${focusedDataset.columns.length} columns)`}
+                          </h4>
+                          {focusedDataset.columns && focusedDataset.columns.length > 0 ? (
+                            <div className="border border-gray-200 rounded-lg overflow-hidden">
+                              <table className="w-full">
+                                <thead className="bg-gray-50">
+                                  <tr>
+                                    <th className="px-3 py-2 text-left text-xs font-medium text-gray-500">Column</th>
+                                    <th className="px-3 py-2 text-left text-xs font-medium text-gray-500">Type</th>
+                                  </tr>
+                                </thead>
+                                <tbody className="divide-y divide-gray-100">
+                                  {focusedDataset.columns.map((col, idx) => (
+                                    <tr key={idx}>
+                                      <td className="px-3 py-2 text-sm text-gray-800">{col.name}</td>
+                                      <td className="px-3 py-2">
+                                        <span className="text-xs px-2 py-0.5 rounded bg-blue-100 text-blue-700">
+                                          {col.type}
+                                        </span>
+                                      </td>
+                                    </tr>
+                                  ))}
+                                </tbody>
+                              </table>
+                            </div>
+                          ) : (
+                            <p className="text-sm text-gray-400">No schema available</p>
+                          )}
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                )}
               </div>
             </div>
           </div>
@@ -1275,54 +1433,6 @@ export default function TargetWizard() {
             </div>
           </div>
         )}
-      </div>
-
-      {/* Footer */}
-      <div className="bg-white border-t border-gray-200 py-4 -mx-6 px-6">
-        <div className="max-w-4xl mx-auto px-6 flex justify-between">
-          <button
-            onClick={handleBack}
-            disabled={currentStep === 1}
-            className={`flex items-center gap-2 px-4 py-2 rounded-lg transition-colors ${currentStep === 1
-              ? "text-gray-400 cursor-not-allowed"
-              : "text-gray-700 hover:bg-gray-100"
-              }`}
-          >
-            <ArrowLeft className="w-4 h-4" />
-            Back
-          </button>
-
-          {currentStep < STEPS.length ? (
-            <button
-              onClick={handleNext}
-              disabled={!canProceed() || isLoading}
-              className={`flex items-center gap-2 px-6 py-2 rounded-lg transition-colors ${canProceed() && !isLoading
-                ? "bg-orange-600 text-white hover:bg-orange-700"
-                : "bg-gray-200 text-gray-400 cursor-not-allowed"
-                }`}
-            >
-              {isLoading ? (
-                <>
-                  <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
-                  Loading...
-                </>
-              ) : (
-                <>
-                  Next
-                  <ArrowRight className="w-4 h-4" />
-                </>
-              )}
-            </button>
-          ) : (
-            <button
-              onClick={handleCreate}
-              className="flex items-center gap-2 px-6 py-2 bg-orange-600 text-white rounded-lg hover:bg-orange-700 transition-colors"
-            >
-              <Check className="w-4 h-4" />
-              {isEditMode ? "Save Changes" : "Create Target Dataset"}
-            </button>
-          )}
-        </div>
       </div>
     </div>
   );
