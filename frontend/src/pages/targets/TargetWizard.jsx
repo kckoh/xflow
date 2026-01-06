@@ -28,6 +28,7 @@ import {
   Calendar,
   Zap,
   Clock,
+  Code,
 } from "lucide-react";
 import { useToast } from "../../components/common/Toast";
 import SourceDatasetSelector from "../domain/components/SourceDatasetSelector";
@@ -65,6 +66,7 @@ const nodeOptions = {
   transform: [
     { id: "select-fields", label: "Select Fields", icon: Columns },
     { id: "filter", label: "Filter", icon: Filter },
+    { id: "sql", label: "SQL Transform", icon: Code, color: "#9333EA" },
     { id: "union", label: "Union", icon: Combine },
     { id: "map", label: "Map", icon: ArrowRightLeft },
     { id: "join", label: "Join", icon: GitMerge },
@@ -294,7 +296,12 @@ export default function TargetWizard() {
           type: "s3",
           path: "s3a://xflows-output/",
           format: "parquet",
-          options: {}
+          options: {},
+          s3_config: {
+            access_key: "test",
+            secret_key: "test",
+            endpoint: "http://localstack:4566"
+          }
         }
       };
 
@@ -379,12 +386,54 @@ export default function TargetWizard() {
     };
   };
 
+  const canAddNode = (nodeType) => {
+    const transformNodes = lineageNodes.filter(
+      n => n.data?.nodeCategory === "transform"
+    );
+
+    const hasSqlNode = transformNodes.some(
+      n => n.data?.transformType === "sql"
+    );
+
+    const hasOtherTransforms = transformNodes.some(
+      n => n.data?.transformType && n.data?.transformType !== "sql"
+    );
+
+    // SQL 노드를 추가하려는 경우
+    if (nodeType === "sql") {
+      if (hasSqlNode) {
+        return { allowed: false, reason: "SQL Transform already exists. Only one SQL node is allowed." };
+      }
+      if (hasOtherTransforms) {
+        return { allowed: false, reason: "Cannot mix SQL Transform with other transform nodes. Please remove existing transforms." };
+      }
+    }
+
+    // 일반 Transform을 추가하려는 경우
+    if (nodeType !== "sql") {
+      if (hasSqlNode) {
+        return { allowed: false, reason: "Cannot add transforms when SQL Transform exists. Remove SQL node first." };
+      }
+    }
+
+    return { allowed: true };
+  };
+
   const addNode = (category, nodeOption) => {
+    // 검증
+    if (category === "transform") {
+      const validation = canAddNode(nodeOption.id);
+      if (!validation.allowed) {
+        showToast(validation.reason, "error");
+        return;
+      }
+    }
+
     let position = { x: 400, y: 200 };
     if (lineageNodes.length > 0) {
       const rightMostNode = lineageNodes.reduce((right, node) =>
         node.position.x > right.position.x ? node : right
-      , lineageNodes[0]);
+        , lineageNodes[0]);
       position = {
         x: rightMostNode.position.x + 350,
         y: rightMostNode.position.y
@@ -478,13 +527,12 @@ export default function TargetWizard() {
               <div key={step.id} className="flex items-center flex-1 last:flex-none">
                 <div className="flex flex-col items-center">
                   <div
-                    className={`w-10 h-10 rounded-full flex items-center justify-center transition-colors shrink-0 ${
-                      currentStep > step.id
-                        ? "bg-orange-500 text-white"
-                        : currentStep === step.id
+                    className={`w-10 h-10 rounded-full flex items-center justify-center transition-colors shrink-0 ${currentStep > step.id
+                      ? "bg-orange-500 text-white"
+                      : currentStep === step.id
                         ? "bg-orange-500 text-white"
                         : "bg-gray-200 text-gray-500"
-                    }`}
+                      }`}
                   >
                     {currentStep > step.id ? (
                       <Check className="w-5 h-5" />
@@ -493,18 +541,16 @@ export default function TargetWizard() {
                     )}
                   </div>
                   <span
-                    className={`mt-2 text-xs font-medium whitespace-nowrap ${
-                      currentStep >= step.id ? "text-gray-900" : "text-gray-500"
-                    }`}
+                    className={`mt-2 text-xs font-medium whitespace-nowrap ${currentStep >= step.id ? "text-gray-900" : "text-gray-500"
+                      }`}
                   >
                     {step.name}
                   </span>
                 </div>
                 {index < STEPS.length - 1 && (
                   <div
-                    className={`flex-1 h-1 mx-4 rounded self-center -mt-6 ${
-                      currentStep > step.id ? "bg-orange-500" : "bg-gray-200"
-                    }`}
+                    className={`flex-1 h-1 mx-4 rounded self-center -mt-6 ${currentStep > step.id ? "bg-orange-500" : "bg-gray-200"
+                      }`}
                   />
                 )}
               </div>
@@ -615,41 +661,59 @@ export default function TargetWizard() {
                     <div className="flex border-b border-gray-200">
                       <button
                         onClick={() => setActiveTab("transform")}
-                        className={`flex-1 px-4 py-3 text-sm font-medium transition-colors ${
-                          activeTab === "transform"
-                            ? "text-purple-600 border-b-2 border-purple-600 bg-purple-50"
-                            : "text-gray-600 hover:bg-gray-50"
-                        }`}
+                        className={`flex-1 px-4 py-3 text-sm font-medium transition-colors ${activeTab === "transform"
+                          ? "text-purple-600 border-b-2 border-purple-600 bg-purple-50"
+                          : "text-gray-600 hover:bg-gray-50"
+                          }`}
                       >
                         Transform
                       </button>
                       <button
                         onClick={() => setActiveTab("target")}
-                        className={`flex-1 px-4 py-3 text-sm font-medium transition-colors ${
-                          activeTab === "target"
-                            ? "text-green-600 border-b-2 border-green-600 bg-green-50"
-                            : "text-gray-600 hover:bg-gray-50"
-                        }`}
+                        className={`flex-1 px-4 py-3 text-sm font-medium transition-colors ${activeTab === "target"
+                          ? "text-green-600 border-b-2 border-green-600 bg-green-50"
+                          : "text-gray-600 hover:bg-gray-50"
+                          }`}
                       >
                         Target
                       </button>
                     </div>
                     <div className="p-2 max-h-64 overflow-y-auto">
-                      {nodeOptions[activeTab].map((option) => (
-                        <button
-                          key={option.id}
-                          onClick={() => addNode(activeTab, option)}
-                          className="w-full px-4 py-3 text-left hover:bg-gray-100 rounded-md flex items-center gap-3"
-                        >
-                          <option.icon
-                            className="w-5 h-5"
-                            style={{ color: option.color || "#4b5563" }}
-                          />
-                          <span className="text-sm font-medium text-gray-700">
-                            {option.label}
-                          </span>
-                        </button>
-                      ))}
+                      {nodeOptions[activeTab].map((option) => {
+                        const validation = activeTab === "transform"
+                          ? canAddNode(option.id)
+                          : { allowed: true };
+                        const disabled = !validation.allowed;
+
+                        return (
+                          <button
+                            key={option.id}
+                            onClick={() => !disabled && addNode(activeTab, option)}
+                            disabled={disabled}
+                            title={disabled ? validation.reason : ''}
+                            className={`
+                              w-full px-4 py-3 text-left rounded-md flex items-center gap-3 transition-all
+                              ${disabled
+                                ? 'opacity-40 cursor-not-allowed bg-gray-50'
+                                : 'hover:bg-gray-100 cursor-pointer'
+                              }
+                            `}
+                          >
+                            <option.icon
+                              className="w-5 h-5"
+                              style={{ color: option.color || "#4b5563" }}
+                            />
+                            <span className="text-sm font-medium text-gray-700 flex-1">
+                              {option.label}
+                            </span>
+                            {disabled && (
+                              <span className="text-xs text-red-500 font-semibold">
+                                🚫
+                              </span>
+                            )}
+                          </button>
+                        );
+                      })}
                     </div>
                   </div>
                 )}
@@ -740,6 +804,21 @@ export default function TargetWizard() {
                       }
                       return selectedNode.data?.inputSchema || [];
                     })(),
+                    sourceDatasetId: (() => {
+                      // Find the ultimate source dataset ID by traversing backwards
+                      const findSourceDatasetId = (nodeId) => {
+                        const node = lineageNodes.find(n => n.id === nodeId);
+                        if (node?.data?.sourceDatasetId) {
+                          return node.data.sourceDatasetId;
+                        }
+                        const incomingEdge = lineageEdges.find(e => e.target === nodeId);
+                        if (incomingEdge) {
+                          return findSourceDatasetId(incomingEdge.source);
+                        }
+                        return null;
+                      };
+                      return findSourceDatasetId(selectedNode.id);
+                    })(),
                   }
                 }}
                 selectedMetadataItem={null}
@@ -755,7 +834,7 @@ export default function TargetWizard() {
                     data: { ...prev.data, ...data }
                   }));
                 }}
-                onMetadataUpdate={() => {}}
+                onMetadataUpdate={() => { }}
               />
             ) : selectedNode?.data?.nodeCategory === "target" ? (
               <S3TargetPropertiesPanel
@@ -774,7 +853,7 @@ export default function TargetWizard() {
                     data: { ...prev.data, ...data }
                   }));
                 }}
-                onMetadataUpdate={() => {}}
+                onMetadataUpdate={() => { }}
               />
             ) : (
               <RightSidebar
@@ -822,11 +901,10 @@ export default function TargetWizard() {
                   <div className="grid grid-cols-2 gap-4">
                     <button
                       onClick={() => setJobType("batch")}
-                      className={`relative p-4 rounded-lg border-2 text-left transition-all ${
-                        jobType === "batch"
-                          ? "border-orange-500 bg-orange-50"
-                          : "border-gray-200 hover:border-gray-300"
-                      }`}
+                      className={`relative p-4 rounded-lg border-2 text-left transition-all ${jobType === "batch"
+                        ? "border-orange-500 bg-orange-50"
+                        : "border-gray-200 hover:border-gray-300"
+                        }`}
                     >
                       <div className="flex items-center gap-3 mb-2">
                         <Clock className={`w-5 h-5 ${jobType === "batch" ? "text-orange-600" : "text-gray-400"}`} />
@@ -846,11 +924,10 @@ export default function TargetWizard() {
 
                     <button
                       onClick={() => setJobType("cdc")}
-                      className={`relative p-4 rounded-lg border-2 text-left transition-all ${
-                        jobType === "cdc"
-                          ? "border-purple-500 bg-purple-50"
-                          : "border-gray-200 hover:border-gray-300"
-                      }`}
+                      className={`relative p-4 rounded-lg border-2 text-left transition-all ${jobType === "cdc"
+                        ? "border-purple-500 bg-purple-50"
+                        : "border-gray-200 hover:border-gray-300"
+                        }`}
                     >
                       <div className="flex items-center gap-3 mb-2">
                         <Zap className={`w-5 h-5 ${jobType === "cdc" ? "text-purple-600" : "text-gray-400"}`} />
@@ -1025,11 +1102,10 @@ export default function TargetWizard() {
                         className="flex items-center justify-between p-3 bg-gray-50 rounded-lg"
                       >
                         <div className="flex items-center gap-3">
-                          <div className={`w-2 h-2 rounded-full ${
-                            node.data?.nodeCategory === "transform" ? "bg-purple-500" :
+                          <div className={`w-2 h-2 rounded-full ${node.data?.nodeCategory === "transform" ? "bg-purple-500" :
                             node.data?.nodeCategory === "target" ? "bg-green-500" :
-                            "bg-blue-500"
-                          }`} />
+                              "bg-blue-500"
+                            }`} />
                           <span className="text-sm font-medium text-gray-900">
                             {node.data?.label || node.data?.name || node.id}
                           </span>
@@ -1053,11 +1129,10 @@ export default function TargetWizard() {
           <button
             onClick={handleBack}
             disabled={currentStep === 1}
-            className={`flex items-center gap-2 px-4 py-2 rounded-lg transition-colors ${
-              currentStep === 1
-                ? "text-gray-400 cursor-not-allowed"
-                : "text-gray-700 hover:bg-gray-100"
-            }`}
+            className={`flex items-center gap-2 px-4 py-2 rounded-lg transition-colors ${currentStep === 1
+              ? "text-gray-400 cursor-not-allowed"
+              : "text-gray-700 hover:bg-gray-100"
+              }`}
           >
             <ArrowLeft className="w-4 h-4" />
             Back
@@ -1067,11 +1142,10 @@ export default function TargetWizard() {
             <button
               onClick={handleNext}
               disabled={!canProceed() || isLoading}
-              className={`flex items-center gap-2 px-6 py-2 rounded-lg transition-colors ${
-                canProceed() && !isLoading
-                  ? "bg-orange-600 text-white hover:bg-orange-700"
-                  : "bg-gray-200 text-gray-400 cursor-not-allowed"
-              }`}
+              className={`flex items-center gap-2 px-6 py-2 rounded-lg transition-colors ${canProceed() && !isLoading
+                ? "bg-orange-600 text-white hover:bg-orange-700"
+                : "bg-gray-200 text-gray-400 cursor-not-allowed"
+                }`}
             >
               {isLoading ? (
                 <>

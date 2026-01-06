@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import { X } from 'lucide-react';
 import SelectFieldsConfig from './SelectFieldsConfig';
 import UnionConfig from './UnionConfig';
+import SQLTransformConfig from './SQLTransformConfig';
 
 export default function TransformPropertiesPanel({ node, selectedMetadataItem, onClose, onUpdate, onMetadataUpdate }) {
     const [transformName, setTransformName] = useState('');
@@ -61,6 +62,15 @@ export default function TransformPropertiesPanel({ node, selectedMetadataItem, o
 
                 {transformType === 'union' && (
                     <UnionConfig
+                        node={node}
+                        transformName={transformName}
+                        onUpdate={onUpdate}
+                        onClose={onClose}
+                    />
+                )}
+
+                {transformType === 'sql' && (
+                    <SQLTransformConfig
                         node={node}
                         transformName={transformName}
                         onUpdate={onUpdate}
