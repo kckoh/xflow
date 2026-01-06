@@ -115,14 +115,15 @@ async def get_catalog(
                     
                     # Read schema only (LIMIT 0 = no data)
                     query = f"SELECT * FROM read_parquet('{s3_path}/*.parquet') LIMIT 0"
-                    result = con.execute(query)
+                    df = con.execute(query).df()
                     
-                    # Extract column info
+                    # Extract column info from DataFrame
                     schema = []
-                    for col_name, col_type in zip(result.columns, result.dtypes):
+                    for col_name in df.columns:
+                        col_type = str(df[col_name].dtype)
                         schema.append({
                             "key": col_name,
-                            "type": str(col_type)
+                            "type": col_type
                         })
                     
                     con.close()
