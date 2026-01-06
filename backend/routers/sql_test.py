@@ -71,11 +71,31 @@ async def test_sql_query(request: SQLTestRequest):
                 if catalog_dataset:
                     # Map catalog dataset to a common format for _load_sample_data
                     destination = catalog_dataset.get("destination", {})
+                    base_path = destination.get("path", "")
+                    name = catalog_dataset.get("name", "")
+                    
+                    full_path = base_path
+                    if base_path and name and not base_path.endswith(name):
+                        if not base_path.endswith('/'):
+                            full_path += '/'
+                        full_path += name
+                    
+                    # Fallback to URN if destination path is missing (similar to frontend)
+                    if not full_path and catalog_dataset.get("targets"):
+                        target = catalog_dataset.get("targets")[0]
+                        urn = target.get("urn", "")
+                        if urn.startswith("urn:s3:"):
+                            parts = urn.split(":")
+                            if len(parts) >= 4:
+                                bucket = parts[2]
+                                key = ":".join(parts[3:]) or name
+                                full_path = f"s3a://{bucket}/{key}"
+
                     source_dataset = {
                         "id": str(catalog_dataset.get("_id")),
                         "name": catalog_dataset.get("name"),
                         "source_type": destination.get("type", "s3"), # Usually s3 for catalog
-                        "path": destination.get("path"),
+                        "path": full_path,
                         "format": destination.get("format", "parquet"),
                         "is_catalog": True
                     }
@@ -266,22 +286,122 @@ async def _load_sample_data(
         con = duckdb.connect()
         con.execute("INSTALL httpfs; LOAD httpfs;")
         
-        # Configure S3 if credentials are available in config
-        if config.get("access_key"):
-            con.execute(f"SET s3_access_key_id='{config.get('access_key')}';")
-            con.execute(f"SET s3_secret_access_key='{config.get('secret_key')}';")
-            if config.get("region"):
-                con.execute(f"SET s3_region='{config.get('region')}';")
+        # Configure S3 (Prioritize config, fallback to environment)
+        import os
         
-        # For MinIO / Custom S3
-        if config.get("endpoint"):
-            endpoint = config.get("endpoint").replace("http://", "").replace("https://", "")
-            con.execute(f"SET s3_endpoint='{endpoint}';")
-            if "http://" in config.get("endpoint"):
+        # Configure S3 using Boto3 credential chain (Safe for LocalStack & Production IAM Roles)
+        import boto3
+        
+        # 1. Resolve Region
+        region = config.get("region") or os.getenv("AWS_REGION") or "us-east-1"
+        
+        # 2. Get Credentials (Prioritize config, then Boto3 chain)
+        access_key = config.get("access_key")
+        secret_key = config.get("secret_key")
+        
+        if access_key and secret_key:
+            con.execute(f"SET s3_access_key_id='{access_key}';")
+            con.execute(f"SET s3_secret_access_key='{secret_key}';")
+        else:
+            # Fetch from environment or IAM Role via Boto3
+            session = boto3.Session()
+            creds = session.get_credentials()
+            if creds:
+                frozen = creds.get_frozen_credentials()
+                if frozen:
+                    con.execute(f"SET s3_access_key_id='{frozen.access_key}';")
+                    con.execute(f"SET s3_secret_access_key='{frozen.secret_key}';")
+                    if frozen.token:
+                        con.execute(f"SET s3_session_token='{frozen.token}';")
+            
+            # Update region if session found one
+            if session.region_name:
+                region = session.region_name
+
+        con.execute(f"SET s3_region='{region}';")
+
+        # 3. Handle Endpoint (LocalStack/MinIO)
+        endpoint = config.get("endpoint") or os.getenv("AWS_ENDPOINT") or os.getenv("AWS_ENDPOINT_URL") or os.getenv("S3_ENDPOINT_URL")
+        
+        if endpoint:
+            # Handle LocalStack / MinIO
+            endpoint_url = endpoint.replace("http://", "").replace("https://", "")
+            
+            # If running outside docker (localhost) but container uses service name, 
+            # we might need to be careful, but generally assume the env var is correct for the running context.
+            con.execute(f"SET s3_endpoint='{endpoint_url}';")
+            
+            # Disable SSL for HTTP endpoints (common in LocalStack/MinIO)
+            if "http://" in endpoint:
                 con.execute("SET s3_use_ssl=false;")
+                con.execute("SET s3_url_style='path';") # Force path style for MinIO/LocalStack
         
-        query = f"SELECT * FROM read_parquet('{duck_path}') LIMIT {limit}"
-        df = con.execute(query).df()
+        # Use boto3 to list files if path is a directory (Robust for all envs)
+        import boto3
+        from botocore.client import Config
+        from urllib.parse import urlparse
+
+        try:
+            # Parse bucket and prefix from path
+            parsed = urlparse(duck_path)
+            bucket_name = parsed.netloc
+            prefix = parsed.path.lstrip('/')
+
+             # Only enforce path style if using custom endpoint (LocalStack/MinIO)
+            s3_config = None
+            if endpoint:
+                 s3_config = Config(s3={'addressing_style': 'path'}, signature_version='s3v4')
+
+            s3_client = boto3.client(
+                's3',
+                endpoint_url=endpoint if endpoint else None,
+                aws_access_key_id=access_key,
+                aws_secret_access_key=secret_key,
+                region_name=region,
+                use_ssl=False if endpoint and "http://" in endpoint else True,
+                config=s3_config
+            )
+            
+            # List objects
+            print(f"[DEBUG] Listing objects in Bucket: {bucket_name}, Prefix: {prefix}")
+            response = s3_client.list_objects_v2(Bucket=bucket_name, Prefix=prefix)
+            
+            parquet_files = []
+            if 'Contents' in response:
+                print(f"[DEBUG] Found {len(response['Contents'])} objects")
+                for obj in response['Contents']:
+                    key = obj['Key']
+                    if key.endswith('.parquet') and not key.endswith('/'):
+                        parquet_files.append(f"s3://{bucket_name}/{key}")
+            
+            if parquet_files:
+                files_str = ", ".join([f"'{f}'" for f in parquet_files])
+                query = f"SELECT * FROM read_parquet([{files_str}]) LIMIT {limit}"
+            else:
+                 # Fallback
+                 debug_info = f"Boto3 found 0 files. Config: endpoint={endpoint}, bucket={bucket_name}, prefix={prefix}"
+                 print(f"[DEBUG] {debug_info}")
+                 
+                 if not duck_path.endswith('.parquet'):
+                     if not duck_path.endswith('/'):
+                         duck_path += '/'
+                     duck_path += '**/*.parquet'
+                 query = f"SELECT * FROM read_parquet('{duck_path}') LIMIT {limit}"
+
+        except Exception as e:
+            print(f"[DEBUG] Boto3 listing failed: {e}")
+            # Fallback on error
+            if not duck_path.endswith('.parquet'):
+                 if not duck_path.endswith('/'):
+                     duck_path += '/'
+                 duck_path += '**/*.parquet'
+            query = f"SELECT * FROM read_parquet('{duck_path}') LIMIT {limit}"
+
+        try:
+            df = con.execute(query).df()
+        except Exception as e:
+             extra_info = f" | {debug_info}" if 'debug_info' in locals() else ""
+             raise HTTPException(status_code=500, detail=f"DuckDB Read Error: {str(e)}. Path: {duck_path}{extra_info}")
         
         return df
     
