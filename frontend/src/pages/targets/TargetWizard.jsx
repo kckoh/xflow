@@ -31,6 +31,7 @@ import {
 } from "lucide-react";
 import { useToast } from "../../components/common/Toast";
 import SourceDatasetSelector from "../domain/components/SourceDatasetSelector";
+import CatalogDatasetSelector from "../domain/components/CatalogDatasetSelector";
 import { getSourceDataset } from "../domain/api/domainApi";
 import { SchemaNode } from "../domain/components/schema-node/SchemaNode";
 import { DeletionEdge } from "../domain/components/CustomEdges";
@@ -84,7 +85,9 @@ export default function TargetWizard() {
   const [isEditMode, setIsEditMode] = useState(false);
 
   // Step 1: Job Selection
+  const [sourceTab, setSourceTab] = useState('source'); // 'source' or 'target'
   const [selectedJobIds, setSelectedJobIds] = useState([]);
+  const [selectedTargetIds, setSelectedTargetIds] = useState([]); // For target tab
   const [isLoading, setIsLoading] = useState(false);
 
   // Step 2: Configuration
@@ -187,63 +190,148 @@ export default function TargetWizard() {
   };
 
   const handleImportSources = async () => {
-    if (selectedJobIds.length === 0) {
-      showToast("Please select at least one source dataset", "error");
-      return;
-    }
-
-    setIsLoading(true);
-    try {
-      // Fetch source dataset details
-      const sourcePromises = selectedJobIds.map(id => getSourceDataset(id));
-      const sources = await Promise.all(sourcePromises);
-
-      // Convert source datasets to lineage nodes
-      const nodes = [];
-      let xPos = 100;
-
-      sources.forEach((source, idx) => {
-        const columns = source.columns || [];
-        nodes.push({
-          id: `source-${source.id}`,
-          type: "custom",
-          position: { x: xPos, y: 100 + idx * 200 },
-          data: {
-            label: source.name,
-            name: source.name,
-            platform: source.source_type || "PostgreSQL",
-            columns: columns.map(col => ({
-              name: col.name,
-              type: col.type,
-              description: col.description || "",
-            })),
-            expanded: true,
-            nodeCategory: "source",
-            sourceDatasetId: source.id,
-            onDelete: handleDeleteNode,
-          },
-        });
-      });
-
-      if (nodes.length === 0) {
-        showToast("No source data found", "warning");
+    // Check which tab is active
+    if (sourceTab === 'source') {
+      // Source Datasets tab
+      if (selectedJobIds.length === 0) {
+        showToast("Please select at least one source dataset", "error");
         return;
       }
 
-      setLineageNodes(nodes);
-      setLineageEdges([]);
+      setIsLoading(true);
+      try {
+        // Fetch source dataset details
+        const sourcePromises = selectedJobIds.map(id => getSourceDataset(id));
+        const sources = await Promise.all(sourcePromises);
 
-      // Set default name from first source
-      if (sources[0]?.name && !config.name) {
-        setConfig(prev => ({ ...prev, name: `${sources[0].name}_target` }));
+        // Convert source datasets to lineage nodes
+        const nodes = [];
+        let xPos = 100;
+
+        sources.forEach((source, idx) => {
+          const columns = source.columns || [];
+          nodes.push({
+            id: `source-${source.id}`,
+            type: "custom",
+            position: { x: xPos, y: 100 + idx * 200 },
+            data: {
+              label: source.name,
+              name: source.name,
+              platform: source.source_type || "PostgreSQL",
+              columns: columns.map(col => ({
+                name: col.name,
+                type: col.type,
+                description: col.description || "",
+              })),
+              expanded: true,
+              nodeCategory: "source",
+              sourceDatasetId: source.id,
+              onDelete: handleDeleteNode,
+            },
+          });
+        });
+
+        if (nodes.length === 0) {
+          showToast("No source data found", "warning");
+          return;
+        }
+
+        setLineageNodes(nodes);
+        setLineageEdges([]);
+
+        // Set default name from first source
+        if (sources[0]?.name && !config.name) {
+          setConfig(prev => ({ ...prev, name: `${sources[0].name}_target` }));
+        }
+
+        showToast(`Imported ${nodes.length} source dataset(s)`, "success");
+      } catch (err) {
+        console.error("Failed to import sources:", err);
+        showToast(`Failed to import sources: ${err.message}`, "error");
+      } finally {
+        setIsLoading(false);
+      }
+    } else {
+      // Target Datasets (Catalog) tab
+      if (selectedTargetIds.length === 0) {
+        showToast("Please select at least one target dataset", "error");
+        return;
       }
 
-      showToast(`Imported ${nodes.length} source dataset(s)`, "success");
-    } catch (err) {
-      console.error("Failed to import sources:", err);
-      showToast(`Failed to import sources: ${err.message}`, "error");
-    } finally {
-      setIsLoading(false);
+      setIsLoading(true);
+      try {
+        const nodes = [];
+        let xPos = 100;
+        let successCount = 0;
+
+        for (const datasetId of selectedTargetIds) {
+          try {
+            const response = await fetch(`${API_BASE_URL}/api/catalog/${datasetId}`);
+            if (!response.ok) continue;
+
+            const dataset = await response.json();
+            const target = dataset.targets?.[0];
+
+            if (target) {
+              const schema = target.schema || [];
+              const s3Path = target.config?.path || target.urn || '';
+
+              nodes.push({
+                id: `source-catalog-${datasetId}`,
+                type: "custom",
+                position: { x: xPos, y: 100 + successCount * 200 },
+                data: {
+                  label: dataset.name,
+                  name: dataset.name,
+                  platform: "S3", // Changed from "Catalog (S3)" to "S3"
+                  sourceType: "s3", // Add sourceType for Spark
+                  columns: schema.map(col => ({
+                    name: col.name || col.field,
+                    type: col.type || 'string',
+                    description: col.description || '',
+                  })),
+                  schema: schema.map(col => ({
+                    name: col.name || col.field,
+                    type: col.type || 'string',
+                  })),
+                  expanded: true,
+                  nodeCategory: "source",
+                  catalogDatasetId: datasetId,
+                  // S3 source info for Spark
+                  s3Location: s3Path,
+                  path: s3Path,
+                  format: target.config?.format || 'parquet',
+                  onDelete: handleDeleteNode,
+                },
+              });
+
+              successCount++;
+            }
+          } catch (err) {
+            console.error(`Failed to fetch catalog dataset ${datasetId}:`, err);
+          }
+        }
+
+        if (nodes.length === 0) {
+          showToast("No catalog data found", "warning");
+          return;
+        }
+
+        setLineageNodes(nodes);
+        setLineageEdges([]);
+
+        // Set default name from first dataset
+        if (nodes[0]?.data?.name && !config.name) {
+          setConfig(prev => ({ ...prev, name: `${nodes[0].data.name}_target` }));
+        }
+
+        showToast(`Imported ${nodes.length} catalog dataset(s)`, "success");
+      } catch (err) {
+        console.error("Failed to import catalog datasets:", err);
+        showToast(`Failed to import catalog datasets: ${err.message}`, "error");
+      } finally {
+        setIsLoading(false);
+      }
     }
   };
 
@@ -327,7 +415,8 @@ export default function TargetWizard() {
   const canProceed = () => {
     switch (currentStep) {
       case 1:
-        return selectedJobIds.length > 0;
+        // Check both Source and Target tabs
+        return selectedJobIds.length > 0 || selectedTargetIds.length > 0;
       case 2:
         return config.name.trim() !== "";
       case 3:
@@ -384,7 +473,7 @@ export default function TargetWizard() {
     if (lineageNodes.length > 0) {
       const rightMostNode = lineageNodes.reduce((right, node) =>
         node.position.x > right.position.x ? node : right
-      , lineageNodes[0]);
+        , lineageNodes[0]);
       position = {
         x: rightMostNode.position.x + 350,
         y: rightMostNode.position.y
@@ -478,13 +567,12 @@ export default function TargetWizard() {
               <div key={step.id} className="flex items-center flex-1 last:flex-none">
                 <div className="flex flex-col items-center">
                   <div
-                    className={`w-10 h-10 rounded-full flex items-center justify-center transition-colors shrink-0 ${
-                      currentStep > step.id
-                        ? "bg-orange-500 text-white"
-                        : currentStep === step.id
+                    className={`w-10 h-10 rounded-full flex items-center justify-center transition-colors shrink-0 ${currentStep > step.id
+                      ? "bg-orange-500 text-white"
+                      : currentStep === step.id
                         ? "bg-orange-500 text-white"
                         : "bg-gray-200 text-gray-500"
-                    }`}
+                      }`}
                   >
                     {currentStep > step.id ? (
                       <Check className="w-5 h-5" />
@@ -493,18 +581,16 @@ export default function TargetWizard() {
                     )}
                   </div>
                   <span
-                    className={`mt-2 text-xs font-medium whitespace-nowrap ${
-                      currentStep >= step.id ? "text-gray-900" : "text-gray-500"
-                    }`}
+                    className={`mt-2 text-xs font-medium whitespace-nowrap ${currentStep >= step.id ? "text-gray-900" : "text-gray-500"
+                      }`}
                   >
                     {step.name}
                   </span>
                 </div>
                 {index < STEPS.length - 1 && (
                   <div
-                    className={`flex-1 h-1 mx-4 rounded self-center -mt-6 ${
-                      currentStep > step.id ? "bg-orange-500" : "bg-gray-200"
-                    }`}
+                    className={`flex-1 h-1 mx-4 rounded self-center -mt-6 ${currentStep > step.id ? "bg-orange-500" : "bg-gray-200"
+                      }`}
                   />
                 )}
               </div>
@@ -520,17 +606,52 @@ export default function TargetWizard() {
           <div className="flex-1 overflow-y-auto">
             <div className="max-w-4xl mx-auto px-6 py-8">
               <h2 className="text-lg font-semibold text-gray-900 mb-2">
-                Select Source Datasets
+                Select Datasets
               </h2>
-              <p className="text-gray-500 mb-6">
-                Choose the source datasets to include in your target
+              <p className="text-gray-500 mb-4">
+                Choose source datasets or target datasets
               </p>
 
+              {/* Tabs */}
+              <div className="flex gap-2 mb-6">
+                <button
+                  onClick={() => setSourceTab('source')}
+                  className={`px-6 py-2.5 rounded-lg font-medium transition-all ${sourceTab === 'source'
+                    ? 'bg-blue-600 text-white shadow-md'
+                    : 'bg-white text-gray-600 border border-gray-300 hover:bg-gray-50'
+                    }`}
+                >
+                  Source Datasets
+                </button>
+                <button
+                  onClick={() => setSourceTab('target')}
+                  className={`px-6 py-2.5 rounded-lg font-medium transition-all ${sourceTab === 'target'
+                    ? 'bg-orange-600 text-white shadow-md'
+                    : 'bg-white text-gray-600 border border-gray-300 hover:bg-gray-50'
+                    }`}
+                >
+                  Target Datasets
+                </button>
+              </div>
+
               <div className="bg-white rounded-lg border border-gray-200 p-6 h-[500px]">
-                <SourceDatasetSelector
-                  selectedIds={selectedJobIds}
-                  onToggle={handleToggleJob}
-                />
+                {sourceTab === 'source' ? (
+                  <SourceDatasetSelector
+                    selectedIds={selectedJobIds}
+                    onToggle={handleToggleJob}
+                  />
+                ) : (
+                  <CatalogDatasetSelector
+                    selectedIds={selectedTargetIds}
+                    onToggle={(id) => {
+                      setSelectedTargetIds(prev =>
+                        prev.includes(id)
+                          ? prev.filter(item => item !== id)
+                          : [...prev, id]
+                      );
+                    }}
+                  />
+                )}
               </div>
             </div>
           </div>
@@ -615,21 +736,19 @@ export default function TargetWizard() {
                     <div className="flex border-b border-gray-200">
                       <button
                         onClick={() => setActiveTab("transform")}
-                        className={`flex-1 px-4 py-3 text-sm font-medium transition-colors ${
-                          activeTab === "transform"
-                            ? "text-purple-600 border-b-2 border-purple-600 bg-purple-50"
-                            : "text-gray-600 hover:bg-gray-50"
-                        }`}
+                        className={`flex-1 px-4 py-3 text-sm font-medium transition-colors ${activeTab === "transform"
+                          ? "text-purple-600 border-b-2 border-purple-600 bg-purple-50"
+                          : "text-gray-600 hover:bg-gray-50"
+                          }`}
                       >
                         Transform
                       </button>
                       <button
                         onClick={() => setActiveTab("target")}
-                        className={`flex-1 px-4 py-3 text-sm font-medium transition-colors ${
-                          activeTab === "target"
-                            ? "text-green-600 border-b-2 border-green-600 bg-green-50"
-                            : "text-gray-600 hover:bg-gray-50"
-                        }`}
+                        className={`flex-1 px-4 py-3 text-sm font-medium transition-colors ${activeTab === "target"
+                          ? "text-green-600 border-b-2 border-green-600 bg-green-50"
+                          : "text-gray-600 hover:bg-gray-50"
+                          }`}
                       >
                         Target
                       </button>
@@ -755,7 +874,7 @@ export default function TargetWizard() {
                     data: { ...prev.data, ...data }
                   }));
                 }}
-                onMetadataUpdate={() => {}}
+                onMetadataUpdate={() => { }}
               />
             ) : selectedNode?.data?.nodeCategory === "target" ? (
               <S3TargetPropertiesPanel
@@ -774,7 +893,7 @@ export default function TargetWizard() {
                     data: { ...prev.data, ...data }
                   }));
                 }}
-                onMetadataUpdate={() => {}}
+                onMetadataUpdate={() => { }}
               />
             ) : (
               <RightSidebar
@@ -822,11 +941,10 @@ export default function TargetWizard() {
                   <div className="grid grid-cols-2 gap-4">
                     <button
                       onClick={() => setJobType("batch")}
-                      className={`relative p-4 rounded-lg border-2 text-left transition-all ${
-                        jobType === "batch"
-                          ? "border-orange-500 bg-orange-50"
-                          : "border-gray-200 hover:border-gray-300"
-                      }`}
+                      className={`relative p-4 rounded-lg border-2 text-left transition-all ${jobType === "batch"
+                        ? "border-orange-500 bg-orange-50"
+                        : "border-gray-200 hover:border-gray-300"
+                        }`}
                     >
                       <div className="flex items-center gap-3 mb-2">
                         <Clock className={`w-5 h-5 ${jobType === "batch" ? "text-orange-600" : "text-gray-400"}`} />
@@ -846,11 +964,10 @@ export default function TargetWizard() {
 
                     <button
                       onClick={() => setJobType("cdc")}
-                      className={`relative p-4 rounded-lg border-2 text-left transition-all ${
-                        jobType === "cdc"
-                          ? "border-purple-500 bg-purple-50"
-                          : "border-gray-200 hover:border-gray-300"
-                      }`}
+                      className={`relative p-4 rounded-lg border-2 text-left transition-all ${jobType === "cdc"
+                        ? "border-purple-500 bg-purple-50"
+                        : "border-gray-200 hover:border-gray-300"
+                        }`}
                     >
                       <div className="flex items-center gap-3 mb-2">
                         <Zap className={`w-5 h-5 ${jobType === "cdc" ? "text-purple-600" : "text-gray-400"}`} />
@@ -1025,11 +1142,10 @@ export default function TargetWizard() {
                         className="flex items-center justify-between p-3 bg-gray-50 rounded-lg"
                       >
                         <div className="flex items-center gap-3">
-                          <div className={`w-2 h-2 rounded-full ${
-                            node.data?.nodeCategory === "transform" ? "bg-purple-500" :
+                          <div className={`w-2 h-2 rounded-full ${node.data?.nodeCategory === "transform" ? "bg-purple-500" :
                             node.data?.nodeCategory === "target" ? "bg-green-500" :
-                            "bg-blue-500"
-                          }`} />
+                              "bg-blue-500"
+                            }`} />
                           <span className="text-sm font-medium text-gray-900">
                             {node.data?.label || node.data?.name || node.id}
                           </span>
@@ -1053,11 +1169,10 @@ export default function TargetWizard() {
           <button
             onClick={handleBack}
             disabled={currentStep === 1}
-            className={`flex items-center gap-2 px-4 py-2 rounded-lg transition-colors ${
-              currentStep === 1
-                ? "text-gray-400 cursor-not-allowed"
-                : "text-gray-700 hover:bg-gray-100"
-            }`}
+            className={`flex items-center gap-2 px-4 py-2 rounded-lg transition-colors ${currentStep === 1
+              ? "text-gray-400 cursor-not-allowed"
+              : "text-gray-700 hover:bg-gray-100"
+              }`}
           >
             <ArrowLeft className="w-4 h-4" />
             Back
@@ -1067,11 +1182,10 @@ export default function TargetWizard() {
             <button
               onClick={handleNext}
               disabled={!canProceed() || isLoading}
-              className={`flex items-center gap-2 px-6 py-2 rounded-lg transition-colors ${
-                canProceed() && !isLoading
-                  ? "bg-orange-600 text-white hover:bg-orange-700"
-                  : "bg-gray-200 text-gray-400 cursor-not-allowed"
-              }`}
+              className={`flex items-center gap-2 px-6 py-2 rounded-lg transition-colors ${canProceed() && !isLoading
+                ? "bg-orange-600 text-white hover:bg-orange-700"
+                : "bg-gray-200 text-gray-400 cursor-not-allowed"
+                }`}
             >
               {isLoading ? (
                 <>
