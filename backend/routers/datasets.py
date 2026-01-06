@@ -198,7 +198,9 @@ async def create_dataset(dataset: DatasetCreate):
         edges=new_dataset.edges,
         created_at=new_dataset.created_at,
         updated_at=new_dataset.updated_at,
+        is_active=False,
         import_ready=False,
+        schedules=new_dataset.schedules,
     )
 
 
@@ -237,7 +239,8 @@ async def list_datasets(import_ready: bool = None):
             created_at=dataset.created_at,
             updated_at=dataset.updated_at,
             is_active=status_map.get(str(dataset.id), False),
-            import_ready=getattr(dataset, 'import_ready', False)
+            import_ready=getattr(dataset, 'import_ready', False),
+            schedules=getattr(dataset, 'schedules', []),
         )
         for dataset in datasets
     ]
@@ -275,6 +278,7 @@ async def get_dataset(dataset_id: str):
         created_at=dataset.created_at,
         updated_at=dataset.updated_at,
         import_ready=getattr(dataset, 'import_ready', False),
+        schedules=getattr(dataset, 'schedules', []),
     )
 
 
@@ -380,6 +384,7 @@ async def update_dataset(dataset_id: str, dataset_update: DatasetUpdate):
         created_at=dataset.created_at,
         updated_at=dataset.updated_at,
         import_ready=getattr(dataset, 'import_ready', False),
+        schedules=getattr(dataset, 'schedules', []),
     )
 
 
