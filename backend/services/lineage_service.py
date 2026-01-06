@@ -100,11 +100,10 @@ async def sync_pipeline_to_etljob(dataset: Dataset):
     etl_job.updated_at = datetime.utcnow()
 
     await etl_job.save()
-
-    # Optional: Update Dataset status immediately if needed
-    if is_active and dataset.status == 'draft':
-        # dataset.status = 'active' # Decide if we want to auto-activate
-        pass
+    
+    # ✅ Also update Dataset.targets for catalog display
+    dataset.targets = targets
+    await dataset.save()
 
 
 def _extract_config(data: dict) -> dict:
