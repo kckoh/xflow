@@ -1,8 +1,6 @@
 import { useState, useEffect } from "react";
 import { useNavigate, useLocation, useSearchParams } from "react-router-dom";
 import {
-  Play,
-  Pause,
   Plus,
   Trash2,
   Search,
@@ -14,158 +12,6 @@ import TargetImportModal from "../../components/etl/TargetImportModal";
 import { useToast } from "../../components/common/Toast";
 import { API_BASE_URL } from "../../config/api";
 const ITEMS_PER_PAGE = 10;
-
-// Mock ETL Jobs Data
-const MOCK_ETL_JOBS = [
-  {
-    id: "etl-001",
-    name: "user_analytics_daily",
-    description: "Daily user behavior analytics pipeline",
-    dataset_type: "source",
-    job_type: "batch",
-    status: "active",
-    schedule: "0 2 * * *",
-    schedule_frequency: "daily",
-    ui_params: { startDate: "2024-01-15T02:00:00Z" },
-    is_active: false,
-    updated_at: "2024-01-20T14:30:00Z",
-  },
-  {
-    id: "etl-002",
-    name: "order_sync_realtime",
-    description: "Real-time order synchronization from PostgreSQL",
-    dataset_type: "source",
-    job_type: "cdc",
-    status: "active",
-    schedule: null,
-    is_active: true,
-    updated_at: "2024-01-20T10:15:00Z",
-  },
-  {
-    id: "etl-003",
-    name: "product_catalog_sync",
-    description: "Hourly product catalog sync to data lake",
-    dataset_type: "target",
-    job_type: "batch",
-    status: "active",
-    schedule: "0 * * * *",
-    schedule_frequency: "hourly",
-    ui_params: { hourInterval: 1 },
-    is_active: false,
-    updated_at: "2024-01-19T22:00:00Z",
-  },
-  {
-    id: "etl-004",
-    name: "customer_360_aggregation",
-    description: "Weekly customer 360 view aggregation",
-    dataset_type: "target",
-    job_type: "batch",
-    status: "paused",
-    schedule: "0 3 * * 0",
-    schedule_frequency: "weekly",
-    ui_params: { startDate: "2024-01-14T03:00:00Z" },
-    is_active: false,
-    updated_at: "2024-01-18T09:45:00Z",
-  },
-  {
-    id: "etl-005",
-    name: "clickstream_ingestion",
-    description: "Real-time clickstream data ingestion from Kafka",
-    dataset_type: "source",
-    job_type: "cdc",
-    status: "active",
-    schedule: null,
-    is_active: true,
-    updated_at: "2024-01-20T16:20:00Z",
-  },
-  {
-    id: "etl-006",
-    name: "inventory_snapshot",
-    description: "Daily inventory snapshot for reporting",
-    dataset_type: "source",
-    job_type: "batch",
-    status: "draft",
-    schedule: "0 6 * * *",
-    schedule_frequency: "daily",
-    ui_params: { startDate: "2024-01-15T06:00:00Z" },
-    is_active: false,
-    updated_at: "2024-01-17T11:30:00Z",
-  },
-  {
-    id: "etl-007",
-    name: "sales_report_monthly",
-    description: "Monthly sales aggregation report",
-    dataset_type: "target",
-    job_type: "batch",
-    status: "active",
-    schedule: "0 1 1 * *",
-    schedule_frequency: "monthly",
-    ui_params: { startDate: "2024-01-01T01:00:00Z" },
-    is_active: false,
-    updated_at: "2024-01-15T08:00:00Z",
-  },
-  {
-    id: "etl-008",
-    name: "log_parser_s3",
-    description: "Parse application logs from S3 bucket",
-    dataset_type: "source",
-    job_type: "batch",
-    status: "active",
-    schedule: "*/30 * * * *",
-    schedule_frequency: "interval",
-    ui_params: { intervalMinutes: 30 },
-    is_active: false,
-    updated_at: "2024-01-20T12:00:00Z",
-  },
-  {
-    id: "etl-009",
-    name: "ml_feature_store_sync",
-    description: "Sync ML features to feature store",
-    dataset_type: "target",
-    job_type: "batch",
-    status: "active",
-    schedule: "0 */4 * * *",
-    schedule_frequency: "hourly",
-    ui_params: { hourInterval: 4 },
-    is_active: false,
-    updated_at: "2024-01-20T08:00:00Z",
-  },
-  {
-    id: "etl-010",
-    name: "payment_events_cdc",
-    description: "CDC pipeline for payment transaction events",
-    dataset_type: "source",
-    job_type: "cdc",
-    status: "paused",
-    schedule: null,
-    is_active: false,
-    updated_at: "2024-01-16T14:30:00Z",
-  },
-  {
-    id: "etl-011",
-    name: "data_quality_check",
-    description: "Daily data quality validation pipeline",
-    dataset_type: "target",
-    job_type: "batch",
-    status: "active",
-    schedule: "0 5 * * *",
-    schedule_frequency: "daily",
-    ui_params: { startDate: "2024-01-15T05:00:00Z" },
-    is_active: false,
-    updated_at: "2024-01-20T05:00:00Z",
-  },
-  {
-    id: "etl-012",
-    name: "customer_churn_model_data",
-    description: "Prepare training data for churn prediction model",
-    dataset_type: "target",
-    job_type: "batch",
-    status: "draft",
-    schedule: null,
-    is_active: false,
-    updated_at: "2024-01-14T10:00:00Z",
-  },
-];
 
 export default function ETLMain() {
   const [jobs, setJobs] = useState([]);
@@ -216,100 +62,54 @@ export default function ETLMain() {
   const fetchJobs = async () => {
     setIsLoading(true);
     try {
-      const response = await fetch(`${API_BASE_URL}/api/etl-jobs`);
-      if (response.ok) {
-        const data = await response.json();
-        // Sort by updated_at descending (newest first)
-        const sortedData = data.sort((a, b) => new Date(b.updated_at) - new Date(a.updated_at));
-        // Use mock data if API returns empty
-        setJobs(sortedData.length > 0 ? sortedData : MOCK_ETL_JOBS);
-      } else {
-        // Use mock data on API error
-        setJobs(MOCK_ETL_JOBS);
+      // Fetch both ETL jobs and source datasets
+      const [etlResponse, sourceResponse] = await Promise.all([
+        fetch(`${API_BASE_URL}/api/etl-jobs`),
+        fetch(`${API_BASE_URL}/api/source-datasets`),
+      ]);
+
+      let allJobs = [];
+
+      // Get ETL jobs
+      if (etlResponse.ok) {
+        const etlData = await etlResponse.json();
+        allJobs = [...etlData];
       }
+
+      // Get source datasets and add dataset_type marker
+      if (sourceResponse.ok) {
+        const sourceData = await sourceResponse.json();
+        const markedSources = sourceData.map((src) => ({
+          ...src,
+          dataset_type: "source", // Mark as source dataset
+        }));
+        allJobs = [...allJobs, ...markedSources];
+      }
+
+      // Sort by updated_at descending (newest first)
+      const sortedData = allJobs.sort(
+        (a, b) => new Date(b.updated_at) - new Date(a.updated_at)
+      );
+      setJobs(sortedData);
     } catch (error) {
       console.error("Failed to fetch jobs:", error);
-      // Use mock data on network error
-      setJobs(MOCK_ETL_JOBS);
+      setJobs([]);
     } finally {
       setIsLoading(false);
     }
   };
 
-  const handleRun = async (job) => {
-    try {
-      // Determine the appropriate endpoint based on job state
-      let endpoint;
-      let actionMessage;
-
-      // CDC job handling - uses separate CDC API endpoints
-      if (job.job_type === "cdc") {
-        if (job.is_active) {
-          // Stop active CDC
-          endpoint = `/api/cdc/job/${job.id}/deactivate`;
-          actionMessage = "CDC Pipeline stopped";
-        } else {
-          // Start CDC
-          endpoint = `/api/cdc/job/${job.id}/activate`;
-          actionMessage = "CDC Pipeline started";
-        }
-      } else if (job.schedule) {
-        // Job has a schedule
-        if (job.status === "active") {
-          // Pause active schedule
-          endpoint = `/api/etl-jobs/${job.id}/deactivate`;
-          actionMessage = "Schedule paused";
-        } else {
-          // Activate draft/paused schedule
-          endpoint = `/api/etl-jobs/${job.id}/activate`;
-          actionMessage = "Schedule activated";
-        }
-      } else {
-        // No schedule - run immediately
-        endpoint = `/api/etl-jobs/${job.id}/run`;
-        actionMessage = "Job started";
-      }
-
-      const response = await fetch(`${API_BASE_URL}${endpoint}`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-      });
-
-      if (!response.ok) {
-        const error = await response.json();
-        throw new Error(error.detail || "Failed to execute action");
-      }
-
-      const data = await response.json();
-      console.log("Action executed:", data);
-
-      // Show appropriate message
-      if (job.schedule) {
-        showToast(
-          `${actionMessage}! ${data.message || ""}`,
-          "success"
-        );
-      } else {
-        // One-time execution
-        showToast(
-          `Job started! Run ID: ${data.run_id}. Processing via Airflow + Spark...`,
-          "success"
-        );
-      }
-
-      // Refresh job list to update status
-      fetchJobs();
-    } catch (error) {
-      console.error("Run failed:", error);
-      showToast(`Run failed: ${error.message}`, "error");
-    }
-  };
-
   const handleDelete = async () => {
-    const { jobId } = deleteModal;
+    const { jobId, dataset_type } = deleteModal;
 
     try {
-      const response = await fetch(`${API_BASE_URL}/api/etl-jobs/${jobId}`, {
+      // Determine which API to call based on dataset type
+      const url =
+        dataset_type === "source"
+          ? `${API_BASE_URL}/api/source-datasets/${jobId}`
+          : `${API_BASE_URL}/api/etl-jobs/${jobId}`;
+
+      const response = await fetch(url, {
         method: "DELETE",
       });
 
@@ -321,7 +121,7 @@ export default function ETLMain() {
       // Refresh the list after deletion
       fetchJobs();
       setCurrentPage(1);
-      showToast("Pipeline deleted successfully", "success");
+      showToast("Dataset deleted successfully", "success");
     } catch (error) {
       console.error("Delete failed:", error);
       showToast(`Delete failed: ${error.message}`, "error");
@@ -338,54 +138,6 @@ export default function ETLMain() {
 
   const handleCreateDataset = (datasetType) => {
     navigate("/etl/visual", { state: { datasetType } });
-  };
-
-  const getScheduleDisplay = (job) => {
-    if (!job.schedule) return <span className="text-gray-400 italic">Manual</span>;
-
-    const { schedule_frequency: frequency, ui_params: uiParams } = job;
-
-    if (frequency === 'interval' && uiParams) {
-      const parts = [];
-      if (uiParams.intervalDays > 0) parts.push(`${uiParams.intervalDays}d`);
-      if (uiParams.intervalHours > 0) parts.push(`${uiParams.intervalHours}h`);
-      if (uiParams.intervalMinutes > 0) parts.push(`${uiParams.intervalMinutes}m`);
-      return (
-        <span className="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-blue-100 text-blue-800">
-          Every {parts.join(' ') || '0m'}
-        </span>
-      );
-    }
-
-    if (frequency === 'hourly' && uiParams) {
-      return (
-        <span className="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-purple-100 text-purple-800">
-          Every {uiParams.hourInterval}h
-        </span>
-      );
-    }
-
-    if (['daily', 'weekly', 'monthly'].includes(frequency) && uiParams?.startDate) {
-      const date = new Date(uiParams.startDate);
-      const timeStr = date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
-
-      let text = "";
-      if (frequency === 'daily') text = `Daily at ${timeStr}`;
-      else if (frequency === 'weekly') text = `Weekly (${date.toLocaleDateString([], { weekday: 'short' })}) ${timeStr}`;
-      else if (frequency === 'monthly') text = `Monthly (${date.getDate()}th) ${timeStr}`;
-
-      return (
-        <span className="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-green-100 text-green-800">
-          {text}
-        </span>
-      );
-    }
-
-    return (
-      <span className="font-mono text-xs bg-gray-100 px-2 py-1 rounded">
-        {job.schedule}
-      </span>
-    );
   };
 
   return (
@@ -456,16 +208,13 @@ export default function ETLMain() {
                     Dataset name
                   </th>
                   <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                    ID
-                  </th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                     Type
                   </th>
                   <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                    Pattern
+                    Status
                   </th>
                   <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                    Schedule
+                    Pattern
                   </th>
                   <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                     Description
@@ -484,7 +233,8 @@ export default function ETLMain() {
                     <td
                       className="px-6 py-4 whitespace-nowrap text-sm font-medium text-blue-600 hover:underline cursor-pointer"
                       onClick={() => {
-                        if (job.dataset_type === "target") {
+                        const datasetType = job.dataset_type || "source";
+                        if (datasetType === "target") {
                           navigate(`/target`, { state: { jobId: job.id, editMode: true } });
                         } else {
                           navigate(`/source`, { state: { jobId: job.id, editMode: true } });
@@ -493,18 +243,26 @@ export default function ETLMain() {
                     >
                       {job.name}
                     </td>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500 font-mono">
-                      {job.id}
-                    </td>
                     <td className="px-6 py-4 whitespace-nowrap text-sm">
                       <span
                         className={`px-2 py-1 text-xs font-semibold rounded-full ${
-                          job.dataset_type === "source"
+                          (job.dataset_type || "source") === "source"
                             ? "bg-emerald-100 text-emerald-800"
                             : "bg-orange-100 text-orange-800"
                         }`}
                       >
-                        {job.dataset_type === "source" ? "Source" : "Target"}
+                        {(job.dataset_type || "source") === "source" ? "Source" : "Target"}
+                      </span>
+                    </td>
+                    <td className="px-6 py-4 whitespace-nowrap text-sm">
+                      <span
+                        className={`px-2 py-1 text-xs font-semibold rounded-full ${
+                          job.is_active
+                            ? "bg-green-100 text-green-800"
+                            : "bg-gray-100 text-gray-600"
+                        }`}
+                      >
+                        {job.is_active ? "Active" : "Inactive"}
                       </span>
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap text-sm">
@@ -524,99 +282,22 @@ export default function ETLMain() {
                       )}
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                      <div className="flex flex-col">
-                        <span className="text-sm text-gray-900">
-                          {getScheduleDisplay(job)}
-                        </span>
-                        {job.ui_params?.startDate && (
-                          <span className="text-xs text-gray-500">
-                            Start: {new Date(job.ui_params.startDate).toLocaleDateString()}
-                          </span>
-                        )}
-                      </div>
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
                       {job.description || "-"}
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
                       {new Date(job.updated_at).toLocaleString()}
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                      <div className="flex items-center justify-between">
-                        {/* Run/Stop Toggle Button */}
-                        <div className="flex items-center gap-2">
-                          {/* CDC Active - Show Stop */}
-                          {job.job_type === "cdc" && job.is_active ? (
-                            <button
-                              className="text-red-600 hover:text-red-800 transition-colors"
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                handleRun(job);
-                              }}
-                              title="Stop CDC Pipeline"
-                            >
-                              <Pause className="w-4 h-4" />
-                            </button>
-                          ) : job.job_type === "cdc" && !job.is_active ? (
-                            /* CDC Inactive - Show Play */
-                            <button
-                              className="text-green-600 hover:text-green-800 transition-colors"
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                handleRun(job);
-                              }}
-                              title="Start CDC Pipeline"
-                            >
-                              <Play className="w-4 h-4" />
-                            </button>
-                          ) : job.is_running ? (
-                            <button
-                              className="text-red-600 hover:text-red-800 transition-colors"
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                showToast("Stop functionality coming soon", "info");
-                              }}
-                              title="Stop Running Job"
-                            >
-                              <Pause className="w-4 h-4" />
-                            </button>
-                          ) : job.schedule && job.status === "active" ? (
-                            <button
-                              className="text-orange-600 hover:text-orange-800 transition-colors"
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                handleRun(job);
-                              }}
-                              title="Pause Schedule"
-                            >
-                              <Pause className="w-4 h-4" />
-                            </button>
-                          ) : (
-                            <button
-                              className="text-green-600 hover:text-green-800 transition-colors"
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                handleRun(job);
-                              }}
-                              title={job.schedule ? "Activate Schedule" : "Run Now"}
-                            >
-                              <Play className="w-4 h-4" />
-                            </button>
-                          )}
-                        </div>
-
-                        {/* Delete Button - Far Right */}
-                        <button
-                          className="text-red-600 hover:text-red-800 transition-colors ml-4"
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            openDeleteModal(job.id, job.name);
-                          }}
-                          title="Delete"
-                        >
-                          <Trash2 className="w-4 h-4" />
-                        </button>
-                      </div>
+                      <button
+                        className="text-red-600 hover:text-red-800 transition-colors"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          openDeleteModal(job.id, job.name);
+                        }}
+                        title="Delete"
+                      >
+                        <Trash2 className="w-4 h-4" />
+                      </button>
                     </td>
                   </tr>
                 ))}

@@ -88,18 +88,18 @@ export default function SourceWizard() {
   // Load existing job data in edit mode
   useEffect(() => {
     const loadExistingJob = async () => {
-      const { jobId, editMode } = location.state || {};
+      const { jobId, editMode, dataset_type } = location.state || {};
       if (!editMode || !jobId) return;
 
       setIsEditMode(true);
       setIsLoading(true);
 
       try {
-        // Fetch job details
+        // Fetch from source-datasets API (since this is SourceWizard)
         const jobResponse = await fetch(
-          `${API_BASE_URL}/api/etl-jobs/${jobId}`
+          `${API_BASE_URL}/api/source-datasets/${jobId}`
         );
-        if (!jobResponse.ok) throw new Error("Failed to fetch job");
+        if (!jobResponse.ok) throw new Error("Failed to fetch source dataset");
         const job = await jobResponse.json();
 
         // Find source type from job data
@@ -115,25 +115,18 @@ export default function SourceWizard() {
           name: job.name || "",
           description: job.description || "",
           connectionId: job.connection_id || "",
-          table: job.table_name || "",
+          table: job.table || "",
+          collection: job.collection || "",
+          bucket: job.bucket || "",
+          path: job.path || "",
           columns: job.columns || [],
         });
-
-        // Set job type and schedules
-        setJobType(job.job_type || "batch");
-        if (job.schedules) {
-          setSchedules(job.schedules);
-        }
-
-        // Set column mapping if available
-        if (job.column_mapping) {
-          setColumnMapping(job.column_mapping);
-        }
 
         // Skip to Review step in edit mode
         setCurrentStep(3);
       } catch (err) {
-        console.error("Failed to load job:", err);
+        console.error("Failed to load source dataset:", err);
+        alert("Failed to load source dataset. Please try again.");
       } finally {
         setIsLoading(false);
       }
@@ -352,46 +345,29 @@ export default function SourceWizard() {
     try {
       setIsLoading(true);
 
-      // Prepare the source config
-      const sourceConfig = {
-        type: selectedSource.id, // postgres, mongodb, s3
+      // Prepare the data to send (simple and clean)
+      const sourceData = {
+        name: config.name,
+        description: config.description,
+        source_type: selectedSource.id, // postgres, mongodb, s3
         connection_id: config.connectionId,
+        columns: config.columns,
       };
 
       // Add type-specific fields
       if (selectedSource.id === "postgres") {
-        sourceConfig.table = config.table;
+        sourceData.table = config.table;
       } else if (selectedSource.id === "mongodb") {
-        sourceConfig.collection = config.collection;
+        sourceData.collection = config.collection;
       } else if (selectedSource.id === "s3") {
-        // For S3, we might need custom regex or other config
-        // Using the path from connection for now
+        sourceData.bucket = config.bucket;
+        sourceData.path = config.path;
       }
-
-      // Prepare the data to send (matching ETLJobCreate schema)
-      const sourceData = {
-        name: config.name,
-        description: config.description,
-        job_type: "batch",
-        source: sourceConfig,
-        transforms: [],
-        destination: {
-          type: "s3",
-          path: "s3a://temp-bucket/temp-path", // Temporary destination for source dataset
-          format: "parquet",
-          options: {},
-        },
-        ui_params: {
-          dataset_type: "source", // Mark as source dataset in ui_params
-          source_type: selectedSource.id,
-          columns: config.columns,
-        },
-      };
 
       // API call to create/update source dataset
       const url = isEditMode
-        ? `${API_BASE_URL}/api/etl-jobs/${config.id}`
-        : `${API_BASE_URL}/api/etl-jobs`;
+        ? `${API_BASE_URL}/api/source-datasets/${config.id}`
+        : `${API_BASE_URL}/api/source-datasets`;
 
       console.log("Sending data:", sourceData);
       console.log("URL:", url);
@@ -861,16 +837,17 @@ export default function SourceWizard() {
                           </p>
                         </div>
                       )}
-                      {selectedSource?.id === "mongodb" && config.collection && (
-                        <div>
-                          <label className="text-xs font-medium text-gray-500">
-                            Collection
-                          </label>
-                          <p className="mt-1 text-gray-900 font-medium">
-                            {config.collection}
-                          </p>
-                        </div>
-                      )}
+                      {selectedSource?.id === "mongodb" &&
+                        config.collection && (
+                          <div>
+                            <label className="text-xs font-medium text-gray-500">
+                              Collection
+                            </label>
+                            <p className="mt-1 text-gray-900 font-medium">
+                              {config.collection}
+                            </p>
+                          </div>
+                        )}
                       {selectedSource?.id === "s3" && (
                         <>
                           <div>
@@ -897,7 +874,9 @@ export default function SourceWizard() {
                         <label className="text-xs font-medium text-gray-500">
                           Description
                         </label>
-                        <p className="mt-1 text-gray-600">{config.description}</p>
+                        <p className="mt-1 text-gray-600">
+                          {config.description}
+                        </p>
                       </div>
                     )}
                   </div>

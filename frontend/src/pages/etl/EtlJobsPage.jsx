@@ -1,6 +1,6 @@
 import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
-import { Search, RefreshCw, GitBranch, Calendar, X, Clock, Zap } from "lucide-react";
+import { Search, RefreshCw, GitBranch, Calendar, X, Clock, Zap, Play } from "lucide-react";
 import { API_BASE_URL } from "../../config/api";
 import SchedulesPanel from "../../components/etl/SchedulesPanel";
 
@@ -357,6 +357,22 @@ export default function EtlJobsPage() {
     console.log("Schedule saved:", { jobId, jobType, schedules });
   };
 
+  const handleToggle = async (jobId) => {
+    // Toggle scheduling on/off
+    setJobs(prev => prev.map(job => {
+      if (job.id === jobId) {
+        return { ...job, is_active: !job.is_active };
+      }
+      return job;
+    }));
+  };
+
+  const handleRun = async (jobId) => {
+    // One-time execution
+    console.log("Running job:", jobId);
+    // In real app, would call API to trigger job execution
+  };
+
   const filteredJobs = jobs.filter(
     (job) =>
       job.name?.toLowerCase().includes(searchQuery.toLowerCase()) ||
@@ -417,8 +433,27 @@ export default function EtlJobsPage() {
                   onClick={() => navigate(`/etl/job/${job.id}`)}
                 >
                   <td className="px-6 py-4">
-                    <div className="font-medium text-gray-900">{job.name}</div>
-                    <div className="text-sm text-gray-500">{job.description}</div>
+                    <div className="flex items-center gap-3">
+                      <button
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          handleToggle(job.id);
+                        }}
+                        className={`relative inline-flex h-5 w-9 flex-shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none ${
+                          job.is_active ? "bg-green-500" : "bg-gray-300"
+                        }`}
+                      >
+                        <span
+                          className={`pointer-events-none inline-block h-4 w-4 transform rounded-full bg-white shadow ring-0 transition duration-200 ease-in-out ${
+                            job.is_active ? "translate-x-4" : "translate-x-0"
+                          }`}
+                        />
+                      </button>
+                      <div>
+                        <div className="font-medium text-gray-900">{job.name}</div>
+                        <div className="text-sm text-gray-500">{job.description}</div>
+                      </div>
+                    </div>
                   </td>
                   <td className="px-6 py-4">
                     <span
@@ -448,15 +483,19 @@ export default function EtlJobsPage() {
                     {job.last_run ? new Date(job.last_run).toLocaleString() : "-"}
                   </td>
                   <td className="px-6 py-4 text-right">
-                    <button
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        navigate(`/etl/job/${job.id}`);
-                      }}
-                      className="text-blue-600 hover:text-blue-800"
-                    >
-                      View
-                    </button>
+                    {job.job_type !== "cdc" && (
+                      <button
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          handleRun(job.id);
+                        }}
+                        className="inline-flex items-center gap-1 px-3 py-1.5 text-sm font-medium text-green-600 bg-green-50 hover:bg-green-100 rounded-lg transition-colors"
+                        title="Run"
+                      >
+                        <Play className="w-4 h-4" />
+                        Run
+                      </button>
+                    )}
                   </td>
                 </tr>
               ))}

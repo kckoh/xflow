@@ -34,6 +34,7 @@ from routers import (
     logs,
     metadata,
     opensearch,
+    source_datasets,
     users,
 )
 from routers.transforms import select_fields  # 추후 type 추가 예정 (예: join ...)
@@ -106,6 +107,9 @@ app.include_router(
 # ETL Jobs and Job Runs
 app.include_router(etl_jobs.router, prefix="/api/etl-jobs", tags=["etl-jobs"])
 app.include_router(job_runs.router, prefix="/api/job-runs", tags=["job-runs"])
+
+# Source Datasets
+app.include_router(source_datasets.router, tags=["source-datasets"])
 
 # DuckDB Query Engine
 app.include_router(duckdb.router, prefix="/api/duckdb", tags=["duckdb"])
