@@ -86,15 +86,37 @@ export const deleteUser = async (sessionId, userId) => {
 
 /**
  * Get all datasets for permission selection
- * Uses catalog API (same as Dataset page)
+ * Uses same API as Dataset page (/api/datasets + /api/source-datasets)
  * @returns {Promise<Array>} List of datasets with target schemas
  */
 export const getDatasets = async () => {
-    const response = await fetch(`${API_BASE_URL}/api/catalog`);
-    if (!response.ok) {
-        throw new Error('Failed to fetch datasets');
+    // Fetch both datasets and source datasets (same as Dataset page - etl_main.jsx)
+    const [etlResponse, sourceResponse] = await Promise.all([
+        fetch(`${API_BASE_URL}/api/datasets`),
+        fetch(`${API_BASE_URL}/api/source-datasets`),
+    ]);
+
+    let allDatasets = [];
+
+    // Get ETL/Target datasets
+    if (etlResponse.ok) {
+        const etlData = await etlResponse.json();
+        allDatasets = [...etlData];
+    } else {
+        console.warn('Failed to fetch ETL datasets');
     }
-    const datasets = await response.json();
+
+    // Get source datasets and add dataset_type marker
+    if (sourceResponse.ok) {
+        const sourceData = await sourceResponse.json();
+        const markedSources = sourceData.map((src) => ({
+            ...src,
+            dataset_type: "source",
+        }));
+        allDatasets = [...allDatasets, ...markedSources];
+    } else {
+        console.warn('Failed to fetch source datasets');
+    }
 
     /**
      * Extract column info from various schema formats:
@@ -108,8 +130,8 @@ export const getDatasets = async () => {
         return null;
     };
 
-    // Map catalog datasets to format needed for permission selector
-    return datasets.map(dataset => {
+    // Map datasets to format needed for permission selector
+    return allDatasets.map(dataset => {
         let schema = [];
         let targetInfo = null;
 
@@ -127,6 +149,12 @@ export const getDatasets = async () => {
                 collectionName: config.collectionName || config.collection || null,
                 path: config.path || null,  // For S3 targets
             };
+        }
+        // From sources array (source datasets)
+        else if (dataset.sources && dataset.sources.length > 0) {
+            const source = dataset.sources[0];
+            const rawSchema = source.schema || [];
+            schema = rawSchema.map(extractColumnInfo).filter(Boolean);
         }
         // Fallback: From columns array
         else if (dataset.columns && dataset.columns.length > 0) {
