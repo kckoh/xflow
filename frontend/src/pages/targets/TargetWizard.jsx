@@ -165,19 +165,25 @@ export default function TargetWizard() {
           ...targetData
             .filter((d) => d.is_active)
             .map((ds) => {
-              // Extract schema from target or transform node
-              let schema = ds.targets?.[0]?.schema || [];
-              if ((!schema || schema.length === 0) && ds.nodes) {
-                const transformNode = ds.nodes.find(n => n.data?.nodeCategory === 'transform' || n.data?.transformType);
-                if (transformNode && transformNode.data?.outputSchema) {
-                  schema = transformNode.data.outputSchema;
+              // Use backend-provided columns (from DuckDB extraction) if available
+              let schema = ds.columns || [];
+
+              // Fallback: Extract schema from target or transform node if backend didn't provide
+              if (!schema || schema.length === 0) {
+                schema = ds.targets?.[0]?.schema || [];
+                if ((!schema || schema.length === 0) && ds.nodes) {
+                  const transformNode = ds.nodes.find(n => n.data?.nodeCategory === 'transform' || n.data?.transformType);
+                  if (transformNode && transformNode.data?.outputSchema) {
+                    schema = transformNode.data.outputSchema;
+                  }
                 }
               }
+
               return {
                 ...ds,
                 datasetType: "target",
                 sourceType: "Catalog",
-                columns: schema, // Map schema to columns for UI panel
+                columns: schema, // Use backend columns or fallback
                 columnCount: schema.length || 0,
               };
             }),
