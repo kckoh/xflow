@@ -266,8 +266,6 @@ export default function CatalogDetailPage() {
       };
     }
 
-    const sourceHandleMatch = `source-col:${highlightedColumn.nodeId}:${highlightedColumn.columnName}`;
-    const targetHandleMatch = `target-col:${highlightedColumn.nodeId}:${highlightedColumn.columnName}`;
     const relatedEdgeIds = new Set();
     const relatedNodeIds = new Set([highlightedColumn.nodeId]);
     const relatedColumnsByNode = new Map();
@@ -281,24 +279,69 @@ export default function CatalogDetailPage() {
       relatedColumnsByNode.get(nodeId).add(key);
     };
 
-    edges.forEach((edge, index) => {
-      const edgeId =
+    const edgesWithIds = edges.map((edge, index) => ({
+      edge,
+      edgeId:
         edge.id ||
-        `edge-${index}-${edge.source}-${edge.target}-${edge.sourceHandle}-${edge.targetHandle}`;
-      const matches =
-        edge.sourceHandle === sourceHandleMatch ||
-        edge.targetHandle === targetHandleMatch;
-      if (!matches) return;
+        `edge-${index}-${edge.source}-${edge.target}-${edge.sourceHandle}-${edge.targetHandle}`,
+      sourceInfo: parseHandle(edge.sourceHandle),
+      targetInfo: parseHandle(edge.targetHandle),
+    }));
 
-      relatedEdgeIds.add(edgeId);
+    const adjacency = new Map();
+    const keyFor = (info) =>
+      info ? `${info.nodeId}::${info.columnName.toLowerCase()}` : null;
+    const addAdjacency = (from, to, edgeId) => {
+      if (!from || !to) return;
+      if (!adjacency.has(from)) {
+        adjacency.set(from, []);
+      }
+      adjacency.get(from).push({ to, edgeId });
+    };
+
+    edgesWithIds.forEach(({ edgeId, sourceInfo, targetInfo }) => {
+      const sourceKey = keyFor(sourceInfo);
+      const targetKey = keyFor(targetInfo);
+      addAdjacency(sourceKey, targetKey, edgeId);
+      addAdjacency(targetKey, sourceKey, edgeId);
+    });
+
+    const startKey = `${highlightedColumn.nodeId}::${highlightedColumn.columnName.toLowerCase()}`;
+    const visited = new Set();
+    const queue = [startKey];
+
+    while (queue.length > 0) {
+      const current = queue.shift();
+      if (!current || visited.has(current)) {
+        continue;
+      }
+      visited.add(current);
+      const [nodeId, columnKey] = current.split("::");
+      relatedNodeIds.add(nodeId);
+      registerColumn(nodeId, columnKey);
+
+      const neighbors = adjacency.get(current) || [];
+      neighbors.forEach(({ to, edgeId }) => {
+        relatedEdgeIds.add(edgeId);
+        if (to && !visited.has(to)) {
+          queue.push(to);
+        }
+      });
+    }
+
+    edgesWithIds.forEach(({ edgeId, edge, sourceInfo, targetInfo }) => {
+      if (!relatedEdgeIds.has(edgeId)) {
+        return;
+      }
       relatedNodeIds.add(edge.source);
       relatedNodeIds.add(edge.target);
-
-      const sourceInfo = parseHandle(edge.sourceHandle);
-      const targetInfo = parseHandle(edge.targetHandle);
       if (sourceInfo) registerColumn(sourceInfo.nodeId, sourceInfo.columnName);
       if (targetInfo) registerColumn(targetInfo.nodeId, targetInfo.columnName);
     });
+
+    if (!relatedColumnsByNode.has(highlightedColumn.nodeId)) {
+      registerColumn(highlightedColumn.nodeId, highlightedColumn.columnName);
+    }
 
     const displayNodes = nodes.map((node) => {
       const relatedColumns = relatedColumnsByNode.get(node.id);
@@ -321,10 +364,7 @@ export default function CatalogDetailPage() {
       };
     });
 
-    const displayEdges = edges.map((edge, index) => {
-      const edgeId =
-        edge.id ||
-        `edge-${index}-${edge.source}-${edge.target}-${edge.sourceHandle}-${edge.targetHandle}`;
+    const displayEdges = edgesWithIds.map(({ edge, edgeId }) => {
       const isRelated = relatedEdgeIds.has(edgeId);
       const edgeStyle = isRelated ? HIGHLIGHT_EDGE_STYLE : DIM_EDGE_STYLE;
       return {
