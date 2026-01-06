@@ -560,6 +560,79 @@ def read_s3_logs_source(spark: SparkSession, source_config: dict) -> DataFrame:
     return parsed_df
 
 
+def read_s3_file_source(spark: SparkSession, source_config: dict) -> DataFrame:
+    """
+    Read structured files (Parquet, CSV, JSON) from S3
+    Used for reading processed datasets from catalog (Target → Target chaining)
+    
+    Args:
+        spark: SparkSession
+        source_config: Source configuration
+            - path: S3 path (s3a://bucket/path/)
+            - format: File format (parquet, csv, json)
+            - s3_config: S3 credentials (optional, IRSA will be used if not provided)
+    
+    Returns:
+        DataFrame with file contents
+    """
+    path = source_config.get("path") or source_config.get("s3Location")
+    file_format = source_config.get("format", "parquet")
+    
+    if not path:
+        raise ValueError("S3 path is required for S3 file source")
+    
+    # Convert s3:// to s3a:// if needed
+    if path.startswith("s3://"):
+        path = path.replace("s3://", "s3a://", 1)
+    
+    print(f"   Reading {file_format} files from: {path}")
+    
+    # Configure S3 credentials if provided (LocalStack or explicit AWS)
+    s3_config = source_config.get("s3_config", {})
+    
+    access_key = s3_config.get("access_key_id") or s3_config.get("access_key")
+    secret_key = s3_config.get("secret_access_key") or s3_config.get("secret_key")
+    endpoint = s3_config.get("endpoint")
+    
+    if access_key and secret_key:
+        # Explicit credentials provided
+        spark.conf.set("spark.hadoop.fs.s3a.access.key", access_key)
+        spark.conf.set("spark.hadoop.fs.s3a.secret.key", secret_key)
+        
+        if endpoint:
+            spark.conf.set("spark.hadoop.fs.s3a.endpoint", endpoint)
+        else:
+            region = s3_config.get("region", "ap-northeast-2")
+            spark.conf.set("spark.hadoop.fs.s3a.endpoint", f"s3.{region}.amazonaws.com")
+        
+        # Path-style access for LocalStack
+        if endpoint and endpoint.startswith("http://"):
+            spark.conf.set("spark.hadoop.fs.s3a.path.style.access", "true")
+    else:
+        # No credentials - use Spark's global credentials (IRSA)
+        print("   Using Spark's global S3 credentials (IRSA)")
+    
+    # Read based on format
+    if file_format.lower() == "parquet":
+        df = spark.read.parquet(path)
+    elif file_format.lower() == "csv":
+        df = spark.read \
+            .option("header", "true") \
+            .option("inferSchema", "true") \
+            .csv(path)
+    elif file_format.lower() == "json":
+        df = spark.read.json(path)
+    else:
+        raise ValueError(f"Unsupported file format: {file_format}")
+    
+    record_count = df.count()
+    print(f"   ✅ Read {record_count} records from {file_format.upper()} files")
+    print(f"   Schema:")
+    df.printSchema()
+    
+    return df
+
+
 # ============ Destination Writers ============
 
 def write_s3_destination(df: DataFrame, dest_config: dict, job_name: str = "output", has_nosql_source: bool = False):
@@ -725,7 +798,13 @@ def run_etl(config: dict):
                 df = read_nosql_source(spark, source_config)
                 has_nosql_source = True  # Mark that we have NoSQL source
             elif source_type == "s3":
-                df = read_s3_logs_source(spark, source_config)
+                # Distinguish between S3 logs (with customRegex) and S3 files (without)
+                if source_config.get("customRegex"):
+                    # S3 log files with custom regex parsing
+                    df = read_s3_logs_source(spark, source_config)
+                else:
+                    # S3 structured files (Parquet, CSV, JSON)
+                    df = read_s3_file_source(spark, source_config)
             else:
                 raise ValueError(f"Unsupported source type: {source_type}")
 

@@ -276,7 +276,12 @@ export default function TargetWizard() {
 
             if (target) {
               const schema = target.schema || [];
-              const s3Path = target.config?.path || target.urn || '';
+              // Get actual S3 path: destination.path + dataset.name (Spark adds job name to path)
+              const basePath = dataset.destination?.path || target.config?.path || '';
+              const datasetName = dataset.name || '';
+              // Ensure path ends with /
+              const normalizedPath = basePath.endsWith('/') ? basePath : `${basePath}/`;
+              const s3Path = `${normalizedPath}${datasetName}`;
 
               nodes.push({
                 id: `source-catalog-${datasetId}`,
@@ -302,7 +307,13 @@ export default function TargetWizard() {
                   // S3 source info for Spark
                   s3Location: s3Path,
                   path: s3Path,
-                  format: target.config?.format || 'parquet',
+                  format: dataset.destination?.format || target.config?.format || 'parquet',
+                  // S3 credentials (for LocalStack)
+                  s3_config: {
+                    access_key: "test",
+                    secret_key: "test",
+                    endpoint: "http://localstack:4566"
+                  },
                   onDelete: handleDeleteNode,
                 },
               });
