@@ -16,6 +16,7 @@ export default function ConnectionCombobox({
     onSelect,
     onCreate,
     onDelete,
+    classNames,
 }) {
     const [deleteModalOpen, setDeleteModalOpen] = useState(false);
     const [pendingDeleteId, setPendingDeleteId] = useState(null);
@@ -56,6 +57,7 @@ export default function ConnectionCombobox({
                         </span>
                     </>
                 )}
+                classNames={classNames}
                 renderItemActions={(conn) => (
                     onDelete && (
                         <button

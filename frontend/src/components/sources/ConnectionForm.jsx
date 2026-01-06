@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { connectionApi } from '../../services/connectionApi';
 import { s3LogApi } from '../../services/s3LogApi';
+import Combobox from '../common/Combobox';
 
 // Connection Type Definitions
 const CONNECTION_TYPES = [
@@ -9,6 +10,14 @@ const CONNECTION_TYPES = [
     { id: 'mariadb', label: 'MariaDB', category: 'RDB' },
     { id: 'mongodb', label: 'MongoDB', category: 'NoSQL' }, // Placeholder
     { id: 's3', label: 'Amazon S3', category: 'Storage' },   // Placeholder
+];
+
+const S3_REGIONS = [
+    'us-east-1',
+    'us-west-2',
+    'ap-northeast-2',
+    'ap-northeast-1',
+    'eu-west-1',
 ];
 
 export default function ConnectionForm({ onSuccess, onCancel }) {
@@ -222,17 +231,31 @@ export default function ConnectionForm({ onSuccess, onCancel }) {
                     </div>
                     <div>
                         <label className="block text-sm font-medium text-gray-700">Region</label>
-                        <select
-                            className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:ring-blue-500 focus:border-blue-500 sm:text-sm"
-                            value={config.region || 'us-east-1'}
-                            onChange={(e) => handleConfigChange('region', e.target.value)}
-                        >
-                            <option value="us-east-1">US East (N. Virginia)</option>
-                            <option value="us-west-2">US West (Oregon)</option>
-                            <option value="ap-northeast-2">Asia Pacific (Seoul)</option>
-                            <option value="ap-northeast-1">Asia Pacific (Tokyo)</option>
-                            <option value="eu-west-1">Europe (Ireland)</option>
-                        </select>
+                        <div className="mt-1">
+                            <Combobox
+                                options={S3_REGIONS}
+                                value={config.region || 'us-east-1'}
+                                onChange={(region) => {
+                                    if (!region) {
+                                        return;
+                                    }
+                                    handleConfigChange('region', region);
+                                }}
+                                getKey={(region) => region}
+                                getLabel={(region) => region}
+                                placeholder="Select a region..."
+                                classNames={{
+                                    button:
+                                        "px-4 py-2.5 rounded-xl border-emerald-200/70 bg-gradient-to-r from-white via-emerald-50/50 to-emerald-100/40 shadow-sm shadow-emerald-100/70 hover:shadow-md hover:shadow-emerald-200/70 focus:ring-2 focus:ring-emerald-400/60 focus:border-emerald-300 transition-all",
+                                    panel:
+                                        "mt-2 rounded-xl border-emerald-100/90 bg-white/95 shadow-xl shadow-emerald-100/60 ring-1 ring-emerald-100/70 backdrop-blur",
+                                    option:
+                                        "rounded-lg mx-1 my-0.5 hover:bg-emerald-50/70",
+                                    optionSelected: "bg-emerald-50/80",
+                                    icon: "text-emerald-500",
+                                }}
+                            />
+                        </div>
                         <p className="mt-1 text-xs text-gray-500">
                             AWS region where the bucket is located
                         </p>

@@ -21,6 +21,8 @@ import { Archive } from "lucide-react";
 import SchedulesPanel from "../../components/etl/SchedulesPanel";
 import { connectionApi } from "../../services/connectionApi";
 import ConnectionForm from "../../components/sources/ConnectionForm";
+import Combobox from "../../components/common/Combobox";
+import ConnectionCombobox from "../../components/sources/ConnectionCombobox";
 
 const STEPS = [
   { id: 1, name: "Select Source", icon: Database },
@@ -596,51 +598,40 @@ export default function SourceWizard() {
                   <label className="block text-sm font-medium text-gray-700 mb-2">
                     Connection
                   </label>
-                  <select
-                    value={config.connectionId}
-                    onChange={(e) => {
-                      const value = e.target.value;
-                      if (value === "__create_new__") {
-                        setShowCreateConnectionModal(true);
-                      } else {
-                        const matchedConnection = connections.find(
-                          (conn) => conn.id === value
-                        );
-                        const bucket =
-                          selectedSource?.id === "s3"
-                            ? matchedConnection?.config?.bucket || ""
-                            : "";
-                        setConfig({
-                          ...config,
-                          connectionId: value,
-                          bucket,
-                        });
+                  <ConnectionCombobox
+                    connections={connections}
+                    selectedId={config.connectionId}
+                    isLoading={loadingConnections}
+                    placeholder="Select a connection..."
+                    onSelect={(conn) => {
+                      if (!conn) {
+                        return;
                       }
+                      const bucket =
+                        selectedSource?.id === "s3"
+                          ? conn?.config?.bucket || ""
+                          : "";
+                      setConfig({
+                        ...config,
+                        connectionId: conn.id,
+                        bucket,
+                      });
                     }}
-                    disabled={loadingConnections}
-                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-emerald-500 disabled:bg-gray-100 disabled:cursor-not-allowed"
-                  >
-                    <option value="">
-                      {loadingConnections
-                        ? "Loading connections..."
-                        : connections.length === 0
-                        ? "No connections available"
-                        : "Select a connection..."}
-                    </option>
-                    {connections.map((conn) => (
-                      <option key={conn.id} value={conn.id}>
-                        {conn.name}
-                      </option>
-                    ))}
-                    {!loadingConnections && (
-                      <option
-                        value="__create_new__"
-                        className="font-semibold text-emerald-600"
-                      >
-                        + Create new connection...
-                      </option>
-                    )}
-                  </select>
+                    onCreate={() => setShowCreateConnectionModal(true)}
+                    classNames={{
+                      button:
+                        "px-4 py-2.5 rounded-xl border-emerald-200/70 bg-gradient-to-r from-white via-emerald-50/50 to-emerald-100/40 shadow-sm shadow-emerald-100/70 hover:shadow-md hover:shadow-emerald-200/70 focus:ring-2 focus:ring-emerald-400/60 focus:border-emerald-300 transition-all",
+                      panel:
+                        "mt-2 rounded-xl border-emerald-100/90 bg-white/95 shadow-xl shadow-emerald-100/60 ring-1 ring-emerald-100/70 backdrop-blur",
+                      option:
+                        "rounded-lg mx-1 my-0.5 hover:bg-emerald-50/70",
+                      optionSelected: "bg-emerald-50/80",
+                      icon: "text-emerald-500",
+                      footer:
+                        "rounded-b-xl bg-gradient-to-r from-white via-emerald-50/40 to-emerald-100/30",
+                      empty: "text-emerald-500/70",
+                    }}
+                  />
                 </div>
 
                 {/* PostgreSQL - Table selection */}
@@ -649,59 +640,95 @@ export default function SourceWizard() {
                     <label className="block text-sm font-medium text-gray-700 mb-2">
                       Table
                     </label>
-                    <select
+                    <Combobox
+                      options={tables}
                       value={config.table}
-                      onChange={(e) => handleTableChange(e.target.value)}
-                      disabled={loadingTables || !config.connectionId}
-                      className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-emerald-500 disabled:bg-gray-100 disabled:cursor-not-allowed"
-                    >
-                      <option value="">
-                        {loadingTables
+                      onChange={(table) => {
+                        if (!table) {
+                          return;
+                        }
+                        handleTableChange(table);
+                      }}
+                      getKey={(table) => table}
+                      getLabel={(table) => table}
+                      isLoading={loadingTables}
+                      disabled={!config.connectionId}
+                      placeholder={
+                        loadingTables
                           ? "Loading tables..."
                           : !config.connectionId
                           ? "Select a connection first"
                           : tables.length === 0
                           ? "No tables available"
-                          : "Select a table..."}
-                      </option>
-                      {tables.map((table) => (
-                        <option key={table} value={table}>
-                          {table}
-                        </option>
-                      ))}
-                    </select>
+                          : "Select a table..."
+                      }
+                      emptyMessage={
+                        !config.connectionId
+                          ? "Select a connection first"
+                          : "No tables available"
+                      }
+                      classNames={{
+                        button:
+                          "px-4 py-2.5 rounded-xl border-emerald-200/70 bg-gradient-to-r from-white via-emerald-50/50 to-emerald-100/40 shadow-sm shadow-emerald-100/70 hover:shadow-md hover:shadow-emerald-200/70 focus:ring-2 focus:ring-emerald-400/60 focus:border-emerald-300 transition-all",
+                        panel:
+                          "mt-2 rounded-xl border-emerald-100/90 bg-white/95 shadow-xl shadow-emerald-100/60 ring-1 ring-emerald-100/70 backdrop-blur",
+                        option:
+                          "rounded-lg mx-1 my-0.5 hover:bg-emerald-50/70",
+                        optionSelected: "bg-emerald-50/80",
+                        icon: "text-emerald-500",
+                        empty: "text-emerald-500/70",
+                      }}
+                    />
                   </div>
                 )}
 
-                {/* MongoDB - Collection selection */}
-                {selectedSource?.id === "mongodb" && (
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-2">
-                      Collection
-                    </label>
-                    <select
-                      value={config.collection}
-                      onChange={(e) => handleCollectionChange(e.target.value)}
-                      disabled={loadingTables || !config.connectionId}
-                      className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-emerald-500 disabled:bg-gray-100 disabled:cursor-not-allowed"
-                    >
-                      <option value="">
-                        {loadingTables
-                          ? "Loading collections..."
-                          : !config.connectionId
-                          ? "Select a connection first"
-                          : collections.length === 0
-                          ? "No collections available"
-                          : "Select a collection..."}
-                      </option>
-                      {collections.map((collection) => (
-                        <option key={collection} value={collection}>
-                          {collection}
-                        </option>
-                      ))}
-                    </select>
-                  </div>
-                )}
+              {/* MongoDB - Collection selection */}
+              {selectedSource?.id === "mongodb" && (
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                    Collection
+                  </label>
+                  <Combobox
+                    options={collections}
+                    value={config.collection}
+                    onChange={(collection) => {
+                      if (!collection) {
+                        return;
+                      }
+                      handleCollectionChange(collection);
+                    }}
+                    getKey={(collection) => collection}
+                    getLabel={(collection) => collection}
+                    isLoading={loadingTables}
+                    disabled={!config.connectionId}
+                    placeholder={
+                      loadingTables
+                        ? "Loading collections..."
+                        : !config.connectionId
+                        ? "Select a connection first"
+                        : collections.length === 0
+                        ? "No collections available"
+                        : "Select a collection..."
+                    }
+                    emptyMessage={
+                      !config.connectionId
+                        ? "Select a connection first"
+                        : "No collections available"
+                    }
+                    classNames={{
+                      button:
+                        "px-4 py-2.5 rounded-xl border-emerald-200/70 bg-gradient-to-r from-white via-emerald-50/50 to-emerald-100/40 shadow-sm shadow-emerald-100/70 hover:shadow-md hover:shadow-emerald-200/70 focus:ring-2 focus:ring-emerald-400/60 focus:border-emerald-300 transition-all",
+                      panel:
+                        "mt-2 rounded-xl border-emerald-100/90 bg-white/95 shadow-xl shadow-emerald-100/60 ring-1 ring-emerald-100/70 backdrop-blur",
+                      option:
+                        "rounded-lg mx-1 my-0.5 hover:bg-emerald-50/70",
+                      optionSelected: "bg-emerald-50/80",
+                      icon: "text-emerald-500",
+                      empty: "text-emerald-500/70",
+                    }}
+                  />
+                </div>
+              )}
 
                 {/* Amazon S3 - Path only */}
                 {selectedSource?.id === "s3" && (
