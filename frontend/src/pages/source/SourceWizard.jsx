@@ -348,10 +348,79 @@ export default function SourceWizard() {
     }
   };
 
-  const handleCreate = () => {
-    // TODO: API call to create source dataset
-    console.log("Creating source:", { selectedSource, config });
-    navigate("/dataset");
+  const handleCreate = async () => {
+    try {
+      setIsLoading(true);
+
+      // Prepare the source config
+      const sourceConfig = {
+        type: selectedSource.id, // postgres, mongodb, s3
+        connection_id: config.connectionId,
+      };
+
+      // Add type-specific fields
+      if (selectedSource.id === "postgres") {
+        sourceConfig.table = config.table;
+      } else if (selectedSource.id === "mongodb") {
+        sourceConfig.collection = config.collection;
+      } else if (selectedSource.id === "s3") {
+        // For S3, we might need custom regex or other config
+        // Using the path from connection for now
+      }
+
+      // Prepare the data to send (matching ETLJobCreate schema)
+      const sourceData = {
+        name: config.name,
+        description: config.description,
+        job_type: "batch",
+        source: sourceConfig,
+        transforms: [],
+        destination: {
+          type: "s3",
+          path: "s3a://temp-bucket/temp-path", // Temporary destination for source dataset
+          format: "parquet",
+          options: {},
+        },
+        ui_params: {
+          dataset_type: "source", // Mark as source dataset in ui_params
+          source_type: selectedSource.id,
+          columns: config.columns,
+        },
+      };
+
+      // API call to create/update source dataset
+      const url = isEditMode
+        ? `${API_BASE_URL}/api/etl-jobs/${config.id}`
+        : `${API_BASE_URL}/api/etl-jobs`;
+
+      console.log("Sending data:", sourceData);
+      console.log("URL:", url);
+
+      const response = await fetch(url, {
+        method: isEditMode ? "PUT" : "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify(sourceData),
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json();
+        console.error("API Error:", errorData);
+        throw new Error(errorData.detail || "Failed to save source dataset");
+      }
+
+      const result = await response.json();
+      console.log("Save successful:", result);
+
+      // Navigate to dataset page after successful save
+      navigate("/dataset");
+    } catch (err) {
+      console.error("Failed to save source dataset:", err);
+      alert(`Failed to save source dataset: ${err.message}`);
+    } finally {
+      setIsLoading(false);
+    }
   };
 
   const canProceed = () => {
@@ -727,55 +796,148 @@ export default function SourceWizard() {
             </div>
           )}
 
-          {/* Step 3: Review Schema */}
+          {/* Step 3: Review */}
           {currentStep === 3 && (
             <div>
               <h2 className="text-lg font-semibold text-gray-900 mb-2">
-                Review Schema
+                Review Configuration
               </h2>
               <p className="text-gray-500 mb-6">
-                Review the schema from {selectedSource?.name}
+                Review your source configuration before saving
               </p>
 
-              {config.columns.length === 0 ? (
-                <div className="bg-white rounded-lg border border-gray-200 p-12 text-center">
-                  <p className="text-gray-500 text-sm">
-                    No columns available. Please select a table/collection in the Configure step.
-                  </p>
-                </div>
-              ) : (
+              <div className="space-y-6">
+                {/* Basic Information */}
                 <div className="bg-white rounded-lg border border-gray-200">
                   <div className="px-6 py-4 border-b border-gray-200 bg-gray-50">
                     <h3 className="text-sm font-semibold text-gray-900">
-                      Schema ({config.columns.length} columns)
+                      Basic Information
                     </h3>
                   </div>
-                  <div className="p-6">
-                    <div className="grid grid-cols-2 gap-4">
-                      {config.columns.map((column, index) => (
-                        <div
-                          key={index}
-                          className="border border-gray-200 rounded-lg p-4 bg-gray-50"
-                        >
-                          <div className="flex items-center gap-2 mb-1">
-                            <span className="font-medium text-gray-900">
-                              {column.name}
-                            </span>
-                            <span className="text-xs px-2 py-0.5 rounded bg-blue-100 text-blue-700 border border-blue-200">
-                              {column.type}
-                            </span>
-                          </div>
-                          {column.description && (
-                            <p className="text-xs text-gray-500 mt-1">
-                              {column.description}
-                            </p>
+                  <div className="p-6 space-y-4">
+                    <div className="grid grid-cols-2 gap-6">
+                      <div>
+                        <label className="text-xs font-medium text-gray-500">
+                          Source Type
+                        </label>
+                        <div className="mt-1 flex items-center gap-2">
+                          {selectedSource && (
+                            <>
+                              <selectedSource.icon
+                                className="w-5 h-5"
+                                style={{ color: selectedSource.color }}
+                              />
+                              <span className="font-medium text-gray-900">
+                                {selectedSource.name}
+                              </span>
+                            </>
                           )}
                         </div>
-                      ))}
+                      </div>
+                      <div>
+                        <label className="text-xs font-medium text-gray-500">
+                          Dataset Name
+                        </label>
+                        <p className="mt-1 text-gray-900 font-medium">
+                          {config.name}
+                        </p>
+                      </div>
+                      <div>
+                        <label className="text-xs font-medium text-gray-500">
+                          Connection
+                        </label>
+                        <p className="mt-1 text-gray-900">
+                          {connections.find((c) => c.id === config.connectionId)
+                            ?.name || config.connectionId}
+                        </p>
+                      </div>
+                      {selectedSource?.id === "postgres" && config.table && (
+                        <div>
+                          <label className="text-xs font-medium text-gray-500">
+                            Table
+                          </label>
+                          <p className="mt-1 text-gray-900 font-medium">
+                            {config.table}
+                          </p>
+                        </div>
+                      )}
+                      {selectedSource?.id === "mongodb" && config.collection && (
+                        <div>
+                          <label className="text-xs font-medium text-gray-500">
+                            Collection
+                          </label>
+                          <p className="mt-1 text-gray-900 font-medium">
+                            {config.collection}
+                          </p>
+                        </div>
+                      )}
+                      {selectedSource?.id === "s3" && (
+                        <>
+                          <div>
+                            <label className="text-xs font-medium text-gray-500">
+                              Bucket
+                            </label>
+                            <p className="mt-1 text-gray-900 font-medium">
+                              {config.bucket}
+                            </p>
+                          </div>
+                          <div>
+                            <label className="text-xs font-medium text-gray-500">
+                              Path/Prefix
+                            </label>
+                            <p className="mt-1 text-gray-900">
+                              {config.path || "-"}
+                            </p>
+                          </div>
+                        </>
+                      )}
                     </div>
+                    {config.description && (
+                      <div>
+                        <label className="text-xs font-medium text-gray-500">
+                          Description
+                        </label>
+                        <p className="mt-1 text-gray-600">{config.description}</p>
+                      </div>
+                    )}
                   </div>
                 </div>
-              )}
+
+                {/* Schema */}
+                {config.columns.length > 0 && (
+                  <div className="bg-white rounded-lg border border-gray-200">
+                    <div className="px-6 py-4 border-b border-gray-200 bg-gray-50">
+                      <h3 className="text-sm font-semibold text-gray-900">
+                        Schema ({config.columns.length} columns)
+                      </h3>
+                    </div>
+                    <div className="p-6">
+                      <div className="grid grid-cols-2 gap-4">
+                        {config.columns.map((column, index) => (
+                          <div
+                            key={index}
+                            className="border border-gray-200 rounded-lg p-4 bg-gray-50"
+                          >
+                            <div className="flex items-center gap-2 mb-1">
+                              <span className="font-medium text-gray-900">
+                                {column.name}
+                              </span>
+                              <span className="text-xs px-2 py-0.5 rounded bg-blue-100 text-blue-700 border border-blue-200">
+                                {column.type}
+                              </span>
+                            </div>
+                            {column.description && (
+                              <p className="text-xs text-gray-500 mt-1">
+                                {column.description}
+                              </p>
+                            )}
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  </div>
+                )}
+              </div>
             </div>
           )}
         </div>
@@ -820,10 +982,15 @@ export default function SourceWizard() {
             ) : (
               <button
                 onClick={handleCreate}
-                className="flex items-center gap-2 px-6 py-2 bg-emerald-600 text-white rounded-lg hover:bg-emerald-700 transition-colors"
+                disabled={isLoading}
+                className={`flex items-center gap-2 px-6 py-2 rounded-lg transition-colors ${
+                  isLoading
+                    ? "bg-gray-400 cursor-not-allowed"
+                    : "bg-emerald-600 hover:bg-emerald-700"
+                } text-white`}
               >
                 <Check className="w-4 h-4" />
-                Save
+                {isLoading ? "Saving..." : "Save"}
               </button>
             )}
           </div>
