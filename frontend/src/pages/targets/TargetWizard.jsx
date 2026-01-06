@@ -164,12 +164,23 @@ export default function TargetWizard() {
           })),
           ...targetData
             .filter((d) => d.is_active)
-            .map((ds) => ({
-              ...ds,
-              datasetType: "target",
-              sourceType: "Catalog",
-              columnCount: ds.targets?.[0]?.schema?.length || 0,
-            })),
+            .map((ds) => {
+              // Extract schema from target or transform node
+              let schema = ds.targets?.[0]?.schema || [];
+              if ((!schema || schema.length === 0) && ds.nodes) {
+                const transformNode = ds.nodes.find(n => n.data?.nodeCategory === 'transform' || n.data?.transformType);
+                if (transformNode && transformNode.data?.outputSchema) {
+                  schema = transformNode.data.outputSchema;
+                }
+              }
+              return {
+                ...ds,
+                datasetType: "target",
+                sourceType: "Catalog",
+                columns: schema, // Map schema to columns for UI panel
+                columnCount: schema.length || 0,
+              };
+            }),
         ];
 
         setSourceDatasets(combinedDatasets);
@@ -317,69 +328,82 @@ export default function TargetWizard() {
 
             const dataset = await response.json();
             const target = dataset.targets?.[0];
+            let schema = [];
+            let format = "parquet";
+            let s3Path = "";
 
-            if (target) {
-              const schema = target.schema || [];
-
-              // Get actual S3 path: destination.path + dataset.name (Spark adds job name to path)
-              let s3Path = "";
-
-              if (dataset.destination?.path) {
-                const basePath = dataset.destination.path;
-                const datasetName = dataset.name || "";
-                const normalizedPath = basePath.endsWith("/")
-                  ? basePath
-                  : `${basePath}/`;
-                s3Path = `${normalizedPath}${datasetName}`;
-              } else if (target.urn) {
-                const urnParts = target.urn.split(':');
-                if (urnParts[0] === 'urn' && urnParts[1] === 's3' && urnParts.length >= 3) {
-                  const bucket = urnParts[2];
-                  const key = urnParts.slice(3).join(":") || dataset.name;
-                  s3Path = `s3a://${bucket}/${key}`;
-                }
-              }
-
-              if (!s3Path) {
-                console.error('Could not determine S3 path for dataset:', dataset.name);
-                return;
-              }
-
-              nodes.push({
-                id: `source-catalog-${datasetId}`,
-                type: "custom",
-                position: { x: 100, y: 100 },
-                data: {
-                  label: dataset.name,
-                  name: dataset.name,
-                  platform: "S3",
-                  sourceType: "s3",
-                  columns: schema.map(col => ({
-                    name: col.name || col.field,
-                    type: col.type || "string",
-                    description: col.description || "",
-                  })),
-                  schema: schema.map((col) => ({
-                    name: col.name || col.field,
-                    type: col.type || "string",
-                  })),
-                  expanded: true,
-                  nodeCategory: "source",
-                  catalogDatasetId: datasetId,
-                  s3Location: s3Path,
-                  path: s3Path,
-                  format:
-                    dataset.destination?.format ||
-                    target.config?.format ||
-                    "parquet",
-                  // Note: s3_config is not needed here
-                  // Spark ETL runner will use environment-specific credentials:
-                  // - LocalStack: credentials from Airflow DAG
-                  // - Production: IAM role (IRSA)
-                  onDelete: handleDeleteNode,
-                },
-              });
+            // 1. Try to get schema from Target definition (Catalog)
+            if (target && target.schema) {
+              schema = target.schema;
+              format = target.config?.format || "parquet";
             }
+
+            // 2. Fallback: Try to get schema from Transform Node (Wizard-created datasets)
+            if ((!schema || schema.length === 0) && dataset.nodes && dataset.nodes.length > 0) {
+              const transformNode = dataset.nodes.find(n => n.data?.nodeCategory === 'transform' || n.data?.transformType);
+              if (transformNode && transformNode.data?.outputSchema) {
+                schema = transformNode.data.outputSchema;
+              }
+            }
+
+            // Get actual S3 path: destination.path + dataset.name (Spark adds job name to path)
+
+            if (dataset.destination?.path) {
+              const basePath = dataset.destination.path;
+              const datasetName = dataset.name || "";
+              const normalizedPath = basePath.endsWith("/")
+                ? basePath
+                : `${basePath}/`;
+              s3Path = `${normalizedPath}${datasetName}`;
+            } else if (target.urn) {
+              const urnParts = target.urn.split(':');
+              if (urnParts[0] === 'urn' && urnParts[1] === 's3' && urnParts.length >= 3) {
+                const bucket = urnParts[2];
+                const key = urnParts.slice(3).join(":") || dataset.name;
+                s3Path = `s3a://${bucket}/${key}`;
+              }
+            }
+
+
+            if (!s3Path) {
+              console.error('Could not determine S3 path for dataset:', dataset.name);
+              continue;
+            }
+
+            nodes.push({
+              id: `source-catalog-${datasetId}`,
+              type: "custom",
+              position: { x: 100, y: 100 },
+              data: {
+                label: dataset.name,
+                name: dataset.name,
+                platform: "S3",
+                sourceType: "s3",
+                columns: schema.map(col => ({
+                  name: col.name || col.field,
+                  type: col.type || "string",
+                  description: col.description || "",
+                })),
+                schema: schema.map((col) => ({
+                  name: col.name || col.field,
+                  type: col.type || "string",
+                })),
+                expanded: true,
+                nodeCategory: "source",
+                catalogDatasetId: datasetId,
+                s3Location: s3Path,
+                path: s3Path,
+                format:
+                  dataset.destination?.format ||
+                  target?.config?.format ||
+                  "parquet",
+                // Note: s3_config is not needed here
+                // Spark ETL runner will use environment-specific credentials:
+                // - LocalStack: credentials from Airflow DAG
+                // - Production: IAM role (IRSA)
+                // onDelete: handleDeleteNode, // Removed as function is not defined here
+              },
+            });
           } catch (err) {
             console.error(`Failed to fetch catalog dataset ${datasetId}:`, err);
           }
