@@ -31,6 +31,10 @@ async def get_catalog(
     db = database.mongodb_client[database.DATABASE_NAME]
     # Build Search/Filter Query
     query = {}
+    
+    # Only show datasets with successful ETL execution
+    query["import_ready"] = True
+    
     if type:
         query["properties.layer"] = type.upper() # Mock data stores layer in properties
     if platform:
@@ -59,6 +63,15 @@ async def get_catalog(
         # Map schema -> columns if needed for list view (though usually not needed for list)
         if "schema" in doc:
              doc["columns"] = doc["schema"]
+             
+        # Add is_active flag (based on import_ready)
+        doc["is_active"] = doc.get("import_ready", False)
+        
+        # ✅ Ensure targets and destination are present for CatalogDatasetSelector
+        if "targets" not in doc:
+            doc["targets"] = []
+        if "destination" not in doc:
+            doc["destination"] = {}
              
         items.append(doc)
     

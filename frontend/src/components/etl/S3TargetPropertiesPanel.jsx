@@ -2,26 +2,8 @@ import { useState, useEffect } from 'react';
 import { X } from 'lucide-react';
 
 export default function S3TargetPropertiesPanel({ node, selectedMetadataItem, onClose, onUpdate, onMetadataUpdate }) {
-    const [name, setName] = useState(node?.data?.label || 'Amazon S3');
-    const [s3Location, setS3Location] = useState(node?.data?.s3Location || '');
+    // No local state needed for auto-configured target
 
-    // Restore state from node data on mount
-    useEffect(() => {
-        if (node?.data) {
-            setName(node.data.label || 'Amazon S3');
-            setS3Location(node.data.s3Location || '');
-        }
-    }, [node?.id]);
-
-    // Auto-save on any change
-    const autoSave = (updates) => {
-        onUpdate({
-            label: updates.name ?? name,
-            format: 'parquet',
-            compressionType: 'snappy', // 기본값 고정
-            s3Location: updates.s3Location ?? s3Location,
-        });
-    };
 
     return (
         <div className="w-96 bg-white border-l border-gray-200 h-full flex flex-col">
@@ -40,42 +22,29 @@ export default function S3TargetPropertiesPanel({ node, selectedMetadataItem, on
 
             {/* Content */}
             <div className="flex-1 overflow-y-auto p-4 space-y-5">
-                {/* Name */}
-                <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">
-                        Name
-                    </label>
-                    <input
-                        type="text"
-                        className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-green-500 focus:border-green-500"
-                        value={name}
-                        onChange={(e) => {
-                            setName(e.target.value);
-                            autoSave({ name: e.target.value });
-                        }}
-                        placeholder="Amazon S3"
-                    />
+                {/* Info Message */}
+                <div className="bg-blue-50 border border-blue-200 rounded-md p-4">
+                    <div className="flex">
+                        <div className="flex-shrink-0">
+                            <svg className="h-5 w-5 text-blue-400" viewBox="0 0 20 20" fill="currentColor">
+                                <path fillRule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7-4a1 1 0 11-2 0 1 1 0 012 0zM9 9a1 1 0 000 2v3a1 1 0 001 1h1a1 1 0 100-2v-3a1 1 0 00-1-1H9z" clipRule="evenodd" />
+                            </svg>
+                        </div>
+                        <div className="ml-3">
+                            <h3 className="text-sm font-medium text-blue-800">
+                                Auto-configured Target
+                            </h3>
+                            <div className="mt-2 text-sm text-blue-700">
+                                <p>
+                                    Data will be saved to the Data Lake automatically based on the dataset name.
+                                </p>
+                            </div>
+                        </div>
+                    </div>
                 </div>
 
-                {/* S3 Target Location */}
-                <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">
-                        S3 Target Location
-                    </label>
-                    <p className="text-xs text-gray-500 mb-2">
-                        Enter an S3 location in the format s3://bucket/prefix/object/ with a trailing slash (/).
-                    </p>
-                    <input
-                        type="text"
-                        className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-green-500"
-                        value={s3Location}
-                        onChange={(e) => {
-                            setS3Location(e.target.value);
-                            autoSave({ s3Location: e.target.value });
-                        }}
-                        placeholder="s3://bucket/prefix/object/"
-                    />
-                </div>
+                {/* S3 Target Location removed - Auto managed by backend */}
+
 
                 {/* Metadata Edit Section */}
                 {typeof selectedMetadataItem !== 'undefined' && selectedMetadataItem && (
