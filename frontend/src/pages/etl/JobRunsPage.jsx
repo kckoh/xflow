@@ -109,7 +109,7 @@ export default function JobRunsPage() {
             <div className="bg-white border-b border-gray-200 px-6 py-4">
                 <div className="flex items-center gap-4">
                     <button
-                        onClick={() => navigate('/etl')}
+                        onClick={() => navigate('/etl/jobs')}
                         className="p-2 hover:bg-gray-100 rounded-md transition-colors"
                     >
                         <ArrowLeft className="w-5 h-5 text-gray-600" />

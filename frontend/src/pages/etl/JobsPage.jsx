@@ -3,6 +3,7 @@ import { useNavigate } from "react-router-dom";
 import { Search, RefreshCw, GitBranch, Calendar, X, Clock, Zap, Play } from "lucide-react";
 import { API_BASE_URL } from "../../config/api";
 import SchedulesPanel from "../../components/etl/SchedulesPanel";
+import { useToast } from "../../components/common/Toast";
 
 // Schedule Edit Modal Component
 function ScheduleModal({ isOpen, onClose, job, onSave }) {
@@ -202,6 +203,7 @@ export default function JobsPage() {
   const [searchQuery, setSearchQuery] = useState("");
   const [scheduleModal, setScheduleModal] = useState({ isOpen: false, job: null });
   const navigate = useNavigate();
+  const { showToast } = useToast();
 
   useEffect(() => {
     fetchJobs();
@@ -328,8 +330,10 @@ export default function JobsPage() {
         console.log("Job triggered:", result);
         // Refresh jobs to update status
         fetchJobs();
+        showToast("Job triggered successfully", "success");
       } else {
         console.error("Failed to run job");
+        showToast("Failed to run job", "error");
       }
     } catch (error) {
       console.error("Failed to run job:", error);
@@ -382,7 +386,7 @@ export default function JobsPage() {
             <thead className="bg-gray-50 border-b border-gray-200">
               <tr>
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Name</th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Status</th>
+                <th className="px-8 py-3 text-left text-xs font-medium text-gray-500 uppercase">Status</th>
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Schedule</th>
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Last Run</th>
                 <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase">Actions</th>
@@ -418,16 +422,30 @@ export default function JobsPage() {
                   </td>
                   <td className="px-6 py-4">
                     <span
-                      className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${job.status === "running"
-                        ? "bg-green-100 text-green-800"
-                        : job.status === "failed"
-                          ? "bg-red-100 text-red-800"
-                          : job.status === "paused"
-                            ? "bg-yellow-100 text-yellow-800"
-                            : "bg-gray-100 text-gray-800"
-                        }`}
+                      className={`inline-flex items-center justify-center w-18 px-2.5 py-0.5 rounded-full text-xs font-medium ${(() => {
+                        // Draft state for Batch
+                        if (job.job_type === 'batch' && !job.last_run) {
+                          return "bg-gray-100 text-gray-800";
+                        }
+                        // CDC State
+                        if (job.job_type === 'cdc') {
+                          return job.is_active
+                            ? "bg-purple-100 text-purple-700"  // Streaming
+                            : "bg-yellow-100 text-yellow-800"; // Pause
+                        }
+                        // Batch Status
+                        return job.status === "running"
+                          ? "bg-blue-100 text-blue-800" // Changed running color to blue for distinction
+                          : job.status === "failed"
+                            ? "bg-red-100 text-red-800"
+                            : "bg-green-100 text-green-800"; // Success or default
+                      })()}`}
                     >
-                      {job.status || (job.is_active ? "Active" : "Inactive")}
+                      {(() => {
+                        if (job.job_type === 'batch' && !job.last_run) return "Draft";
+                        if (job.job_type === 'cdc') return job.is_active ? "Streaming" : "Pause";
+                        return job.status || "Draft";
+                      })()}
                     </span>
                   </td>
                   <td className="px-6 py-4">
