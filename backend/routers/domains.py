@@ -3,18 +3,17 @@ from typing import List, Optional, Dict, Any
 from datetime import datetime
 from beanie import PydanticObjectId
 
-from models import Domain, ETLJob, Dataset
+from models import Domain, Dataset, ETLJob
 from schemas.domain import (
     DomainCreate,
     DomainUpdate,
     DomainGraphUpdate,
-    DomainJobListResponse,
-    JobExecutionResponse,
-    DatasetNodeResponse
+    DomainDatasetListResponse,
+    DatasetExecutionResponse,
+    ETLJobNodeResponse
 )
-# OpenSearch Dual Write
-from utils.indexers import index_single_domain, delete_domain_from_index
 from dependencies import get_user_session
+# Note: Domain indexing removed - no longer dual-writing to OpenSearch
 
 router = APIRouter()
 
@@ -120,13 +119,13 @@ async def get_all_domains(
 
 # --- ETL Job Import Endpoints (must be before /{id} to avoid route conflict) ---
 
-@router.get("/jobs/{job_id}/execution", response_model=JobExecutionResponse)
+@router.get("/jobs/{job_id}/execution", response_model=DatasetExecutionResponse)
 async def get_job_execution(job_id: str):
-    """Get the latest execution result (Dataset) for a specific ETL job"""
+    """Get the latest execution result (ETLJob lineage) for a specific Dataset"""
     try:
-        # Find the most recent Dataset for this job
-        dataset = await Dataset.find_one(
-            Dataset.job_id == job_id,
+        # Find the most recent ETLJob for this dataset
+        etl_job = await ETLJob.find_one(
+            ETLJob.dataset_id == job_id,
             sort=[("created_at", -1)]
         )
     except Exception as e:
@@ -135,83 +134,76 @@ async def get_job_execution(job_id: str):
             detail=f"Failed to fetch execution result: {str(e)}"
         )
 
-    if not dataset:
+    if not etl_job:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
-            detail="No execution result found for this job"
+            detail="No execution result found for this dataset"
         )
 
-    return JobExecutionResponse(
-        id=str(dataset.id),
-        name=dataset.name,
-        description=dataset.description,
-        job_id=dataset.job_id,
-        sources=[DatasetNodeResponse(**node.model_dump()) for node in dataset.sources],
-        transforms=[DatasetNodeResponse(**node.model_dump()) for node in dataset.transforms],
-        targets=[DatasetNodeResponse(**node.model_dump()) for node in dataset.targets],
-        is_active=dataset.is_active,
-        created_at=dataset.created_at,
-        updated_at=dataset.updated_at,
+    return DatasetExecutionResponse(
+        id=str(etl_job.id),
+        name=etl_job.name,
+        description=etl_job.description,
+        dataset_id=etl_job.dataset_id,
+        sources=[ETLJobNodeResponse(**node.model_dump()) for node in etl_job.sources],
+        transforms=[ETLJobNodeResponse(**node.model_dump()) for node in etl_job.transforms],
+        targets=[ETLJobNodeResponse(**node.model_dump()) for node in etl_job.targets],
+        is_active=etl_job.is_active,
+        created_at=etl_job.created_at,
+        updated_at=etl_job.updated_at,
     )
 
 
 
 
-@router.get("/jobs", response_model=List[DomainJobListResponse])
-async def list_domain_jobs(
+@router.get("/jobs", response_model=List[DomainDatasetListResponse])
+async def list_domain_datasets(
     import_ready: bool = Query(True),
     user_session: Optional[Dict[str, Any]] = Depends(get_user_session)
 ):
-    """Get ETL jobs that are ready to be imported into domain (import_ready=true by default)
+    """Get Datasets (pipelines) that are ready to be imported into domain (import_ready=true by default)
     Filters by user's dataset_access permissions if authenticated."""
     try:
-        # Get all import-ready jobs
-        jobs = await ETLJob.find(ETLJob.import_ready == import_ready).to_list()
-        
-        # Filter jobs based on dataset_access permissions
+        # Get all import-ready datasets (pipelines)
+        datasets = await Dataset.find(Dataset.import_ready == import_ready).to_list()
+
+        # Filter datasets based on dataset_access permissions
         if user_session:
             is_admin = user_session.get("is_admin", False)
             all_datasets = user_session.get("all_datasets", False)
             dataset_access = user_session.get("dataset_access", [])
-            
-            # Admin or all_datasets users see all jobs
+
+            # Admin or all_datasets users see all datasets
             if not is_admin and not all_datasets and dataset_access is not None:
-                # Get all datasets to map job_id to dataset_id
-                datasets = await Dataset.find_all().to_list()
-                job_to_dataset = {d.job_id: str(d.id) for d in datasets if d.job_id}
-                
-                # Filter jobs: only include if user has access to the dataset
-                filtered_jobs = []
-                for job in jobs:
-                    job_id_str = str(job.id)
-                    dataset_id = job_to_dataset.get(job_id_str)
-                    
-                    # Include job if:
-                    # 1. User has access to its dataset, OR
-                    # 2. No dataset exists yet for this job (allow import to create it)
-                    if dataset_id is None or dataset_id in dataset_access:
-                        filtered_jobs.append(job)
-                
-                jobs = filtered_jobs
+                # Filter datasets: only include if user has access
+                filtered_datasets = []
+                for dataset in datasets:
+                    dataset_id_str = str(dataset.id)
+
+                    # Include dataset if user has access
+                    if dataset_id_str in dataset_access:
+                        filtered_datasets.append(dataset)
+
+                datasets = filtered_datasets
 
         return [
-            DomainJobListResponse(
-                id=str(job.id),
-                name=job.name,
-                description=job.description,
-                source_count=len(job.sources) if job.sources else 0,
-                created_at=job.created_at,
-                updated_at=job.updated_at,
+            DomainDatasetListResponse(
+                id=str(dataset.id),
+                name=dataset.name,
+                description=dataset.description,
+                source_count=len(dataset.sources) if dataset.sources else 0,
+                created_at=dataset.created_at,
+                updated_at=dataset.updated_at,
             )
-            for job in jobs
+            for dataset in datasets
         ]
     except Exception as e:
-        print(f"Error in list_domain_jobs: {str(e)}")
+        print(f"Error in list_domain_datasets: {str(e)}")
         import traceback
         traceback.print_exc()
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Failed to fetch jobs: {str(e)}"
+            detail=f"Failed to fetch datasets: {str(e)}"
         )
 
 @router.get("/{id}", response_model=Domain)
@@ -249,10 +241,7 @@ async def create_domain(domain_data: DomainCreate):
 
     new_domain = Domain(**domain_dict)
     await new_domain.insert()
-    
-    # Dual Write: OpenSearch에 인덱싱
-    await index_single_domain(new_domain)
-    
+
     return new_domain
 
 @router.delete("/{id}", status_code=status.HTTP_204_NO_CONTENT)
@@ -263,11 +252,8 @@ async def delete_domain(id: str):
     domain = await Domain.get(id)
     if not domain:
         raise HTTPException(status_code=404, detail="Domain not found")
-    
+
     await domain.delete()
-    
-    # Dual Write: OpenSearch에서 삭제
-    await delete_domain_from_index(id)
 
 @router.put("/{id}", response_model=Domain)
 async def update_domain(id: str, update_data: DomainUpdate):
@@ -286,13 +272,10 @@ async def update_domain(id: str, update_data: DomainUpdate):
 
     for key, value in update_dict.items():
         setattr(domain, key, value)
-    
+
     domain.updated_at = datetime.utcnow()
     await domain.save()
-    
-    # Dual Write: OpenSearch 업데이트
-    await index_single_domain(domain)
-    
+
     return domain
 
 @router.post("/{id}/graph", response_model=Domain)
@@ -309,10 +292,7 @@ async def save_domain_graph(id: str, graph_data: DomainGraphUpdate):
     domain.updated_at = datetime.utcnow()
 
     await domain.save()
-    
-    # Dual Write: OpenSearch 업데이트 (노드/컬럼 변경 시)
-    await index_single_domain(domain)
-    
+
     return domain
 
 

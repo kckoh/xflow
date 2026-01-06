@@ -194,7 +194,7 @@ function ScheduleBadge({ job, onClick }) {
   );
 }
 
-export default function EtlJobsPage() {
+export default function DatasetsPage() {
   const [jobs, setJobs] = useState([]);
   const [isLoading, setIsLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState("");
@@ -208,7 +208,7 @@ export default function EtlJobsPage() {
   const fetchJobs = async () => {
     setIsLoading(true);
     try {
-      const response = await fetch(`${API_BASE_URL}/api/etl-jobs`, {
+      const response = await fetch(`${API_BASE_URL}/api/datasets`, {
         credentials: "include",
       });
       if (response.ok) {
@@ -253,7 +253,7 @@ export default function EtlJobsPage() {
       // If job has a schedule, use activate/deactivate API
       if (job.schedule) {
         const endpoint = newActiveState ? "activate" : "deactivate";
-        const response = await fetch(`${API_BASE_URL}/api/etl-jobs/${jobId}/${endpoint}`, {
+        const response = await fetch(`${API_BASE_URL}/api/datasets/${jobId}/${endpoint}`, {
           method: "POST",
         });
 
@@ -311,7 +311,7 @@ export default function EtlJobsPage() {
 
   const handleRun = async (jobId) => {
     try {
-      const response = await fetch(`${API_BASE_URL}/api/etl-jobs/${jobId}/run`, {
+      const response = await fetch(`${API_BASE_URL}/api/datasets/${jobId}/run`, {
         method: "POST",
       });
 
@@ -337,8 +337,8 @@ export default function EtlJobsPage() {
   return (
     <div className="p-6">
       <div className="mb-6">
-        <h1 className="text-2xl font-bold text-gray-900">ETL Jobs</h1>
-        <p className="text-gray-500 mt-1">Manage your ETL pipelines</p>
+        <h1 className="text-2xl font-bold text-gray-900">Datasets</h1>
+        <p className="text-gray-500 mt-1">Manage your data pipelines</p>
       </div>
 
       <div className="mb-6 flex gap-4">
@@ -346,7 +346,7 @@ export default function EtlJobsPage() {
           <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-5 h-5" />
           <input
             type="text"
-            placeholder="Search jobs..."
+            placeholder="Search datasets..."
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
             className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
@@ -367,7 +367,7 @@ export default function EtlJobsPage() {
         ) : filteredJobs.length === 0 ? (
           <div className="p-8 text-center text-gray-500">
             <GitBranch className="w-12 h-12 mx-auto mb-4 text-gray-300" />
-            <p>No ETL jobs found</p>
+            <p>No datasets found</p>
           </div>
         ) : (
           <table className="w-full">

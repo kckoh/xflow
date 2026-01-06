@@ -103,20 +103,23 @@ export const getJobExecution = async (jobId) => {
     return response.json();
 };
 
-export const getEtlJob = async (jobId) => {
-    const response = await fetch(`${API_BASE_URL}/api/etl-jobs/${jobId}`);
-    if (!response.ok) throw new Error(`Failed to fetch ETL Job: ${response.status}`);
+export const getDataset = async (datasetId) => {
+    const response = await fetch(`${API_BASE_URL}/api/datasets/${datasetId}`);
+    if (!response.ok) throw new Error(`Failed to fetch Dataset: ${response.status}`);
     return response.json();
 };
 
+// Alias for backward compatibility
+export const getEtlJob = getDataset;
+
 /**
- * Update a specific node's metadata in an ETL Job
- * @param {string} jobId - ETL Job ID
- * @param {string} nodeId - Node ID within the job
+ * Update a specific node's metadata in a Dataset
+ * @param {string} datasetId - Dataset ID
+ * @param {string} nodeId - Node ID within the dataset
  * @param {object} metadata - { table: { description, tags }, columns: {...} }
  */
-export const updateEtlJobNodeMetadata = async (jobId, nodeId, metadata) => {
-    const response = await fetch(`${API_BASE_URL}/api/etl-jobs/${jobId}/nodes/${nodeId}/metadata`, {
+export const updateDatasetNodeMetadata = async (datasetId, nodeId, metadata) => {
+    const response = await fetch(`${API_BASE_URL}/api/datasets/${datasetId}/nodes/${nodeId}/metadata`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(metadata)
@@ -124,6 +127,9 @@ export const updateEtlJobNodeMetadata = async (jobId, nodeId, metadata) => {
     if (!response.ok) throw new Error(`Failed to update node metadata: ${response.status}`);
     return response.json();
 };
+
+// Alias for backward compatibility
+export const updateEtlJobNodeMetadata = updateDatasetNodeMetadata;
 
 // File Attachment APIs
 export const uploadDomainFile = async (id, file) => {

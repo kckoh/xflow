@@ -62,9 +62,9 @@ export default function ETLMain() {
   const fetchJobs = async () => {
     setIsLoading(true);
     try {
-      // Fetch both ETL jobs and source datasets
+      // Fetch both datasets and source datasets
       const [etlResponse, sourceResponse] = await Promise.all([
-        fetch(`${API_BASE_URL}/api/etl-jobs`),
+        fetch(`${API_BASE_URL}/api/datasets`),
         fetch(`${API_BASE_URL}/api/source-datasets`),
       ]);
 
@@ -107,7 +107,7 @@ export default function ETLMain() {
       const url =
         dataset_type === "source"
           ? `${API_BASE_URL}/api/source-datasets/${jobId}`
-          : `${API_BASE_URL}/api/etl-jobs/${jobId}`;
+          : `${API_BASE_URL}/api/datasets/${jobId}`;
 
       const response = await fetch(url, {
         method: "DELETE",

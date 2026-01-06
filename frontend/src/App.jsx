@@ -8,7 +8,7 @@ import ProtectedRoute from "./components/ProtectedRoute";
 import MainLayout from "./components/layout/MainLayout";
 import ETLJobPage from "./pages/etl/etl_job";
 import ETLPage from "./pages/etl/etl_main";
-import EtlJobsPage from "./pages/etl/EtlJobsPage";
+import DatasetsPage from "./pages/etl/DatasetsPage";
 import ConnectionListPage from "./pages/sources/ConnectionListPage";
 import ConnectionCreatePage from "./pages/sources/ConnectionCreatePage";
 import QueryPage from "./pages/query/QueryPage";
@@ -199,7 +199,7 @@ function App() {
             element={
               <ProtectedRoute requireEtlAccess>
                 <MainLayout>
-                  <EtlJobsPage />
+                  <DatasetsPage />
                 </MainLayout>
               </ProtectedRoute>
             }

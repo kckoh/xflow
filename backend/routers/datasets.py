@@ -443,11 +443,10 @@ async def delete_dataset(dataset_id: str):
     # Dual Write: OpenSearch에서 삭제
     await delete_dataset_from_index(dataset_id)
 
-    # Cascading Delete: Delete associated ETLJob from Catalog
-    from services import catalog_service
+    # Cascading Delete: Delete associated ETLJob
     etl_job = await ETLJob.find_one(ETLJob.dataset_id == dataset_id)
     if etl_job:
-        await catalog_service.delete_etljob(str(etl_job.id))
+        await etl_job.delete()
 
     return None
 

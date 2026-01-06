@@ -1,7 +1,7 @@
 """
-ETL Common - Shared functions for ETL DAGs
+Dataset Common - Shared functions for Dataset DAGs
 
-This module contains common functions used by both local and production ETL DAGs.
+This module contains common functions used by both local and production Dataset DAGs.
 """
 
 import json
@@ -289,14 +289,14 @@ def convert_nodes_to_sources(nodes, edges, db):
     return sources, transforms
 
 
-def fetch_job_config(**context):
-    """Fetch job configuration from MongoDB"""
+def fetch_dataset_config(**context):
+    """Fetch dataset configuration from MongoDB"""
     import pymongo
     from bson import ObjectId
 
-    job_id = context["dag_run"].conf.get("job_id")
-    if not job_id:
-        raise ValueError("job_id is required in dag_run.conf")
+    dataset_id = context["dag_run"].conf.get("dataset_id")
+    if not dataset_id:
+        raise ValueError("dataset_id is required in dag_run.conf")
 
     # Connect to MongoDB
     mongo_url = Variable.get(
@@ -307,26 +307,26 @@ def fetch_job_config(**context):
     client = pymongo.MongoClient(mongo_url)
     db = client[mongo_db]
 
-    # Fetch ETL job
-    job = db.etl_jobs.find_one({"_id": ObjectId(job_id)})
-    if not job:
-        raise ValueError(f"ETL job not found: {job_id}")
+    # Fetch Dataset (pipeline configuration)
+    dataset = db.datasets.find_one({"_id": ObjectId(dataset_id)})
+    if not dataset:
+        raise ValueError(f"Dataset not found: {dataset_id}")
 
-    # Check if this is a Target Wizard job (has nodes/edges but no sources)
-    nodes = job.get("nodes", [])
-    edges = job.get("edges", [])
+    # Check if this is a Target Wizard dataset (has nodes/edges but no sources)
+    nodes = dataset.get("nodes", [])
+    edges = dataset.get("edges", [])
 
     # Handle multiple sources (new) or single source (legacy) or nodes (Target Wizard)
-    sources = job.get("sources", [])
-    transforms = job.get("transforms", [])
+    sources = dataset.get("sources", [])
+    transforms = dataset.get("transforms", [])
 
     if not sources and nodes:
-        # This is a Target Wizard job - convert nodes/edges to sources/transforms
+        # This is a Target Wizard dataset - convert nodes/edges to sources/transforms
         print(f"Converting Target Wizard nodes/edges to sources/transforms...")
         sources, transforms = convert_nodes_to_sources(nodes, edges, db)
-    elif not sources and job.get("source"):
+    elif not sources and dataset.get("source"):
         # Legacy single source - wrap in list
-        sources = [job.get("source")]
+        sources = [dataset.get("source")]
 
     # Enrich each source with connection details
     enriched_sources = []
@@ -364,29 +364,29 @@ def fetch_job_config(**context):
                 source["connection"] = connection.get("config", {})
         enriched_sources.append(source)
 
-    # Get estimated size from job document (calculated at job creation time)
-    estimated_size_gb = job.get("estimated_size_gb", 1.0)
-    print(f"Estimated source size from job config: {estimated_size_gb:.2f} GB")
+    # Get estimated size from dataset document (calculated at dataset creation time)
+    estimated_size_gb = dataset.get("estimated_size_gb", 1.0)
+    print(f"Estimated source size from dataset config: {estimated_size_gb:.2f} GB")
 
     # Build complete config for Spark
     config = {
-        "job_id": job_id,
-        "name": job.get("name"),
+        "dataset_id": dataset_id,
+        "name": dataset.get("name"),
         "sources": enriched_sources,
         "transforms": transforms,  # Use converted transforms (from nodes or original)
-        "destination": job.get("destination", {}),
+        "destination": dataset.get("destination", {}),
         "nodes": nodes,
         "estimated_size_gb": estimated_size_gb,
     }
-    
+
     # Inject incremental config into sources and destination if present
-    incremental_config = job.get("incremental_config")
+    incremental_config = dataset.get("incremental_config")
     if incremental_config:
         # Merge the top-level last_sync_timestamp into the config dict for Spark
-        last_sync = job.get("last_sync_timestamp")
+        last_sync = dataset.get("last_sync_timestamp")
         if last_sync:
             incremental_config["last_sync_timestamp"] = last_sync.isoformat()
-            
+
         for source in config["sources"]:
             source["incremental_config"] = incremental_config
         config["destination"]["incremental_config"] = incremental_config
@@ -416,15 +416,19 @@ def fetch_job_config(**context):
     return json.dumps(config)
 
 
+# Backward compatibility alias
+fetch_job_config = fetch_dataset_config
+
+
 def update_job_run_status(status: str, error_message: str = None, **context):
     """Update job run status in MongoDB"""
     import pymongo
     from bson import ObjectId
 
     dag_run = context["dag_run"]
-    job_id = dag_run.conf.get("job_id")
+    dataset_id = dag_run.conf.get("dataset_id")
 
-    # Extract run_id from dag_run_id (format: job_{job_id}_{run_id})
+    # Extract run_id from dag_run_id (format: dataset_{dataset_id}_{run_id})
     dag_run_id = dag_run.run_id
     parts = dag_run_id.split("_")
     run_id = parts[-1] if len(parts) >= 3 else None
@@ -462,7 +466,7 @@ def finalize_import(**context):
     import pymongo
     from bson import ObjectId
 
-    job_id = context["dag_run"].conf.get("job_id")
+    dataset_id = context["dag_run"].conf.get("dataset_id")
 
     mongo_url = Variable.get(
         "MONGODB_URL", default_var="mongodb://mongo:mongo@mongodb:27017"
@@ -473,30 +477,30 @@ def finalize_import(**context):
     db = client[mongo_db]
 
     try:
-        # Fetch job to check if incremental is enabled
-        job = db.etl_jobs.find_one({"_id": ObjectId(job_id)})
-        if not job:
-            print(f"ETL Job {job_id} not found")
+        # Fetch dataset to check if incremental is enabled
+        dataset = db.datasets.find_one({"_id": ObjectId(dataset_id)})
+        if not dataset:
+            print(f"Dataset {dataset_id} not found")
             return
 
         update_fields = {"import_ready": True}
 
         # Update last_sync_timestamp if incremental is enabled
-        incremental_config = job.get("incremental_config") or {}
+        incremental_config = dataset.get("incremental_config") or {}
         if incremental_config.get("enabled"):
             current_time = datetime.utcnow()
             update_fields["last_sync_timestamp"] = current_time
             print(f"[Incremental] Updated last_sync_timestamp: {current_time.isoformat()}")
 
-        result = db.etl_jobs.update_one(
-            {"_id": ObjectId(job_id)},
+        result = db.datasets.update_one(
+            {"_id": ObjectId(dataset_id)},
             {"$set": update_fields}
         )
 
         if result.modified_count > 0:
-            print(f"ETL Job {job_id}: import_ready = True")
+            print(f"Dataset {dataset_id}: import_ready = True")
         else:
-            print(f"ETL Job {job_id} not found or already marked")
+            print(f"Dataset {dataset_id} not found or already marked")
 
     except Exception as e:
         print(f"Failed to finalize import: {e}")
@@ -550,70 +554,70 @@ def on_failure_callback(context):
 
 def run_quality_check(**context):
     """
-    Run quality check on the ETL output data.
-    Calls the Quality Check API with the dataset ID and S3 path.
+    Run quality check on the Dataset output data.
+    Calls the Quality Check API with the ETLJob ID and S3 path.
     """
     import requests
     import pymongo
     from bson import ObjectId
-    
-    job_id = context["dag_run"].conf.get("job_id")
-    if not job_id:
-        print("[Quality] No job_id found, skipping quality check")
+
+    dataset_id = context["dag_run"].conf.get("dataset_id")
+    if not dataset_id:
+        print("[Quality] No dataset_id found, skipping quality check")
         return
-    
+
     # Get MongoDB connection
     mongo_url = Variable.get(
         "MONGODB_URL", default_var="mongodb://mongo:mongo@mongodb:27017"
     )
     mongo_db = Variable.get("MONGODB_DATABASE", default_var="mydb")
-    
+
     client = None
     try:
         client = pymongo.MongoClient(mongo_url)
         db = client[mongo_db]
-        
-        # Fetch ETL job to get destination info
-        job = db.etl_jobs.find_one({"_id": ObjectId(job_id)})
-        if not job:
-            print(f"[Quality] ETL job {job_id} not found")
-            return
-        
-        destination = job.get("destination", {})
-        s3_path = destination.get("s3_path") or destination.get("path")
-        
-        if not s3_path:
-            print("[Quality] No S3 path found in job destination")
-            return
-        
-        # Find the associated dataset
-        dataset = db.datasets.find_one({"job_id": job_id})
+
+        # Fetch Dataset (pipeline) to get destination info
+        dataset = db.datasets.find_one({"_id": ObjectId(dataset_id)})
         if not dataset:
-            print(f"[Quality] No dataset found for job {job_id}")
+            print(f"[Quality] Dataset {dataset_id} not found")
             return
-        
-        dataset_id = str(dataset["_id"])
-        
+
+        destination = dataset.get("destination", {})
+        s3_path = destination.get("s3_path") or destination.get("path")
+
+        if not s3_path:
+            print("[Quality] No S3 path found in dataset destination")
+            return
+
+        # Find the associated ETLJob (lineage record)
+        etl_job = db.etl_jobs.find_one({"dataset_id": dataset_id})
+        if not etl_job:
+            print(f"[Quality] No ETLJob found for dataset {dataset_id}")
+            return
+
+        etl_job_id = str(etl_job["_id"])
+
         # Call Quality Check API
         backend_url = Variable.get(
             "BACKEND_URL", default_var="http://backend:8000"
         )
-        
-        api_url = f"{backend_url}/api/quality/{dataset_id}/run"
-        payload = {"s3_path": s3_path}
-        
+
+        api_url = f"{backend_url}/api/quality/{etl_job_id}/run"
+        payload = {"s3_path": s3_path, "dataset_id": dataset_id}
+
         print(f"[Quality] Calling API: {api_url}")
         print(f"[Quality] Payload: {payload}")
-        
+
         response = requests.post(api_url, json=payload, timeout=300)
-        
+
         if response.status_code == 200:
             result = response.json()
             score = result.get("overall_score", 0)
             print(f"[Quality] Check completed! Score: {score}/100")
         else:
             print(f"[Quality] API call failed: {response.status_code} - {response.text}")
-            
+
     except Exception as e:
         print(f"[Quality] Error running quality check: {e}")
         # Don't raise - quality check failure should not fail the DAG

@@ -134,7 +134,7 @@ export const saveScheduleToBackend = async (
     console.log("  - ui_params:", payload.ui_params);
     console.log("  - status:", payload.status);
 
-    const response = await fetch(`${API_BASE_URL}/api/etl-jobs/${jobId}`, {
+    const response = await fetch(`${API_BASE_URL}/api/datasets/${jobId}`, {
       method: "PUT",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(payload),
@@ -156,9 +156,9 @@ export const saveScheduleToBackend = async (
 /**
  * Update ETL job (generic save function)
  */
-export const updateETLJob = async (jobId, payload) => {
+export const updateDataset = async (jobId, payload) => {
   try {
-    const response = await fetch(`${API_BASE_URL}/api/etl-jobs/${jobId}`, {
+    const response = await fetch(`${API_BASE_URL}/api/datasets/${jobId}`, {
       method: "PUT",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(payload),

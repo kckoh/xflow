@@ -15,7 +15,7 @@ from urllib.parse import unquote
 import boto3
 import duckdb
 
-from models import QualityResult, QualityCheck, Dataset
+from models import QualityResult, QualityCheck, ETLJob
 
 
 # S3/LocalStack configuration (matches docker-compose.yml)
@@ -98,9 +98,9 @@ class QualityService:
 
     async def run_quality_check(
         self,
-        dataset_id: str,
+        etl_job_id: str,
         s3_path: str,
-        job_id: Optional[str] = None,
+        dataset_id: Optional[str] = None,
         null_threshold: float = 5.0,
         duplicate_threshold: float = 1.0
     ) -> QualityResult:
@@ -108,11 +108,11 @@ class QualityService:
         Run quality check on Parquet files in S3.
         """
         start_time = time.time()
-        
+
         # Insert initial pending record
         result = QualityResult(
+            etl_job_id=etl_job_id,
             dataset_id=dataset_id,
-            job_id=job_id,
             s3_path=s3_path,
             status="running",
             run_at=datetime.utcnow()
@@ -200,7 +200,7 @@ class QualityService:
             print("="*50)
             print("[Quality DEBUG INFO]")
             print(f"Timestamp: {datetime.utcnow()}")
-            print(f"Dataset ID: {dataset_id}")
+            print(f"ETLJob ID: {etl_job_id}")
             print(f"Environment: {env}")
             print(f"S3 Region: {S3_REGION}")
             print(f"Target Path: {s3_path}")
@@ -538,21 +538,21 @@ class QualityService:
                 except:
                     pass
     
-    async def get_latest_result(self, dataset_id: str) -> Optional[QualityResult]:
-        """Get the most recent quality result for a dataset."""
+    async def get_latest_result(self, etl_job_id: str) -> Optional[QualityResult]:
+        """Get the most recent quality result for an ETLJob."""
         return await QualityResult.find_one(
-            QualityResult.dataset_id == dataset_id,
+            QualityResult.etl_job_id == etl_job_id,
             sort=[("run_at", -1)]
         )
-    
+
     async def get_result_history(
         self,
-        dataset_id: str,
+        etl_job_id: str,
         limit: int = 10
     ) -> list[QualityResult]:
-        """Get quality result history for a dataset."""
+        """Get quality result history for an ETLJob."""
         return await QualityResult.find(
-            QualityResult.dataset_id == dataset_id,
+            QualityResult.etl_job_id == etl_job_id,
             sort=[("run_at", -1)],
             limit=limit
         ).to_list()
@@ -560,13 +560,13 @@ class QualityService:
     async def get_dashboard_summary(self):
         """
         Get aggregated quality metrics for the dashboard.
-        Returns latest result for every dataset.
+        Returns latest result for every ETLJob.
         """
-        # MongoDB Aggregation to get the latest result for each dataset
+        # MongoDB Aggregation to get the latest result for each ETLJob
         pipeline = [
             {"$sort": {"run_at": -1}},
             {"$group": {
-                "_id": "$dataset_id",
+                "_id": "$etl_job_id",
                 "latest": {"$first": "$$ROOT"}
             }},
             {"$replaceRoot": {"newRoot": "$latest"}}
