@@ -431,7 +431,6 @@ export default function JobsPage() {
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Name</th>
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Owner</th>
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Status</th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Schedule</th>
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Last Run</th>
                 <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase">Actions</th>
               </tr>
@@ -484,9 +483,6 @@ export default function JobsPage() {
                     })()}
                   </td>
                   <td className="px-6 py-4">
-                    <ScheduleBadge job={job} />
-                  </td>
-                  <td className="px-6 py-4">
                     {jobRuns[job.id]?.[0] ? (
                       <div className="text-sm">
                         <div className="text-gray-900">
@@ -522,38 +518,51 @@ export default function JobsPage() {
                           Run
                         </button>
                       )}
-                      {/* Show toggle for CDC jobs or jobs with schedules (not manual) */}
-                      {(job.job_type === "cdc" || job.schedule) && (
+                      {/* Toggle button with label - disabled for manual jobs */}
+                      <div className="flex items-center gap-2">
+                        <span className="text-xs text-gray-500">
+                          {job.job_type === "cdc" ? "CDC" : job.schedule ? "Schedule" : "Manual"}
+                        </span>
                         <button
                           onClick={(e) => {
                             e.stopPropagation();
-                            handleToggle(job.id);
+                            // Only allow toggle for CDC jobs or jobs with schedules
+                            if (job.job_type === "cdc" || job.schedule) {
+                              handleToggle(job.id);
+                            }
                           }}
-                          className={`relative inline-flex h-5 w-9 flex-shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none ${job.is_active ? "bg-green-500" : "bg-gray-300"
+                          disabled={!job.schedule && job.job_type !== "cdc"}
+                          className={`relative inline-flex h-5 w-9 flex-shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none ${(!job.schedule && job.job_type !== "cdc")
+                            ? "bg-gray-200 cursor-not-allowed opacity-50"
+                            : job.is_active
+                              ? "bg-green-500"
+                              : "bg-gray-300"
                             }`}
                         >
                           <span
-                            className={`pointer-events-none inline-block h-4 w-4 transform rounded-full bg-white shadow ring-0 transition duration-200 ease-in-out ${job.is_active ? "translate-x-4" : "translate-x-0"
+                            className={`pointer-events-none inline-block h-4 w-4 transform rounded-full bg-white shadow ring-0 transition duration-200 ease-in-out ${job.is_active && (job.job_type === "cdc" || job.schedule)
+                              ? "translate-x-4"
+                              : "translate-x-0"
                               }`}
                           />
                         </button>
-                      )}
+                      </div>
                     </div>
                   </td>
                 </tr>
               ))}
-            </tbody>
+          </tbody>
           </table>
         )}
-      </div>
-
-      {/* Schedule Edit Modal */}
-      <ScheduleModal
-        isOpen={scheduleModal.isOpen}
-        onClose={() => setScheduleModal({ isOpen: false, job: null })}
-        job={scheduleModal.job}
-        onSave={handleScheduleSave}
-      />
     </div>
+
+      {/* Schedule Edit Modal */ }
+  <ScheduleModal
+    isOpen={scheduleModal.isOpen}
+    onClose={() => setScheduleModal({ isOpen: false, job: null })}
+    job={scheduleModal.job}
+    onSave={handleScheduleSave}
+  />
+    </div >
   );
 }
