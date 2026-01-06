@@ -136,6 +136,35 @@ export default function JobDetailPage() {
         }
     };
 
+    const handleScheduleUpdate = async (newSchedules) => {
+        try {
+            const payload = {
+                // Determine payload based on whether we have schedules
+                schedule_frequency: newSchedules.length > 0 ? newSchedules[0].frequency : "",
+                ui_params: newSchedules.length > 0 ? newSchedules[0].uiParams : null,
+            };
+
+            console.log("Updating schedule with:", payload);
+
+            const response = await fetch(`${API_BASE_URL}/api/datasets/${jobId}`, {
+                method: "PUT",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify(payload),
+            });
+
+            if (response.ok) {
+                showToast("Schedule updated successfully", "success");
+                fetchJobDetails(); // Refresh details to show new schedule/cron
+            } else {
+                const errorData = await response.json().catch(() => ({}));
+                throw new Error(errorData.detail || "Failed to update schedule");
+            }
+        } catch (error) {
+            console.error("Failed to update schedule:", error);
+            showToast(`Error: ${error.message}`, "error");
+        }
+    };
+
     const filteredRuns = runs.filter(run => {
         const matchesSearch = run.id.toLowerCase().includes(searchFilter.toLowerCase());
         const normalizedStatus = run.status === 'success' ? 'succeeded' : run.status;
@@ -651,15 +680,13 @@ export default function JobDetailPage() {
                                         <div className="border border-gray-200 rounded-lg">
                                             <SchedulesPanel
                                                 schedules={job?.schedule ? [{
-                                                    id: Date.now(),
-                                                    name: "Schedule 1",
+                                                    id: "schedule-1",
+                                                    name: `${job.schedule_frequency}-schedule`,
                                                     cron: job.schedule,
                                                     frequency: job.schedule_frequency,
+                                                    uiParams: job.ui_params,
                                                 }] : []}
-                                                onUpdate={(newSchedules) => {
-                                                    console.log('Updated schedules:', newSchedules);
-                                                    // TODO: Save to backend
-                                                }}
+                                                onUpdate={handleScheduleUpdate}
                                             />
                                         </div>
                                     </div>

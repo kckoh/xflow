@@ -98,8 +98,19 @@ export default function TargetWizard() {
 
         // Set job type and schedules
         setJobType(job.job_type || "batch");
-        if (job.schedules) {
+        if (job.schedules && job.schedules.length > 0) {
           setSchedules(job.schedules);
+        } else if (job.schedule_frequency) {
+          // Reconstruct schedule object from backend fields for UI
+          setSchedules([{
+            id: Date.now().toString(),
+            name: `${job.schedule_frequency}-schedule`,
+            frequency: job.schedule_frequency,
+            cron: job.schedule,
+            enabled: true,
+            uiParams: job.ui_params,
+            createdAt: job.created_at || new Date().toISOString()
+          }]);
         }
 
         // Restore source nodes and schema
@@ -480,7 +491,9 @@ export default function TargetWizard() {
         job_type: jobType,
         nodes: allNodes, // Save simplified DAG
         edges: edges,
-        schedules: schedules,
+        // Map first schedule to backend format (backend currently supports single schedule)
+        schedule_frequency: schedules.length > 0 ? schedules[0].frequency : "",
+        ui_params: schedules.length > 0 ? schedules[0].uiParams : null,
         destination: {
           type: "s3",
           path: "s3a://xflows-output/",
@@ -951,8 +964,8 @@ export default function TargetWizard() {
                   <button
                     onClick={() => setDetailPanelTab("details")}
                     className={`flex-1 px-4 py-3 text-sm font-medium transition-colors ${detailPanelTab === "details"
-                        ? "text-orange-600 border-b-2 border-orange-600 bg-orange-50"
-                        : "text-gray-600 hover:bg-gray-50"
+                      ? "text-orange-600 border-b-2 border-orange-600 bg-orange-50"
+                      : "text-gray-600 hover:bg-gray-50"
                       }`}
                   >
                     Details
@@ -960,8 +973,8 @@ export default function TargetWizard() {
                   <button
                     onClick={() => setDetailPanelTab("schema")}
                     className={`flex-1 px-4 py-3 text-sm font-medium transition-colors ${detailPanelTab === "schema"
-                        ? "text-orange-600 border-b-2 border-orange-600 bg-orange-50"
-                        : "text-gray-600 hover:bg-gray-50"
+                      ? "text-orange-600 border-b-2 border-orange-600 bg-orange-50"
+                      : "text-gray-600 hover:bg-gray-50"
                       }`}
                   >
                     Schema
