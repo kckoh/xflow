@@ -629,7 +629,7 @@ export default function JobDetailPage() {
                                         <p className="text-sm text-gray-600 mb-4">
                                             Batch ETL 작업의 스케줄을 설정하고 관리합니다.
                                         </p>
-                                        <div className="border border-gray-200 rounded-lg overflow-hidden">
+                                        <div className="border border-gray-200 rounded-lg">
                                             <SchedulesPanel
                                                 schedules={job?.schedule ? [{
                                                     id: Date.now(),
