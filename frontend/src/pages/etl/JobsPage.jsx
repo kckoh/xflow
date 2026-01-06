@@ -194,7 +194,7 @@ function ScheduleBadge({ job, onClick }) {
   );
 }
 
-export default function DatasetsPage() {
+export default function JobsPage() {
   const [jobs, setJobs] = useState([]);
   const [isLoading, setIsLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState("");
@@ -337,7 +337,7 @@ export default function DatasetsPage() {
   return (
     <div className="p-6">
       <div className="mb-6">
-        <h1 className="text-2xl font-bold text-gray-900">Datasets</h1>
+        <h1 className="text-2xl font-bold text-gray-900">ETL Jobs</h1>
         <p className="text-gray-500 mt-1">Manage your data pipelines</p>
       </div>
 
