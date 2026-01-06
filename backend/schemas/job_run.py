@@ -5,8 +5,8 @@ from datetime import datetime
 
 class JobRunResponse(BaseModel):
     id: str
-    job_id: str
-    job_name: Optional[str] = None
+    dataset_id: str
+    dataset_name: Optional[str] = None
     status: str  # pending, running, success, failed
     started_at: Optional[datetime] = None
     finished_at: Optional[datetime] = None
@@ -20,8 +20,8 @@ class JobRunResponse(BaseModel):
 
 class JobRunListResponse(BaseModel):
     id: str
-    job_id: str
-    job_name: Optional[str] = None
+    dataset_id: str
+    dataset_name: Optional[str] = None
     status: str
     started_at: Optional[datetime] = None
     finished_at: Optional[datetime] = None

@@ -74,9 +74,9 @@ class Transform(Document):
         name = "transforms"
 
 
-class ETLJob(Document):
+class Dataset(Document):
     """
-    dataset document for storing ETL pipeline configurations.
+    Dataset document for storing ETL pipeline configurations.
     Defines source, transforms, and destination for data processing.
     """
 
@@ -125,15 +125,15 @@ class ETLJob(Document):
     updated_at: datetime = Field(default_factory=datetime.utcnow)
 
     class Settings:
-        name = "etl_jobs"
+        name = "datasets"
 
 
 class JobRun(Document):
     """
-    Job Run document for tracking ETL job executions.
+    Job Run document for tracking Dataset executions.
     """
 
-    job_id: str  # Reference to ETLJob
+    dataset_id: str  # Reference to Dataset
     status: str = "pending"  # pending, running, success, failed
     started_at: Optional[datetime] = None
     finished_at: Optional[datetime] = None
@@ -170,8 +170,8 @@ class Domain(Document):
         name = "domains"
 
 
-# Dataset Model (MongoDB - Replaces Neo4j Models)
-class DatasetNode(BaseModel):
+# ETLJob Model (MongoDB - Replaces Neo4j Models)
+class ETLJobNode(BaseModel):
     nodeId: str
     urn: str  # Global Unique Identifier
     type: str  # rdb, s3, filter, etc.
@@ -180,24 +180,24 @@ class DatasetNode(BaseModel):
     inputNodeIds: List[str] = Field(default_factory=list)
 
 
-class Dataset(Document):
+class ETLJob(Document):
     """
-    MongoDB Document representing a Logical Dataset / Pipeline.
-    Designed to be synced from ETLJob.
+    MongoDB Document representing a Logical ETL Job / Pipeline.
+    Designed to be synced from Dataset.
     """
 
     name: str  # Pipeline Name
     description: Optional[str] = None  # Pipeline Description
-    job_id: Optional[str] = None  # Reference to the ETLJob that defined this dataset
+    dataset_id: Optional[str] = None  # Reference to the Dataset that defined this ETL job
 
     # 1. Inputs (Sources)
-    sources: List[DatasetNode] = Field(default_factory=list)
+    sources: List[ETLJobNode] = Field(default_factory=list)
 
     # 2. Transformations
-    transforms: List[DatasetNode] = Field(default_factory=list)
+    transforms: List[ETLJobNode] = Field(default_factory=list)
 
     # 3. Outputs (Targets)
-    targets: List[DatasetNode] = Field(default_factory=list)
+    targets: List[ETLJobNode] = Field(default_factory=list)
 
     is_active: bool = False
 
@@ -205,8 +205,8 @@ class Dataset(Document):
     updated_at: datetime = Field(default_factory=datetime.utcnow)
 
     class Settings:
-        name = "datasets"
-        indexes = ["job_id", "sources.urn", "targets.urn"]
+        name = "etl_jobs"
+        indexes = ["dataset_id", "sources.urn", "targets.urn"]
 
 
 class QualityCheck(BaseModel):
@@ -222,12 +222,12 @@ class QualityCheck(BaseModel):
 
 class QualityResult(Document):
     """
-    Quality check result for a Dataset.
+    Quality check result for an ETLJob.
     Each run creates a new document, allowing historical tracking.
     """
 
-    dataset_id: str  # Reference to Dataset._id
-    job_id: Optional[str] = None  # Reference to ETLJob._id (if triggered by job)
+    etl_job_id: str  # Reference to ETLJob._id
+    dataset_id: Optional[str] = None  # Reference to Dataset._id (if triggered by dataset)
     s3_path: str  # S3 path that was checked
 
     # Summary metrics
@@ -251,4 +251,4 @@ class QualityResult(Document):
 
     class Settings:
         name = "quality_results"
-        indexes = ["dataset_id", "job_id", "run_at"]
+        indexes = ["etl_job_id", "dataset_id", "run_at"]
