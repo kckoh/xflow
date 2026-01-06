@@ -55,14 +55,10 @@ export default function JobDetailPage() {
     const handleToggle = async () => {
         if (!job) return;
 
-        // Prevent toggle for manual batch jobs
-        if (!job.schedule && job.job_type !== "cdc") {
-            return;
-        }
-
         const newActiveState = !job.is_active;
 
         try {
+            // If job has a schedule or is CDC, use activate/deactivate API
             if (job.job_type === "cdc" || job.schedule) {
                 const endpoint = newActiveState ? "activate" : "deactivate";
                 const response = await fetch(`${API_BASE_URL}/api/datasets/${jobId}/${endpoint}`, {
@@ -74,6 +70,34 @@ export default function JobDetailPage() {
                     showToast(`Job ${newActiveState ? 'activated' : 'deactivated'} successfully!`, "success");
                 } else {
                     showToast(`Failed to ${newActiveState ? 'activate' : 'deactivate'} job`, "error");
+                }
+            } else {
+                // Manual job: update Dataset's is_active field
+                // First, find the dataset by job_id
+                const datasetsResponse = await fetch(`${API_BASE_URL}/api/catalog`);
+                if (datasetsResponse.ok) {
+                    const datasets = await datasetsResponse.json();
+                    const dataset = datasets.find(d => d.job_id === jobId);
+
+                    if (dataset) {
+                        // Update dataset's is_active
+                        const updateResponse = await fetch(`${API_BASE_URL}/api/catalog/${dataset.id}`, {
+                            method: "PATCH",
+                            headers: { "Content-Type": "application/json" },
+                            body: JSON.stringify({ is_active: newActiveState }),
+                        });
+
+                        if (updateResponse.ok) {
+                            setJob(prev => ({ ...prev, is_active: newActiveState }));
+                            showToast(`Job ${newActiveState ? 'activated' : 'deactivated'} successfully!`, "success");
+                        } else {
+                            showToast(`Failed to ${newActiveState ? 'activate' : 'deactivate'} job`, "error");
+                        }
+                    } else {
+                        // Should ideally not happen if job exists
+                        setJob(prev => ({ ...prev, is_active: newActiveState }));
+                        showToast(`Job ${newActiveState ? 'activated' : 'deactivated'} (Local state only)`, "warning");
+                    }
                 }
             }
         } catch (error) {
@@ -197,41 +221,36 @@ export default function JobDetailPage() {
                         </div>
                     </div>
 
-                    {/* Action Buttons */}
                     <div className="flex items-center gap-3">
-                        {job?.job_type !== "cdc" && (
-                            <button
-                                onClick={handleRun}
-                                className="inline-flex items-center gap-1 px-4 py-2 text-sm font-medium text-white bg-green-600 hover:bg-green-700 rounded-lg transition-colors"
-                                title="Run"
-                            >
-                                <Play className="w-4 h-4" />
-                                Run
-                            </button>
-                        )}
 
                         {/* Toggle with label */}
                         <div className="flex items-center gap-2">
-                            <span className="text-sm text-gray-600">
-                                {job?.job_type === "cdc" ? "CDC" : job?.schedule ? "Schedule" : "Manual"}
-                            </span>
+
                             <button
                                 onClick={handleToggle}
-                                disabled={!job?.schedule && job?.job_type !== "cdc"}
-                                className={`relative inline-flex h-6 w-11 flex-shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none ${(!job?.schedule && job?.job_type !== "cdc")
-                                    ? "bg-gray-200 cursor-not-allowed opacity-50"
-                                    : job?.is_active
-                                        ? "bg-green-500"
-                                        : "bg-gray-300"
+                                className={`relative inline-flex h-6 w-11 flex-shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none ${job?.is_active
+                                    ? "bg-green-500"
+                                    : "bg-gray-300"
                                     }`}
                             >
                                 <span
-                                    className={`pointer-events-none inline-block h-5 w-5 transform rounded-full bg-white shadow ring-0 transition duration-200 ease-in-out ${job?.is_active && (job?.job_type === "cdc" || job?.schedule)
+                                    className={`pointer-events-none inline-block h-5 w-5 transform rounded-full bg-white shadow ring-0 transition duration-200 ease-in-out ${job?.is_active
                                         ? "translate-x-5"
                                         : "translate-x-0"
                                         }`}
                                 />
                             </button>
+                            {/* Action Buttons */}
+                            {job?.job_type !== "cdc" && (
+                                <button
+                                    onClick={handleRun}
+                                    className="inline-flex items-center gap-1 px-4 py-2 text-sm font-medium text-white bg-green-600 hover:bg-green-700 rounded-lg transition-colors"
+                                    title="Run"
+                                >
+                                    <Play className="w-4 h-4" />
+                                    Run
+                                </button>
+                            )}
                         </div>
                     </div>
                 </div>
