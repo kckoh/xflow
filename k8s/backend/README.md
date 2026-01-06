@@ -40,7 +40,7 @@ kubectl rollout restart deployment backend -n default
 |------|------|------|
 | MONGODB_DATABASE | MongoDB 데이터베이스 이름 | xflow |
 | CORS_ORIGINS | 허용된 CORS origins | https://xflows.net |
-| AIRFLOW_DAG_ID | Airflow DAG ID | etl_job_dag_k8s |
+| AIRFLOW_DAG_ID | Airflow DAG ID | dataset_dag_k8s |
 | AIRFLOW_BASE_URL | Airflow API URL | http://airflow-webserver.airflow:8080/api/v1 |
 | ENVIRONMENT | 환경 (local/production) | production |
 | AWS_REGION | AWS 리전 | ap-northeast-2 |
