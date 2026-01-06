@@ -411,12 +411,8 @@ export default function TargetWizard() {
           type: "s3",
           path: "s3a://xflows-output/",
           format: "parquet",
-          options: {},
-          s3_config: {
-            access_key: "test",
-            secret_key: "test",
-            endpoint: "http://localstack:4566"
-          }
+          options: {}
+          // s3_config is injected by Airflow DAG based on environment
         }
       };
 
