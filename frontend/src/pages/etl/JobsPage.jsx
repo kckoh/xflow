@@ -12,8 +12,10 @@ function ScheduleModal({ isOpen, onClose, job, onSave }) {
   useEffect(() => {
     if (job) {
       setJobType(job.job_type || "batch");
-      // Convert existing schedule to schedules array format if needed
-      if (job.schedule) {
+
+      if (job.schedules && job.schedules.length > 0) {
+        setSchedules(job.schedules);
+      } else if (job.schedule) {
         setSchedules([{
           id: Date.now(),
           name: "Schedule 1",
@@ -227,20 +229,26 @@ export default function JobsPage() {
     }
   };
 
-  const handleScheduleSave = (jobId, { jobType, schedules }) => {
-    // Update local state (in real app, would call API)
-    setJobs(prev => prev.map(job => {
-      if (job.id === jobId) {
-        return {
-          ...job,
+  const handleScheduleSave = async (jobId, { jobType, schedules }) => {
+    try {
+      const response = await fetch(`${API_BASE_URL}/api/datasets/${jobId}`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
           job_type: jobType,
+          schedules: schedules,
           schedule: schedules[0]?.cron || null,
           schedule_frequency: schedules[0]?.frequency || null,
-        };
+        }),
+      });
+
+      if (response.ok) {
+        const updatedJob = await response.json();
+        setJobs(prev => prev.map(job => (job.id === jobId ? { ...job, ...updatedJob } : job)));
       }
-      return job;
-    }));
-    console.log("Schedule saved:", { jobId, jobType, schedules });
+    } catch (error) {
+      console.error("Failed to save schedule:", error);
+    }
   };
 
   const handleToggle = async (jobId) => {

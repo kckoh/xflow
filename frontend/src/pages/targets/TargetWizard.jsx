@@ -380,6 +380,8 @@ export default function TargetWizard() {
         nodes: cleanNodes,
         edges: lineageEdges,
         schedules: schedules,
+        schedule: schedules[0]?.cron || null,
+        schedule_frequency: schedules[0]?.frequency || null,
         destination: {
           type: "s3",
           path: "s3a://xflows-output/",
@@ -1136,28 +1138,6 @@ export default function TargetWizard() {
                   </dl>
                 </div>
 
-                {/* Lineage Summary */}
-                <div className="bg-white rounded-lg border border-gray-200 p-6">
-                  <h3 className="text-sm font-semibold text-gray-900 mb-4 flex items-center gap-2">
-                    <GitBranch className="w-4 h-4 text-blue-500" />
-                    Lineage Summary
-                  </h3>
-                  <div className="grid grid-cols-3 gap-4">
-                    <div className="text-center p-4 bg-emerald-50 rounded-lg">
-                      <div className="text-2xl font-bold text-emerald-600">{selectedJobIds.length}</div>
-                      <div className="text-sm text-gray-500">Source Datasets</div>
-                    </div>
-                    <div className="text-center p-4 bg-orange-50 rounded-lg">
-                      <div className="text-2xl font-bold text-orange-600">{lineageNodes.length}</div>
-                      <div className="text-sm text-gray-500">Nodes</div>
-                    </div>
-                    <div className="text-center p-4 bg-blue-50 rounded-lg">
-                      <div className="text-2xl font-bold text-blue-600">{lineageEdges.length}</div>
-                      <div className="text-sm text-gray-500">Connections</div>
-                    </div>
-                  </div>
-                </div>
-
                 {/* Execution Configuration */}
                 <div className="bg-white rounded-lg border border-gray-200 p-6">
                   <h3 className="text-sm font-semibold text-gray-900 mb-4 flex items-center gap-2">
@@ -1188,11 +1168,24 @@ export default function TargetWizard() {
                           {schedules.length > 0 ? (
                             <div className="space-y-2">
                               {schedules.map((schedule, idx) => (
-                                <div key={idx} className="flex items-center gap-2 text-sm text-gray-900 bg-gray-50 px-3 py-2 rounded-lg">
-                                  <Clock className="w-3 h-3 text-gray-400" />
-                                  <span className="font-medium">{schedule.cron || schedule.expression}</span>
-                                  {schedule.timezone && (
-                                    <span className="text-gray-500">({schedule.timezone})</span>
+                                <div key={idx} className="flex flex-col gap-1 text-sm text-gray-900 bg-gray-50 px-3 py-2 rounded-lg">
+                                  <div className="flex items-center justify-between">
+                                    <div className="flex items-center gap-2">
+                                      <Clock className="w-3 h-3 text-gray-500" />
+                                      <span className="font-medium text-gray-900">{schedule.name || `Schedule ${idx + 1}`}</span>
+                                    </div>
+                                    <span className="text-xs text-gray-500 capitalize bg-white px-2 py-0.5 rounded border border-gray-200">
+                                      {schedule.frequency || 'Custom'}
+                                    </span>
+                                  </div>
+                                  <div className="text-xs text-gray-500 pl-5">
+                                    {schedule.cron || 'Interval based schedule'}
+                                    {schedule.timezone && ` (${schedule.timezone})`}
+                                  </div>
+                                  {schedule.description && (
+                                    <div className="text-xs text-gray-400 pl-5 line-clamp-1">
+                                      {schedule.description}
+                                    </div>
                                   )}
                                 </div>
                               ))}
