@@ -65,11 +65,10 @@ function ScheduleModal({ isOpen, onClose, job, onSave }) {
             <div className="grid grid-cols-2 gap-4">
               <button
                 onClick={() => setJobType("batch")}
-                className={`relative p-4 rounded-lg border-2 text-left transition-all ${
-                  jobType === "batch"
-                    ? "border-blue-500 bg-blue-50"
-                    : "border-gray-200 hover:border-gray-300"
-                }`}
+                className={`relative p-4 rounded-lg border-2 text-left transition-all ${jobType === "batch"
+                  ? "border-blue-500 bg-blue-50"
+                  : "border-gray-200 hover:border-gray-300"
+                  }`}
               >
                 <div className="flex items-center gap-2 mb-1">
                   <Clock className={`w-4 h-4 ${jobType === "batch" ? "text-blue-600" : "text-gray-400"}`} />
@@ -82,11 +81,10 @@ function ScheduleModal({ isOpen, onClose, job, onSave }) {
 
               <button
                 onClick={() => setJobType("cdc")}
-                className={`relative p-4 rounded-lg border-2 text-left transition-all ${
-                  jobType === "cdc"
-                    ? "border-purple-500 bg-purple-50"
-                    : "border-gray-200 hover:border-gray-300"
-                }`}
+                className={`relative p-4 rounded-lg border-2 text-left transition-all ${jobType === "cdc"
+                  ? "border-purple-500 bg-purple-50"
+                  : "border-gray-200 hover:border-gray-300"
+                  }`}
               >
                 <div className="flex items-center gap-2 mb-1">
                   <Zap className={`w-4 h-4 ${jobType === "cdc" ? "text-purple-600" : "text-gray-400"}`} />
@@ -387,7 +385,7 @@ export default function EtlJobsPage() {
                 <tr
                   key={job.id}
                   className="hover:bg-gray-50 cursor-pointer"
-                  onClick={() => navigate(`/etl/job/${job.id}`)}
+                  onClick={() => navigate(`/etl/job/${job.id}/runs`)}
                 >
                   <td className="px-6 py-4">
                     <div className="flex items-center gap-3">
@@ -396,14 +394,12 @@ export default function EtlJobsPage() {
                           e.stopPropagation();
                           handleToggle(job.id);
                         }}
-                        className={`relative inline-flex h-5 w-9 flex-shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none ${
-                          job.is_active ? "bg-green-500" : "bg-gray-300"
-                        }`}
+                        className={`relative inline-flex h-5 w-9 flex-shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none ${job.is_active ? "bg-green-500" : "bg-gray-300"
+                          }`}
                       >
                         <span
-                          className={`pointer-events-none inline-block h-4 w-4 transform rounded-full bg-white shadow ring-0 transition duration-200 ease-in-out ${
-                            job.is_active ? "translate-x-4" : "translate-x-0"
-                          }`}
+                          className={`pointer-events-none inline-block h-4 w-4 transform rounded-full bg-white shadow ring-0 transition duration-200 ease-in-out ${job.is_active ? "translate-x-4" : "translate-x-0"
+                            }`}
                         />
                       </button>
                       <div>
@@ -414,15 +410,14 @@ export default function EtlJobsPage() {
                   </td>
                   <td className="px-6 py-4">
                     <span
-                      className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${
-                        job.status === "running"
-                          ? "bg-green-100 text-green-800"
-                          : job.status === "failed"
+                      className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${job.status === "running"
+                        ? "bg-green-100 text-green-800"
+                        : job.status === "failed"
                           ? "bg-red-100 text-red-800"
                           : job.status === "paused"
-                          ? "bg-yellow-100 text-yellow-800"
-                          : "bg-gray-100 text-gray-800"
-                      }`}
+                            ? "bg-yellow-100 text-yellow-800"
+                            : "bg-gray-100 text-gray-800"
+                        }`}
                     >
                       {job.status || (job.is_active ? "Active" : "Inactive")}
                     </span>
