@@ -101,7 +101,7 @@ AIRFLOW_BASE_URL = os.getenv(
     "AIRFLOW_BASE_URL", "http://airflow-webserver.airflow:8080/api/v1"
 )
 AIRFLOW_AUTH = ("admin", "admin")
-# DAG ID: "etl_job_dag" for local, "dataset_dag_k8s" for production (EKS)
+# DAG ID: "dataset_dag_k8s" for local, "dataset_dag_k8s" for production (EKS)
 AIRFLOW_DAG_ID = os.getenv("AIRFLOW_DAG_ID", "dataset_dag_k8s")
 
 
