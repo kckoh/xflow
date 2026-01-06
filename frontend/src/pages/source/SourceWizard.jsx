@@ -16,7 +16,7 @@ import {
   X,
   Zap,
 } from "lucide-react";
-import { SiPostgresql, SiMongodb } from "@icons-pack/react-simple-icons";
+import { SiPostgresql, SiMongodb, SiApachekafka } from "@icons-pack/react-simple-icons";
 import { Archive } from "lucide-react";
 import SchedulesPanel from "../../components/etl/SchedulesPanel";
 import { connectionApi } from "../../services/connectionApi";
@@ -52,6 +52,15 @@ const SOURCE_OPTIONS = [
     icon: Archive,
     color: "#FF9900",
   },
+  {
+    id: "kafka",
+    name: "Kafka",
+    description: "Stream data from Apache Kafka",
+    icon: SiApachekafka,
+    color: "#231F20",
+    disabled: true,
+    comingSoon: true,
+  },
 ];
 
 export default function SourceWizard() {
@@ -85,6 +94,8 @@ export default function SourceWizard() {
     path: "",
     // MongoDB-specific fields
     collection: "",
+    // Kafka-specific fields
+    topic: "",
   });
 
   // Load existing job data in edit mode
@@ -137,6 +148,7 @@ export default function SourceWizard() {
           bucket: job.bucket || "",
           path: job.path || "",
           columns: job.columns || [],
+          topic: job.topic || "",
         });
 
         // Skip to Review step in edit mode
@@ -411,6 +423,8 @@ export default function SourceWizard() {
       } else if (selectedSource.id === "s3") {
         sourceData.bucket = config.bucket;
         sourceData.path = config.path;
+      } else if (selectedSource.id === "kafka") {
+        sourceData.topic = config.topic;
       }
 
       // API call to create/update source dataset
@@ -545,30 +559,38 @@ export default function SourceWizard() {
                 Choose the type of data source you want to connect
               </p>
 
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                 {SOURCE_OPTIONS.map((source) => (
                   <button
                     key={source.id}
-                    onClick={() => setSelectedSource(source)}
-                    className={`relative p-6 rounded-lg border-2 text-left transition-all ${
-                      selectedSource?.id === source.id
+                    onClick={() => !source.disabled && setSelectedSource(source)}
+                    disabled={source.disabled}
+                    className={`relative p-8 rounded-xl border-2 text-left transition-all ${
+                      source.disabled
+                        ? "border-gray-200 bg-gray-50 cursor-not-allowed opacity-60"
+                        : selectedSource?.id === source.id
                         ? "border-emerald-500 bg-emerald-50"
                         : "border-gray-200 hover:border-gray-300 hover:bg-gray-50"
                     }`}
                   >
+                    {source.comingSoon && (
+                      <span className="absolute top-4 right-4 text-sm font-medium text-gray-500 bg-gray-200 px-3 py-1 rounded-full">
+                        Coming Soon
+                      </span>
+                    )}
                     <source.icon
-                      className="w-10 h-10 mb-4"
-                      style={{ color: source.color }}
+                      className="w-14 h-14 mb-5"
+                      style={{ color: source.disabled ? "#9CA3AF" : source.color }}
                     />
-                    <h3 className="font-semibold text-gray-900">
+                    <h3 className={`text-lg font-semibold ${source.disabled ? "text-gray-400" : "text-gray-900"}`}>
                       {source.name}
                     </h3>
-                    <p className="text-sm text-gray-500 mt-1">
+                    <p className={`text-base mt-2 ${source.disabled ? "text-gray-400" : "text-gray-500"}`}>
                       {source.description}
                     </p>
-                    {selectedSource?.id === source.id && (
-                      <div className="absolute top-3 right-3 w-6 h-6 bg-emerald-500 rounded-full flex items-center justify-center">
-                        <Check className="w-4 h-4 text-white" />
+                    {selectedSource?.id === source.id && !source.disabled && (
+                      <div className="absolute top-4 right-4 w-8 h-8 bg-emerald-500 rounded-full flex items-center justify-center">
+                        <Check className="w-5 h-5 text-white" />
                       </div>
                     )}
                   </button>
@@ -776,6 +798,27 @@ export default function SourceWizard() {
                   </div>
                 )}
 
+                {/* Kafka - Topic */}
+                {selectedSource?.id === "kafka" && (
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-2">
+                      Topic
+                    </label>
+                    <input
+                      type="text"
+                      value={config.topic}
+                      onChange={(e) =>
+                        setConfig({ ...config, topic: e.target.value })
+                      }
+                      placeholder="e.g., my-topic"
+                      className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-emerald-500"
+                    />
+                    <p className="mt-1 text-xs text-gray-500">
+                      The Kafka topic to consume messages from
+                    </p>
+                  </div>
+                )}
+
                 {/* Columns Section */}
                 {config.columns.length > 0 && (
                   <div>
@@ -940,6 +983,16 @@ export default function SourceWizard() {
                             </p>
                           </div>
                         </>
+                      )}
+                      {selectedSource?.id === "kafka" && config.topic && (
+                        <div>
+                          <label className="text-xs font-medium text-gray-500">
+                            Topic
+                          </label>
+                          <p className="mt-1 text-gray-900 font-medium">
+                            {config.topic}
+                          </p>
+                        </div>
                       )}
                     </div>
                     {config.description && (

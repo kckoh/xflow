@@ -194,29 +194,32 @@ export default function ETLMain() {
           </div>
         ) : (
           /* Jobs Table */
-          <div className="overflow-x-auto">
-            <table className="min-w-full divide-y divide-gray-200">
+          <div className="overflow-hidden">
+            <table className="w-full divide-y divide-gray-200 table-fixed">
               <thead className="bg-gray-50">
                 <tr>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                  <th className="w-[13%] px-3 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                     Dataset name
                   </th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                  <th className="w-[10%] px-3 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                    ID
+                  </th>
+                  <th className="w-[7%] px-3 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                     Type
                   </th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                  <th className="w-[7%] px-3 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                     Status
                   </th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                  <th className="w-[7%] px-3 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                     Pattern
                   </th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                  <th className="w-[18%] px-3 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                     Description
                   </th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                  <th className="w-[16%] px-3 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                     Last modified
                   </th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                  <th className="w-[8%] px-3 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                     Action
                   </th>
                 </tr>
@@ -225,7 +228,7 @@ export default function ETLMain() {
                 {currentJobs.map((job) => (
                   <tr key={job.id} className="hover:bg-gray-50">
                     <td
-                      className="px-6 py-4 whitespace-nowrap text-sm font-medium text-blue-600 hover:underline cursor-pointer"
+                      className="px-3 py-3 text-sm font-medium text-blue-600 hover:underline cursor-pointer truncate"
                       onClick={() => {
                         const datasetType = job.dataset_type || "source";
                         if (datasetType === "target") {
@@ -237,7 +240,10 @@ export default function ETLMain() {
                     >
                       {job.name}
                     </td>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm">
+                    <td className="px-3 py-3 text-sm text-gray-500 font-mono truncate">
+                      {job.id}
+                    </td>
+                    <td className="px-3 py-3 text-sm">
                       <span
                         className={`px-2 py-1 text-xs font-semibold rounded-full ${
                           (job.dataset_type || "source") === "source"
@@ -248,7 +254,7 @@ export default function ETLMain() {
                         {(job.dataset_type || "source") === "source" ? "Source" : "Target"}
                       </span>
                     </td>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm">
+                    <td className="px-3 py-3 text-sm">
                       <span
                         className={`px-2 py-1 text-xs font-semibold rounded-full ${
                           job.is_active
@@ -259,7 +265,7 @@ export default function ETLMain() {
                         {job.is_active ? "Active" : "Inactive"}
                       </span>
                     </td>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm">
+                    <td className="px-3 py-3 text-sm">
                       {job.job_type === "cdc" ? (
                         <span
                           className={`px-2 py-1 text-xs font-semibold rounded-full ${job.is_active
@@ -275,13 +281,13 @@ export default function ETLMain() {
                         </span>
                       )}
                     </td>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                    <td className="px-3 py-3 text-sm text-gray-500 truncate">
                       {job.description || "-"}
                     </td>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                    <td className="px-3 py-3 text-sm text-gray-500 truncate">
                       {new Date(job.updated_at).toLocaleString()}
                     </td>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                    <td className="px-3 py-3 text-sm text-gray-900">
                       <button
                         className="text-red-600 hover:text-red-800 transition-colors"
                         onClick={(e) => {
