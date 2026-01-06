@@ -151,7 +151,7 @@ export default function JobRunsPage() {
                                 <Search className="w-4 h-4 text-gray-400 absolute left-3 top-1/2 -translate-y-1/2" />
                                 <input
                                     type="text"
-                                    placeholder="Filter by run ID"
+                                    placeholder="Filter runs"
                                     value={searchFilter}
                                     onChange={(e) => setSearchFilter(e.target.value)}
                                     className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
