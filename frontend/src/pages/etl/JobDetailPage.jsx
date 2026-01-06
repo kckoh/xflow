@@ -268,7 +268,7 @@ export default function JobDetailPage() {
                     {activeTab === 'info' && (
                         <div className="bg-white rounded-lg border border-gray-200 shadow-sm">
                             <div className="px-6 py-4 border-b border-gray-200">
-                                <h3 className="text-lg font-semibold text-gray-900">Job 정보</h3>
+                                <h3 className="text-lg font-semibold text-gray-900">Job Information</h3>
                             </div>
                             <div className="p-6">
                                 <dl className="grid grid-cols-2 gap-6">
@@ -542,7 +542,7 @@ export default function JobDetailPage() {
                                         <AlertCircle className="w-12 h-12 text-gray-300 mx-auto mb-4" />
                                         <h4 className="text-lg font-medium text-gray-900 mb-2">No runs yet</h4>
                                         <p className="text-sm text-gray-500">
-                                            이 Job은 아직 실행된 적이 없습니다.
+                                            This job has not been run yet.
                                         </p>
                                     </div>
                                 ) : (
@@ -609,7 +609,7 @@ export default function JobDetailPage() {
                     {activeTab === 'schedule' && (
                         <div className="bg-white rounded-lg border border-gray-200 shadow-sm">
                             <div className="px-6 py-4 border-b border-gray-200">
-                                <h3 className="text-lg font-semibold text-gray-900">스케줄 관리</h3>
+                                <h3 className="text-lg font-semibold text-gray-900">Schedule Management</h3>
                             </div>
                             <div className="p-6">
                                 {job?.job_type === 'cdc' ? (
@@ -627,7 +627,7 @@ export default function JobDetailPage() {
                                 ) : (
                                     <div>
                                         <p className="text-sm text-gray-600 mb-4">
-                                            Batch ETL 작업의 스케줄을 설정하고 관리합니다.
+                                            Batch ETL Set and manage schedules for your work.
                                         </p>
                                         <div className="border border-gray-200 rounded-lg">
                                             <SchedulesPanel
@@ -653,14 +653,14 @@ export default function JobDetailPage() {
                     {activeTab === 'quality' && (
                         <div className="bg-white rounded-lg border border-gray-200 shadow-sm">
                             <div className="px-6 py-4 border-b border-gray-200">
-                                <h3 className="text-lg font-semibold text-gray-900">데이터 퀄리티</h3>
+                                <h3 className="text-lg font-semibold text-gray-900">Quality Metrics</h3>
                             </div>
                             <div className="p-6">
                                 <div className="text-center py-12">
                                     <BarChart3 className="w-12 h-12 text-gray-300 mx-auto mb-4" />
                                     <h4 className="text-lg font-medium text-gray-900 mb-2">Quality Metrics</h4>
                                     <p className="text-sm text-gray-500">
-                                        데이터 퀄리티 메트릭이 곧 제공될 예정입니다.
+                                        Quality metrics will be provided soon.
                                     </p>
                                 </div>
                             </div>
