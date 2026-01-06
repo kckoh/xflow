@@ -953,7 +953,7 @@ export default function ETLJobPage() {
     if (lineageNodes.length > 0) {
       const rightMostNode = lineageNodes.reduce((right, node) =>
         node.position.x > right.position.x ? node : right
-      , lineageNodes[0]);
+        , lineageNodes[0]);
       position = {
         x: rightMostNode.position.x + 350,
         y: rightMostNode.position.y
@@ -1459,7 +1459,7 @@ export default function ETLJobPage() {
                       className={`flex-1 px-4 py-3 text-sm font-medium transition-colors ${lineageActiveTab === "transform"
                         ? "text-purple-600 border-b-2 border-purple-600 bg-purple-50"
                         : "text-gray-600 hover:text-gray-900 hover:bg-gray-50"
-                      }`}
+                        }`}
                     >
                       Transform
                     </button>
@@ -1468,7 +1468,7 @@ export default function ETLJobPage() {
                       className={`flex-1 px-4 py-3 text-sm font-medium transition-colors ${lineageActiveTab === "target"
                         ? "text-green-600 border-b-2 border-green-600 bg-green-50"
                         : "text-gray-600 hover:text-gray-900 hover:bg-gray-50"
-                      }`}
+                        }`}
                     >
                       Target
                     </button>
@@ -1629,7 +1629,7 @@ export default function ETLJobPage() {
                   data: { ...prev.data, ...data }
                 }));
               }}
-              onMetadataUpdate={() => {}}
+              onMetadataUpdate={() => { }}
             />
           ) : selectedLineageNode?.data?.nodeCategory === "target" ? (
             /* Target Properties Panel */
@@ -1649,7 +1649,7 @@ export default function ETLJobPage() {
                   data: { ...prev.data, ...data }
                 }));
               }}
-              onMetadataUpdate={() => {}}
+              onMetadataUpdate={() => { }}
             />
           ) : (
             /* Right Sidebar - For job nodes or no selection */
