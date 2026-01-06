@@ -33,6 +33,7 @@ import {
   Cog,
   Shield,
   X,
+  Search,
 } from "lucide-react";
 import { useToast } from "../../components/common/Toast";
 import SourceDatasetSelector from "../domain/components/SourceDatasetSelector";
@@ -96,6 +97,8 @@ export default function TargetWizard() {
   const [selectedJobIds, setSelectedJobIds] = useState([]);
   const [selectedTargetIds, setSelectedTargetIds] = useState([]); // For target tab
   const [isLoading, setIsLoading] = useState(false);
+  const [sourceSearchTerm, setSourceSearchTerm] = useState('');
+  const [sourceDatasets, setSourceDatasets] = useState([]);
 
   // Step 2: Configuration
   const [config, setConfig] = useState({
@@ -181,6 +184,43 @@ export default function TargetWizard() {
 
     loadExistingJob();
   }, [location.state]);
+
+  // Load all datasets for Step 2 table
+  useEffect(() => {
+    const loadDatasets = async () => {
+      try {
+        // Fetch source datasets
+        const sourceResponse = await fetch(`${API_BASE_URL}/api/source-datasets`);
+        const sourceData = sourceResponse.ok ? await sourceResponse.json() : [];
+
+        // Fetch target datasets (catalog)
+        const targetResponse = await fetch(`${API_BASE_URL}/api/catalog`);
+        const targetData = targetResponse.ok ? await targetResponse.json() : [];
+
+        // Combine and normalize datasets
+        const combinedDatasets = [
+          ...sourceData.map(ds => ({
+            ...ds,
+            datasetType: 'source',
+            columnCount: ds.columns?.length || 0,
+          })),
+          ...targetData.filter(d => d.is_active).map(ds => ({
+            ...ds,
+            datasetType: 'target',
+            sourceType: 'Catalog',
+            columnCount: ds.targets?.[0]?.schema?.length || 0,
+          })),
+        ];
+
+        setSourceDatasets(combinedDatasets);
+      } catch (err) {
+        console.error("Failed to load datasets:", err);
+        setSourceDatasets([]);
+      }
+    };
+
+    loadDatasets();
+  }, []);
 
   const handleDeleteNode = useCallback((nodeId) => {
     setLineageNodes(prev => prev.filter(n => n.id !== nodeId));
@@ -775,54 +815,140 @@ export default function TargetWizard() {
         {/* Step 2: Source */}
         {currentStep === 2 && (
           <div className="flex-1 overflow-y-auto">
-            <div className="max-w-4xl mx-auto px-6 py-8">
-              <h2 className="text-lg font-semibold text-gray-900 mb-2">
+            <div className="max-w-6xl mx-auto px-6 py-8">
+              <h2 className="text-lg font-semibold text-gray-900 mb-6">
                 Select Datasets
               </h2>
-              <p className="text-gray-500 mb-4">
-                Choose source datasets or target datasets
-              </p>
 
-              {/* Tabs */}
-              <div className="flex gap-2 mb-6">
-                <button
-                  onClick={() => setSourceTab('source')}
-                  className={`px-6 py-2.5 rounded-lg font-medium transition-all ${sourceTab === 'source'
-                    ? 'bg-blue-600 text-white shadow-md'
-                    : 'bg-white text-gray-600 border border-gray-300 hover:bg-gray-50'
-                    }`}
-                >
-                  Source Datasets
-                </button>
-                <button
-                  onClick={() => setSourceTab('target')}
-                  className={`px-6 py-2.5 rounded-lg font-medium transition-all ${sourceTab === 'target'
-                    ? 'bg-orange-600 text-white shadow-md'
-                    : 'bg-white text-gray-600 border border-gray-300 hover:bg-gray-50'
-                    }`}
-                >
-                  Target Datasets
-                </button>
-              </div>
+              <div className="bg-white rounded-lg border border-gray-200">
+                {/* Search and Filter Bar */}
+                <div className="p-4 border-b border-gray-200">
+                  <div className="flex items-center gap-4">
+                    <div className="relative flex-1">
+                      <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 w-4 h-4" />
+                      <input
+                        type="text"
+                        placeholder="Search datasets..."
+                        className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-orange-500 text-sm"
+                        value={sourceSearchTerm}
+                        onChange={(e) => setSourceSearchTerm(e.target.value)}
+                      />
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <button
+                        onClick={() => setSourceTab('source')}
+                        className={`px-4 py-2 rounded-lg text-sm font-medium transition-all ${sourceTab === 'source'
+                          ? 'bg-blue-600 text-white'
+                          : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
+                          }`}
+                      >
+                        Source Datasets
+                      </button>
+                      <button
+                        onClick={() => setSourceTab('target')}
+                        className={`px-4 py-2 rounded-lg text-sm font-medium transition-all ${sourceTab === 'target'
+                          ? 'bg-orange-600 text-white'
+                          : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
+                          }`}
+                      >
+                        Target Datasets
+                      </button>
+                    </div>
+                  </div>
+                </div>
 
-              <div className="bg-white rounded-lg border border-gray-200 p-6 h-[500px]">
-                {sourceTab === 'source' ? (
-                  <SourceDatasetSelector
-                    selectedIds={selectedJobIds}
-                    onToggle={handleToggleJob}
-                  />
-                ) : (
-                  <CatalogDatasetSelector
-                    selectedIds={selectedTargetIds}
-                    onToggle={(id) => {
-                      setSelectedTargetIds(prev =>
-                        prev.includes(id)
-                          ? prev.filter(item => item !== id)
-                          : [...prev, id]
-                      );
-                    }}
-                  />
-                )}
+                {/* Table */}
+                <div className="overflow-x-auto">
+                  <table className="w-full">
+                    <thead className="bg-gray-50 border-b border-gray-200">
+                      <tr>
+                        <th className="w-12 px-4 py-3"></th>
+                        <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">Name</th>
+                        <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">Type</th>
+                        <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">Source</th>
+                        <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">Columns</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-gray-200">
+                      {sourceDatasets
+                        .filter(ds => {
+                          const matchesSearch = ds.name?.toLowerCase().includes(sourceSearchTerm.toLowerCase()) ||
+                            ds.description?.toLowerCase().includes(sourceSearchTerm.toLowerCase());
+                          const matchesType = ds.datasetType === sourceTab;
+                          return matchesSearch && matchesType;
+                        })
+                        .map((dataset) => {
+                          const isSelected = dataset.datasetType === 'source'
+                            ? selectedJobIds.includes(dataset.id)
+                            : selectedTargetIds.includes(dataset.id);
+
+                          return (
+                            <tr
+                              key={dataset.id}
+                              onClick={() => {
+                                if (dataset.datasetType === 'source') {
+                                  handleToggleJob(dataset.id);
+                                } else {
+                                  setSelectedTargetIds(prev =>
+                                    prev.includes(dataset.id)
+                                      ? prev.filter(item => item !== dataset.id)
+                                      : [...prev, dataset.id]
+                                  );
+                                }
+                              }}
+                              className={`cursor-pointer transition-colors ${isSelected ? 'bg-orange-50' : 'hover:bg-gray-50'}`}
+                            >
+                              <td className="px-4 py-3">
+                                <div className={`w-5 h-5 rounded border flex items-center justify-center transition-colors ${isSelected
+                                  ? 'bg-orange-600 border-orange-600'
+                                  : 'border-gray-300 bg-white'
+                                  }`}>
+                                  {isSelected && <Check className="w-3 h-3 text-white" />}
+                                </div>
+                              </td>
+                              <td className="px-4 py-3">
+                                <div className="font-medium text-gray-900 text-sm">{dataset.name}</div>
+                                <div className="text-xs text-gray-500 truncate max-w-xs">{dataset.description || '-'}</div>
+                              </td>
+                              <td className="px-4 py-3">
+                                <span className={`inline-flex items-center px-2 py-1 rounded-full text-xs font-medium ${dataset.datasetType === 'source'
+                                  ? 'bg-blue-100 text-blue-700'
+                                  : 'bg-orange-100 text-orange-700'
+                                  }`}>
+                                  {dataset.datasetType === 'source' ? 'Source' : 'Target'}
+                                </span>
+                              </td>
+                              <td className="px-4 py-3 text-sm text-gray-600">
+                                {dataset.source_type || dataset.sourceType || '-'}
+                              </td>
+                              <td className="px-4 py-3 text-sm text-gray-600">
+                                {dataset.columns?.length || dataset.columnCount || 0}
+                              </td>
+                            </tr>
+                          );
+                        })}
+                    </tbody>
+                  </table>
+
+                  {sourceDatasets.filter(ds => {
+                    const matchesSearch = ds.name?.toLowerCase().includes(sourceSearchTerm.toLowerCase()) ||
+                      ds.description?.toLowerCase().includes(sourceSearchTerm.toLowerCase());
+                    const matchesType = ds.datasetType === sourceTab;
+                    return matchesSearch && matchesType;
+                  }).length === 0 && (
+                    <div className="text-center py-12 text-gray-500">
+                      <Database className="w-12 h-12 mx-auto mb-4 text-gray-300" />
+                      <p>No datasets found</p>
+                    </div>
+                  )}
+                </div>
+
+                {/* Footer with selection count */}
+                <div className="px-4 py-3 bg-gray-50 border-t border-gray-200 flex items-center justify-between">
+                  <span className="text-sm text-gray-600">
+                    {selectedJobIds.length + selectedTargetIds.length} dataset(s) selected
+                  </span>
+                </div>
               </div>
             </div>
           </div>
