@@ -17,7 +17,7 @@ import QualityDashboard from "./pages/Quality/QualityDashboard";
 import CatalogPage from "./pages/catalog/CatalogPage";
 import CatalogDetailPage from "./pages/catalog/CatalogDetailPage";
 import SourceWizard from "./pages/source/SourceWizard";
-import TargetWizard from "./pages/target/TargetWizard";
+import TargetWizard from "./pages/targets/TargetWizard";
 import { ToastProvider } from "./components/common/Toast";
 
 // Placeholder components for new routes
@@ -59,10 +59,7 @@ function App() {
           </Route>
 
           {/* Re-structuring for clarity: */}
-          <Route
-            path="/"
-            element={<Navigate to="/dataset" replace />}
-          />
+          <Route path="/" element={<Navigate to="/dataset" replace />} />
 
           <Route
             path="/dataset"
