@@ -276,12 +276,30 @@ export default function TargetWizard() {
 
             if (target) {
               const schema = target.schema || [];
+
               // Get actual S3 path: destination.path + dataset.name (Spark adds job name to path)
-              const basePath = dataset.destination?.path || target.config?.path || '';
-              const datasetName = dataset.name || '';
-              // Ensure path ends with /
-              const normalizedPath = basePath.endsWith('/') ? basePath : `${basePath}/`;
-              const s3Path = `${normalizedPath}${datasetName}`;
+              let s3Path = '';
+
+              if (dataset.destination?.path) {
+                // Has destination config - use it
+                const basePath = dataset.destination.path;
+                const datasetName = dataset.name || '';
+                const normalizedPath = basePath.endsWith('/') ? basePath : `${basePath}/`;
+                s3Path = `${normalizedPath}${datasetName}`;
+              } else if (target.urn) {
+                // Fallback: parse URN format (urn:s3:bucket:key)
+                const urnParts = target.urn.split(':');
+                if (urnParts[0] === 'urn' && urnParts[1] === 's3' && urnParts.length >= 3) {
+                  const bucket = urnParts[2];
+                  const key = urnParts.slice(3).join(':') || dataset.name;
+                  s3Path = `s3a://${bucket}/${key}`;
+                }
+              }
+
+              if (!s3Path) {
+                console.error('Could not determine S3 path for dataset:', dataset.name);
+                return; // Skip this dataset
+              }
 
               nodes.push({
                 id: `source-catalog-${datasetId}`,
@@ -308,12 +326,10 @@ export default function TargetWizard() {
                   s3Location: s3Path,
                   path: s3Path,
                   format: dataset.destination?.format || target.config?.format || 'parquet',
-                  // S3 credentials (for LocalStack)
-                  s3_config: {
-                    access_key: "test",
-                    secret_key: "test",
-                    endpoint: "http://localstack:4566"
-                  },
+                  // Note: s3_config is not needed here
+                  // Spark ETL runner will use environment-specific credentials:
+                  // - LocalStack: credentials from Airflow DAG
+                  // - Production: IAM role (IRSA)
                   onDelete: handleDeleteNode,
                 },
               });
