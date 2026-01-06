@@ -76,7 +76,7 @@ export default function SchedulesPanel({ schedules = [], onUpdate }) {
     const minDateTime = new Date(new Date().getTime() - new Date().getTimezoneOffset() * 60000).toISOString().slice(0, 16);
 
     const handleCreateSchedule = () => {
-        if (!scheduleName || !frequency) return;
+        if (!frequency) return;
         
         // Validate required fields
         if (frequency === 'interval' && !startDate && (intervalDays === 0 && intervalHours === 0 && intervalMinutes === 0)) return;
@@ -84,7 +84,7 @@ export default function SchedulesPanel({ schedules = [], onUpdate }) {
 
         const scheduleData = {
             id: editingId || Date.now().toString(),
-            name: scheduleName,
+            name: `${frequency}-schedule`,
             frequency: frequency,
             cron: null, // Backend will generate this
             description: description,
@@ -97,8 +97,6 @@ export default function SchedulesPanel({ schedules = [], onUpdate }) {
                 intervalDays,
                 intervalHours,
                 intervalMinutes,
-                // Explicitly store name/desc in uiParams for persistence
-                scheduleName: scheduleName,
                 scheduleDescription: description
             }
         };
@@ -167,39 +165,13 @@ export default function SchedulesPanel({ schedules = [], onUpdate }) {
         });
     };
 
-    // Create Schedule Form
-    if (showCreateForm) {
+    // Create Schedule Form - Show automatically if no schedules exist
+    if (showCreateForm || schedules.length === 0) {
         return (
             <div className="flex-1 overflow-y-auto bg-gray-50 p-6">
                 <div className="max-w-3xl mx-auto">
-                    <h2 className="text-xl font-semibold text-gray-900 mb-6">
-                        {editingId ? 'Edit schedule' : 'Schedule job run'}
-                    </h2>
-
                     <div className="bg-white rounded-lg border border-gray-200 shadow-sm p-6">
-                        <div className="flex items-center gap-2 mb-6">
-                            <h3 className="text-lg font-medium text-gray-900">Schedule parameters</h3>
-                            <span className="text-xs text-blue-600 cursor-pointer hover:underline">Info</span>
-                        </div>
-
                         <div className="space-y-6">
-                            {/* Name */}
-                            <div>
-                                <label className="block text-sm font-medium text-gray-700 mb-2">
-                                    Name
-                                </label>
-                                <input
-                                    type="text"
-                                    value={scheduleName}
-                                    onChange={(e) => setScheduleName(e.target.value)}
-                                    className="w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
-                                    placeholder="Enter schedule name"
-                                />
-                                <p className="mt-1 text-xs text-gray-500">
-                                    Name must be unique. It can contain letters (A-Z), numbers (0-9), spaces, hyphens (-), or underscores (_).
-                                </p>
-                            </div>
-
                             {/* Frequency */}
                             <div>
                                 <label className="block text-sm font-medium text-gray-700 mb-2">
@@ -333,25 +305,6 @@ export default function SchedulesPanel({ schedules = [], onUpdate }) {
                                 </div>
                             )}
 
-                            {/* Description */}
-                            <div>
-                                <label className="block text-sm font-medium text-gray-700 mb-1">
-                                    Description - <span className="font-normal italic">optional</span>
-                                </label>
-                                <p className="text-xs text-gray-500 mb-2">
-                                    Enter a schedule description.
-                                </p>
-                                <textarea
-                                    value={description}
-                                    onChange={(e) => setDescription(e.target.value)}
-                                    rows={4}
-                                    className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 resize-none"
-                                    placeholder=""
-                                />
-                                <p className="mt-1 text-xs text-gray-500">
-                                    Descriptions can be up to 2048 characters long.
-                                </p>
-                            </div>
                         </div>
 
                         {/* Buttons */}
@@ -364,7 +317,7 @@ export default function SchedulesPanel({ schedules = [], onUpdate }) {
                             </button>
                             <button
                                 onClick={handleCreateSchedule}
-                                disabled={!scheduleName || !frequency}
+                                disabled={!frequency}
                                 className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed font-medium"
                             >
                                 {editingId ? 'Update schedule' : 'Create schedule'}
@@ -387,36 +340,15 @@ export default function SchedulesPanel({ schedules = [], onUpdate }) {
                             <Calendar className="w-5 h-5 text-gray-500" />
                             <h3 className="text-lg font-semibold text-gray-900">Schedules</h3>
                         </div>
-                        <div className="flex items-center gap-4">
-                            <span className="text-xs text-gray-500">
-                                Last updated (UTC): {new Date().toLocaleString()}
-                            </span>
-                            {/* Only show Create button if no schedules exist */}
-                            {schedules.length === 0 && (
-                                <button
-                                    onClick={() => setShowCreateForm(true)}
-                                    className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 flex items-center gap-2 text-sm font-medium"
-                                >
-                                    Create schedule
-                                </button>
-                            )}
-                        </div>
+                        <span className="text-xs text-gray-500">
+                            Last updated (UTC): {new Date().toLocaleString()}
+                        </span>
                     </div>
 
                     {/* Content */}
                     <div className="p-6">
                         {schedules.length === 0 ? (
-                            <div className="text-center py-12">
-                                <Clock className="w-12 h-12 text-gray-300 mx-auto mb-4" />
-                                <h4 className="text-lg font-medium text-gray-900 mb-2">No schedules</h4>
-                                <p className="text-sm text-gray-500 mb-4">You can have at most one active schedule.</p>
-                                <button
-                                    onClick={() => setShowCreateForm(true)}
-                                    className="px-4 py-2 border border-gray-300 rounded-lg hover:bg-gray-50 text-sm font-medium"
-                                >
-                                    Create schedule
-                                </button>
-                            </div>
+                            null
                         ) : (
                             <div className="space-y-3">
                                 {schedules.map((schedule) => (

@@ -29,6 +29,10 @@ import {
   Zap,
   Clock,
   Code,
+  LayoutDashboard,
+  Cog,
+  Shield,
+  X,
 } from "lucide-react";
 import { useToast } from "../../components/common/Toast";
 import SourceDatasetSelector from "../domain/components/SourceDatasetSelector";
@@ -44,11 +48,12 @@ import SchedulesPanel from "../../components/etl/SchedulesPanel";
 import { API_BASE_URL } from "../../config/api";
 
 const STEPS = [
-  { id: 1, name: "Select Sources", icon: Database },
-  { id: 2, name: "Configure", icon: Settings },
-  { id: 3, name: "Transform", icon: GitBranch },
+  { id: 1, name: "Overview", icon: LayoutDashboard },
+  { id: 2, name: "Source", icon: Database },
+  { id: 3, name: "Process", icon: Cog },
   { id: 4, name: "Schedule", icon: Calendar },
-  { id: 5, name: "Review", icon: Eye },
+  { id: 5, name: "Permission", icon: Shield },
+  { id: 6, name: "Review", icon: Eye },
 ];
 
 // Node types for ReactFlow
@@ -97,7 +102,9 @@ export default function TargetWizard() {
     id: `tgt-${Date.now()}`,
     name: "",
     description: "",
+    tags: [],
   });
+  const [tagInput, setTagInput] = useState("");
 
   // Step 3: Lineage
   const [lineageNodes, setLineageNodes] = useState([]);
@@ -365,8 +372,8 @@ export default function TargetWizard() {
   };
 
   const handleNext = async () => {
-    if (currentStep === 1) {
-      // Import source datasets before moving to step 2
+    if (currentStep === 2) {
+      // Import source datasets before moving to step 3
       await handleImportSources();
       if (lineageNodes.length > 0 || selectedJobIds.length > 0) {
         // Re-import if we have selections but no nodes yet
@@ -402,6 +409,7 @@ export default function TargetWizard() {
       const payload = {
         name: config.name,
         description: config.description,
+        tags: config.tags,
         dataset_type: "target",
         job_type: jobType,
         nodes: cleanNodes,
@@ -445,15 +453,19 @@ export default function TargetWizard() {
   const canProceed = () => {
     switch (currentStep) {
       case 1:
-        // Check both Source and Target tabs
-        return selectedJobIds.length > 0 || selectedTargetIds.length > 0;
-      case 2:
+        // Overview step - need name
         return config.name.trim() !== "";
+      case 2:
+        // Source step - check both Source and Target tabs
+        return selectedJobIds.length > 0 || selectedTargetIds.length > 0;
       case 3:
+        // Process step
         return lineageNodes.length > 0;
       case 4:
         return true; // Schedule step - always can proceed
       case 5:
+        return true; // Permission step - always can proceed
+      case 6:
         return true; // Review step
       default:
         return false;
@@ -673,8 +685,95 @@ export default function TargetWizard() {
 
       {/* Content */}
       <div className="flex-1 overflow-hidden flex flex-col">
-        {/* Step 1: Select Source Datasets */}
+        {/* Step 1: Overview */}
         {currentStep === 1 && (
+          <div className="flex-1 overflow-y-auto">
+            <div className="max-w-4xl mx-auto px-6 py-8">
+              <h2 className="text-lg font-semibold text-gray-900 mb-2">
+                Overview
+              </h2>
+              <p className="text-gray-500 mb-6">
+                Set up the basic information for your target dataset
+              </p>
+
+              <div className="bg-white rounded-lg border border-gray-200 p-6 space-y-6">
+                <div className="grid grid-cols-2 gap-4">
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-2">
+                      Dataset Name *
+                    </label>
+                    <input
+                      type="text"
+                      value={config.name}
+                      onChange={(e) => setConfig({ ...config, name: e.target.value })}
+                      placeholder="Enter dataset name"
+                      className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-orange-500"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-2">
+                      Tags
+                    </label>
+                    <input
+                      type="text"
+                      value={tagInput}
+                      onChange={(e) => setTagInput(e.target.value)}
+                      onKeyDown={(e) => {
+                        if (e.key === 'Enter' && tagInput.trim()) {
+                          e.preventDefault();
+                          if (!config.tags.includes(tagInput.trim())) {
+                            setConfig({ ...config, tags: [...config.tags, tagInput.trim()] });
+                          }
+                          setTagInput("");
+                        }
+                      }}
+                      placeholder="Type and press Enter"
+                      className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-orange-500"
+                    />
+                    {config.tags.length > 0 && (
+                      <div className="flex flex-wrap gap-1 mt-2">
+                        {config.tags.map((tag, index) => (
+                          <span
+                            key={index}
+                            className="inline-flex items-center gap-1 px-2 py-0.5 bg-orange-100 text-orange-700 rounded-full text-xs"
+                          >
+                            {tag}
+                            <button
+                              onClick={() => setConfig({
+                                ...config,
+                                tags: config.tags.filter((_, i) => i !== index)
+                              })}
+                              className="hover:text-orange-900"
+                            >
+                              <X className="w-3 h-3" />
+                            </button>
+                          </span>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                </div>
+
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                    Description
+                  </label>
+                  <textarea
+                    value={config.description}
+                    onChange={(e) => setConfig({ ...config, description: e.target.value })}
+                    placeholder="Enter description (optional)"
+                    rows={3}
+                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-orange-500 resize-none"
+                  />
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Step 2: Source */}
+        {currentStep === 2 && (
           <div className="flex-1 overflow-y-auto">
             <div className="max-w-4xl mx-auto px-6 py-8">
               <h2 className="text-lg font-semibold text-gray-900 mb-2">
@@ -729,66 +828,7 @@ export default function TargetWizard() {
           </div>
         )}
 
-        {/* Step 2: Configure */}
-        {currentStep === 2 && (
-          <div className="flex-1 overflow-y-auto">
-            <div className="max-w-4xl mx-auto px-6 py-8">
-              <h2 className="text-lg font-semibold text-gray-900 mb-2">
-                Configure Target Dataset
-              </h2>
-              <p className="text-gray-500 mb-6">
-                Set up the basic information for your target dataset
-              </p>
-
-              <div className="bg-white rounded-lg border border-gray-200 p-6 space-y-6">
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">
-                    Dataset Name *
-                  </label>
-                  <input
-                    type="text"
-                    value={config.name}
-                    onChange={(e) => setConfig({ ...config, name: e.target.value })}
-                    placeholder="Enter dataset name"
-                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-orange-500"
-                  />
-                </div>
-
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">
-                    Description
-                  </label>
-                  <textarea
-                    value={config.description}
-                    onChange={(e) => setConfig({ ...config, description: e.target.value })}
-                    placeholder="Enter description (optional)"
-                    rows={3}
-                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-orange-500 resize-none"
-                  />
-                </div>
-
-                {/* Imported Jobs Summary */}
-                <div className="border-t border-gray-200 pt-6">
-                  <h3 className="text-sm font-medium text-gray-700 mb-3">
-                    Imported Data
-                  </h3>
-                  <div className="grid grid-cols-2 gap-4">
-                    <div className="bg-orange-50 rounded-lg p-4">
-                      <div className="text-2xl font-bold text-orange-600">{lineageNodes.length}</div>
-                      <div className="text-sm text-gray-600">Nodes</div>
-                    </div>
-                    <div className="bg-blue-50 rounded-lg p-4">
-                      <div className="text-2xl font-bold text-blue-600">{lineageEdges.length}</div>
-                      <div className="text-sm text-gray-600">Connections</div>
-                    </div>
-                  </div>
-                </div>
-              </div>
-            </div>
-          </div>
-        )}
-
-        {/* Step 3: Lineage */}
+        {/* Step 3: Process */}
         {currentStep === 3 && (
           <div className="flex-1 flex overflow-hidden">
             {/* Canvas */}
@@ -1032,97 +1072,44 @@ export default function TargetWizard() {
         {currentStep === 4 && (
           <div className="flex-1 overflow-y-auto">
             <div className="max-w-4xl mx-auto px-6 py-8">
-              <h2 className="text-lg font-semibold text-gray-900 mb-2">
+              <h2 className="text-lg font-semibold text-gray-900 mb-6">
                 Schedule Configuration
               </h2>
-              <p className="text-gray-500 mb-6">
-                Configure how your target dataset will be executed
-              </p>
 
-              <div className="space-y-6">
-                {/* Job Type Selection */}
-                <div className="bg-white rounded-lg border border-gray-200 p-6">
-                  <h3 className="text-sm font-semibold text-gray-900 mb-4">
-                    Job Type
-                  </h3>
-                  <div className="grid grid-cols-2 gap-4">
-                    <button
-                      onClick={() => setJobType("batch")}
-                      className={`relative p-4 rounded-lg border-2 text-left transition-all ${jobType === "batch"
-                        ? "border-orange-500 bg-orange-50"
-                        : "border-gray-200 hover:border-gray-300"
-                        }`}
-                    >
-                      <div className="flex items-center gap-3 mb-2">
-                        <Clock className={`w-5 h-5 ${jobType === "batch" ? "text-orange-600" : "text-gray-400"}`} />
-                        <span className={`font-medium ${jobType === "batch" ? "text-orange-700" : "text-gray-700"}`}>
-                          Batch ETL
-                        </span>
-                      </div>
-                      <p className="text-sm text-gray-500">
-                        Run on a schedule or manually trigger batch processing
-                      </p>
-                      {jobType === "batch" && (
-                        <div className="absolute top-3 right-3 w-5 h-5 bg-orange-500 rounded-full flex items-center justify-center">
-                          <Check className="w-3 h-3 text-white" />
-                        </div>
-                      )}
-                    </button>
-
-                    <button
-                      onClick={() => setJobType("cdc")}
-                      className={`relative p-4 rounded-lg border-2 text-left transition-all ${jobType === "cdc"
-                        ? "border-purple-500 bg-purple-50"
-                        : "border-gray-200 hover:border-gray-300"
-                        }`}
-                    >
-                      <div className="flex items-center gap-3 mb-2">
-                        <Zap className={`w-5 h-5 ${jobType === "cdc" ? "text-purple-600" : "text-gray-400"}`} />
-                        <span className={`font-medium ${jobType === "cdc" ? "text-purple-700" : "text-gray-700"}`}>
-                          CDC Streaming
-                        </span>
-                      </div>
-                      <p className="text-sm text-gray-500">
-                        Real-time change data capture with continuous sync
-                      </p>
-                      {jobType === "cdc" && (
-                        <div className="absolute top-3 right-3 w-5 h-5 bg-purple-500 rounded-full flex items-center justify-center">
-                          <Check className="w-3 h-3 text-white" />
-                        </div>
-                      )}
-                    </button>
-                  </div>
-                </div>
-
-                {/* Schedule Configuration - Only for Batch */}
-                {jobType === "batch" ? (
-                  <div className="bg-white rounded-lg border border-gray-200">
-                    <SchedulesPanel
-                      schedules={schedules}
-                      onUpdate={(newSchedules) => setSchedules(newSchedules)}
-                    />
-                  </div>
-                ) : (
-                  <div className="bg-purple-50 rounded-lg border border-purple-200 p-6">
-                    <div className="flex items-start gap-3">
-                      <Zap className="w-5 h-5 text-purple-600 mt-0.5" />
-                      <div>
-                        <h4 className="font-medium text-purple-900">CDC Streaming Mode</h4>
-                        <p className="text-sm text-purple-700 mt-1">
-                          CDC mode will continuously sync changes in real-time. No schedule configuration needed.
-                          The pipeline will start automatically when activated.
-                        </p>
-                      </div>
-                    </div>
-                  </div>
-                )}
+              <div className="bg-white rounded-lg border border-gray-200">
+                <SchedulesPanel
+                  schedules={schedules}
+                  onUpdate={(newSchedules) => setSchedules(newSchedules)}
+                />
               </div>
             </div>
           </div>
         )}
 
-        {/* Step 5: Review */}
+        {/* Step 5: Permission */}
         {currentStep === 5 && (
+          <div className="flex-1 overflow-y-auto">
+            <div className="max-w-4xl mx-auto px-6 py-8">
+              <h2 className="text-lg font-semibold text-gray-900 mb-6">
+                Permission
+              </h2>
+
+              <div className="bg-white rounded-lg border border-gray-200 p-6">
+                <div className="flex items-center justify-center py-12">
+                  <div className="text-center">
+                    <Shield className="w-12 h-12 text-gray-300 mx-auto mb-4" />
+                    <h3 className="text-lg font-medium text-gray-900">
+                      Permission Settings
+                    </h3>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Step 6: Review */}
+        {currentStep === 6 && (
           <div className="flex-1 overflow-y-auto">
             <div className="max-w-4xl mx-auto px-6 py-8">
               <h2 className="text-lg font-semibold text-gray-900 mb-2">
@@ -1158,112 +1145,6 @@ export default function TargetWizard() {
                     </div>
                   </dl>
                 </div>
-
-                {/* Lineage Summary */}
-                <div className="bg-white rounded-lg border border-gray-200 p-6">
-                  <h3 className="text-sm font-semibold text-gray-900 mb-4 flex items-center gap-2">
-                    <GitBranch className="w-4 h-4 text-blue-500" />
-                    Lineage Summary
-                  </h3>
-                  <div className="grid grid-cols-3 gap-4">
-                    <div className="text-center p-4 bg-emerald-50 rounded-lg">
-                      <div className="text-2xl font-bold text-emerald-600">{selectedJobIds.length}</div>
-                      <div className="text-sm text-gray-500">Source Datasets</div>
-                    </div>
-                    <div className="text-center p-4 bg-orange-50 rounded-lg">
-                      <div className="text-2xl font-bold text-orange-600">{lineageNodes.length}</div>
-                      <div className="text-sm text-gray-500">Nodes</div>
-                    </div>
-                    <div className="text-center p-4 bg-blue-50 rounded-lg">
-                      <div className="text-2xl font-bold text-blue-600">{lineageEdges.length}</div>
-                      <div className="text-sm text-gray-500">Connections</div>
-                    </div>
-                  </div>
-                </div>
-
-                {/* Execution Configuration */}
-                <div className="bg-white rounded-lg border border-gray-200 p-6">
-                  <h3 className="text-sm font-semibold text-gray-900 mb-4 flex items-center gap-2">
-                    <Calendar className="w-4 h-4 text-purple-500" />
-                    Execution Configuration
-                  </h3>
-                  <dl className="space-y-4">
-                    <div className="flex items-center gap-3">
-                      <dt className="text-sm text-gray-500 w-24">Job Type</dt>
-                      <dd className="flex items-center gap-2">
-                        {jobType === "batch" ? (
-                          <>
-                            <Clock className="w-4 h-4 text-orange-500" />
-                            <span className="text-sm font-medium text-gray-900">Batch ETL</span>
-                          </>
-                        ) : (
-                          <>
-                            <Zap className="w-4 h-4 text-purple-500" />
-                            <span className="text-sm font-medium text-gray-900">CDC Streaming</span>
-                          </>
-                        )}
-                      </dd>
-                    </div>
-                    {jobType === "batch" && (
-                      <div className="flex items-start gap-3">
-                        <dt className="text-sm text-gray-500 w-24">Schedules</dt>
-                        <dd className="flex-1">
-                          {schedules.length > 0 ? (
-                            <div className="space-y-2">
-                              {schedules.map((schedule, idx) => (
-                                <div key={idx} className="flex items-center gap-2 text-sm text-gray-900 bg-gray-50 px-3 py-2 rounded-lg">
-                                  <Clock className="w-3 h-3 text-gray-400" />
-                                  <span className="font-medium">{schedule.cron || schedule.expression}</span>
-                                  {schedule.timezone && (
-                                    <span className="text-gray-500">({schedule.timezone})</span>
-                                  )}
-                                </div>
-                              ))}
-                            </div>
-                          ) : (
-                            <span className="text-sm text-gray-500">No schedules configured (manual trigger only)</span>
-                          )}
-                        </dd>
-                      </div>
-                    )}
-                    {jobType === "cdc" && (
-                      <div className="bg-purple-50 rounded-lg p-3 flex items-start gap-2">
-                        <Zap className="w-4 h-4 text-purple-600 mt-0.5" />
-                        <span className="text-sm text-purple-700">
-                          Real-time change data capture - pipeline will sync continuously when activated
-                        </span>
-                      </div>
-                    )}
-                  </dl>
-                </div>
-
-                {/* Node List */}
-                <div className="bg-white rounded-lg border border-gray-200 p-6">
-                  <h3 className="text-sm font-semibold text-gray-900 mb-4">
-                    Nodes ({lineageNodes.length})
-                  </h3>
-                  <div className="space-y-2 max-h-64 overflow-y-auto">
-                    {lineageNodes.map((node) => (
-                      <div
-                        key={node.id}
-                        className="flex items-center justify-between p-3 bg-gray-50 rounded-lg"
-                      >
-                        <div className="flex items-center gap-3">
-                          <div className={`w-2 h-2 rounded-full ${node.data?.nodeCategory === "transform" ? "bg-purple-500" :
-                            node.data?.nodeCategory === "target" ? "bg-green-500" :
-                              "bg-blue-500"
-                            }`} />
-                          <span className="text-sm font-medium text-gray-900">
-                            {node.data?.label || node.data?.name || node.id}
-                          </span>
-                        </div>
-                        <span className="text-xs text-gray-500 bg-gray-200 px-2 py-1 rounded">
-                          {node.data?.platform || node.data?.nodeCategory || "Table"}
-                        </span>
-                      </div>
-                    ))}
-                  </div>
-                </div>
               </div>
             </div>
           </div>
@@ -1271,8 +1152,8 @@ export default function TargetWizard() {
       </div>
 
       {/* Footer */}
-      <div className="bg-white border-t border-gray-200 px-6 py-4">
-        <div className="max-w-4xl mx-auto flex justify-between">
+      <div className="bg-white border-t border-gray-200 py-4 -mx-6 px-6">
+        <div className="max-w-4xl mx-auto px-6 flex justify-between">
           <button
             onClick={handleBack}
             disabled={currentStep === 1}
