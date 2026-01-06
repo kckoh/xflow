@@ -235,10 +235,39 @@ export default function SourceWizard() {
     }
   };
 
-  const handleCreate = () => {
-    // TODO: API call to create source dataset
-    console.log("Creating source:", { selectedSource, config });
-    navigate("/dataset");
+  const handleCreate = async () => {
+    try {
+      const payload = {
+        name: config.name,
+        description: config.description,
+        dataset_type: "source",
+        job_type: jobType,
+        source_type: selectedSource?.id,
+        connection_id: config.connectionId,
+        table_name: config.table,
+        columns: config.columns,
+        column_mapping: columnMapping,
+        schedules: schedules,
+      };
+
+      const url = isEditMode
+        ? `${API_BASE_URL}/api/etl-jobs/${config.id}`
+        : `${API_BASE_URL}/api/etl-jobs`;
+
+      const response = await fetch(url, {
+        method: isEditMode ? "PUT" : "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload),
+      });
+
+      if (!response.ok) {
+        throw new Error("Failed to save source dataset");
+      }
+
+      navigate("/dataset");
+    } catch (error) {
+      console.error("Failed to save source dataset:", error);
+    }
   };
 
   const canProceed = () => {
