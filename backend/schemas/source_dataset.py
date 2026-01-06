@@ -6,6 +6,7 @@ from datetime import datetime
 class SourceDatasetCreate(BaseModel):
     name: str
     description: Optional[str] = None
+    owner: Optional[str] = None
     source_type: str  # postgres, mongodb, s3
     connection_id: str
 
@@ -26,6 +27,7 @@ class SourceDatasetCreate(BaseModel):
 class SourceDatasetUpdate(BaseModel):
     name: Optional[str] = None
     description: Optional[str] = None
+    owner: Optional[str] = None
     source_type: Optional[str] = None
     connection_id: Optional[str] = None
 
@@ -47,6 +49,7 @@ class SourceDatasetResponse(BaseModel):
     id: str
     name: str
     description: Optional[str] = None
+    owner: Optional[str] = None
     source_type: str
     connection_id: str
 

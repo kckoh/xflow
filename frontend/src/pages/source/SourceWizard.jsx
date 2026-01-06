@@ -1,6 +1,7 @@
 import { useState, useEffect } from "react";
 import { useNavigate, useLocation } from "react-router-dom";
 import { API_BASE_URL } from "../../config/api";
+import { useAuth } from "../../context/AuthContext";
 import {
   ArrowLeft,
   ArrowRight,
@@ -66,6 +67,7 @@ const SOURCE_OPTIONS = [
 export default function SourceWizard() {
   const navigate = useNavigate();
   const location = useLocation();
+  const { user } = useAuth();
   const [currentStep, setCurrentStep] = useState(1);
   const [selectedSource, setSelectedSource] = useState(null);
   const [expandedColumns, setExpandedColumns] = useState({});
@@ -410,6 +412,7 @@ export default function SourceWizard() {
       const sourceData = {
         name: config.name,
         description: config.description,
+        owner: user?.name || user?.email || "",
         source_type: selectedSource.id, // postgres, mongodb, s3
         connection_id: config.connectionId,
         columns: config.columns,
@@ -480,23 +483,78 @@ export default function SourceWizard() {
       {/* Header + Progress Steps */}
       <div className="bg-white border-b border-gray-200">
         {/* Header */}
-        <div className="py-4 border-b border-gray-100">
-          <div className="flex items-center gap-4 px-6">
-            <button
-              onClick={() => navigate("/dataset")}
-              className="p-2 hover:bg-gray-100 rounded-lg transition-colors"
-            >
-              <ArrowLeft className="w-5 h-5 text-gray-500" />
-            </button>
-            <div>
-              <h1 className="text-xl font-semibold text-gray-900">
-                {isEditMode ? "Edit Source Dataset" : "Create Source Dataset"}
-              </h1>
-              <p className="text-sm text-gray-500">
-                {isEditMode
-                  ? "Modify your source dataset configuration"
-                  : "Import data from external sources"}
-              </p>
+        <div className="px-6 py-4 border-b border-gray-100">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-4">
+              <button
+                onClick={() => navigate("/dataset")}
+                className="p-2 hover:bg-gray-100 rounded-lg transition-colors"
+              >
+                <ArrowLeft className="w-5 h-5 text-gray-500" />
+              </button>
+              <div>
+                <h1 className="text-xl font-semibold text-gray-900">
+                  {isEditMode ? "Edit Source Dataset" : "Create Source Dataset"}
+                </h1>
+                <p className="text-sm text-gray-500">
+                  {isEditMode
+                    ? "Modify your source dataset configuration"
+                    : "Import data from external sources"}
+                </p>
+              </div>
+            </div>
+
+            {/* Navigation Buttons */}
+            <div className="flex items-center gap-3">
+              <button
+                onClick={handleBack}
+                disabled={currentStep === 1}
+                className={`flex items-center gap-2 px-4 py-2 rounded-lg transition-colors ${
+                  currentStep === 1
+                    ? "text-gray-300 cursor-not-allowed"
+                    : "text-gray-600 hover:bg-gray-100"
+                }`}
+              >
+                <ArrowLeft className="w-4 h-4" />
+                Back
+              </button>
+
+              {currentStep < STEPS.length ? (
+                <button
+                  onClick={handleNext}
+                  disabled={!canProceed() || isLoading}
+                  className={`flex items-center gap-2 px-5 py-2 rounded-lg transition-colors ${
+                    canProceed() && !isLoading
+                      ? "bg-emerald-600 text-white hover:bg-emerald-700"
+                      : "bg-gray-200 text-gray-400 cursor-not-allowed"
+                  }`}
+                >
+                  {isLoading ? (
+                    <>
+                      <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                      Loading...
+                    </>
+                  ) : (
+                    <>
+                      Next
+                      <ArrowRight className="w-4 h-4" />
+                    </>
+                  )}
+                </button>
+              ) : (
+                <button
+                  onClick={handleCreate}
+                  disabled={isLoading}
+                  className={`flex items-center gap-2 px-5 py-2 rounded-lg transition-colors ${
+                    isLoading
+                      ? "bg-gray-400 cursor-not-allowed"
+                      : "bg-emerald-600 hover:bg-emerald-700"
+                  } text-white`}
+                >
+                  <Check className="w-4 h-4" />
+                  {isLoading ? "Saving..." : isEditMode ? "Save Changes" : "Create"}
+                </button>
+              )}
             </div>
           </div>
         </div>
@@ -943,6 +1001,14 @@ export default function SourceWizard() {
                             ?.name || config.connectionId}
                         </p>
                       </div>
+                      <div>
+                        <label className="text-xs font-medium text-gray-500">
+                          Owner
+                        </label>
+                        <p className="mt-1 text-gray-900">
+                          {user?.name || user?.email || "-"}
+                        </p>
+                      </div>
                       {selectedSource?.id === "postgres" && config.table && (
                         <div>
                           <label className="text-xs font-medium text-gray-500">
@@ -1048,59 +1114,6 @@ export default function SourceWizard() {
         </div>
       </div>
 
-      {/* Footer */}
-      <div className="mt-auto bg-white border-t border-gray-200 py-4">
-        <div className="max-w-4xl mx-auto px-6 flex items-center justify-between">
-          <button
-            onClick={handleBack}
-            disabled={currentStep === 1}
-            className={`flex items-center gap-2 px-4 py-2 rounded-lg transition-colors ${
-              currentStep === 1
-                ? "text-gray-400 cursor-not-allowed"
-                : "text-gray-700 hover:bg-gray-100"
-            }`}
-          >
-            <ArrowLeft className="w-4 h-4" />
-            Back
-          </button>
-
-          <div className="flex items-center gap-3">
-            <button
-              onClick={() => navigate("/dataset")}
-              className="px-4 py-2 text-gray-700 hover:bg-gray-100 rounded-lg transition-colors"
-            >
-              Cancel
-            </button>
-            {currentStep < STEPS.length ? (
-              <button
-                onClick={handleNext}
-                disabled={!canProceed()}
-                className={`flex items-center gap-2 px-6 py-2 rounded-lg transition-colors ${
-                  canProceed()
-                    ? "bg-emerald-600 text-white hover:bg-emerald-700"
-                    : "bg-gray-200 text-gray-400 cursor-not-allowed"
-                }`}
-              >
-                Next
-                <ArrowRight className="w-4 h-4" />
-              </button>
-            ) : (
-              <button
-                onClick={handleCreate}
-                disabled={isLoading}
-                className={`flex items-center gap-2 px-6 py-2 rounded-lg transition-colors ${
-                  isLoading
-                    ? "bg-gray-400 cursor-not-allowed"
-                    : "bg-emerald-600 hover:bg-emerald-700"
-                } text-white`}
-              >
-                <Check className="w-4 h-4" />
-                {isLoading ? "Saving..." : "Save"}
-              </button>
-            )}
-          </div>
-        </div>
-      </div>
 
       {/* Create Connection Modal */}
       {showCreateConnectionModal && (
