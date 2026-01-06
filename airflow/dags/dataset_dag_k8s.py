@@ -13,6 +13,8 @@ POST /api/v1/dags/dataset_dag_k8s/dagRuns
 """
 
 import json
+import json
+import base64
 from datetime import datetime
 
 from airflow import DAG
@@ -58,6 +60,9 @@ def generate_spark_application(**context):
     executor_instances = get_executor_count(estimated_size_gb)
     print(f"Auto-scaling: {estimated_size_gb:.2f} GB -> {executor_instances} executor(s)")
 
+    # Encode config to base64 for safe passing
+    encoded_config = base64.b64encode(config_json.encode("utf-8")).decode("utf-8")
+
     spark_app_name = f"etl-{dataset_id[:8]}-{run_id}"
 
     spark_app = {
@@ -74,7 +79,7 @@ def generate_spark_application(**context):
             "image": "134059028370.dkr.ecr.ap-northeast-2.amazonaws.com/xflow-spark:latest",
             "imagePullPolicy": "Always",
             "mainApplicationFile": "local:///opt/spark/jobs/etl_runner.py",
-            "arguments": [config_json],
+            "arguments": ["--base64", encoded_config],
             "sparkVersion": "3.5.0",
             "sparkConf": {
                 "spark.sql.shuffle.partitions": "24",

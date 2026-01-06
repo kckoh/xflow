@@ -41,6 +41,7 @@ with DAG(
     fetch_config = PythonOperator(
         task_id="fetch_dataset_config",
         python_callable=fetch_dataset_config,
+        op_kwargs={"as_base64": True},
     )
 
     # Task 2: Run Spark ETL via Docker
@@ -54,7 +55,7 @@ with DAG(
                 --conf 'spark.memory.fraction=0.6' \
                 --name "ETL-{{ dag_run.conf.get('dataset_id', 'unknown') }}" \
                 --jars /opt/spark/jars/extra/postgresql-42.7.4.jar,/opt/spark/jars/extra/hadoop-aws-3.3.4.jar,/opt/spark/jars/extra/aws-java-sdk-bundle-1.12.262.jar,/opt/spark/jars/extra/mongo-spark-connector_2.12-10.3.0.jar,/opt/spark/jars/extra/bson-4.11.1.jar,/opt/spark/jars/extra/mongodb-driver-core-4.11.1.jar,/opt/spark/jars/extra/mongodb-driver-sync-4.11.1.jar \
-                /opt/spark/jobs/etl_runner.py '{{ ti.xcom_pull(task_ids="fetch_dataset_config") }}'
+                /opt/spark/jobs/etl_runner.py --base64 '{{ ti.xcom_pull(task_ids="fetch_dataset_config") }}'
         """,
     )
 

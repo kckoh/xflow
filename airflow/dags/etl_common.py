@@ -5,6 +5,7 @@ This module contains common functions used by both local and production Dataset 
 """
 
 import json
+import base64
 from datetime import datetime
 
 from airflow.models import Variable
@@ -269,7 +270,14 @@ def convert_nodes_to_sources(nodes, edges, db):
         elif node_category == "transform":
             # This is a transform node
             transform_type = node_data.get("transformType", "select-fields")
-            transform_config = node_data.get("transformConfig", {})
+            transform_config = node_data.get("transformConfig", {}) or {}
+            
+            # Special handling for SQL transform to ensure query is passed
+            if transform_type == 'sql' and not transform_config.get('sql'):
+                query = node_data.get('query')
+                if query:
+                    transform_config['sql'] = query
+                    
             input_node_ids = edge_map.get(node_id, [])
 
             transform = {
@@ -289,7 +297,7 @@ def convert_nodes_to_sources(nodes, edges, db):
     return sources, transforms
 
 
-def fetch_dataset_config(**context):
+def fetch_dataset_config(as_base64=False, **context):
     """Fetch dataset configuration from MongoDB"""
     import pymongo
     from bson import ObjectId
@@ -413,7 +421,13 @@ def fetch_dataset_config(**context):
     client.close()
 
     # Store config in XCom for next task
-    return json.dumps(config)
+    json_config = json.dumps(config)
+    
+    if as_base64:
+        # Return base64 encoded string for safe CLI usage
+        return base64.b64encode(json_config.encode("utf-8")).decode("utf-8")
+        
+    return json_config
 
 
 # Backward compatibility alias

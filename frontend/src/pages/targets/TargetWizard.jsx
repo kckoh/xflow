@@ -65,6 +65,7 @@ export default function TargetWizard() {
   const [sourceNodes, setSourceNodes] = useState([]); // Store source nodes for schema
   const [targetSchema, setTargetSchema] = useState([]); // Array of column definitions
   const [initialSchema, setInitialSchema] = useState([]); // Loaded or saved schema for initialization
+  const [isTestPassed, setIsTestPassed] = useState(false); // Track if Run Test was successful
 
   // Step 4: Schedule
   const [jobType, setJobType] = useState("batch");
@@ -529,8 +530,8 @@ export default function TargetWizard() {
         // Source step - check both Source and Target tabs
         return selectedJobIds.length > 0 || selectedTargetIds.length > 0;
       case 3:
-        // Process/Transform step
-        return targetSchema.length > 0;
+        // Process/Transform step - now requires successful test
+        return targetSchema.length > 0 && isTestPassed;
       case 4:
         return true; // Schedule step - always can proceed
       case 5:
@@ -949,21 +950,19 @@ export default function TargetWizard() {
                 <div className="flex border-b border-gray-200">
                   <button
                     onClick={() => setDetailPanelTab("details")}
-                    className={`flex-1 px-4 py-3 text-sm font-medium transition-colors ${
-                      detailPanelTab === "details"
+                    className={`flex-1 px-4 py-3 text-sm font-medium transition-colors ${detailPanelTab === "details"
                         ? "text-orange-600 border-b-2 border-orange-600 bg-orange-50"
                         : "text-gray-600 hover:bg-gray-50"
-                    }`}
+                      }`}
                   >
                     Details
                   </button>
                   <button
                     onClick={() => setDetailPanelTab("schema")}
-                    className={`flex-1 px-4 py-3 text-sm font-medium transition-colors ${
-                      detailPanelTab === "schema"
+                    className={`flex-1 px-4 py-3 text-sm font-medium transition-colors ${detailPanelTab === "schema"
                         ? "text-orange-600 border-b-2 border-orange-600 bg-orange-50"
                         : "text-gray-600 hover:bg-gray-50"
-                    }`}
+                      }`}
                   >
                     Schema
                   </button>
@@ -1062,6 +1061,7 @@ export default function TargetWizard() {
                   sourceDatasetId={sourceNodes[0]?.data?.sourceDatasetId || sourceNodes[0]?.data?.catalogDatasetId}
                   initialTargetSchema={initialSchema}
                   onSchemaChange={setTargetSchema}
+                  onTestStatusChange={setIsTestPassed}
                 />
               </div>
             </div>

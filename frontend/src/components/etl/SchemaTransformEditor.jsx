@@ -15,6 +15,7 @@ export default function SchemaTransformEditor({
     sourceSchema = [],
     sourceDatasetId,
     onSchemaChange,
+    onTestStatusChange,
     initialTargetSchema = []
 }) {
     // State
@@ -32,6 +33,7 @@ export default function SchemaTransformEditor({
     const [testResult, setTestResult] = useState(null);
     const [testError, setTestError] = useState(null);
     const [isTestOpen, setIsTestOpen] = useState(false);
+    const [isTestSuccessful, setIsTestSuccessful] = useState(false);
 
     // Initialize from sourceSchema (only on sourceSchema change, not initialTargetSchema)
     // Initialize from sourceSchema and initialTargetSchema
@@ -74,6 +76,9 @@ export default function SchemaTransformEditor({
         if (onSchemaChange) {
             onSchemaChange(afterColumns);
         }
+        // Reset test status when schema changes
+        setIsTestSuccessful(false);
+        if (onTestStatusChange) onTestStatusChange(false);
         // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [afterColumns]);
 
@@ -211,15 +216,23 @@ export default function SchemaTransformEditor({
 
     // Test transform
     const handleTestTransform = async () => {
+        setIsTestOpen(true);
+        setIsTestSuccessful(false);
+        if (onTestStatusChange) onTestStatusChange(false);
+
+        if (afterColumns.length === 0) {
+            setTestError('Please move at least one column to the "After (Target)" list to test.');
+            return;
+        }
+
         if (!sourceDatasetId) {
-            setTestError('Source dataset ID is required for testing');
+            setTestError('Source dataset ID is required for testing. Please go back and select a source.');
             return;
         }
 
         setIsTestLoading(true);
         setTestError(null);
         setTestResult(null);
-        setIsTestOpen(true); // Auto-expand when testing
 
         try {
             const sql = generateSql();
@@ -228,7 +241,8 @@ export default function SchemaTransformEditor({
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({
                     source_dataset_id: sourceDatasetId,
-                    sql: sql
+                    sql: sql,
+                    limit: 5
                 })
             });
 
@@ -240,14 +254,17 @@ export default function SchemaTransformEditor({
 
             if (result.valid) {
                 setTestResult({
-                    beforeRows: result.before_rows || [],
-                    afterRows: result.rows || [],
+                    beforeRows: result.before_rows || [], // Backend now supports this!
+                    afterRows: result.sample_rows || [],
                     sql: sql
                 });
+                setIsTestSuccessful(true);
+                if (onTestStatusChange) onTestStatusChange(true);
             } else {
                 setTestError(result.error || 'Invalid SQL');
             }
         } catch (err) {
+            console.error("Test failed:", err);
             setTestError(err.message);
         } finally {
             setIsTestLoading(false);
@@ -475,10 +492,16 @@ export default function SchemaTransformEditor({
                     <h4 className="text-sm font-bold text-slate-900">Preview Changes</h4>
                 </div>
                 <div className="flex items-center gap-3">
+                    {isTestSuccessful && (
+                        <div className="flex items-center gap-1 text-green-600 bg-green-50 px-3 py-1 rounded-lg border border-green-200 animate-in fade-in slide-in-from-right-4 duration-300">
+                            <div className="w-2 h-2 rounded-full bg-green-500 animate-pulse" />
+                            <span className="text-xs font-bold uppercase tracking-tight">Test Passed</span>
+                        </div>
+                    )}
                     <button
                         onClick={handleTestTransform}
-                        disabled={isTestLoading || afterColumns.length === 0}
-                        className={`flex items-center gap-2 px-6 py-2.5 rounded-xl text-xs font-bold uppercase tracking-widest transition-all shadow-md active:scale-95 ${isTestLoading || afterColumns.length === 0
+                        disabled={isTestLoading}
+                        className={`flex items-center gap-2 px-6 py-2.5 rounded-xl text-xs font-bold uppercase tracking-widest transition-all shadow-md active:scale-95 ${isTestLoading
                             ? 'bg-slate-100 text-slate-400 cursor-not-allowed'
                             : 'bg-indigo-600 text-white hover:bg-indigo-700 shadow-indigo-100'
                             }`}
@@ -518,6 +541,11 @@ export default function SchemaTransformEditor({
                             <span className="w-1 h-3 bg-indigo-500 rounded-full"></span>
                             Result Preview
                         </h4>
+                        {isTestSuccessful && (
+                            <span className="text-xs font-bold text-green-600 flex items-center gap-1">
+                                ✅ Ready to proceed
+                            </span>
+                        )}
                     </div>
 
                     {/* Results Container */}
@@ -527,28 +555,34 @@ export default function SchemaTransformEditor({
                             <div className="flex-1 flex flex-col min-w-0">
                                 <h5 className="text-[9px] font-bold text-slate-400 uppercase mb-1.5 tracking-tight">Source Sample</h5>
                                 <div className="flex-1 overflow-auto border border-slate-200 rounded-xl bg-slate-50/50">
-                                    <table className="w-full text-xs box-border border-separate border-spacing-0">
-                                        <thead className="bg-slate-100 sticky top-0 z-10">
-                                            <tr>
-                                                {Object.keys(testResult.beforeRows[0] || {}).map(key => (
-                                                    <th key={key} className="px-3 py-2 text-left text-[10px] font-bold text-slate-600 border-b border-slate-200 whitespace-nowrap bg-slate-100">
-                                                        {key}
-                                                    </th>
-                                                ))}
-                                            </tr>
-                                        </thead>
-                                        <tbody className="bg-white">
-                                            {testResult.beforeRows.slice(0, 5).map((row, i) => (
-                                                <tr key={i} className="hover:bg-slate-50/50 transition-colors">
-                                                    {Object.values(row).map((val, j) => (
-                                                        <td key={j} className="px-3 py-2 border-b border-slate-50 font-mono text-slate-500 whitespace-nowrap text-[11px]">
-                                                            {String(val)}
-                                                        </td>
+                                    {testResult.beforeRows.length > 0 ? (
+                                        <table className="w-full text-xs box-border border-separate border-spacing-0">
+                                            <thead className="bg-slate-100 sticky top-0 z-10">
+                                                <tr>
+                                                    {(Array.from(new Set(testResult.beforeRows.flatMap(Object.keys)))).map(key => (
+                                                        <th key={key} className="px-3 py-2 text-left text-[10px] font-bold text-slate-600 border-b border-slate-200 whitespace-nowrap bg-slate-100">
+                                                            {key}
+                                                        </th>
                                                     ))}
                                                 </tr>
-                                            ))}
-                                        </tbody>
-                                    </table>
+                                            </thead>
+                                            <tbody className="bg-white">
+                                                {testResult.beforeRows.slice(0, 5).map((row, i) => (
+                                                    <tr key={i} className="hover:bg-slate-50/50 transition-colors">
+                                                        {(Array.from(new Set(testResult.beforeRows.flatMap(Object.keys)))).map((key, j) => (
+                                                            <td key={j} className="px-3 py-2 border-b border-slate-50 font-mono text-slate-500 whitespace-nowrap text-[11px]">
+                                                                {String(row[key] !== undefined && row[key] !== null ? row[key] : "")}
+                                                            </td>
+                                                        ))}
+                                                    </tr>
+                                                ))}
+                                            </tbody>
+                                        </table>
+                                    ) : (
+                                        <div className="flex items-center justify-center h-full text-slate-400 text-xs italic">
+                                            Source preview not available
+                                        </div>
+                                    )}
                                 </div>
                             </div>
 
@@ -559,7 +593,10 @@ export default function SchemaTransformEditor({
                                     <table className="w-full text-xs box-border border-separate border-spacing-0">
                                         <thead className="bg-indigo-600 sticky top-0 z-10">
                                             <tr>
-                                                {Object.keys(testResult.afterRows[0] || {}).map(key => (
+                                                {(testResult.afterRows.length > 0
+                                                    ? Array.from(new Set(testResult.afterRows.flatMap(Object.keys)))
+                                                    : []
+                                                ).map(key => (
                                                     <th key={key} className="px-3 py-2 text-left text-[10px] font-bold text-white border-b border-indigo-700 whitespace-nowrap bg-indigo-600">
                                                         {key}
                                                     </th>
@@ -569,9 +606,12 @@ export default function SchemaTransformEditor({
                                         <tbody>
                                             {testResult.afterRows.slice(0, 5).map((row, i) => (
                                                 <tr key={i} className="hover:bg-indigo-50/30 transition-colors">
-                                                    {Object.values(row).map((val, j) => (
+                                                    {(testResult.afterRows.length > 0
+                                                        ? Array.from(new Set(testResult.afterRows.flatMap(Object.keys)))
+                                                        : []
+                                                    ).map((key, j) => (
                                                         <td key={j} className="px-3 py-2 border-b border-slate-50 font-mono text-slate-900 whitespace-nowrap text-[11px] font-medium">
-                                                            {String(val)}
+                                                            {String(row[key] !== undefined && row[key] !== null ? row[key] : "")}
                                                         </td>
                                                     ))}
                                                 </tr>
