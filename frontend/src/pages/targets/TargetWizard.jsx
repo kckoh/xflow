@@ -1034,7 +1034,13 @@ export default function TargetWizard() {
                           </div>
                           <div>
                             <h4 className="text-xs font-semibold text-gray-500 uppercase mb-1">Columns</h4>
-                            <p className="text-sm text-gray-700">{focusedDataset.columns?.length || 0}</p>
+                            {focusedDataset.destination?.type === 's3' && !focusedDataset.columns ? (
+                              <p className="text-sm text-gray-500 italic">Loading schema from S3...</p>
+                            ) : focusedDataset.destination?.type === 's3' && focusedDataset.columns?.length === 0 ? (
+                              <p className="text-sm text-red-600">Failed to load schema</p>
+                            ) : (
+                              <p className="text-sm text-gray-700">{focusedDataset.columns?.length || 0}</p>
+                            )}
                           </div>
                           {focusedDataset.updated_at && (
                             <div>
@@ -1053,7 +1059,18 @@ export default function TargetWizard() {
                           <h4 className="text-xs font-semibold text-gray-500 uppercase">Columns</h4>
                           <span className="text-xs text-gray-400">{focusedDataset.columns?.length || 0} columns</span>
                         </div>
-                        {focusedDataset.columns?.length > 0 ? (
+                        {focusedDataset.destination?.type === 's3' && !focusedDataset.columns ? (
+                          <div className="text-center py-8 text-gray-500">
+                            <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-orange-600 mx-auto mb-3"></div>
+                            <p className="text-sm">Loading schema from S3...</p>
+                          </div>
+                        ) : focusedDataset.destination?.type === 's3' && focusedDataset.columns?.length === 0 ? (
+                          <div className="text-center py-8 text-red-600">
+                            <X className="w-8 h-8 mx-auto mb-3" />
+                            <p className="text-sm font-medium">Failed to load schema</p>
+                            <p className="text-xs text-gray-500 mt-1">Check S3 path and credentials</p>
+                          </div>
+                        ) : focusedDataset.columns?.length > 0 ? (
                           <div className="border border-gray-200 rounded-lg overflow-hidden">
                             <table className="w-full">
                               <thead className="bg-gray-50">
