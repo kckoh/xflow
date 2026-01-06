@@ -217,9 +217,32 @@ async def list_datasets(import_ready: bool = None):
     etl_jobs = await ETLJob.find_all().to_list()
     status_map = {d.dataset_id: d.is_active for d in etl_jobs if d.dataset_id}
 
-    return [
-        DatasetResponse(
-            id=str(dataset.id),
+    # Pre-fetch latest JobRuns for each dataset
+    pipeline = [
+        {"$sort": {"started_at": -1}},
+        {"$group": {
+            "_id": "$dataset_id",
+            "status": {"$first": "$status"},
+            "started_at": {"$first": "$started_at"}
+        }}
+    ]
+    latest_runs = await JobRun.aggregate(pipeline).to_list()
+    latest_run_map = {r["_id"]: r for r in latest_runs}
+
+    response = []
+    for dataset in datasets:
+        ds_id = str(dataset.id)
+        dataset_status = dataset.status
+        last_run = None
+
+        # Override status with latest run status if available
+        if ds_id in latest_run_map:
+            run_info = latest_run_map[ds_id]
+            dataset_status = run_info.get("status", dataset.status)
+            last_run = run_info.get("started_at")
+
+        response.append(DatasetResponse(
+            id=ds_id,
             name=dataset.name,
             description=dataset.description,
             dataset_type=getattr(dataset, 'dataset_type', 'source'),
@@ -233,17 +256,18 @@ async def list_datasets(import_ready: bool = None):
             schedule_frequency=dataset.schedule_frequency,
             ui_params=dataset.ui_params,
             incremental_config=dataset.incremental_config,
-            status=dataset.status,
+            status=dataset_status,  # Overridden status
             nodes=dataset.nodes,
             edges=dataset.edges,
             created_at=dataset.created_at,
             updated_at=dataset.updated_at,
-            is_active=status_map.get(str(dataset.id), False),
+            is_active=status_map.get(ds_id, False),
             import_ready=getattr(dataset, 'import_ready', False),
             schedules=getattr(dataset, 'schedules', []),
-        )
-        for dataset in datasets
-    ]
+            last_run=last_run,  # New field
+        ))
+
+    return response
 
 
 @router.get("/{dataset_id}", response_model=DatasetResponse)
@@ -518,25 +542,8 @@ async def run_dataset(dataset_id: str):
         raise HTTPException(status_code=404, detail="Dataset not found")
 
     # [Logic for Action Button]
-    # Case 1: Dataset has a schedule → Activate schedule, don't run immediately
-    if dataset.schedule:
-        if dataset.status != "active":
-            dataset.status = "active"
-            dataset.updated_at = datetime.utcnow()
-            await dataset.save()
-            return {
-                "message": "Schedule activated. Dataset will run according to schedule.",
-                "dataset_id": dataset_id,
-                "schedule": dataset.schedule,
-                "schedule_activated": True,
-            }
-        else:
-            return {
-                "message": "Schedule is already active",
-                "dataset_id": dataset_id,
-                "schedule": dataset.schedule,
-                "schedule_activated": False,
-            }
+    # Always trigger immediate execution regardless of schedule
+    # If users want to activate/deactivate schedule, they use the Toggle button (PUT /api/datasets/{id})
 
     # Case 2: No schedule → Run immediately (one-time execution)
     # Create job run record

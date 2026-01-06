@@ -93,6 +93,7 @@ class DatasetResponse(DatasetCreate):
     ui_params: Optional[dict] = None
     incremental_config: Optional[dict] = None
     last_sync_timestamp: Optional[datetime] = None
+    last_run: Optional[datetime] = None
 
     status: str
     created_at: datetime
