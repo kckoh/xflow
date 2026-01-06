@@ -797,16 +797,6 @@ export default function UserCreateForm({ editingUser, onUserCreated, onCancel })
                                 description="Access to create, edit, and manage ETL pipelines"
                             />
 
-                            {/* Domain Edit Access Toggle */}
-                            <Toggle
-                                checked={formData.domainEditAccess}
-                                onChange={(value) =>
-                                    setFormData((prev) => ({ ...prev, domainEditAccess: value }))
-                                }
-                                label="Domain Edit Access"
-                                description="Allow creating and editing domains (Import, Save)"
-                            />
-
                             {/* Dataset Access */}
                             <div className="p-4 border border-gray-200 rounded-lg">
                                 <div className="flex items-center justify-between mb-3">
