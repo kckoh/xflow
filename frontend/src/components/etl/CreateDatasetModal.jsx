@@ -24,10 +24,7 @@ export default function CreateDatasetModal({ isOpen, onClose, onSelect }) {
   return (
     <div className="fixed inset-0 z-[1001] flex items-center justify-center">
       {/* Backdrop */}
-      <div
-        className="absolute inset-0 bg-black/50"
-        onClick={onClose}
-      />
+      <div className="absolute inset-0 bg-black/50" onClick={onClose} />
 
       {/* Modal */}
       <div className="relative bg-white rounded-lg shadow-xl w-full max-w-lg mx-4">
@@ -47,8 +44,6 @@ export default function CreateDatasetModal({ isOpen, onClose, onSelect }) {
 
         {/* Content */}
         <div className="p-6">
-          <p className="text-sm text-gray-600 mb-4">Select the dataset type:</p>
-
           <div className="grid grid-cols-2 gap-4">
             {/* Source Option */}
             <button
@@ -63,14 +58,18 @@ export default function CreateDatasetModal({ isOpen, onClose, onSelect }) {
                 <div className="flex items-center gap-2">
                   <span
                     className={`font-medium ${
-                      selectedType === "source" ? "text-emerald-700" : "text-gray-700"
+                      selectedType === "source"
+                        ? "text-emerald-700"
+                        : "text-gray-700"
                     }`}
                   >
                     Source
                   </span>
                   <Upload
                     className={`w-4 h-4 ${
-                      selectedType === "source" ? "text-emerald-500" : "text-gray-400"
+                      selectedType === "source"
+                        ? "text-emerald-500"
+                        : "text-gray-400"
                     }`}
                   />
                 </div>
@@ -108,14 +107,18 @@ export default function CreateDatasetModal({ isOpen, onClose, onSelect }) {
                 <div className="flex items-center gap-2">
                   <span
                     className={`font-medium ${
-                      selectedType === "target" ? "text-orange-700" : "text-gray-700"
+                      selectedType === "target"
+                        ? "text-orange-700"
+                        : "text-gray-700"
                     }`}
                   >
                     Target
                   </span>
                   <Download
                     className={`w-4 h-4 ${
-                      selectedType === "target" ? "text-orange-500" : "text-gray-400"
+                      selectedType === "target"
+                        ? "text-orange-500"
+                        : "text-gray-400"
                     }`}
                   />
                 </div>
