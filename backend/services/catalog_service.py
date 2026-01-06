@@ -62,7 +62,7 @@ async def add_lineage(source_id: str, target_id: str, relationship_type: str = "
     unless we add a specific 'manual_lineage' field.
     """
     print(f"ℹ️ add_lineage called: {source_id} -> {target_id}. This is currently a no-op in MongoDB migration.")
-    return {"status": "success", "source": source_id, "target": target_id, "note": "Lineage is now managed via ETL Job definitions."}
+    return {"status": "success", "source": source_id, "target": target_id, "note": "Lineage is now managed via Dataset definitions."}
 
 async def remove_lineage(source_id: str, target_id: str, source_col: str = None, target_col: str = None):
     """

@@ -6,7 +6,7 @@ from typing import List, Optional
 from datetime import datetime
 from fastapi import APIRouter, HTTPException, status, BackgroundTasks, Request
 
-from models import QualityResult, QualityCheck, Dataset
+from models import QualityResult, QualityCheck, ETLJob
 from services.quality_service import quality_service
 from schemas.quality import QualityRunRequest, QualityCheckResponse, QualityResultResponse
 from utils.limiter import limiter
@@ -20,7 +20,7 @@ router = APIRouter()
 async def get_dashboard_summary():
     """
     Get quality dashboard summary.
-    Returns aggregated stats and latest results for all datasets.
+    Returns aggregated stats and latest results for all ETLJobs.
     """
     return await quality_service.get_dashboard_summary()
 
@@ -29,8 +29,8 @@ def to_response(result: QualityResult) -> QualityResultResponse:
     """Convert QualityResult to response schema"""
     return QualityResultResponse(
         id=str(result.id),
+        etl_job_id=result.etl_job_id,
         dataset_id=result.dataset_id,
-        job_id=result.job_id,
         s3_path=result.s3_path,
         row_count=result.row_count,
         column_count=result.column_count,
@@ -57,26 +57,26 @@ def to_response(result: QualityResult) -> QualityResultResponse:
 
 # --- Endpoints ---
 
-@router.post("/{dataset_id}/run", response_model=QualityResultResponse)
+@router.post("/{etl_job_id}/run", response_model=QualityResultResponse)
 @limiter.limit("3/minute")
 async def run_quality_check(
     request: Request,
-    dataset_id: str,
+    etl_job_id: str,
     check_request: QualityRunRequest
 ):
     """
-    Run quality check on a dataset's S3 data.
-    
+    Run quality check on an ETLJob's S3 data.
+
     This will read the Parquet file from S3, run quality checks,
     and store the result in MongoDB.
-    
-    Note: dataset_id can be either a MongoDB ObjectId or a node ID.
+
+    Note: etl_job_id can be either a MongoDB ObjectId or a node ID.
     """
     try:
         result = await quality_service.run_quality_check(
-            dataset_id=dataset_id,
+            etl_job_id=etl_job_id,
             s3_path=check_request.s3_path,
-            job_id=check_request.job_id,
+            dataset_id=check_request.dataset_id,
             null_threshold=check_request.null_threshold,
             duplicate_threshold=check_request.duplicate_threshold
         )
@@ -88,28 +88,28 @@ async def run_quality_check(
         )
 
 
-@router.get("/{dataset_id}/latest", response_model=Optional[QualityResultResponse])
-async def get_latest_quality_result(dataset_id: str):
+@router.get("/{etl_job_id}/latest", response_model=Optional[QualityResultResponse])
+async def get_latest_quality_result(etl_job_id: str):
     """
-    Get the most recent quality check result for a dataset.
+    Get the most recent quality check result for an ETLJob.
     Returns null if no results exist.
     """
-    result = await quality_service.get_latest_result(dataset_id)
+    result = await quality_service.get_latest_result(etl_job_id)
     if result:
         return to_response(result)
     return None
 
 
-@router.get("/{dataset_id}/history", response_model=List[QualityResultResponse])
+@router.get("/{etl_job_id}/history", response_model=List[QualityResultResponse])
 async def get_quality_history(
-    dataset_id: str,
+    etl_job_id: str,
     limit: int = 10
 ):
     """
-    Get quality check history for a dataset.
+    Get quality check history for an ETLJob.
     Results are ordered by run_at descending (most recent first).
     """
-    results = await quality_service.get_result_history(dataset_id, limit)
+    results = await quality_service.get_result_history(etl_job_id, limit)
     return [to_response(r) for r in results]
 
 

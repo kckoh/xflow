@@ -238,7 +238,7 @@ export default function ETLJobPage() {
   const loadJob = async (id) => {
     setIsLoading(true);
     try {
-      const response = await fetch(`${API_BASE_URL}/api/etl-jobs/${id}`);
+      const response = await fetch(`${API_BASE_URL}/api/datasets/${id}`);
       if (!response.ok) {
         throw new Error("Failed to load job");
       }
@@ -673,13 +673,13 @@ export default function ETLJobPage() {
     try {
       let response;
       if (jobId) {
-        response = await fetch(`${API_BASE_URL}/api/etl-jobs/${jobId}`, {
+        response = await fetch(`${API_BASE_URL}/api/datasets/${jobId}`, {
           method: "PUT",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify(payload),
         });
       } else {
-        response = await fetch(`${API_BASE_URL}/api/etl-jobs`, {
+        response = await fetch(`${API_BASE_URL}/api/datasets`, {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify(payload),
@@ -726,7 +726,7 @@ export default function ETLJobPage() {
         }
       } else {
         // Batch 타입: 기존 배치 실행
-        const response = await fetch(`${API_BASE_URL}/api/etl-jobs/${jobId}/run`, {
+        const response = await fetch(`${API_BASE_URL}/api/datasets/${jobId}/run`, {
           method: "POST",
         });
 
@@ -782,7 +782,7 @@ export default function ETLJobPage() {
     if (!jobId) return;
     try {
       const response = await fetch(
-        `${API_BASE_URL}/api/job-runs?job_id=${jobId}`
+        `${API_BASE_URL}/api/job-runs?dataset_id=${jobId}`
       );
       if (response.ok) {
         const data = await response.json();

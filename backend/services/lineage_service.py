@@ -1,23 +1,23 @@
 from typing import List, Dict, Set
-from models import ETLJob, Dataset
+from models import Dataset, ETLJob
 from datetime import datetime
 
-async def sync_pipeline_to_dataset(job: ETLJob):
+async def sync_pipeline_to_etljob(dataset: Dataset):
     """
-    Syncs ETLJob configuration to Dataset model for lineage tracking.
+    Syncs Dataset configuration to ETLJob model for lineage tracking.
     Parses nodes and edges to build detailed source/transform/target specs.
-    Also updates the is_active status of the dataset.
+    Also updates the is_active status of the ETLJob.
     """
-    if not job.nodes:
+    if not dataset.nodes:
         return
 
     # 1. Parse Nodes and Build Maps
-    nodes_map = {node['id']: node for node in job.nodes}
-    
+    nodes_map = {node['id']: node for node in dataset.nodes}
+
     # 2. Build Input Map (Target Node ID -> List of Source Node IDs)
     input_map: Dict[str, List[str]] = {}
-    if job.edges:
-        for edge in job.edges:
+    if dataset.edges:
+        for edge in dataset.edges:
             target_id = edge['target']
             source_id = edge['source']
             if target_id not in input_map:
@@ -29,11 +29,11 @@ async def sync_pipeline_to_dataset(job: ETLJob):
     transforms = []
     targets = []
 
-    for node in job.nodes:
+    for node in dataset.nodes:
         node_id = node['id']
         data = node.get('data', {})
         category = data.get('nodeCategory')
-        
+
         # Base item structure
         item = {
             "nodeId": node_id,
@@ -46,17 +46,17 @@ async def sync_pipeline_to_dataset(job: ETLJob):
         # Add connection info for sources/targets if available
         if data.get('connectionId'):
             item['connection_id'] = data.get('connectionId')
-        
+
         # URN Generation (Standardized)
         urn = f"urn:unknown:{node_id}"
         config = item['config']
-        
+
         if category == 'source':
             conn_id = config.get('connection_id') or config.get('sourceId') or 'unknown'
             table_name = config.get('table') or config.get('tableName') or 'unknown'
             schema_name = "public"
             urn = f"urn:rdb:{conn_id}:{schema_name}.{table_name}"
-            
+
         elif category == 'target':
             s3_path = config.get('path') or config.get('s3Location') or ''
             clean_path = s3_path.replace("s3://", "").replace("s3a://", "")
@@ -65,10 +65,10 @@ async def sync_pipeline_to_dataset(job: ETLJob):
                 urn = f"urn:s3:{bucket}:{key}"
             else:
                 urn = f"urn:s3:{clean_path}"
-                
+
         elif category == 'transform':
-            urn = f"urn:job:{job.id}:{node_id}"
-            
+            urn = f"urn:dataset:{dataset.id}:{node_id}"
+
         item['urn'] = urn
 
         if category == 'source':
@@ -81,30 +81,30 @@ async def sync_pipeline_to_dataset(job: ETLJob):
     # 4. Check Connectivity for Active Status
     is_active = _check_connectivity(sources, targets, input_map)
 
-    # 5. Upsert Dataset
-    dataset = await Dataset.find_one(Dataset.job_id == str(job.id))
-    if not dataset:
-        dataset = Dataset(
-            name=job.name,
-            job_id=str(job.id),
+    # 5. Upsert ETLJob
+    etl_job = await ETLJob.find_one(ETLJob.dataset_id == str(dataset.id))
+    if not etl_job:
+        etl_job = ETLJob(
+            name=dataset.name,
+            dataset_id=str(dataset.id),
             created_at=datetime.utcnow()
         )
-    
+
     # Update fields
-    dataset.name = job.name
-    dataset.description = job.description
-    dataset.sources = sources
-    dataset.transforms = transforms
-    dataset.targets = targets
-    dataset.is_active = is_active
-    dataset.updated_at = datetime.utcnow()
-    
-    await dataset.save()
-    
-    # Optional: Update Job status immediately if needed
-    if is_active and job.status == 'draft':
-        # job.status = 'active' # Decide if we want to auto-activate
-        pass 
+    etl_job.name = dataset.name
+    etl_job.description = dataset.description
+    etl_job.sources = sources
+    etl_job.transforms = transforms
+    etl_job.targets = targets
+    etl_job.is_active = is_active
+    etl_job.updated_at = datetime.utcnow()
+
+    await etl_job.save()
+
+    # Optional: Update Dataset status immediately if needed
+    if is_active and dataset.status == 'draft':
+        # dataset.status = 'active' # Decide if we want to auto-activate
+        pass
 
 
 def _extract_config(data: dict) -> dict:
@@ -125,27 +125,27 @@ def _check_connectivity(sources: List[dict], targets: List[dict], input_map: Dic
     """
     if not sources or not targets:
         return False
-        
+
     source_ids = {s['nodeId'] for s in sources}
-    
+
     # Check each target if it connects to ANY source
     for target in targets:
         # Trace back from this target
         queue = [target['nodeId']]
         visited = set()
-        
+
         while queue:
             curr = queue.pop(0)
             if curr in visited:
                 continue
             visited.add(curr)
-            
+
             # If current node is a source, we found a path!
             if curr in source_ids:
                 return True
-            
+
             # Add parents to queue
             parents = input_map.get(curr, [])
             queue.extend(parents)
-            
+
     return False

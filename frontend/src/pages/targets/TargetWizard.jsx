@@ -125,7 +125,7 @@ export default function TargetWizard() {
 
       try {
         // Fetch job details
-        const jobResponse = await fetch(`${API_BASE_URL}/api/etl-jobs/${jobId}`);
+        const jobResponse = await fetch(`${API_BASE_URL}/api/datasets/${jobId}`);
         if (!jobResponse.ok) throw new Error("Failed to fetch job");
         const job = await jobResponse.json();
 
@@ -394,8 +394,8 @@ export default function TargetWizard() {
       };
 
       const url = isEditMode
-        ? `${API_BASE_URL}/api/etl-jobs/${config.id}`
-        : `${API_BASE_URL}/api/etl-jobs`;
+        ? `${API_BASE_URL}/api/datasets/${config.id}`
+        : `${API_BASE_URL}/api/datasets`;
 
       const response = await fetch(url, {
         method: isEditMode ? "PUT" : "POST",

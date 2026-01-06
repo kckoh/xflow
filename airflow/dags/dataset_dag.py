@@ -1,13 +1,13 @@
 """
-ETL Job DAG (Local) - For local development with Docker
+Dataset DAG (Local) - For local development with Docker
 
 This DAG runs Spark jobs via docker exec on the local Spark container.
-For production (EKS), use etl_job_dag_k8s.py instead.
+For production (EKS), use dataset_dag_k8s.py instead.
 
 Trigger via Airflow API:
-POST /api/v1/dags/etl_job_dag/dagRuns
+POST /api/v1/dags/dataset_dag/dagRuns
 {
-    "conf": {"job_id": "your_job_id_here"},
+    "conf": {"dataset_id": "your_dataset_id_here"},
     "dag_run_id": "unique_run_id"
 }
 """
@@ -19,7 +19,7 @@ from airflow.operators.bash import BashOperator
 from airflow.operators.python import PythonOperator
 
 from etl_common import (
-    fetch_job_config,
+    fetch_dataset_config,
     finalize_import,
     run_quality_check,
     on_success_callback,
@@ -28,7 +28,7 @@ from etl_common import (
 
 
 with DAG(
-    dag_id="etl_job_dag",
+    dag_id="dataset_dag",
     start_date=datetime(2025, 1, 1),
     schedule_interval=None,
     catchup=False,
@@ -37,10 +37,10 @@ with DAG(
     on_failure_callback=on_failure_callback,
     tags=["etl", "spark", "local"],
 ) as dag:
-    # Task 1: Fetch job config from MongoDB
+    # Task 1: Fetch dataset config from MongoDB
     fetch_config = PythonOperator(
-        task_id="fetch_job_config",
-        python_callable=fetch_job_config,
+        task_id="fetch_dataset_config",
+        python_callable=fetch_dataset_config,
     )
 
     # Task 2: Run Spark ETL via Docker
@@ -52,9 +52,9 @@ with DAG(
                 --driver-memory 4g \
                 --conf 'spark.sql.shuffle.partitions=100' \
                 --conf 'spark.memory.fraction=0.6' \
-                --name "ETL-{{ dag_run.conf.get('job_id', 'unknown') }}" \
+                --name "ETL-{{ dag_run.conf.get('dataset_id', 'unknown') }}" \
                 --jars /opt/spark/jars/extra/postgresql-42.7.4.jar,/opt/spark/jars/extra/hadoop-aws-3.3.4.jar,/opt/spark/jars/extra/aws-java-sdk-bundle-1.12.262.jar,/opt/spark/jars/extra/mongo-spark-connector_2.12-10.3.0.jar,/opt/spark/jars/extra/bson-4.11.1.jar,/opt/spark/jars/extra/mongodb-driver-core-4.11.1.jar,/opt/spark/jars/extra/mongodb-driver-sync-4.11.1.jar \
-                /opt/spark/jobs/etl_runner.py '{{ ti.xcom_pull(task_ids="fetch_job_config") }}'
+                /opt/spark/jobs/etl_runner.py '{{ ti.xcom_pull(task_ids="fetch_dataset_config") }}'
         """,
     )
 

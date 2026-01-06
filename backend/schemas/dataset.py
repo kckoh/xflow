@@ -27,7 +27,7 @@ class DestinationConfig(BaseModel):
     options: dict = {}  # compression, partitionBy, etc.
 
 
-class ETLJobCreate(BaseModel):
+class DatasetCreate(BaseModel):
     name: str
     description: Optional[str] = None
     dataset_type: str = "source"  # "source" or "target"
@@ -43,13 +43,13 @@ class ETLJobCreate(BaseModel):
     schedule_frequency: Optional[str] = None
     ui_params: Optional[dict] = None
     incremental_config: Optional[dict] = None
-    
+
     # Visual Editor state
     nodes: Optional[List[dict]] = None
     edges: Optional[List[dict]] = None
 
 
-class ETLJobUpdate(BaseModel):
+class DatasetUpdate(BaseModel):
     name: Optional[str] = None
     description: Optional[str] = None
     dataset_type: Optional[str] = None  # "source" or "target"
@@ -61,12 +61,12 @@ class ETLJobUpdate(BaseModel):
     transforms: Optional[List[TransformConfig]] = None
     targets: Optional[List[dict]] = None
     destination: Optional[DestinationConfig] = None
-    
+
     schedule: Optional[str] = None
     schedule_frequency: Optional[str] = None
     ui_params: Optional[dict] = None
     incremental_config: Optional[dict] = None
-    
+
     status: Optional[str] = None
     import_ready: Optional[bool] = None
     # Visual Editor state
@@ -74,7 +74,7 @@ class ETLJobUpdate(BaseModel):
     edges: Optional[List[dict]] = None
 
 
-class ETLJobResponse(ETLJobCreate):
+class DatasetResponse(DatasetCreate):
     id: str
     name: str
     description: Optional[str] = None
@@ -84,20 +84,20 @@ class ETLJobResponse(ETLJobCreate):
     source: Optional[dict] = None
     transforms: List[dict]
     destination: dict
-    
+
     schedule: Optional[str] = None
     schedule_frequency: Optional[str] = None
     ui_params: Optional[dict] = None
     incremental_config: Optional[dict] = None
     last_sync_timestamp: Optional[datetime] = None
-    
+
     status: str
     created_at: datetime
     updated_at: datetime
     # Visual Editor state
     nodes: Optional[List[dict]] = None
     edges: Optional[List[dict]] = None
-    is_active: bool = False  # Derived from Dataset model
+    is_active: bool = False  # Derived from ETLJob model
     import_ready: bool = False
 
     class Config:

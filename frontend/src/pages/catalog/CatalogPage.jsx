@@ -128,7 +128,7 @@ export default function CatalogPage() {
     setIsLoading(true);
     try {
       // In real app, fetch from API with dataset_type=target filter
-      const response = await fetch(`${API_BASE_URL}/api/etl-jobs?dataset_type=target`);
+      const response = await fetch(`${API_BASE_URL}/api/datasets?dataset_type=target`);
       if (response.ok) {
         const data = await response.json();
         setCatalog(data.length > 0 ? data : MOCK_CATALOG);

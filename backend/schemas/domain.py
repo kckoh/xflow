@@ -3,8 +3,8 @@ from pydantic import BaseModel
 from datetime import datetime
 
 
-class DomainJobListResponse(BaseModel):
-    """Simplified job info for domain import list"""
+class DomainDatasetListResponse(BaseModel):
+    """Simplified Dataset info for domain import list (pipelines)"""
     id: str
     name: str
     description: Optional[str] = None
@@ -16,8 +16,8 @@ class DomainJobListResponse(BaseModel):
         from_attributes = True
 
 
-class DatasetNodeResponse(BaseModel):
-    """Node in job execution result (source/transform/target)"""
+class ETLJobNodeResponse(BaseModel):
+    """Node in ETLJob execution result (source/transform/target for lineage)"""
     nodeId: str
     type: str
     schema: List[dict]
@@ -26,15 +26,15 @@ class DatasetNodeResponse(BaseModel):
     urn: Optional[str] = None
 
 
-class JobExecutionResponse(BaseModel):
-    """Full execution result with sources/targets/transforms"""
+class DatasetExecutionResponse(BaseModel):
+    """Full execution result with sources/targets/transforms from ETLJob (lineage)"""
     id: str
     name: str
     description: Optional[str] = None
-    job_id: Optional[str] = None
-    sources: List[DatasetNodeResponse]
-    transforms: List[DatasetNodeResponse]
-    targets: List[DatasetNodeResponse]
+    dataset_id: Optional[str] = None
+    sources: List[ETLJobNodeResponse]
+    transforms: List[ETLJobNodeResponse]
+    targets: List[ETLJobNodeResponse]
     is_active: bool
     created_at: datetime
     updated_at: datetime

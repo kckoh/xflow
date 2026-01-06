@@ -10,7 +10,7 @@ from pydantic import BaseModel
 class QualityRunRequest(BaseModel):
     """Request body for running quality check"""
     s3_path: str                          # 검사할 S3 경로
-    job_id: Optional[str] = None          # 연관된 ETL Job ID (선택)
+    dataset_id: Optional[str] = None      # 연관된 Dataset (pipeline) ID (선택)
     null_threshold: float = 5.0           # Null 허용 범위 (5.0% 이상부터 감점)
     duplicate_threshold: float = 1.0      # 중복 허용 범위 (1.0% 이상부터 감점)
 
@@ -28,8 +28,8 @@ class QualityCheckResponse(BaseModel):
 class QualityResultResponse(BaseModel):
     """Quality result response"""
     id: str
-    dataset_id: str
-    job_id: Optional[str]
+    etl_job_id: str                       # ETLJob (lineage) ID
+    dataset_id: Optional[str]             # Dataset (pipeline) ID
     s3_path: str
     row_count: int
     column_count: int

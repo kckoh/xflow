@@ -22,7 +22,7 @@ export default function JobRunsPage() {
 
     const fetchJobDetails = async () => {
         try {
-            const response = await fetch(`${API_BASE_URL}/api/etl-jobs/${jobId}`);
+            const response = await fetch(`${API_BASE_URL}/api/datasets/${jobId}`);
             if (response.ok) {
                 const data = await response.json();
                 setJob(data);
@@ -35,7 +35,7 @@ export default function JobRunsPage() {
     const fetchRuns = async () => {
         setIsLoading(true);
         try {
-            const response = await fetch(`${API_BASE_URL}/api/job-runs?job_id=${jobId}`);
+            const response = await fetch(`${API_BASE_URL}/api/job-runs?dataset_id=${jobId}`);
             if (response.ok) {
                 const data = await response.json();
                 setRuns(data);

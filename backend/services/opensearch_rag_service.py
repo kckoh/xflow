@@ -17,7 +17,7 @@ class OpenSearchRAGService:
 
     def search_schema(self, query: str, limit: int = 5) -> Tuple[List[Dict[str, Any]], str]:
         """
-        자연어 질문에서 관련 domain/etl_job 검색 후 스키마 컨텍스트 생성
+        자연어 질문에서 관련 Dataset 검색 후 스키마 컨텍스트 생성
 
         Args:
             query: 사용자 질문
@@ -75,7 +75,7 @@ class OpenSearchRAGService:
                 columns = source.get('column_names', [])
                 column_str = ', '.join(columns) if columns else 'No columns defined'
 
-                # S3 path 정보 추가 (ETL jobs have S3 paths)
+                # S3 path 정보 추가 (Datasets have S3 paths)
                 path_info = f"\nS3 Path: {s3_path}" if s3_path else ""
 
                 context_parts.append(

@@ -29,7 +29,7 @@ from routers import (
     connections,
     domains,
     duckdb,
-    etl_jobs,
+    datasets,
     job_runs,
     logs,
     metadata,
@@ -105,8 +105,8 @@ app.include_router(
     tags=["select-fields"],
 )
 
-# ETL Jobs and Job Runs
-app.include_router(etl_jobs.router, prefix="/api/etl-jobs", tags=["etl-jobs"])
+# Datasets and Job Runs
+app.include_router(datasets.router, prefix="/api/datasets", tags=["datasets"])
 app.include_router(job_runs.router, prefix="/api/job-runs", tags=["job-runs"])
 
 # Source Datasets
