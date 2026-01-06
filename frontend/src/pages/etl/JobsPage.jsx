@@ -1,6 +1,6 @@
 import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
-import { Search, RefreshCw, GitBranch, Calendar, X, Clock, Zap, Play } from "lucide-react";
+import { Search, RefreshCw, GitBranch, Calendar, X, Clock, Zap, Play, Copy, Check } from "lucide-react";
 import { API_BASE_URL } from "../../config/api";
 import SchedulesPanel from "../../components/etl/SchedulesPanel";
 
@@ -144,25 +144,37 @@ function ScheduleModal({ isOpen, onClose, job, onSave }) {
 function ScheduleBadge({ job, onClick }) {
   if (job.job_type === "cdc") {
     return (
-      <button
-        onClick={onClick}
-        className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs font-medium bg-purple-100 text-purple-700 hover:bg-purple-200 transition-colors"
-      >
-        <Zap className="w-3 h-3" />
-        CDC
-      </button>
+      <div className="inline-flex items-center gap-2">
+        <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md text-xs font-medium bg-purple-100 text-purple-700">
+          <Zap className="w-3 h-3" />
+          CDC
+        </span>
+        <button
+          onClick={onClick}
+          className="p-1.5 rounded-md text-purple-600 hover:bg-purple-100 transition-colors"
+          title="Edit schedule"
+        >
+          <Calendar className="w-3.5 h-3.5" />
+        </button>
+      </div>
     );
   }
 
   if (!job.schedule) {
     return (
-      <button
-        onClick={onClick}
-        className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs font-medium bg-gray-100 text-gray-600 hover:bg-gray-200 transition-colors"
-      >
-        <Calendar className="w-3 h-3" />
-        Manual
-      </button>
+      <div className="inline-flex items-center gap-2">
+        <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md text-xs font-medium bg-gray-100 text-gray-600">
+          <Calendar className="w-3 h-3" />
+          Manual
+        </span>
+        <button
+          onClick={onClick}
+          className="p-1.5 rounded-md text-gray-600 hover:bg-gray-100 transition-colors"
+          title="Edit schedule"
+        >
+          <Calendar className="w-3.5 h-3.5" />
+        </button>
+      </div>
     );
   }
 
@@ -184,13 +196,19 @@ function ScheduleBadge({ job, onClick }) {
   };
 
   return (
-    <button
-      onClick={onClick}
-      className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs font-medium bg-blue-100 text-blue-700 hover:bg-blue-200 transition-colors"
-    >
-      <Clock className="w-3 h-3" />
-      {getScheduleLabel()}
-    </button>
+    <div className="inline-flex items-center gap-2">
+      <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md text-xs font-medium bg-blue-100 text-blue-700">
+        <Clock className="w-3 h-3" />
+        {getScheduleLabel()}
+      </span>
+      <button
+        onClick={onClick}
+        className="p-1.5 rounded-md text-blue-600 hover:bg-blue-100 transition-colors"
+        title="Edit schedule"
+      >
+        <Calendar className="w-3.5 h-3.5" />
+      </button>
+    </div>
   );
 }
 
@@ -200,6 +218,8 @@ export default function JobsPage() {
   const [isLoading, setIsLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState("");
   const [scheduleModal, setScheduleModal] = useState({ isOpen: false, job: null });
+  const [copiedId, setCopiedId] = useState(null);
+  const [toast, setToast] = useState(null);
   const navigate = useNavigate();
 
   useEffect(() => {
@@ -342,14 +362,33 @@ export default function JobsPage() {
       if (response.ok) {
         const result = await response.json();
         console.log("Job triggered:", result);
+        showToast("Job started successfully!", "success");
         // Refresh jobs to update status
         fetchJobs();
       } else {
         console.error("Failed to run job");
+        showToast("Failed to start job", "error");
       }
     } catch (error) {
       console.error("Failed to run job:", error);
+      showToast("Network error: Failed to start job", "error");
     }
+  };
+
+  const handleCopyId = async (id, e) => {
+    e.stopPropagation();
+    try {
+      await navigator.clipboard.writeText(id);
+      setCopiedId(id);
+      setTimeout(() => setCopiedId(null), 2000);
+    } catch (error) {
+      console.error("Failed to copy:", error);
+    }
+  };
+
+  const showToast = (message, type = "success") => {
+    setToast({ message, type });
+    setTimeout(() => setToast(null), 3000);
   };
 
   const filteredJobs = jobs.filter(
@@ -436,7 +475,20 @@ export default function JobsPage() {
                   onClick={() => navigate(`/etl/job/${job.id}/runs`)}
                 >
                   <td className="px-6 py-4 text-sm text-gray-500">
-                    {job.id}
+                    <div className="flex items-center gap-2">
+                      <span>{job.id}</span>
+                      <button
+                        onClick={(e) => handleCopyId(job.id, e)}
+                        className="p-1 hover:bg-gray-200 rounded transition-colors"
+                        title="Copy ID"
+                      >
+                        {copiedId === job.id ? (
+                          <Check className="w-3.5 h-3.5 text-green-600" />
+                        ) : (
+                          <Copy className="w-3.5 h-3.5 text-gray-400" />
+                        )}
+                      </button>
+                    </div>
                   </td>
                   <td className="px-6 py-4 text-sm text-gray-500">
                     {job.owner || "-"}
@@ -507,19 +559,22 @@ export default function JobsPage() {
                           Run
                         </button>
                       )}
-                      <button
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          handleToggle(job.id);
-                        }}
-                        className={`relative inline-flex h-5 w-9 flex-shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none ${job.is_active ? "bg-green-500" : "bg-gray-300"
-                          }`}
-                      >
-                        <span
-                          className={`pointer-events-none inline-block h-4 w-4 transform rounded-full bg-white shadow ring-0 transition duration-200 ease-in-out ${job.is_active ? "translate-x-4" : "translate-x-0"
+                      {/* Only show toggle if job has a schedule (not manual) */}
+                      {job.schedule && (
+                        <button
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            handleToggle(job.id);
+                          }}
+                          className={`relative inline-flex h-5 w-9 flex-shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none ${job.is_active ? "bg-green-500" : "bg-gray-300"
                             }`}
-                        />
-                      </button>
+                        >
+                          <span
+                            className={`pointer-events-none inline-block h-4 w-4 transform rounded-full bg-white shadow ring-0 transition duration-200 ease-in-out ${job.is_active ? "translate-x-4" : "translate-x-0"
+                              }`}
+                          />
+                        </button>
+                      )}
                     </div>
                   </td>
                 </tr>
@@ -536,6 +591,24 @@ export default function JobsPage() {
         job={scheduleModal.job}
         onSave={handleScheduleSave}
       />
+
+      {/* Toast Notification */}
+      {toast && (
+        <div className="fixed bottom-6 right-6 z-[1002] animate-slide-up">
+          <div className={`flex items-center gap-3 px-4 py-3 rounded-lg shadow-lg ${toast.type === "success" ? "bg-green-50 border border-green-200" : "bg-red-50 border border-red-200"
+            }`}>
+            {toast.type === "success" ? (
+              <Check className="w-5 h-5 text-green-600" />
+            ) : (
+              <X className="w-5 h-5 text-red-600" />
+            )}
+            <span className={`text-sm font-medium ${toast.type === "success" ? "text-green-900" : "text-red-900"
+              }`}>
+              {toast.message}
+            </span>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
