@@ -128,8 +128,8 @@ export default function ETLMain() {
     }
   };
 
-  const openDeleteModal = (jobId, jobName) => {
-    setDeleteModal({ isOpen: true, jobId, jobName });
+  const openDeleteModal = (jobId, jobName, dataset_type) => {
+    setDeleteModal({ isOpen: true, jobId, jobName, dataset_type });
   };
 
   const closeDeleteModal = () => {
@@ -286,7 +286,7 @@ export default function ETLMain() {
                         className="text-red-600 hover:text-red-800 transition-colors"
                         onClick={(e) => {
                           e.stopPropagation();
-                          openDeleteModal(job.id, job.name);
+                          openDeleteModal(job.id, job.name, job.dataset_type);
                         }}
                         title="Delete"
                       >
