@@ -18,6 +18,7 @@ import CatalogPage from "./pages/catalog/CatalogPage";
 import CatalogDetailPage from "./pages/catalog/CatalogDetailPage";
 import SourceWizard from "./pages/source/SourceWizard";
 import TargetWizard from "./pages/targets/TargetWizard";
+import JobRunsPage from "./pages/etl/JobRunsPage";
 import { ToastProvider } from "./components/common/Toast";
 
 // Placeholder components for new routes
@@ -221,6 +222,17 @@ function App() {
               <ProtectedRoute>
                 <MainLayout fullWidth={true}>
                   <ETLJobPage />
+                </MainLayout>
+              </ProtectedRoute>
+            }
+          />
+
+          <Route
+            path="/etl/job/:jobId/runs"
+            element={
+              <ProtectedRoute>
+                <MainLayout>
+                  <JobRunsPage />
                 </MainLayout>
               </ProtectedRoute>
             }
