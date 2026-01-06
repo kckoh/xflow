@@ -272,10 +272,18 @@ async def _load_sample_data(
         return df
     
     elif source_type == 's3':
-        # S3 / Parquet (Catalog datasets)
+        # S3 / Parquet (Catalog datasets or Source datasets)
         import duckdb
+
+        # source_datasets: bucket + path 별도
+        # catalog datasets: path에 전체 경로
+        bucket = source_dataset.get("bucket")
         path = source_dataset.get("path")
-        if not path:
+
+        if bucket and path:
+            # source_datasets 형태: bucket + path 조합
+            path = f"s3://{bucket}/{path}"
+        elif not path:
             raise ValueError("S3 dataset missing path")
             
         # Ensure path is DuckDB compatible

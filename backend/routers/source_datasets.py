@@ -2,6 +2,7 @@ from fastapi import APIRouter, HTTPException
 from typing import List
 from datetime import datetime
 from bson import ObjectId
+import os
 
 import database
 from schemas.source_dataset import (
@@ -9,6 +10,73 @@ from schemas.source_dataset import (
     SourceDatasetUpdate,
     SourceDatasetResponse,
 )
+
+
+async def get_s3_schema(bucket: str, path: str) -> List[dict]:
+    """
+    DuckDB를 사용하여 S3 Parquet 파일의 스키마 조회
+    """
+    try:
+        import duckdb
+        import boto3
+
+        if not bucket or not path:
+            return []
+
+        # S3 경로 구성
+        s3_path = f"s3://{bucket}/{path}"
+
+        # 경로가 파일이 아니라 디렉토리면 /*.parquet 추가
+        if not s3_path.endswith('.parquet'):
+            if not s3_path.endswith('/'):
+                s3_path += '/'
+            s3_path += '*.parquet'
+
+        # DuckDB 설정
+        con = duckdb.connect()
+        con.execute("INSTALL httpfs; LOAD httpfs;")
+
+        # AWS 자격 증명 설정
+        session = boto3.Session()
+        creds = session.get_credentials()
+
+        if creds:
+            frozen = creds.get_frozen_credentials()
+            con.execute(f"SET s3_access_key_id='{frozen.access_key}';")
+            con.execute(f"SET s3_secret_access_key='{frozen.secret_key}';")
+            if frozen.token:
+                con.execute(f"SET s3_session_token='{frozen.token}';")
+
+        region = session.region_name or os.getenv("AWS_REGION", "ap-northeast-2")
+        con.execute(f"SET s3_region='{region}';")
+
+        # LocalStack 엔드포인트 처리
+        endpoint = os.getenv("AWS_ENDPOINT") or os.getenv("S3_ENDPOINT_URL")
+        if endpoint:
+            endpoint_url = endpoint.replace("http://", "").replace("https://", "")
+            con.execute(f"SET s3_endpoint='{endpoint_url}';")
+            if "http://" in endpoint:
+                con.execute("SET s3_use_ssl=false;")
+                con.execute("SET s3_url_style='path';")
+
+        # 스키마만 조회 (LIMIT 0)
+        query = f"SELECT * FROM read_parquet('{s3_path}') LIMIT 0"
+        result = con.execute(query)
+
+        # 컬럼 정보 추출 - description 사용
+        schema = []
+        for col_info in result.description:
+            schema.append({
+                "name": col_info[0],
+                "type": col_info[1]
+            })
+
+        con.close()
+        return schema
+
+    except Exception as e:
+        print(f"Failed to get S3 schema for {bucket}/{path}: {e}")
+        return []
 
 router = APIRouter(prefix="/api/source-datasets", tags=["source-datasets"])
 
@@ -45,6 +113,18 @@ async def get_source_datasets():
     async for doc in cursor:
         doc["id"] = str(doc["_id"])
         del doc["_id"]
+
+        # S3 타입인 경우 DuckDB로 스키마 조회
+        if doc.get("source_type") == "s3":
+            # 저장된 columns가 없거나 비어있으면 S3에서 조회
+            if not doc.get("columns"):
+                bucket = doc.get("bucket")
+                path = doc.get("path")
+                if bucket and path:
+                    s3_schema = await get_s3_schema(bucket, path)
+                    if s3_schema:
+                        doc["columns"] = s3_schema
+
         datasets.append(doc)
 
     return datasets
@@ -65,6 +145,17 @@ async def get_source_dataset(dataset_id: str):
 
     doc["id"] = str(doc["_id"])
     del doc["_id"]
+
+    # S3 타입인 경우 DuckDB로 스키마 조회
+    if doc.get("source_type") == "s3":
+        if not doc.get("columns"):
+            bucket = doc.get("bucket")
+            path = doc.get("path")
+            if bucket and path:
+                s3_schema = await get_s3_schema(bucket, path)
+                if s3_schema:
+                    doc["columns"] = s3_schema
+
     return doc
 
 

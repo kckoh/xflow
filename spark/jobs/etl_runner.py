@@ -577,14 +577,26 @@ def read_s3_file_source(spark: SparkSession, source_config: dict) -> DataFrame:
     """
     path = source_config.get("path") or source_config.get("s3Location")
     file_format = source_config.get("format", "parquet")
-    
-    if not path:
+
+    # source_datasets: bucket + path 별도 필드
+    # catalog datasets: path에 전체 경로 (s3a://bucket/path)
+    bucket = source_config.get("bucket")
+    connection = source_config.get("connection", {})
+    if not bucket:
+        bucket = connection.get("bucket")
+
+    # bucket이 있고 path가 전체 경로가 아니면 조합
+    if bucket and path and not path.startswith("s3"):
+        path = f"s3a://{bucket}/{path}"
+    elif not path and bucket:
         raise ValueError("S3 path is required for S3 file source")
-    
+    elif not path:
+        raise ValueError("S3 path is required for S3 file source")
+
     # Convert s3:// to s3a:// if needed
     if path.startswith("s3://"):
         path = path.replace("s3://", "s3a://", 1)
-    
+
     print(f"   Reading {file_format} files from: {path}")
     
     # Configure S3 credentials if provided (LocalStack or explicit AWS)

@@ -195,13 +195,13 @@ async def _get_s3_schema(destination: Dict, dataset_name: str) -> List[Dict]:
         query = f"SELECT * FROM read_parquet('{s3_path}/*.parquet') LIMIT 0"
         result = con.execute(query)
 
-        # 컬럼 정보 추출
+        # 컬럼 정보 추출 - description 사용
         schema = []
-        for col_name, col_type in zip(result.columns, result.dtypes):
+        for col_info in result.description:
             schema.append({
-                "name": col_name,
-                "key": col_name,
-                "type": str(col_type)
+                "name": col_info[0],
+                "key": col_info[0],
+                "type": col_info[1]
             })
 
         con.close()

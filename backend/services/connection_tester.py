@@ -51,10 +51,17 @@ class ConnectionTester:
     @staticmethod
     def _test_s3(config: Dict[str, Any]) -> Tuple[bool, str]:
         try:
+            import os
             # Use IAM role from Kubernetes pod (no access keys needed)
             # boto3 automatically uses pod's IAM role in Kubernetes
             region = config.get('region', 'us-east-1')
-            s3 = boto3.client('s3', region_name=region)
+
+            # Check for LocalStack endpoint (local development)
+            endpoint = os.getenv('AWS_ENDPOINT') or os.getenv('S3_ENDPOINT_URL')
+            if endpoint:
+                s3 = boto3.client('s3', region_name=region, endpoint_url=endpoint)
+            else:
+                s3 = boto3.client('s3', region_name=region)
             
             bucket = config.get('bucket')
             if not bucket:

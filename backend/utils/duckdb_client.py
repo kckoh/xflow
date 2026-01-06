@@ -13,9 +13,22 @@ def get_duckdb_connection():
     # httpfs 확장 설치 및 로드
     conn.execute("INSTALL httpfs; LOAD httpfs;")
 
-    if ENVIRONMENT == "production":
-        # Production: Use AWS S3 with IRSA credentials
-        # Get credentials from boto3 (which handles IRSA properly)
+    # LocalStack 엔드포인트가 설정되어 있으면 LocalStack 사용
+    s3_endpoint = os.getenv("AWS_ENDPOINT") or os.getenv("S3_ENDPOINT_URL")
+
+    if s3_endpoint:
+        # LocalStack 사용
+        endpoint_url = s3_endpoint.replace("http://", "").replace("https://", "")
+        s3_access_key = os.getenv("AWS_ACCESS_KEY_ID", "test")
+        s3_secret_key = os.getenv("AWS_SECRET_ACCESS_KEY", "test")
+        conn.execute(f"SET s3_endpoint='{endpoint_url}';")
+        conn.execute(f"SET s3_access_key_id='{s3_access_key}';")
+        conn.execute(f"SET s3_secret_access_key='{s3_secret_key}';")
+        conn.execute(f"SET s3_region='{S3_REGION}';")
+        conn.execute("SET s3_use_ssl=false;")
+        conn.execute("SET s3_url_style='path';")
+    else:
+        # 실제 AWS S3 사용 (boto3에서 credentials 가져옴)
         import boto3
         session = boto3.Session()
         credentials = session.get_credentials()
@@ -27,17 +40,6 @@ def get_duckdb_connection():
             conn.execute(f"SET s3_session_token='{creds.token}';")
         conn.execute(f"SET s3_region='{S3_REGION}';")
         conn.execute("SET s3_use_ssl=true;")
-    else:
-        # Local: Use LocalStack
-        s3_endpoint = os.getenv("AWS_ENDPOINT", "http://localstack-main:4566").replace("http://", "")
-        s3_access_key = os.getenv("AWS_ACCESS_KEY_ID", "test")
-        s3_secret_key = os.getenv("AWS_SECRET_ACCESS_KEY", "test")
-        conn.execute(f"SET s3_endpoint='{s3_endpoint}';")
-        conn.execute(f"SET s3_access_key_id='{s3_access_key}';")
-        conn.execute(f"SET s3_secret_access_key='{s3_secret_key}';")
-        conn.execute(f"SET s3_region='{S3_REGION}';")
-        conn.execute("SET s3_use_ssl=false;")
-        conn.execute("SET s3_url_style='path';")
 
     return conn
 
