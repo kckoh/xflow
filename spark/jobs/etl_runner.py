@@ -232,14 +232,18 @@ def read_rdb_source(spark: SparkSession, source_config: dict) -> DataFrame:
         reader = reader.option("dbtable", f"({query}) as subquery")
     elif table:
         reader = reader.option("dbtable", table)
-        # Add partitioning for large tables (parallel read)
-        partition_column = source_config.get("partition_column", "id")
-        num_partitions = source_config.get("num_partitions", 16)  # More partitions for large tables
-        reader = reader \
-            .option("numPartitions", num_partitions) \
-            .option("partitionColumn", partition_column) \
-            .option("lowerBound", "1") \
-            .option("upperBound", "10000000")
+        # Add partitioning only if partition_column is explicitly specified
+        partition_column = source_config.get("partition_column")
+        if partition_column:
+            num_partitions = source_config.get("num_partitions", 16)
+            lower_bound = source_config.get("lower_bound", 1)
+            upper_bound = source_config.get("upper_bound", 10000000)
+            print(f"   [Partition] column='{partition_column}', partitions={num_partitions}")
+            reader = reader \
+                .option("numPartitions", num_partitions) \
+                .option("partitionColumn", partition_column) \
+                .option("lowerBound", str(lower_bound)) \
+                .option("upperBound", str(upper_bound))
     else:
         raise ValueError("Either 'table' or 'query' must be specified in source config")
 
