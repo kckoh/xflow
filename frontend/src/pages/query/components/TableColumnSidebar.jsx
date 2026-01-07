@@ -6,6 +6,7 @@ import {
     RefreshCw,
     Database,
     FolderOpen,
+    FileText,
 } from "lucide-react";
 import { listBuckets, listBucketFiles, getSchema } from "../../../services/apiDuckDB";
 import Combobox from "../../../components/common/Combobox";
@@ -39,29 +40,44 @@ export default function TableColumnSidebar({ selectedTable, onSelectTable }) {
         }
     };
 
-    // 선택된 버킷의 폴더 가져오기
+    // 선택된 버킷의 폴더 및 루트 파일 가져오기
     const fetchFolders = async (bucket) => {
         if (!bucket) return;
         setLoadingFolders(true);
         setError(null);
         try {
             const response = await listBucketFiles(bucket, "");
-            // 파일 목록에서 폴더 추출
             const folderSet = new Set();
+            const rootFiles = [];
+
             response.files?.forEach((file) => {
                 const path = file.file || "";
-                const parts = path.replace(`s3://${bucket}/`, "").split("/");
+                const relativePath = path.replace(`s3://${bucket}/`, "");
+                const parts = relativePath.split("/");
+
                 if (parts.length > 1) {
+                    // 폴더 안의 파일
                     folderSet.add(parts[0]);
+                } else if (relativePath.endsWith(".parquet")) {
+                    // 루트에 있는 parquet 파일
+                    rootFiles.push({
+                        name: relativePath,
+                        path: path,
+                        bucket,
+                        isFile: true,
+                    });
                 }
             });
-            setFolders(
-                Array.from(folderSet).map((name) => ({
-                    name,
-                    path: `s3://${bucket}/${name}/*.parquet`,
-                    bucket,
-                }))
-            );
+
+            // 폴더 목록
+            const folderItems = Array.from(folderSet).map((name) => ({
+                name,
+                path: `s3://${bucket}/${name}/**/*.parquet`,
+                bucket,
+                isFile: false,
+            }));
+
+            setFolders([...folderItems, ...rootFiles]);
         } catch (err) {
             setError(err.message);
         } finally {
@@ -162,7 +178,7 @@ export default function TableColumnSidebar({ selectedTable, onSelectTable }) {
 
                 {!loading && !loadingFolders && !error && folders.length === 0 && selectedBucket && (
                     <div className="p-4 text-sm text-gray-500 text-center">
-                        No data folders found
+                        No parquet files found
                     </div>
                 )}
 
@@ -183,12 +199,18 @@ export default function TableColumnSidebar({ selectedTable, onSelectTable }) {
                                         ) : (
                                             <ChevronRight className="w-4 h-4 text-gray-400 flex-shrink-0" />
                                         )}
-                                        <FolderOpen className="w-4 h-4 text-yellow-500 flex-shrink-0" />
+                                        {folder.isFile ? (
+                                            <FileText className="w-4 h-4 text-blue-500 flex-shrink-0" />
+                                        ) : (
+                                            <FolderOpen className="w-4 h-4 text-yellow-500 flex-shrink-0" />
+                                        )}
                                         <div className="flex-1 min-w-0">
                                             <p className="font-medium text-gray-900 truncate">
                                                 {folder.name}
                                             </p>
-                                            <p className="text-xs text-gray-500">Parquet</p>
+                                            <p className="text-xs text-gray-500">
+                                                {folder.isFile ? "File" : "Folder"}
+                                            </p>
                                         </div>
                                     </div>
                                 </div>
