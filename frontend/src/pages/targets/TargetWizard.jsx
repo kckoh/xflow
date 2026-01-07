@@ -58,7 +58,6 @@ export default function TargetWizard() {
   });
   const [tagInput, setTagInput] = useState("");
   const [isNameDuplicate, setIsNameDuplicate] = useState(false);
-  const [isCheckingName, setIsCheckingName] = useState(false);
   const [detailPanelTab, setDetailPanelTab] = useState("details"); // 'details' or 'schema'
 
   // Step 3: Transformation
@@ -199,49 +198,26 @@ export default function TargetWizard() {
     loadDatasets();
   }, []);
 
-  // Check for duplicate dataset name
+  // Check for duplicate dataset name (using already loaded datasets)
   useEffect(() => {
-    const checkDuplicateName = async () => {
-      if (!config.name.trim()) {
-        setIsNameDuplicate(false);
-        return;
-      }
+    if (!config.name.trim()) {
+      setIsNameDuplicate(false);
+      return;
+    }
 
-      // Skip check in edit mode if name hasn't changed
-      if (isEditMode) {
-        setIsNameDuplicate(false);
-        return;
-      }
+    // Skip check in edit mode
+    if (isEditMode) {
+      setIsNameDuplicate(false);
+      return;
+    }
 
-      setIsCheckingName(true);
-      try {
-        // Check both datasets and source-datasets
-        const [datasetsRes, sourceRes] = await Promise.all([
-          fetch(`${API_BASE_URL}/api/datasets`),
-          fetch(`${API_BASE_URL}/api/source-datasets`),
-        ]);
+    // Extract all dataset names from already loaded sourceDatasets
+    const allNames = sourceDatasets.map((d) => d.name?.toLowerCase()).filter(Boolean);
 
-        const datasets = datasetsRes.ok ? await datasetsRes.json() : [];
-        const sourceDatasets = sourceRes.ok ? await sourceRes.json() : [];
-
-        const allNames = [
-          ...datasets.map((d) => d.name?.toLowerCase()),
-          ...sourceDatasets.map((d) => d.name?.toLowerCase()),
-        ];
-
-        const isDuplicate = allNames.includes(config.name.trim().toLowerCase());
-        setIsNameDuplicate(isDuplicate);
-      } catch (err) {
-        console.error("Failed to check duplicate name:", err);
-        setIsNameDuplicate(false);
-      } finally {
-        setIsCheckingName(false);
-      }
-    };
-
-    const debounceTimer = setTimeout(checkDuplicateName, 300);
-    return () => clearTimeout(debounceTimer);
-  }, [config.name, isEditMode]);
+    // Check for duplicate (instant, no API call needed!)
+    const isDuplicate = allNames.includes(config.name.trim().toLowerCase());
+    setIsNameDuplicate(isDuplicate);
+  }, [config.name, isEditMode, sourceDatasets]);
 
 
 
@@ -568,7 +544,7 @@ export default function TargetWizard() {
     switch (currentStep) {
       case 1:
         // Overview step - need unique name
-        return config.name.trim() !== "" && !isNameDuplicate && !isCheckingName;
+        return config.name.trim() !== "" && !isNameDuplicate;
       case 2:
         // Source step - check both Source and Target tabs
         return selectedJobIds.length > 0 || selectedTargetIds.length > 0;
@@ -736,11 +712,6 @@ export default function TargetWizard() {
                           : "border-gray-300 focus:ring-orange-500"
                           }`}
                       />
-                      {isCheckingName && (
-                        <div className="absolute right-3 top-1/2 -translate-y-1/2">
-                          <div className="w-4 h-4 border-2 border-gray-300 border-t-orange-500 rounded-full animate-spin" />
-                        </div>
-                      )}
                     </div>
                     {isNameDuplicate && (
                       <p className="mt-1 text-sm text-red-500">
