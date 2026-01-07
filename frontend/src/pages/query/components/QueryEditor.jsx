@@ -1,7 +1,8 @@
 import { useState } from "react";
-import { Play, Loader2, CheckCircle, XCircle, Clock, Download } from "lucide-react";
+import { Play, Loader2, CheckCircle, XCircle, Clock, Download, Table, BarChart3 } from "lucide-react";
 import { executeQuery as runDuckDBQuery } from "../../../services/apiDuckDB";
 import { useToast } from "../../../components/common/Toast";
+import QueryChart from "./QueryChart";
 
 export default function QueryEditor({ selectedTable }) {
     const [query, setQuery] = useState("");
@@ -9,6 +10,7 @@ export default function QueryEditor({ selectedTable }) {
     const [queryStatus, setQueryStatus] = useState(null);
     const [results, setResults] = useState(null);
     const [error, setError] = useState(null);
+    const [viewMode, setViewMode] = useState('table'); // 'table' or 'chart'
     const { showToast } = useToast();
 
     const executeQuery = async () => {
@@ -171,67 +173,102 @@ export default function QueryEditor({ selectedTable }) {
             <div className="flex-1 overflow-auto">
                 {results ? (
                     <div className="p-4">
-                        {/* Result Header */}
+                        {/* Result Header with View Toggle */}
                         <div className="mb-4 flex items-center justify-between">
-                            <div className="flex items-center gap-2">
-                                <CheckCircle className="w-5 h-5 text-green-600" />
-                                <span className="text-sm font-medium text-gray-900">
-                                    Query completed successfully
-                                </span>
-                                <span className="text-sm text-gray-500">
-                                    ({results.row_count} rows)
-                                </span>
+                            <div className="flex items-center gap-4">
+                                <div className="flex items-center gap-2">
+                                    <CheckCircle className="w-5 h-5 text-green-600" />
+                                    <span className="text-sm font-medium text-gray-900">
+                                        Query completed successfully
+                                    </span>
+                                    <span className="text-sm text-gray-500">
+                                        ({results.row_count} rows)
+                                    </span>
+                                </div>
+
+                                {/* View Mode Toggle */}
+                                <div className="flex items-center gap-1 bg-gray-100 rounded-lg p-1">
+                                    <button
+                                        onClick={() => setViewMode('table')}
+                                        className={`flex items-center gap-1.5 px-3 py-1.5 rounded-md text-sm font-medium transition-colors ${viewMode === 'table'
+                                                ? 'bg-white text-gray-900 shadow-sm'
+                                                : 'text-gray-600 hover:text-gray-900'
+                                            }`}
+                                    >
+                                        <Table className="w-4 h-4" />
+                                        Table
+                                    </button>
+                                    <button
+                                        onClick={() => setViewMode('chart')}
+                                        className={`flex items-center gap-1.5 px-3 py-1.5 rounded-md text-sm font-medium transition-colors ${viewMode === 'chart'
+                                                ? 'bg-white text-gray-900 shadow-sm'
+                                                : 'text-gray-600 hover:text-gray-900'
+                                            }`}
+                                    >
+                                        <BarChart3 className="w-4 h-4" />
+                                        Chart
+                                    </button>
+                                </div>
                             </div>
 
                             {/* Download Button */}
-                            <button
-                                onClick={downloadCSV}
-                                className="flex items-center gap-1 px-3 py-1.5 text-sm font-medium text-gray-600 bg-white border border-gray-200 rounded-lg hover:bg-gray-50 transition-colors"
-                            >
-                                <Download className="w-4 h-4" />
-                                Download CSV
-                            </button>
+                            {viewMode === 'table' && (
+                                <button
+                                    onClick={downloadCSV}
+                                    className="flex items-center gap-1 px-3 py-1.5 text-sm font-medium text-gray-600 bg-white border border-gray-200 rounded-lg hover:bg-gray-50 transition-colors"
+                                >
+                                    <Download className="w-4 h-4" />
+                                    Download CSV
+                                </button>
+                            )}
                         </div>
 
                         {/* Table View */}
-                        <div className="overflow-auto border border-gray-200 rounded-lg">
-                            <table className="w-full text-sm">
-                                <thead className="bg-gray-50 border-b border-gray-200">
-                                    <tr>
-                                        {results.columns.map((column) => (
-                                            <th
-                                                key={column}
-                                                className="px-4 py-3 text-left font-medium text-gray-700"
-                                            >
-                                                {column}
-                                            </th>
-                                        ))}
-                                    </tr>
-                                </thead>
-                                <tbody className="divide-y divide-gray-200">
-                                    {results.data.map((row, rowIndex) => (
-                                        <tr
-                                            key={rowIndex}
-                                            className="hover:bg-gray-50 transition-colors"
-                                        >
+                        {viewMode === 'table' && (
+                            <div className="overflow-auto border border-gray-200 rounded-lg">
+                                <table className="w-full text-sm">
+                                    <thead className="bg-gray-50 border-b border-gray-200">
+                                        <tr>
                                             {results.columns.map((column) => (
-                                                <td
+                                                <th
                                                     key={column}
-                                                    className="px-4 py-3 text-gray-900"
+                                                    className="px-4 py-3 text-left font-medium text-gray-700"
                                                 >
-                                                    {(() => {
-                                                        const value = row[column];
-                                                        if (value === null || value === undefined) return "-";
-                                                        if (typeof value === "object") return JSON.stringify(value);
-                                                        return String(value);
-                                                    })()}
-                                                </td>
+                                                    {column}
+                                                </th>
                                             ))}
                                         </tr>
-                                    ))}
-                                </tbody>
-                            </table>
-                        </div>
+                                    </thead>
+                                    <tbody className="divide-y divide-gray-200">
+                                        {results.data.map((row, rowIndex) => (
+                                            <tr
+                                                key={rowIndex}
+                                                className="hover:bg-gray-50 transition-colors"
+                                            >
+                                                {results.columns.map((column) => (
+                                                    <td
+                                                        key={column}
+                                                        className="px-4 py-3 text-gray-900"
+                                                    >
+                                                        {(() => {
+                                                            const value = row[column];
+                                                            if (value === null || value === undefined) return "-";
+                                                            if (typeof value === "object") return JSON.stringify(value);
+                                                            return String(value);
+                                                        })()}
+                                                    </td>
+                                                ))}
+                                            </tr>
+                                        ))}
+                                    </tbody>
+                                </table>
+                            </div>
+                        )}
+
+                        {/* Chart View */}
+                        {viewMode === 'chart' && (
+                            <QueryChart data={results.data} columns={results.columns} />
+                        )}
                     </div>
                 ) : (
                     <div className="flex items-center justify-center h-full text-gray-400">
