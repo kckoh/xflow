@@ -5,7 +5,7 @@ import { connectionApi } from "../../services/connectionApi";
 
 /**
  * MongoDB Source Configuration Component
- * Handles collection selection and schema display
+ * Handles collection selection and schema display with tree visualization
  */
 export default function MongoDBSourceConfig({
     connectionId,
@@ -91,6 +91,164 @@ export default function MongoDBSourceConfig({
         onColumnsUpdate(updatedColumns);
     };
 
+    // Build tree structure from flat dot-notation fields
+    const buildTree = (columns) => {
+        const tree = {};
+
+        columns.forEach((col) => {
+            const parts = col.name.split(".");
+            let current = tree;
+
+            parts.forEach((part, index) => {
+                if (!current[part]) {
+                    current[part] = {
+                        name: part,
+                        fullPath: parts.slice(0, index + 1).join("."),
+                        isLeaf: index === parts.length - 1,
+                        type: index === parts.length - 1 ? col.type : "object",
+                        occurrence:
+                            index === parts.length - 1 ? col.occurrence : null,
+                        description:
+                            index === parts.length - 1 ? col.description : "",
+                        children: {},
+                    };
+                }
+                current = current[part].children;
+            });
+        });
+
+        return tree;
+    };
+
+    // Render tree recursively
+    const renderTree = (node, depth = 0, parentPrefix = "") => {
+        const entries = Object.entries(node);
+
+        return entries.map(([key, value], index) => {
+            const isLastChild = index === entries.length - 1;
+            const hasChildren = Object.keys(value.children).length > 0;
+            const colIndex = columns.findIndex((c) => c.name === value.fullPath);
+
+            // Build the prefix for connecting lines
+            let prefix = parentPrefix;
+            if (depth > 0) {
+                prefix += isLastChild ? "└─ " : "├─ ";
+            }
+
+            // Prefix for children
+            const childPrefix =
+                parentPrefix + (depth > 0 ? (isLastChild ? "   " : "│  ") : "");
+
+            return (
+                <div key={value.fullPath}>
+                    {/* Current node */}
+                    <div className="flex items-center gap-2 py-1.5 group hover:bg-white/50 rounded px-2 -mx-2 transition-colors">
+                        {/* Tree lines */}
+                        {depth > 0 && (
+                            <span className="text-gray-400 font-mono text-xs select-none whitespace-pre">
+                                {prefix}
+                            </span>
+                        )}
+
+                        {/* Icon */}
+                        <span className="text-gray-500 flex-shrink-0">
+                            {hasChildren ? (
+                                <svg
+                                    className="w-4 h-4"
+                                    fill="none"
+                                    stroke="currentColor"
+                                    viewBox="0 0 24 24"
+                                >
+                                    <path
+                                        strokeLinecap="round"
+                                        strokeLinejoin="round"
+                                        strokeWidth={2}
+                                        d="M3 7v10a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-6l-2-2H5a2 2 0 00-2 2z"
+                                    />
+                                </svg>
+                            ) : (
+                                <svg
+                                    className="w-4 h-4"
+                                    fill="none"
+                                    stroke="currentColor"
+                                    viewBox="0 0 24 24"
+                                >
+                                    <path
+                                        strokeLinecap="round"
+                                        strokeLinejoin="round"
+                                        strokeWidth={2}
+                                        d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"
+                                    />
+                                </svg>
+                            )}
+                        </span>
+
+                        {/* Field name */}
+                        <span
+                            className={`font-medium ${hasChildren ? "text-gray-700" : "text-gray-900"
+                                }`}
+                        >
+                            {value.name}
+                        </span>
+
+                        {/* Type badge */}
+                        {value.isLeaf && (
+                            <span className="text-xs text-gray-500 bg-white px-2 py-0.5 rounded border border-gray-200">
+                                {value.type}
+                            </span>
+                        )}
+
+                        {/* Occurrence badge */}
+                        {value.isLeaf && value.occurrence && (
+                            <span className="text-xs text-blue-600 bg-blue-50 px-2 py-0.5 rounded border border-blue-200">
+                                {Math.round(value.occurrence * 100)}%
+                            </span>
+                        )}
+
+                        {/* Expand description button */}
+                        {value.isLeaf && colIndex >= 0 && (
+                            <button
+                                onClick={() => toggleColumnExpansion(colIndex)}
+                                className="ml-auto opacity-0 group-hover:opacity-100 p-1 hover:bg-gray-200 rounded transition-all"
+                                title={
+                                    expandedColumns[colIndex]
+                                        ? "Hide description"
+                                        : "Add description"
+                                }
+                            >
+                                {expandedColumns[colIndex] ? (
+                                    <ChevronUp className="w-3 h-3 text-gray-600" />
+                                ) : (
+                                    <ChevronDown className="w-3 h-3 text-gray-600" />
+                                )}
+                            </button>
+                        )}
+                    </div>
+
+                    {/* Description input (expanded) */}
+                    {value.isLeaf && colIndex >= 0 && expandedColumns[colIndex] && (
+                        <div className={`mt-1 mb-2 ${depth > 0 ? 'ml-8' : 'ml-6'}`}>
+                            <input
+                                type="text"
+                                value={value.description || ""}
+                                onChange={(e) => {
+                                    updateColumnMetadata(colIndex, "description", e.target.value);
+                                }}
+                                placeholder="Enter field description"
+                                className="w-full px-3 py-1.5 text-sm border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-emerald-500 bg-white"
+                            />
+                        </div>
+                    )}
+
+                    {/* Render children */}
+                    {hasChildren && (
+                        <div>{renderTree(value.children, depth + 1, childPrefix)}</div>
+                    )}
+                </div>
+            );
+        });
+    };
+
     return (
         <div className="space-y-6">
             {/* Collection Selection */}
@@ -136,73 +294,14 @@ export default function MongoDBSourceConfig({
                 />
             </div>
 
-            {/* Columns Section */}
+            {/* Fields Section - Tree View */}
             {columns.length > 0 && (
                 <div>
                     <label className="block text-sm font-medium text-gray-700 mb-3">
                         Fields ({columns.length})
                     </label>
-                    <div className="space-y-3">
-                        {columns.map((column, index) => (
-                            <div
-                                key={index}
-                                className="border border-gray-200 rounded-lg bg-gray-50 overflow-hidden"
-                            >
-                                <div className="flex items-center justify-between p-4">
-                                    <div className="flex items-center gap-2">
-                                        <span className="font-medium text-gray-900">
-                                            {column.name}
-                                        </span>
-                                        <span className="text-xs text-gray-500 bg-white px-2 py-1 rounded border border-gray-200">
-                                            {column.type}
-                                        </span>
-                                        {column.occurrence && (
-                                            <span className="text-xs text-blue-600 bg-blue-50 px-2 py-1 rounded border border-blue-200">
-                                                {Math.round(column.occurrence * 100)}%
-                                            </span>
-                                        )}
-                                    </div>
-                                    <button
-                                        onClick={() => toggleColumnExpansion(index)}
-                                        className="p-1 hover:bg-gray-200 rounded transition-colors"
-                                        title={
-                                            expandedColumns[index]
-                                                ? "Hide description"
-                                                : "Show description"
-                                        }
-                                    >
-                                        {expandedColumns[index] ? (
-                                            <ChevronUp className="w-4 h-4 text-gray-600" />
-                                        ) : (
-                                            <ChevronDown className="w-4 h-4 text-gray-600" />
-                                        )}
-                                    </button>
-                                </div>
-
-                                {expandedColumns[index] && (
-                                    <div className="px-4 pb-4 pt-0">
-                                        <div>
-                                            <label className="block text-xs font-medium text-gray-600 mb-1">
-                                                Description
-                                            </label>
-                                            <input
-                                                type="text"
-                                                value={column.description || ""}
-                                                onChange={(e) =>
-                                                    updateColumnMetadata(
-                                                        index,
-                                                        "description",
-                                                        e.target.value
-                                                    )
-                                                }
-                                                placeholder="Enter field description"
-                                                className="w-full px-3 py-2 text-sm border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-emerald-500 bg-white"
-                                            />
-                                        </div>
-                                    </div>
-                                )}
-                            </div>
-                        ))}
+                    <div className="space-y-0.5 bg-gray-50 rounded-lg p-4 border border-gray-200">
+                        {renderTree(buildTree(columns))}
                     </div>
                 </div>
             )}
