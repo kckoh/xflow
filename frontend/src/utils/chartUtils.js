@@ -49,9 +49,11 @@ export function analyzeColumns(data) {
  */
 export function suggestAxes(columnAnalysis) {
     // X축: String 또는 Date 타입 컬럼 (고유값이 적당히 적은 것 우선)
+    // ID 같은 컬럼 제외 (고유값이 너무 많으면 차트가 느려짐)
     const xCandidates = columnAnalysis
         .filter(col => col.type === 'string' || col.type === 'date')
-        .filter(col => col.uniqueCount <= 50) // 너무 많으면 차트가 복잡해짐
+        .filter(col => col.uniqueCount <= 100) // 100개 이하만 (성능 고려)
+        .filter(col => col.uniqueCount > 1) // 1개는 의미 없음
         .sort((a, b) => a.uniqueCount - b.uniqueCount);
 
     // Y축: Number 타입 컬럼
@@ -65,8 +67,9 @@ export function suggestAxes(columnAnalysis) {
 
 /**
  * 데이터 집계: 같은 X값에 대해 Y값을 SUM/COUNT/AVG
+ * 성능을 위해 상위 N개만 반환
  */
-export function aggregateData(data, xColumn, yColumn, aggregationMethod = 'SUM') {
+export function aggregateData(data, xColumn, yColumn, aggregationMethod = 'SUM', limit = 20) {
     const grouped = {};
 
     data.forEach(row => {
@@ -81,7 +84,7 @@ export function aggregateData(data, xColumn, yColumn, aggregationMethod = 'SUM')
         grouped[xValue].count += 1;
     });
 
-    return Object.entries(grouped).map(([xValue, { values, count }]) => {
+    const aggregated = Object.entries(grouped).map(([xValue, { values, count }]) => {
         let aggregatedValue;
 
         switch (aggregationMethod) {
@@ -109,6 +112,11 @@ export function aggregateData(data, xColumn, yColumn, aggregationMethod = 'SUM')
             [yColumn]: aggregatedValue,
         };
     });
+
+    // Y값 기준 상위 N개만 반환
+    return aggregated
+        .sort((a, b) => b[yColumn] - a[yColumn])
+        .slice(0, limit);
 }
 
 /**
