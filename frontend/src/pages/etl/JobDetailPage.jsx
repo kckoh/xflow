@@ -1,9 +1,10 @@
 import { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import { ArrowLeft, Play, CheckCircle, XCircle, Clock, RefreshCw, Search, AlertCircle, Calendar, Info, Zap, BarChart3, Copy, Check } from 'lucide-react';
+import { ArrowLeft, Play, CheckCircle, XCircle, Clock, RefreshCw, Search, AlertCircle, Calendar, Info, Zap, BarChart3, Copy, Check, Activity } from 'lucide-react';
 import { API_BASE_URL } from '../../config/api';
 import SchedulesPanel from '../../components/etl/SchedulesPanel';
 import { useToast } from '../../components/common/Toast/ToastContext';
+import { getLatestQualityResult, getQualityHistory, runQualityCheck } from '../domain/api/domainApi';
 
 export default function JobDetailPage() {
     const { jobId } = useParams();
@@ -16,14 +17,58 @@ export default function JobDetailPage() {
     const [statusFilter, setStatusFilter] = useState('all');
     const [copiedId, setCopiedId] = useState(false);
     const { showToast } = useToast();
+    
+    // Quality state
+    const [qualityResult, setQualityResult] = useState(null);
+    const [qualityHistory, setQualityHistory] = useState([]);
+    const [qualityLoading, setQualityLoading] = useState(false);
+    const [runningCheck, setRunningCheck] = useState(false);
 
     // Fetch job details
     useEffect(() => {
         if (jobId) {
             fetchJobDetails();
             fetchRuns();
+            fetchQualityData();
         }
     }, [jobId]);
+
+    const fetchQualityData = async () => {
+        setQualityLoading(true);
+        try {
+            const [latest, history] = await Promise.all([
+                getLatestQualityResult(jobId).catch(() => null),
+                getQualityHistory(jobId, 5).catch(() => [])
+            ]);
+            setQualityResult(latest);
+            setQualityHistory(history);
+        } catch (error) {
+            console.error('Failed to fetch quality data:', error);
+        } finally {
+            setQualityLoading(false);
+        }
+    };
+
+    const handleRunQualityCheck = async () => {
+        if (!job?.destination?.path && !job?.destination?.s3_path) {
+            showToast('No S3 path configured for this job', 'error');
+            return;
+        }
+        
+        setRunningCheck(true);
+        try {
+            const s3Path = job.destination.s3_path || job.destination.path;
+            const result = await runQualityCheck(jobId, s3Path, { jobId });
+            setQualityResult(result);
+            setQualityHistory(prev => [result, ...prev.slice(0, 4)]);
+            showToast(`Quality check completed! Score: ${result.overall_score}`, 'success');
+        } catch (error) {
+            console.error('Failed to run quality check:', error);
+            showToast('Failed to run quality check', 'error');
+        } finally {
+            setRunningCheck(false);
+        }
+    };
 
     const fetchJobDetails = async () => {
         try {
@@ -697,19 +742,136 @@ export default function JobDetailPage() {
 
                     {/* Quality Tab */}
                     {activeTab === 'quality' && (
-                        <div className="bg-white rounded-lg border border-gray-200 shadow-sm">
-                            <div className="px-6 py-4 border-b border-gray-200">
-                                <h3 className="text-lg font-semibold text-gray-900">Quality Metrics</h3>
-                            </div>
-                            <div className="p-6">
-                                <div className="text-center py-12">
-                                    <BarChart3 className="w-12 h-12 text-gray-300 mx-auto mb-4" />
-                                    <h4 className="text-lg font-medium text-gray-900 mb-2">Quality Metrics</h4>
-                                    <p className="text-sm text-gray-500">
-                                        Quality metrics will be provided soon.
-                                    </p>
+                        <div className="space-y-6">
+                            {/* Header with Run Button */}
+                            <div className="bg-white rounded-lg border border-gray-200 shadow-sm">
+                                <div className="px-6 py-4 flex items-center justify-between">
+                                    <div className="flex items-center gap-3">
+                                        <BarChart3 className="w-5 h-5 text-gray-500" />
+                                        <h3 className="text-lg font-semibold text-gray-900">Data Quality</h3>
+                                    </div>
+                                    <button
+                                        onClick={handleRunQualityCheck}
+                                        disabled={runningCheck || !job?.destination?.path}
+                                        className="inline-flex items-center gap-2 px-4 py-2 text-sm font-medium text-white bg-blue-600 hover:bg-blue-700 rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                                    >
+                                        {runningCheck ? (
+                                            <RefreshCw className="w-4 h-4 animate-spin" />
+                                        ) : (
+                                            <Play className="w-4 h-4" />
+                                        )}
+                                        {runningCheck ? 'Running...' : 'Run Quality Check'}
+                                    </button>
                                 </div>
                             </div>
+
+                            {qualityLoading ? (
+                                <div className="bg-white rounded-lg border border-gray-200 shadow-sm p-12 text-center">
+                                    <RefreshCw className="w-8 h-8 text-gray-400 mx-auto mb-4 animate-spin" />
+                                    <p className="text-gray-500">Loading quality data...</p>
+                                </div>
+                            ) : !qualityResult ? (
+                                <div className="bg-white rounded-lg border border-gray-200 shadow-sm p-12 text-center">
+                                    <BarChart3 className="w-12 h-12 text-gray-300 mx-auto mb-4" />
+                                    <h4 className="text-lg font-medium text-gray-900 mb-2">No Quality Data Yet</h4>
+                                    <p className="text-sm text-gray-500 mb-4">
+                                        Run a quality check to see data quality metrics for this dataset.
+                                    </p>
+                                </div>
+                            ) : (
+                                <>
+                                    {/* Score Overview */}
+                                    <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+                                        <div className="bg-white rounded-lg border border-gray-200 shadow-sm p-6">
+                                            <div className="flex items-center justify-between">
+                                                <div>
+                                                    <p className="text-sm text-gray-500">Overall Score</p>
+                                                    <p className={`text-3xl font-bold ${qualityResult.overall_score >= 90 ? 'text-green-600' : qualityResult.overall_score >= 70 ? 'text-yellow-600' : 'text-red-600'}`}>
+                                                        {Math.round(qualityResult.overall_score)}
+                                                    </p>
+                                                </div>
+                                                <div className={`p-3 rounded-xl ${qualityResult.overall_score >= 90 ? 'bg-green-100' : qualityResult.overall_score >= 70 ? 'bg-yellow-100' : 'bg-red-100'}`}>
+                                                    {qualityResult.overall_score >= 90 ? (
+                                                        <CheckCircle className="w-6 h-6 text-green-500" />
+                                                    ) : qualityResult.overall_score >= 70 ? (
+                                                        <AlertCircle className="w-6 h-6 text-yellow-500" />
+                                                    ) : (
+                                                        <XCircle className="w-6 h-6 text-red-500" />
+                                                    )}
+                                                </div>
+                                            </div>
+                                        </div>
+                                        <div className="bg-white rounded-lg border border-gray-200 shadow-sm p-6">
+                                            <p className="text-sm text-gray-500">Total Rows</p>
+                                            <p className="text-2xl font-bold text-gray-900">{qualityResult.row_count?.toLocaleString() || 0}</p>
+                                        </div>
+                                        <div className="bg-white rounded-lg border border-gray-200 shadow-sm p-6">
+                                            <p className="text-sm text-gray-500">Columns</p>
+                                            <p className="text-2xl font-bold text-gray-900">{qualityResult.column_count || 0}</p>
+                                        </div>
+                                        <div className="bg-white rounded-lg border border-gray-200 shadow-sm p-6">
+                                            <p className="text-sm text-gray-500">Duplicates</p>
+                                            <p className="text-2xl font-bold text-gray-900">{qualityResult.duplicate_count?.toLocaleString() || 0}</p>
+                                        </div>
+                                    </div>
+
+                                    {/* Check Results */}
+                                    <div className="bg-white rounded-lg border border-gray-200 shadow-sm">
+                                        <div className="px-6 py-4 border-b border-gray-200">
+                                            <h4 className="font-semibold text-gray-900">Quality Checks</h4>
+                                        </div>
+                                        <div className="overflow-x-auto">
+                                            <table className="w-full">
+                                                <thead className="bg-gray-50">
+                                                    <tr>
+                                                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Check</th>
+                                                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Column</th>
+                                                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Status</th>
+                                                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Value</th>
+                                                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Threshold</th>
+                                                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Message</th>
+                                                    </tr>
+                                                </thead>
+                                                <tbody className="divide-y divide-gray-200">
+                                                    {qualityResult.checks?.length > 0 ? qualityResult.checks.map((check, idx) => (
+                                                        <tr key={idx} className="hover:bg-gray-50">
+                                                            <td className="px-6 py-4 text-sm font-medium text-gray-900">{check.name}</td>
+                                                            <td className="px-6 py-4 text-sm text-gray-600">{check.column || '-'}</td>
+                                                            <td className="px-6 py-4">
+                                                                <span className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium ${check.passed ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-700'}`}>
+                                                                    {check.passed ? <CheckCircle className="w-3 h-3" /> : <XCircle className="w-3 h-3" />}
+                                                                    {check.passed ? 'Passed' : 'Failed'}
+                                                                </span>
+                                                            </td>
+                                                            <td className="px-6 py-4 text-sm text-gray-600">{typeof check.value === 'number' ? check.value.toFixed(2) : check.value}</td>
+                                                            <td className="px-6 py-4 text-sm text-gray-600">{typeof check.threshold === 'number' ? check.threshold.toFixed(2) : check.threshold}</td>
+                                                            <td className="px-6 py-4 text-sm text-gray-500">{check.message || '-'}</td>
+                                                        </tr>
+                                                    )) : (
+                                                        <tr>
+                                                            <td colSpan="6" className="px-6 py-8 text-center text-gray-500">No checks performed</td>
+                                                        </tr>
+                                                    )}
+                                                </tbody>
+                                            </table>
+                                        </div>
+                                    </div>
+
+                                    {/* Last Run Info */}
+                                    <div className="bg-white rounded-lg border border-gray-200 shadow-sm p-4">
+                                        <div className="flex items-center justify-between text-sm">
+                                            <div className="flex items-center gap-2 text-gray-500">
+                                                <Clock className="w-4 h-4" />
+                                                <span>Last checked: {qualityResult.run_at ? new Date(qualityResult.run_at).toLocaleString('ko-KR') : '-'}</span>
+                                            </div>
+                                            <div className="flex items-center gap-2 text-gray-500">
+                                                <Activity className="w-4 h-4" />
+                                                <span>Duration: {qualityResult.duration_ms ? `${qualityResult.duration_ms}ms` : '-'}</span>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </>
+                            )}
                         </div>
                     )}
                 </div>
