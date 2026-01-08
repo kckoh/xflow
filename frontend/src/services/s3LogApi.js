@@ -91,4 +91,52 @@ export const s3LogApi = {
 
     return response.json();
   },
+
+  // POST /api/s3-logs/preview - Preview S3 logs with field selection and filtering
+  async previewWithFilters({ source_dataset_id, custom_regex, selected_fields, filters, limit = 5 }) {
+    const response = await fetch(`${API_BASE_URL}/api/s3-logs/preview`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        source_dataset_id,
+        custom_regex,
+        selected_fields,
+        filters,
+        limit,
+      }),
+    });
+
+    const data = await response.json();
+
+    if (!response.ok) {
+      throw new Error(data.detail || 'Preview test failed');
+    }
+
+    return data;
+  },
+
+  // POST /api/s3-logs/test-regex - Test regex pattern with actual S3 log files
+  async testRegexPattern({ source_dataset_id, custom_regex, limit = 5 }) {
+    const response = await fetch(`${API_BASE_URL}/api/s3-logs/test-regex`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        source_dataset_id,
+        custom_regex,
+        limit,
+      }),
+    });
+
+    const data = await response.json();
+
+    if (!response.ok) {
+      throw new Error(data.detail || 'Regex test failed');
+    }
+
+    return data;
+  },
 };

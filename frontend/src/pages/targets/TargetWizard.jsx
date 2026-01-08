@@ -20,6 +20,8 @@ import { useToast } from "../../components/common/Toast";
 import { getSourceDataset } from "../domain/api/domainApi";
 import SchedulesPanel from "../../components/etl/SchedulesPanel";
 import SchemaTransformEditor from "../../components/etl/SchemaTransformEditor";
+import S3LogParsingConfig from "../../components/targets/S3LogParsingConfig";
+import S3LogProcessEditor from "../../components/targets/S3LogProcessEditor";
 import { API_BASE_URL } from "../../config/api";
 
 const STEPS = [
@@ -60,6 +62,7 @@ export default function TargetWizard() {
   const [isNameDuplicate, setIsNameDuplicate] = useState(false);
   const [isCheckingName, setIsCheckingName] = useState(false);
   const [detailPanelTab, setDetailPanelTab] = useState("details"); // 'details' or 'schema'
+  const [s3RegexPatterns, setS3RegexPatterns] = useState({}); // Store regex patterns by dataset ID
 
   // Step 3: Transformation
   const [sourceNodes, setSourceNodes] = useState([]); // Store source nodes for schema
@@ -266,32 +269,46 @@ export default function TargetWizard() {
 
       setIsLoading(true);
       try {
-        // Fetch source dataset details
-        const sourcePromises = selectedJobIds.map((id) => getSourceDataset(id));
-        const sources = await Promise.all(sourcePromises);
+        // Get source datasets from state (includes regex-extracted columns)
+        const sources = selectedJobIds
+          .map(id => sourceDatasets.find(ds => ds.id === id))
+          .filter(Boolean);
+
+        if (sources.length === 0) {
+          showToast("No source datasets found", "warning");
+          setIsLoading(false);
+          return;
+        }
 
         // Convert source datasets to lineage nodes
         const nodes = [];
 
         sources.forEach((source) => {
           const columns = source.columns || [];
+          const nodeData = {
+            label: source.name,
+            name: source.name,
+            platform: source.source_type || "PostgreSQL",
+            columns: columns.map((col) => ({
+              name: col.name,
+              type: col.type,
+              description: col.description || "",
+            })),
+            expanded: true,
+            nodeCategory: "source",
+            sourceDatasetId: source.id,
+          };
+
+          // S3 source인 경우에만 customRegex 추가
+          if (source.source_type === 's3' && s3RegexPatterns[source.id]) {
+            nodeData.customRegex = s3RegexPatterns[source.id];
+          }
+
           nodes.push({
             id: `source-${source.id}`,
             type: "custom",
             position: { x: 100, y: 100 },
-            data: {
-              label: source.name,
-              name: source.name,
-              platform: source.source_type || "PostgreSQL",
-              columns: columns.map((col) => ({
-                name: col.name,
-                type: col.type,
-                description: col.description || "",
-              })),
-              expanded: true,
-              nodeCategory: "source",
-              sourceDatasetId: source.id,
-            },
+            data: nodeData,
           });
         });
 
@@ -1061,47 +1078,77 @@ export default function TargetWizard() {
                     {/* Schema Tab */}
                     {detailPanelTab === "schema" && (
                       <div>
-                        <div className="flex items-center justify-between mb-3">
-                          <h4 className="text-xs font-semibold text-gray-500 uppercase">Columns</h4>
-                          <span className="text-xs text-gray-400">{focusedDataset.columns?.length || 0} columns</span>
-                        </div>
-                        {/* S3 source or target: check both source_type and destination.type */}
-                        {(focusedDataset.source_type === 's3' || focusedDataset.destination?.type === 's3') && !focusedDataset.columns ? (
-                          <div className="text-center py-8 text-gray-500">
-                            <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-orange-600 mx-auto mb-3"></div>
-                            <p className="text-sm">Loading schema from S3...</p>
-                          </div>
-                        ) : (focusedDataset.source_type === 's3' || focusedDataset.destination?.type === 's3') && focusedDataset.columns?.length === 0 ? (
-                          <div className="text-center py-8 text-red-600">
-                            <X className="w-8 h-8 mx-auto mb-3" />
-                            <p className="text-sm font-medium">Failed to load schema</p>
-                            <p className="text-xs text-gray-500 mt-1">Check S3 path and credentials</p>
-                          </div>
-                        ) : focusedDataset.columns?.length > 0 ? (
-                          <div className="border border-gray-200 rounded-lg overflow-hidden">
-                            <table className="w-full">
-                              <thead className="bg-gray-50">
-                                <tr>
-                                  <th className="px-3 py-2 text-left text-xs font-medium text-gray-500">Column</th>
-                                  <th className="px-3 py-2 text-left text-xs font-medium text-gray-500">Type</th>
-                                </tr>
-                              </thead>
-                              <tbody className="divide-y divide-gray-100">
-                                {focusedDataset.columns.map((col, idx) => (
-                                  <tr key={idx}>
-                                    <td className="px-3 py-2 text-sm text-gray-800">{col.name}</td>
-                                    <td className="px-3 py-2">
-                                      <span className="text-xs px-2 py-0.5 rounded bg-blue-100 text-blue-700">{col.type}</span>
-                                    </td>
-                                  </tr>
-                                ))}
-                              </tbody>
-                            </table>
-                          </div>
+                        {/* S3 Source - Show Regex Parsing Config */}
+                        {focusedDataset.source_type === 's3' ? (
+                          <S3LogParsingConfig
+                            sourceDatasetId={focusedDataset.id}
+                            initialPattern={s3RegexPatterns[focusedDataset.id] || ""}
+                            onPatternChange={(pattern, fields) => {
+                              setS3RegexPatterns(prev => ({
+                                ...prev,
+                                [focusedDataset.id]: pattern
+                              }));
+                              // Update focused dataset columns to show extracted fields
+                              setSourceDatasets(datasets =>
+                                datasets.map(ds =>
+                                  ds.id === focusedDataset.id
+                                    ? { ...ds, columns: fields, extractedFromRegex: true }
+                                    : ds
+                                )
+                              );
+                              // Update focused dataset to trigger re-render
+                              setFocusedDataset(prev =>
+                                prev?.id === focusedDataset.id
+                                  ? { ...prev, columns: fields, extractedFromRegex: true }
+                                  : prev
+                              );
+                            }}
+                          />
                         ) : (
-                          <div className="text-center py-8 text-gray-400">
-                            <p className="text-sm">No schema available</p>
-                          </div>
+                          /* Non-S3 Source - Show Normal Schema Table */
+                          <>
+                            <div className="flex items-center justify-between mb-3">
+                              <h4 className="text-xs font-semibold text-gray-500 uppercase">Columns</h4>
+                              <span className="text-xs text-gray-400">{focusedDataset.columns?.length || 0} columns</span>
+                            </div>
+                            {focusedDataset.destination?.type === 's3' && !focusedDataset.columns ? (
+                              <div className="text-center py-8 text-gray-500">
+                                <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-orange-600 mx-auto mb-3"></div>
+                                <p className="text-sm">Loading schema from S3...</p>
+                              </div>
+                            ) : focusedDataset.destination?.type === 's3' && focusedDataset.columns?.length === 0 ? (
+                              <div className="text-center py-8 text-red-600">
+                                <X className="w-8 h-8 mx-auto mb-3" />
+                                <p className="text-sm font-medium">Failed to load schema</p>
+                                <p className="text-xs text-gray-500 mt-1">Check S3 path and credentials</p>
+                              </div>
+                            ) : focusedDataset.columns?.length > 0 ? (
+                              <div className="border border-gray-200 rounded-lg overflow-hidden">
+                                <table className="w-full">
+                                  <thead className="bg-gray-50">
+                                    <tr>
+                                      <th className="px-3 py-2 text-left text-xs font-medium text-gray-500">Column</th>
+                                      <th className="px-3 py-2 text-left text-xs font-medium text-gray-500">Type</th>
+                                    </tr>
+                                  </thead>
+                                  <tbody className="divide-y divide-gray-100">
+                                    {focusedDataset.columns.map((col, idx) => (
+                                      <tr key={idx}>
+                                        <td className="px-3 py-2 text-sm text-gray-800">{col.name}</td>
+                                        <td className="px-3 py-2">
+                                          <span className="text-xs px-2 py-0.5 rounded bg-blue-100 text-blue-700">{col.type}</span>
+                                        </td>
+                                      </tr>
+                                    ))}
+                                  </tbody>
+                                </table>
+                              </div>
+                            ) : (
+                              <div className="text-center py-8 text-gray-400">
+                                <p className="text-sm">No schema available</p>
+                              </div>
+                            )}
+                          </>
                         )}
                       </div>
                     )}
@@ -1112,18 +1159,38 @@ export default function TargetWizard() {
           </div>
         )}
 
-        {/* Step 3: Transform (Schema Editor) */}
+        {/* Step 3: Transform/Process */}
         {currentStep === 3 && (
           <div className="flex-1 flex flex-col overflow-hidden px-4 py-4">
             <div className="max-w-[100%] mx-auto w-full h-full flex flex-col">
               <div className="flex-1 min-h-0">
-                <SchemaTransformEditor
-                  sourceSchema={sourceNodes.flatMap(n => n.data?.columns || [])}
-                  sourceDatasetId={sourceNodes[0]?.data?.sourceDatasetId || sourceNodes[0]?.data?.catalogDatasetId}
-                  initialTargetSchema={initialSchema}
-                  onSchemaChange={setTargetSchema}
-                  onTestStatusChange={setIsTestPassed}
-                />
+                {/* S3 Log source인 경우: S3LogProcessEditor 사용 */}
+                {sourceNodes[0]?.data?.customRegex &&
+                 (sourceNodes[0]?.data?.sourceType === 's3' ||
+                  sourceNodes[0]?.data?.platform?.toLowerCase() === 's3') ? (
+                  <S3LogProcessEditor
+                    sourceSchema={sourceNodes.flatMap(n => n.data?.columns || [])}
+                    sourceDatasetId={sourceNodes[0]?.data?.sourceDatasetId}
+                    customRegex={sourceNodes[0]?.data?.customRegex}
+                    onConfigChange={(config) => {
+                      // Store S3 log config for job creation
+                      setTargetSchema(config.selected_fields.map(field => ({
+                        name: field,
+                        type: 'string'
+                      })));
+                    }}
+                    onTestStatusChange={setIsTestPassed}
+                  />
+                ) : (
+                  /* RDB/MongoDB source인 경우: 기존 SchemaTransformEditor 사용 */
+                  <SchemaTransformEditor
+                    sourceSchema={sourceNodes.flatMap(n => n.data?.columns || [])}
+                    sourceDatasetId={sourceNodes[0]?.data?.sourceDatasetId || sourceNodes[0]?.data?.catalogDatasetId}
+                    initialTargetSchema={initialSchema}
+                    onSchemaChange={setTargetSchema}
+                    onTestStatusChange={setIsTestPassed}
+                  />
+                )}
               </div>
             </div>
           </div>

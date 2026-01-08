@@ -275,6 +275,14 @@ async def _load_sample_data(
         # S3 / Parquet (Catalog datasets or Source datasets)
         import duckdb
 
+        # Check if this is a log file source (not supported for Run Test yet)
+        file_format = source_dataset.get("format", "parquet")
+        if file_format == "log":
+            raise HTTPException(
+                status_code=400,
+                detail="S3 log file testing is not yet supported. Log files require regex parsing which will be validated during actual job execution. Please proceed to the next step."
+            )
+
         # source_datasets: bucket + path 별도
         # catalog datasets: path에 전체 경로
         bucket = source_dataset.get("bucket")
