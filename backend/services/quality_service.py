@@ -52,9 +52,9 @@ class QualityService:
             )
     
     def _parse_s3_path(self, s3_path: str) -> tuple[str, str]:
-        """Parse s3://bucket/key format to (bucket, key)"""
-        # Remove s3:// prefix
-        path = s3_path.replace("s3://", "")
+        """Parse s3://bucket/key or s3a://bucket/key format to (bucket, key)"""
+        # Remove s3:// or s3a:// prefix
+        path = s3_path.replace("s3a://", "").replace("s3://", "")
         parts = path.split("/", 1)
         bucket = parts[0]
         key = parts[1] if len(parts) > 1 else ""
@@ -98,9 +98,8 @@ class QualityService:
 
     async def run_quality_check(
         self,
-        etl_job_id: str,
+        dataset_id: str,
         s3_path: str,
-        dataset_id: Optional[str] = None,
         null_threshold: float = 5.0,
         duplicate_threshold: float = 1.0
     ) -> QualityResult:
@@ -111,7 +110,6 @@ class QualityService:
 
         # Insert initial pending record
         result = QualityResult(
-            etl_job_id=etl_job_id,
             dataset_id=dataset_id,
             s3_path=s3_path,
             status="running",
@@ -178,11 +176,20 @@ class QualityService:
             env = os.getenv("ENVIRONMENT", "local")
             
             if env == "production":
-                # Production (AWS): Use IAM Role, minimal configuration
-                # DuckDB will use AWS SDK default credential chain
+                # Production (AWS): Get credentials from boto3 (supports IRSA)
+                import boto3
+                session = boto3.Session()
+                credentials = session.get_credentials()
+                
+                # Pass credentials to DuckDB explicitly
                 conn.execute(f"""
-                    CALL load_aws_credentials();
                     SET s3_region='{S3_REGION}';
+                    SET s3_endpoint='s3.{S3_REGION}.amazonaws.com';
+                    SET s3_access_key_id='{credentials.access_key}';
+                    SET s3_secret_access_key='{credentials.secret_key}';
+                    SET s3_session_token='{credentials.token}';
+                    SET s3_use_ssl=true;
+                    SET s3_url_style='path';
                 """)
             else:
                 # Local (LocalStack): Explicit endpoint and credentials
@@ -200,7 +207,7 @@ class QualityService:
             print("="*50)
             print("[Quality DEBUG INFO]")
             print(f"Timestamp: {datetime.utcnow()}")
-            print(f"ETLJob ID: {etl_job_id}")
+            print(f"Dataset ID: {dataset_id}")
             print(f"Environment: {env}")
             print(f"S3 Region: {S3_REGION}")
             print(f"Target Path: {s3_path}")
@@ -538,21 +545,21 @@ class QualityService:
                 except:
                     pass
     
-    async def get_latest_result(self, etl_job_id: str) -> Optional[QualityResult]:
-        """Get the most recent quality result for an ETLJob."""
+    async def get_latest_result(self, dataset_id: str) -> Optional[QualityResult]:
+        """Get the most recent quality result for a Dataset."""
         return await QualityResult.find_one(
-            QualityResult.etl_job_id == etl_job_id,
+            QualityResult.dataset_id == dataset_id,
             sort=[("run_at", -1)]
         )
 
     async def get_result_history(
         self,
-        etl_job_id: str,
+        dataset_id: str,
         limit: int = 10
     ) -> list[QualityResult]:
-        """Get quality result history for an ETLJob."""
+        """Get quality result history for a Dataset."""
         return await QualityResult.find(
-            QualityResult.etl_job_id == etl_job_id,
+            QualityResult.dataset_id == dataset_id,
             sort=[("run_at", -1)],
             limit=limit
         ).to_list()
@@ -560,13 +567,13 @@ class QualityService:
     async def get_dashboard_summary(self):
         """
         Get aggregated quality metrics for the dashboard.
-        Returns latest result for every ETLJob.
+        Returns latest result for every Dataset.
         """
-        # MongoDB Aggregation to get the latest result for each ETLJob
+        # MongoDB Aggregation to get the latest result for each Dataset
         pipeline = [
             {"$sort": {"run_at": -1}},
             {"$group": {
-                "_id": "$etl_job_id",
+                "_id": "$dataset_id",
                 "latest": {"$first": "$$ROOT"}
             }},
             {"$replaceRoot": {"newRoot": "$latest"}}

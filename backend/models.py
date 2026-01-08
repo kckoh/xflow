@@ -222,12 +222,11 @@ class QualityCheck(BaseModel):
 
 class QualityResult(Document):
     """
-    Quality check result for an ETLJob.
+    Quality check result for a Dataset.
     Each run creates a new document, allowing historical tracking.
     """
 
-    etl_job_id: str  # Reference to ETLJob._id
-    dataset_id: Optional[str] = None  # Reference to Dataset._id (if triggered by dataset)
+    dataset_id: str  # Reference to Dataset._id
     s3_path: str  # S3 path that was checked
 
     # Summary metrics
@@ -251,4 +250,5 @@ class QualityResult(Document):
 
     class Settings:
         name = "quality_results"
-        indexes = ["etl_job_id", "dataset_id", "run_at"]
+        indexes = ["dataset_id", "run_at"]
+
