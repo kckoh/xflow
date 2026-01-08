@@ -461,7 +461,10 @@ export default function CatalogDetailPage() {
             onEdgesChange={onEdgesChange}
             nodeTypes={nodeTypes}
             fitView
-            fitViewOptions={{ padding: 0.3 }}
+            // view padding
+            fitViewOptions={{ padding: 1.5 }}
+            minZoom={0.1}
+            maxZoom={1.0}
             className="bg-gray-50"
           >
             <Controls position="bottom-left" />
@@ -485,9 +488,8 @@ export default function CatalogDetailPage() {
 
         {/* Right Sidebar */}
         <div
-          className={`bg-white border-l border-gray-200 transition-all duration-300 ${
-            sidebarOpen ? "w-80" : "w-0"
-          } overflow-hidden`}
+          className={`bg-white border-l border-gray-200 transition-all duration-300 ${sidebarOpen ? "w-80" : "w-0"
+            } overflow-hidden`}
         >
           <div className="w-80 h-full overflow-y-auto">
             {/* Info Header */}
@@ -609,9 +611,8 @@ export default function CatalogDetailPage() {
           style={{ right: sidebarOpen ? "320px" : "0px" }}
         >
           <ChevronRight
-            className={`w-4 h-4 text-gray-500 transition-transform ${
-              sidebarOpen ? "rotate-0" : "rotate-180"
-            }`}
+            className={`w-4 h-4 text-gray-500 transition-transform ${sidebarOpen ? "rotate-0" : "rotate-180"
+              }`}
           />
         </button>
       </div>
