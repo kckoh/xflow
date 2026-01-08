@@ -19,6 +19,7 @@ class SourceDatasetCreate(BaseModel):
     # S3 specific
     bucket: Optional[str] = None
     path: Optional[str] = None
+    format: Optional[str] = None  # "log", "parquet", "csv", "json"
 
     # Schema information
     columns: Optional[List[dict]] = None
@@ -40,6 +41,7 @@ class SourceDatasetUpdate(BaseModel):
     # S3 specific
     bucket: Optional[str] = None
     path: Optional[str] = None
+    format: Optional[str] = None  # "log", "parquet", "csv", "json"
 
     # Schema information
     columns: Optional[List[dict]] = None
@@ -58,6 +60,7 @@ class SourceDatasetResponse(BaseModel):
     collection: Optional[str] = None
     bucket: Optional[str] = None
     path: Optional[str] = None
+    format: Optional[str] = None  # "log", "parquet", "csv", "json"
 
     # Schema information
     columns: Optional[List[dict]] = None
