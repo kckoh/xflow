@@ -122,21 +122,6 @@ export const SchemaNodeHeader = ({ data, expanded, onToggle, id }) => {
                     </span>
                 </div>
 
-                {/* Toggle Schema Button */}
-                <button
-                    className="ml-2 p-1 hover:bg-gray-100 rounded transition-colors"
-                    onClick={(e) => {
-                        e.stopPropagation();
-                        onToggle(!expanded);
-                        if (data.onToggleExpand) data.onToggleExpand(id, !expanded);
-                    }}
-                >
-                    {expanded ? (
-                        <ChevronUp className="w-4 h-4 text-gray-500" />
-                    ) : (
-                        <ChevronDown className="w-4 h-4 text-gray-500" />
-                    )}
-                </button>
             </div>
         </div>
     );

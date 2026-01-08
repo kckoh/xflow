@@ -25,7 +25,7 @@ async def get_lineage(dataset_id: str) -> Dict:
     visited_datasets = set()
     
     # y_cursor: [next_available_y] - Mutable container to track global vertical usage
-    y_cursor = [0]
+    y_cursor = [-150]
     
     # level: 0(Current), -1(Parent), -2(Grandparent) ...
     await _fetch_recursive(dataset_id, full_graph, visited_datasets, level=0, y_cursor=y_cursor)
@@ -121,9 +121,11 @@ async def _fetch_recursive(dataset_id: str, graph: Dict, visited: Set[str], leve
     # === 2. Calculate Layout & Build Graph ===
     # Special handling for Level 0 (Final Target) to push it to the right
     if level == 0:
-        base_x = 200
+        base_x = 600
     else:
-        base_x = level * 250
+        # Move upstream closer to 600
+        # Level -1 will be at 600 + (-1 * 300) = 300. (Gap 300)
+        base_x = 600 + (level * 300)
     
     # 2-1. Process Sources to determine Y position
     source_y_positions = []
@@ -146,16 +148,16 @@ async def _fetch_recursive(dataset_id: str, graph: Dict, visited: Set[str], leve
                     "id": link_id,
                     "source": upstream_target_id,
                     "target": target_unique_id,
-                    "type": "smoothstep",
+                    "type": "default",
                     "animated": True,
-                    "style": { "strokeDasharray": "5 5" }
+                    "style": { "strokeDasharray": "5 5", "stroke": "#f97316", "strokeWidth": 2 }
                     # Removed label
                 })
         else:
             # Case B: Root Source (Leaf)
             # Allocate new Y slot
             current_y = y_cursor[0]
-            y_cursor[0] += 250 # Increment for next slot
+            y_cursor[0] += 300 # Increment for next slot
             
             source_y_positions.append(current_y)
             
@@ -164,7 +166,7 @@ async def _fetch_recursive(dataset_id: str, graph: Dict, visited: Set[str], leve
                 graph["nodes"].append({
                     "id": unique_source_id,
                     "type": "custom",
-                    "position": {"x": base_x - 200, "y": current_y},
+                    "position": {"x": base_x - 300, "y": current_y},
                     "data": {
                         "label": source.get("config", {}).get("name") or unique_source_id,
                         "name": source.get("config", {}).get("name") or unique_source_id,
@@ -181,7 +183,7 @@ async def _fetch_recursive(dataset_id: str, graph: Dict, visited: Set[str], leve
                 "id": edge_id,
                 "source": unique_source_id,
                 "target": target_unique_id,
-                "type": "smoothstep",
+                "type": "default",
                 "animated": True
             })
 
