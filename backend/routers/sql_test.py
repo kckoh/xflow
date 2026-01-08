@@ -63,7 +63,8 @@ async def test_sql_query(request: SQLTestRequest):
         db = database.mongodb_client[database.DATABASE_NAME]
         
         # Load and combine data from all sources
-        sample_df, source_samples = await _load_and_union_sources(request.sources, db, limit=100)
+        # Load 'limit' rows from each source so all sources appear in preview
+        sample_df, source_samples = await _load_and_union_sources(request.sources, db, limit=limit)
         
         if sample_df is None or len(sample_df) == 0:
             raise HTTPException(
@@ -78,10 +79,12 @@ async def test_sql_query(request: SQLTestRequest):
         con.register('input', sample_df)
         
         # Execute user's SQL and apply limit
+        # For UNION ALL, multiply limit by number of sources to show data from each source
+        effective_limit = limit * len(request.sources)
         sql = request.sql
         # Only add limit if not present
         if "limit" not in sql.lower():
-            sql = f"SELECT * FROM ({sql}) LIMIT {limit}"
+            sql = f"SELECT * FROM ({sql}) LIMIT {effective_limit}"
             
         result_df = con.execute(sql).df()
         
