@@ -70,9 +70,26 @@ async def run_quality_check(
     and store the result in MongoDB.
     """
     try:
+        # Fetch dataset to get name
+        from models import Dataset
+        from beanie import PydanticObjectId
+        
+        dataset = await Dataset.get(PydanticObjectId(dataset_id))
+        if not dataset:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="Dataset not found"
+            )
+        
+        # Append dataset name to S3 path if path ends with bucket root
+        s3_path = check_request.s3_path
+        if s3_path.rstrip('/').count('/') == 2:  # s3a://bucket/ format
+            # Append dataset name
+            s3_path = f"{s3_path.rstrip('/')}/{dataset.name}/"
+        
         result = await quality_service.run_quality_check(
             dataset_id=dataset_id,
-            s3_path=check_request.s3_path,
+            s3_path=s3_path,
             null_threshold=check_request.null_threshold,
             duplicate_threshold=check_request.duplicate_threshold
         )
