@@ -313,6 +313,58 @@ def read_nosql_source(spark: SparkSession, source_config: dict) -> DataFrame:
     return df
 
 
+def parse_log_files_with_regex(spark: SparkSession, s3_path: str, custom_regex: str) -> DataFrame:
+    """
+    Parse log files from S3 using custom regex pattern with named groups
+
+    Args:
+        spark: SparkSession
+        s3_path: S3 path to log files (s3a://bucket/path/)
+        custom_regex: Custom regex pattern with Python named groups
+
+    Returns:
+        DataFrame with fields matching regex named groups
+    """
+    import re
+    from pyspark.sql import functions as F
+
+    print(f"   Parsing logs from: {s3_path}")
+    print(f"   Using custom regex pattern with named groups")
+
+    # Read log files as text
+    raw_df = spark.read.text(s3_path)
+
+    # Extract named groups from Python regex pattern
+    try:
+        compiled_pattern = re.compile(custom_regex)
+        named_groups = list(compiled_pattern.groupindex.keys())
+        if not named_groups:
+            raise ValueError("Regex pattern must contain at least one named group (?P<field_name>pattern)")
+        print(f"   Detected fields from regex: {named_groups}")
+    except re.error as e:
+        raise ValueError(f"Invalid regex pattern: {str(e)}")
+
+    # Convert Python named group regex to Spark regex (remove ?P<name>)
+    spark_regex = re.sub(r'\?P<[^>]+>', '', custom_regex)
+
+    # Build select expressions for each named group
+    select_exprs = []
+    for idx, field_name in enumerate(named_groups, start=1):
+        select_exprs.append(
+            F.regexp_extract('value', spark_regex, idx).alias(field_name)
+        )
+
+    # Extract fields using regex
+    parsed_df = raw_df.select(*select_exprs)
+
+    # Filter out failed parsing (if first field is empty, parsing likely failed)
+    if named_groups:
+        first_field = named_groups[0]
+        parsed_df = parsed_df.filter(F.col(first_field) != '')
+
+    return parsed_df
+
+
 def read_s3_logs_source(spark: SparkSession, source_config: dict) -> DataFrame:
     """
     Read log files from S3 and parse using custom regex pattern with named groups
@@ -335,8 +387,9 @@ def read_s3_logs_source(spark: SparkSession, source_config: dict) -> DataFrame:
     from pyspark.sql import functions as F
 
     connection = source_config.get("connection", {})
-    bucket = connection.get("bucket")
-    path = connection.get("path")
+    # Get bucket and path from source_config (Target Wizard) or connection (legacy)
+    bucket = source_config.get("bucket") or connection.get("bucket")
+    path = source_config.get("path") or connection.get("path")
     custom_regex = source_config.get("customRegex")
 
     if not bucket or not path:
@@ -638,6 +691,13 @@ def read_s3_file_source(spark: SparkSession, source_config: dict) -> DataFrame:
             .csv(path)
     elif file_format.lower() == "json":
         df = spark.read.json(path)
+    elif file_format.lower() == "log":
+        # Parse log files with regex
+        custom_regex = source_config.get("customRegex")
+        if not custom_regex:
+            raise ValueError("customRegex is required for log file format")
+
+        df = parse_log_files_with_regex(spark, path, custom_regex)
     else:
         raise ValueError(f"Unsupported file format: {file_format}")
     

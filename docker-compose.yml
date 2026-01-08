@@ -27,7 +27,16 @@ services:
       POSTGRES_USER: postgres
       POSTGRES_PASSWORD: postgres
       POSTGRES_DB: mydb
-    command: [ "postgres", "-c", "wal_level=logical", "-c", "max_replication_slots=4", "-c", "max_wal_senders=4" ]
+    command:
+      [
+        "postgres",
+        "-c",
+        "wal_level=logical",
+        "-c",
+        "max_replication_slots=4",
+        "-c",
+        "max_wal_senders=4",
+      ]
     ports:
       - "5433:5432"
     volumes:
@@ -327,6 +336,9 @@ services:
       - LOCALSTACK_AUTH_TOKEN=${LOCALSTACK_AUTH_TOKEN}
       - PERSISTENCE=1
       - EAGER_SERVICE_LOADING=0
+      - DEFAULT_REGION=ap-northeast-2
+      - AWS_DEFAULT_REGION=ap-northeast-2
+      - AWS_REGION=ap-northeast-2
     env_file:
       - .env
     volumes:

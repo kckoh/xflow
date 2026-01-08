@@ -421,6 +421,7 @@ export default function SourceWizard() {
       } else if (selectedSource.id === "s3") {
         sourceData.bucket = config.bucket;
         sourceData.path = config.path;
+        sourceData.format = "log"; // S3 source는 무조건 .log 파일
       } else if (selectedSource.id === "kafka") {
         sourceData.topic = config.topic;
       }
