@@ -121,14 +121,15 @@ async def test_regex_pattern(request: RegexTestRequest):
         s3_client = boto3.client('s3', **boto3_kwargs)
 
         # 5. List and read log files
-        response = s3_client.list_objects_v2(Bucket=bucket, Prefix=path, MaxKeys=5)
+        response = s3_client.list_objects_v2(Bucket=bucket, Prefix=path, MaxKeys=10)
 
         if 'Contents' not in response or len(response['Contents']) == 0:
             raise HTTPException(status_code=404, detail=f"No log files found in s3://{bucket}/{path}")
 
         # Read first log file (up to 50 lines for testing)
         log_lines = []
-        for obj in response['Contents'][:1]:  # Read first file only
+        last_error = None
+        for obj in response['Contents']:
             key = obj['Key']
             if key.endswith('/'):  # Skip directories
                 continue
@@ -137,12 +138,16 @@ async def test_regex_pattern(request: RegexTestRequest):
                 file_obj = s3_client.get_object(Bucket=bucket, Key=key)
                 content = file_obj['Body'].read().decode('utf-8')
                 lines = [line for line in content.split('\n')[:50] if line.strip()]  # Get first 50 non-empty lines
-                log_lines.extend(lines)
-                break
+                if lines:
+                    log_lines.extend(lines)
+                    break
             except Exception as e:
+                last_error = e
                 continue
 
         if not log_lines:
+            if last_error:
+                print(f"Failed to read S3 log content from s3://{bucket}/{path}: {last_error}")
             raise HTTPException(status_code=400, detail="Could not read log file content")
 
         total_lines = len(log_lines)
@@ -280,14 +285,15 @@ async def preview_s3_logs(request: S3LogPreviewRequest):
         s3_client = boto3.client('s3', **boto3_kwargs)
 
         # 5. List and read log files
-        response = s3_client.list_objects_v2(Bucket=bucket, Prefix=path, MaxKeys=5)
+        response = s3_client.list_objects_v2(Bucket=bucket, Prefix=path, MaxKeys=10)
 
         if 'Contents' not in response or len(response['Contents']) == 0:
             raise HTTPException(status_code=404, detail=f"No log files found in s3://{bucket}/{path}")
 
         # Read first log file (up to 100 lines for preview)
         log_lines = []
-        for obj in response['Contents'][:1]:  # Read first file only
+        last_error = None
+        for obj in response['Contents']:
             key = obj['Key']
             if key.endswith('/'):  # Skip directories
                 continue
@@ -296,12 +302,16 @@ async def preview_s3_logs(request: S3LogPreviewRequest):
                 file_obj = s3_client.get_object(Bucket=bucket, Key=key)
                 content = file_obj['Body'].read().decode('utf-8')
                 lines = content.split('\n')[:100]  # Read first 100 lines
-                log_lines.extend(lines)
-                break
+                if lines:
+                    log_lines.extend(lines)
+                    break
             except Exception as e:
+                last_error = e
                 continue
 
         if not log_lines:
+            if last_error:
+                print(f"Failed to read S3 log content from s3://{bucket}/{path}: {last_error}")
             raise HTTPException(status_code=400, detail="Could not read log file content")
 
         # 6. Parse logs with regex
