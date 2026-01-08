@@ -184,6 +184,7 @@ class QualityService:
                 # Pass credentials to DuckDB explicitly
                 conn.execute(f"""
                     SET s3_region='{S3_REGION}';
+                    SET s3_endpoint='s3.{S3_REGION}.amazonaws.com';
                     SET s3_access_key_id='{credentials.access_key}';
                     SET s3_secret_access_key='{credentials.secret_key}';
                     SET s3_session_token='{credentials.token}';
