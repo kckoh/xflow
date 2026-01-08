@@ -26,6 +26,7 @@ export default function SchemaTransformEditor({
     onTestStatusChange,
     initialTargetSchema = [],
     sourceTabs = null,
+    allSources = [], // All source nodes info: [{ id, datasetId, name }]
 }) {
     // State - beforeColumns is local, targetSchema is managed by parent
     const [beforeColumns, setBeforeColumns] = useState([]);
@@ -43,6 +44,7 @@ export default function SchemaTransformEditor({
     const [testError, setTestError] = useState(null);
     const [isTestOpen, setIsTestOpen] = useState(false);
     const [isTestSuccessful, setIsTestSuccessful] = useState(false);
+    const [activeSourceSampleTab, setActiveSourceSampleTab] = useState(0); // For source sample tabs
 
     // Initialize beforeColumns when sourceSchema changes (source tab switches)
     useEffect(() => {
@@ -245,11 +247,16 @@ export default function SchemaTransformEditor({
         setEditingColumn(null);
     };
 
-    // Generate SQL from targetSchema
-    const generateSql = () => {
-        if (targetSchema.length === 0) return 'SELECT * FROM input';
+    // Generate SQL from targetSchema (optionally filter by sourceId for testing)
+    const generateSql = (filterBySourceId = null) => {
+        // Filter columns by sourceId if specified (for testing current source only)
+        const columnsToUse = filterBySourceId
+            ? targetSchema.filter(col => col.sourceId === filterBySourceId)
+            : targetSchema;
 
-        const selectClauses = targetSchema.map(col => {
+        if (columnsToUse.length === 0) return 'SELECT * FROM input';
+
+        const selectClauses = columnsToUse.map(col => {
             if (col.transform) {
                 return `${col.transform} AS ${col.name}`;
             }
@@ -265,13 +272,9 @@ export default function SchemaTransformEditor({
         setIsTestSuccessful(false);
         if (onTestStatusChange) onTestStatusChange(false);
 
+        // Check if there are any columns in target
         if (targetSchema.length === 0) {
             setTestError('Please move at least one column to the "After (Target)" list to test.');
-            return;
-        }
-
-        if (!sourceDatasetId) {
-            setTestError('Source dataset ID is required for testing. Please go back and select a source.');
             return;
         }
 
@@ -280,12 +283,27 @@ export default function SchemaTransformEditor({
         setTestResult(null);
 
         try {
+            // Build sources array: for each source, include its datasetId and its columns from targetSchema
+            const sources = allSources.map(source => ({
+                source_dataset_id: source.datasetId,
+                columns: targetSchema
+                    .filter(col => col.sourceId === source.id)
+                    .map(col => col.originalName)
+            })).filter(source => source.columns.length > 0); // Only include sources with columns
+
+            if (sources.length === 0) {
+                setTestError('No columns selected from any source.');
+                return;
+            }
+
+            // Generate SQL with all columns (no filtering by sourceId)
             const sql = generateSql();
+
             const response = await fetch(`${API_BASE_URL}/api/sql/test`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({
-                    source_dataset_id: sourceDatasetId,
+                    sources: sources,
                     sql: sql,
                     limit: 5
                 })
@@ -293,14 +311,18 @@ export default function SchemaTransformEditor({
 
             const result = await response.json();
 
+            // Debug: Log the result to see if source_samples is present
+            console.log('🔍 Test API Response:', result);
+
             if (!response.ok) {
                 throw new Error(result.detail || 'Test failed');
             }
 
             if (result.valid) {
                 setTestResult({
-                    beforeRows: result.before_rows || [], // Backend now supports this!
+                    beforeRows: result.before_rows || [],
                     afterRows: result.sample_rows || [],
+                    source_samples: result.source_samples || [],  // Add source_samples
                     sql: sql
                 });
                 setIsTestSuccessful(true);
@@ -594,7 +616,7 @@ export default function SchemaTransformEditor({
                         </h4>
                         {isTestSuccessful && (
                             <span className="text-xs font-bold text-green-600 flex items-center gap-1">
-                                ✅ Ready to proceed
+                                Ready to proceed
                             </span>
                         )}
                     </div>
@@ -605,8 +627,59 @@ export default function SchemaTransformEditor({
                             {/* Before */}
                             <div className="flex-1 flex flex-col min-w-0 w-0">
                                 <h5 className="text-[9px] font-bold text-slate-400 uppercase mb-1.5 tracking-tight">Source Sample</h5>
+
+                                {/* Source sample tabs */}
+                                {testResult.source_samples && testResult.source_samples.length > 1 && (
+                                    <div className="flex gap-1 mb-2">
+                                        {testResult.source_samples.map((sample, idx) => (
+                                            <button
+                                                key={idx}
+                                                onClick={() => setActiveSourceSampleTab(idx)}
+                                                className={`px-2 py-1 text-[10px] font-medium rounded transition-colors ${activeSourceSampleTab === idx
+                                                    ? 'bg-blue-100 text-blue-700 border border-blue-300'
+                                                    : 'bg-slate-100 text-slate-600 border border-slate-200 hover:bg-slate-200'
+                                                    }`}
+                                            >
+                                                {sample.source_name}
+                                            </button>
+                                        ))}
+                                    </div>
+                                )}
+
                                 <div className="flex-1 overflow-auto border border-slate-200 rounded-xl bg-slate-50/50 max-w-full">
-                                    {testResult.beforeRows.length > 0 ? (
+                                    {testResult.source_samples && testResult.source_samples.length > 0 ? (
+                                        (() => {
+                                            const currentSample = testResult.source_samples[activeSourceSampleTab];
+                                            return currentSample && currentSample.rows && currentSample.rows.length > 0 ? (
+                                                <table className="w-full text-xs box-border border-separate border-spacing-0">
+                                                    <thead className="bg-slate-100 sticky top-0 z-10">
+                                                        <tr>
+                                                            {(Array.from(new Set(currentSample.rows.flatMap(Object.keys)))).map(key => (
+                                                                <th key={key} className="px-3 py-2 text-left text-[10px] font-bold text-slate-600 border-b border-slate-200 whitespace-nowrap bg-slate-100">
+                                                                    {key}
+                                                                </th>
+                                                            ))}
+                                                        </tr>
+                                                    </thead>
+                                                    <tbody className="bg-white">
+                                                        {currentSample.rows.slice(0, 5).map((row, i) => (
+                                                            <tr key={i} className="hover:bg-slate-50/50 transition-colors">
+                                                                {(Array.from(new Set(currentSample.rows.flatMap(Object.keys)))).map((key, j) => (
+                                                                    <td key={j} className="px-3 py-2 border-b border-slate-50 font-mono text-slate-500 whitespace-nowrap text-[11px]">
+                                                                        {String(row[key] !== undefined && row[key] !== null ? row[key] : "")}
+                                                                    </td>
+                                                                ))}
+                                                            </tr>
+                                                        ))}
+                                                    </tbody>
+                                                </table>
+                                            ) : (
+                                                <div className="flex items-center justify-center h-full text-slate-400 text-xs italic">
+                                                    No data
+                                                </div>
+                                            );
+                                        })()
+                                    ) : testResult.beforeRows && testResult.beforeRows.length > 0 ? (
                                         <table className="w-full text-xs box-border border-separate border-spacing-0">
                                             <thead className="bg-slate-100 sticky top-0 z-10">
                                                 <tr>

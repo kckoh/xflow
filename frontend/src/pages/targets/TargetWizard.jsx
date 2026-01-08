@@ -1112,6 +1112,11 @@ export default function TargetWizard() {
                     initialTargetSchema={initialTargetSchema}
                     onSchemaChange={setTargetSchema}
                     onTestStatusChange={setIsTestPassed}
+                    allSources={sourceNodes.map(node => ({
+                      id: node.id,
+                      datasetId: node.data?.sourceDatasetId || node.data?.catalogDatasetId,
+                      name: node.data?.name
+                    }))}
                     sourceTabs={
                       sourceNodes.length > 1 ? (
                         <div className="flex gap-1 flex-wrap">
