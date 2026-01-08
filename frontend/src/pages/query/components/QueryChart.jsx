@@ -1,56 +1,215 @@
-import { useState, useEffect, useMemo } from 'react';
+import { useMemo } from 'react';
 import {
-    BarChart, Bar, LineChart, Line, PieChart, Pie, Cell,
+    BarChart, Bar, LineChart, Line, PieChart, Pie, Cell, AreaChart, Area,
     XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer
 } from 'recharts';
-import { BarChart3, TrendingUp, PieChart as PieChartIcon, Settings2, X } from 'lucide-react';
-import { analyzeColumns, suggestAxes, aggregateData, suggestChartType } from '../../../utils/chartUtils';
-import Combobox from '../../../components/common/Combobox';
 
 const CHART_COLORS = ['#3B82F6', '#10B981', '#F59E0B', '#EF4444', '#8B5CF6', '#EC4899', '#14B8A6'];
 
-export default function QueryChart({ data, columns }) {
-    const [chartType, setChartType] = useState('bar');
-    const [showSettings, setShowSettings] = useState(false);
-    const [xAxis, setXAxis] = useState('');
-    const [yAxis, setYAxis] = useState('');
-    const [aggregation, setAggregation] = useState('SUM');
-    const [limit, setLimit] = useState(20); // 표시할 최대 개수
-
-    // 컬럼 분석
-    const columnAnalysis = useMemo(() => analyzeColumns(data), [data]);
-
-    // 초기 설정: 스마트 추천
-    useEffect(() => {
-        if (columnAnalysis.length > 0) {
-            const suggestion = suggestAxes(columnAnalysis);
-            setXAxis(suggestion.xAxis);
-            setYAxis(suggestion.yAxis);
-
-            // 차트 타입도 추천
-            const recommendedChart = suggestChartType(columnAnalysis, suggestion.xAxis);
-            setChartType(recommendedChart);
-        }
-    }, [columnAnalysis]);
-
-    // 차트 데이터 준비 (집계 적용)
+export default function QueryChart({
+    data,
+    columns,
+    chartType,
+    xAxis,
+    yAxes, // Array of {column, aggregation}
+    calculatedMetrics, // Array of {metricA, operation, metricB, label}
+    breakdownBy,
+    aggregation,
+    timeGrain,
+    limit
+}) {
+    // Prepare chart data with aggregation
     const chartData = useMemo(() => {
-        if (!xAxis || !yAxis) return [];
-        const effectiveLimit = limit === 'All' ? undefined : limit;
-        return aggregateData(data, xAxis, yAxis, aggregation, effectiveLimit);
-    }, [data, xAxis, yAxis, aggregation, limit]);
+        if (!data || !xAxis || yAxes.length === 0) return [];
 
-    // 고유값 개수 체크
-    const uniqueCount = useMemo(() => {
-        if (!xAxis || !data) return 0;
-        return new Set(data.map(row => row[xAxis])).size;
-    }, [data, xAxis]);
+        // Group by x-axis and optionally breakdownBy
+        const groups = {};
+
+        data.forEach(row => {
+            let xValue = row[xAxis];
+
+            // Apply time grain if applicable
+            if (timeGrain && xValue) {
+                const date = new Date(xValue);
+                if (!isNaN(date)) {
+                    switch (timeGrain) {
+                        case 'day':
+                            xValue = date.toISOString().split('T')[0];
+                            break;
+                        case 'week':
+                            const weekStart = new Date(date);
+                            weekStart.setDate(date.getDate() - date.getDay());
+                            xValue = weekStart.toISOString().split('T')[0];
+                            break;
+                        case 'month':
+                            xValue = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}`;
+                            break;
+                        case 'quarter':
+                            const quarter = Math.floor(date.getMonth() / 3) + 1;
+                            xValue = `${date.getFullYear()}-Q${quarter}`;
+                            break;
+                        case 'year':
+                            xValue = String(date.getFullYear());
+                            break;
+                    }
+                }
+            }
+
+            const breakdownValue = breakdownBy ? row[breakdownBy] : '_all';
+            const key = `${xValue}|${breakdownValue}`;
+
+            if (!groups[key]) {
+                groups[key] = {
+                    [xAxis]: xValue,
+                    ...(breakdownBy && { [breakdownBy]: breakdownValue }),
+                    count: 0,
+                    sums: {},
+                    maxes: {},
+                    mins: {},
+                };
+            }
+
+            groups[key].count += 1;
+
+            yAxes.forEach(metric => {
+                const col = metric.column;
+                const value = parseFloat(row[col]) || 0;
+
+                if (!groups[key].sums[col]) {
+                    groups[key].sums[col] = 0;
+                    groups[key].maxes[col] = value;
+                    groups[key].mins[col] = value;
+                }
+
+                groups[key].sums[col] += value;
+                groups[key].maxes[col] = Math.max(groups[key].maxes[col], value);
+                groups[key].mins[col] = Math.min(groups[key].mins[col], value);
+            });
+        });
+
+        // Convert to array and apply aggregations
+        let result = Object.values(groups).map(group => {
+            const item = {
+                [xAxis]: group[xAxis],
+                ...(breakdownBy && { [breakdownBy]: group[breakdownBy] }),
+            };
+
+            yAxes.forEach(metric => {
+                const col = metric.column;
+                const agg = metric.aggregation;
+                let value;
+
+                switch (agg) {
+                    case 'COUNT':
+                        value = group.count;
+                        break;
+                    case 'SUM':
+                        value = group.sums[col] || 0;
+                        break;
+                    case 'AVG':
+                        value = (group.sums[col] || 0) / group.count;
+                        break;
+                    case 'MAX':
+                        value = group.maxes[col] || 0;
+                        break;
+                    case 'MIN':
+                        value = group.mins[col] || 0;
+                        break;
+                    default:
+                        value = group.sums[col] || 0;
+                }
+
+                const metricKey = `${agg}(${col})`;
+                item[metricKey] = value;
+            });
+
+            // Apply calculated metrics
+            if (calculatedMetrics && calculatedMetrics.length > 0) {
+                calculatedMetrics.forEach(calc => {
+                    const metricAKey = yAxes.find(m => m.column === calc.metricA);
+                    const metricBKey = yAxes.find(m => m.column === calc.metricB);
+
+                    if (metricAKey && metricBKey) {
+                        const aKey = `${metricAKey.aggregation}(${metricAKey.column})`;
+                        const bKey = `${metricBKey.aggregation}(${metricBKey.column})`;
+                        const aValue = item[aKey] || 0;
+                        const bValue = item[bKey] || 0;
+
+                        let result;
+                        switch (calc.operation) {
+                            case 'add':
+                                result = aValue + bValue;
+                                break;
+                            case 'subtract':
+                                result = aValue - bValue;
+                                break;
+                            case 'multiply':
+                                result = aValue * bValue;
+                                break;
+                            case 'divide':
+                                result = bValue !== 0 ? aValue / bValue : 0;
+                                break;
+                            case 'percentage':
+                                result = bValue !== 0 ? (aValue / bValue) * 100 : 0;
+                                break;
+                            default:
+                                result = 0;
+                        }
+
+                        item[calc.label] = result;
+                    }
+                });
+            }
+
+            return item;
+        });
+
+        // Sort by first metric descending
+        if (yAxes.length > 0) {
+            const firstMetricKey = `${yAxes[0].aggregation}(${yAxes[0].column})`;
+            result.sort((a, b) => (b[firstMetricKey] || 0) - (a[firstMetricKey] || 0));
+        }
+
+        // Apply limit
+        const effectiveLimit = limit === 'All' ? undefined : limit;
+        if (effectiveLimit) {
+            result = result.slice(0, effectiveLimit);
+        }
+
+        return result;
+    }, [data, xAxis, yAxes, breakdownBy, aggregation, timeGrain, limit]);
+
+    // For stacked bar with breakdown
+    const stackedChartData = useMemo(() => {
+        if (!breakdownBy || !chartData.length) return chartData;
+
+        // Pivot data for stacked bars
+        const pivoted = {};
+        chartData.forEach(row => {
+            const xValue = row[xAxis];
+            const breakdownValue = row[breakdownBy];
+
+            if (!pivoted[xValue]) {
+                pivoted[xValue] = { [xAxis]: xValue };
+            }
+
+            yAxes.forEach(metric => {
+                const metricKey = `${metric.aggregation}(${metric.column})`;
+                const stackKey = `${breakdownValue}_${metricKey}`;
+                pivoted[xValue][stackKey] = row[metricKey];
+            });
+        });
+
+        return Object.values(pivoted);
+    }, [chartData, xAxis, breakdownBy, yAxes]);
 
     const renderChart = () => {
-        if (!chartData || chartData.length === 0) {
+        const displayData = breakdownBy ? stackedChartData : chartData;
+
+        if (!displayData || displayData.length === 0) {
             return (
                 <div className="flex items-center justify-center h-64 text-gray-400">
-                    <p className="text-sm">No data to visualize</p>
+                    <p className="text-sm">No data to visualize. Please configure dimensions and metrics.</p>
                 </div>
             );
         }
@@ -58,53 +217,171 @@ export default function QueryChart({ data, columns }) {
         switch (chartType) {
             case 'bar':
                 return (
-                    <ResponsiveContainer width="100%" height={400}>
-                        <BarChart data={chartData}>
+                    <ResponsiveContainer width="100%" height={600}>
+                        <BarChart data={displayData} margin={{ bottom: 80 }}>
                             <CartesianGrid strokeDasharray="3 3" stroke="#E5E7EB" />
                             <XAxis dataKey={xAxis} tick={{ fontSize: 12 }} />
                             <YAxis tick={{ fontSize: 12 }} />
                             <Tooltip />
-                            <Legend />
-                            <Bar dataKey={yAxis} radius={[8, 8, 0, 0]}>
-                                {chartData.map((entry, index) => (
-                                    <Cell key={`cell-${index}`} fill={CHART_COLORS[index % CHART_COLORS.length]} />
-                                ))}
-                            </Bar>
+                            <Legend
+                                verticalAlign="bottom"
+                                height={60}
+                                wrapperStyle={{ paddingTop: '20px', fontSize: '11px' }}
+                            />
+                            {breakdownBy ? (
+                                // Stacked bars by breakdown
+                                (() => {
+                                    const breakdownValues = [...new Set(chartData.map(row => row[breakdownBy]))];
+                                    return breakdownValues.flatMap((breakdownValue, bIndex) =>
+                                        yAxes.map((metric, mIndex) => {
+                                            const metricKey = `${metric.aggregation}(${metric.column})`;
+                                            const stackKey = `${breakdownValue}_${metricKey}`;
+                                            return (
+                                                <Bar
+                                                    key={stackKey}
+                                                    dataKey={stackKey}
+                                                    stackId={metricKey}
+                                                    fill={CHART_COLORS[(bIndex * yAxes.length + mIndex) % CHART_COLORS.length]}
+                                                    name={`${breakdownValue} - ${metricKey}`}
+                                                    radius={bIndex === breakdownValues.length - 1 ? [8, 8, 0, 0] : [0, 0, 0, 0]}
+                                                />
+                                            );
+                                        })
+                                    );
+                                })()
+                            ) : (
+                                // Multiple metrics as separate bars
+                                <>
+                                    {yAxes.map((metric, index) => {
+                                        const metricKey = `${metric.aggregation}(${metric.column})`;
+                                        return (
+                                            <Bar
+                                                key={metricKey}
+                                                dataKey={metricKey}
+                                                fill={CHART_COLORS[index % CHART_COLORS.length]}
+                                                name={metricKey}
+                                                radius={[8, 8, 0, 0]}
+                                            />
+                                        );
+                                    })}
+
+                                    {/* Add calculated metrics */}
+                                    {calculatedMetrics && calculatedMetrics.map((calc, index) => (
+                                        <Bar
+                                            key={calc.label}
+                                            dataKey={calc.label}
+                                            fill={CHART_COLORS[(yAxes.length + index) % CHART_COLORS.length]}
+                                            name={calc.label}
+                                            radius={[8, 8, 0, 0]}
+                                        />
+                                    ))}
+                                </>
+                            )}
                         </BarChart>
                     </ResponsiveContainer>
                 );
 
             case 'line':
                 return (
-                    <ResponsiveContainer width="100%" height={400}>
-                        <LineChart data={chartData}>
+                    <ResponsiveContainer width="100%" height={600}>
+                        <LineChart data={displayData} margin={{ bottom: 80 }}>
                             <CartesianGrid strokeDasharray="3 3" stroke="#E5E7EB" />
                             <XAxis dataKey={xAxis} tick={{ fontSize: 12 }} />
                             <YAxis tick={{ fontSize: 12 }} />
                             <Tooltip />
-                            <Legend />
-                            <Line
-                                type="monotone"
-                                dataKey={yAxis}
-                                stroke={CHART_COLORS[0]}
-                                strokeWidth={2}
-                                dot={{ fill: CHART_COLORS[0], r: 4 }}
+                            <Legend
+                                verticalAlign="bottom"
+                                height={60}
+                                wrapperStyle={{ paddingTop: '20px', fontSize: '11px' }}
                             />
+                            {yAxes.map((metric, index) => {
+                                const metricKey = `${metric.aggregation}(${metric.column})`;
+                                return (
+                                    <Line
+                                        key={metricKey}
+                                        type="monotone"
+                                        dataKey={metricKey}
+                                        stroke={CHART_COLORS[index % CHART_COLORS.length]}
+                                        strokeWidth={2}
+                                        dot={{ fill: CHART_COLORS[index % CHART_COLORS.length], r: 4 }}
+                                        name={metricKey}
+                                    />
+                                );
+                            })}
+                            {/* Add calculated metrics */}
+                            {calculatedMetrics && calculatedMetrics.map((calc, index) => (
+                                <Line
+                                    key={calc.label}
+                                    type="monotone"
+                                    dataKey={calc.label}
+                                    stroke={CHART_COLORS[(yAxes.length + index) % CHART_COLORS.length]}
+                                    strokeWidth={2}
+                                    dot={{ fill: CHART_COLORS[(yAxes.length + index) % CHART_COLORS.length], r: 4 }}
+                                    name={calc.label}
+                                />
+                            ))}
                         </LineChart>
                     </ResponsiveContainer>
                 );
 
-            case 'pie':
+            case 'area':
                 return (
-                    <ResponsiveContainer width="100%" height={400}>
+                    <ResponsiveContainer width="100%" height={600}>
+                        <AreaChart data={displayData} margin={{ bottom: 80 }}>
+                            <CartesianGrid strokeDasharray="3 3" stroke="#E5E7EB" />
+                            <XAxis dataKey={xAxis} tick={{ fontSize: 12 }} />
+                            <YAxis tick={{ fontSize: 12 }} />
+                            <Tooltip />
+                            <Legend
+                                verticalAlign="bottom"
+                                height={60}
+                                wrapperStyle={{ paddingTop: '20px', fontSize: '11px' }}
+                            />
+                            {yAxes.map((metric, index) => {
+                                const metricKey = `${metric.aggregation}(${metric.column})`;
+                                return (
+                                    <Area
+                                        key={metricKey}
+                                        type="monotone"
+                                        dataKey={metricKey}
+                                        fill={CHART_COLORS[index % CHART_COLORS.length]}
+                                        stroke={CHART_COLORS[index % CHART_COLORS.length]}
+                                        fillOpacity={0.6}
+                                        name={metricKey}
+                                    />
+                                );
+                            })}
+                            {/* Add calculated metrics */}
+                            {calculatedMetrics && calculatedMetrics.map((calc, index) => (
+                                <Area
+                                    key={calc.label}
+                                    type="monotone"
+                                    dataKey={calc.label}
+                                    fill={CHART_COLORS[(yAxes.length + index) % CHART_COLORS.length]}
+                                    stroke={CHART_COLORS[(yAxes.length + index) % CHART_COLORS.length]}
+                                    fillOpacity={0.6}
+                                    name={calc.label}
+                                />
+                            ))}
+                        </AreaChart>
+                    </ResponsiveContainer>
+                );
+
+            case 'pie':
+                // Use first metric only for pie
+                if (yAxes.length === 0) return null;
+                const metricKey = `${yAxes[0].aggregation}(${yAxes[0].column})`;
+
+                return (
+                    <ResponsiveContainer width="100%" height={500}>
                         <PieChart>
                             <Pie
                                 data={chartData}
-                                dataKey={yAxis}
+                                dataKey={metricKey}
                                 nameKey={xAxis}
                                 cx="50%"
                                 cy="50%"
-                                outerRadius={120}
+                                outerRadius={150}
                                 label
                             >
                                 {chartData.map((entry, index) => (
@@ -122,186 +399,9 @@ export default function QueryChart({ data, columns }) {
         }
     };
 
-    const limitOptions = [10, 20, 50, 100, 200, 500, 1000, 'All'];
-
-    const getLimitLabel = (n) => {
-        if (n === 'All') return 'Show All';
-        return `Top ${n}`;
-    };
-
     return (
-        <div className="flex gap-4">
-            {/* Main Chart Area */}
-            <div className="flex-1 space-y-4">
-                {/* Chart Type Selector */}
-                <div className="flex items-center gap-2">
-                    <button
-                        onClick={() => setChartType('bar')}
-                        className={`flex items-center gap-2 px-4 py-2.5 rounded-lg font-medium transition-all ${chartType === 'bar'
-                            ? 'bg-blue-600 text-white shadow-md'
-                            : 'bg-white text-gray-700 border border-gray-300 hover:bg-gray-50'
-                            }`}
-                    >
-                        <BarChart3 className="w-4 h-4" />
-                        <span className="text-sm">Bar</span>
-                    </button>
-                    <button
-                        onClick={() => setChartType('line')}
-                        className={`flex items-center gap-2 px-4 py-2.5 rounded-lg font-medium transition-all ${chartType === 'line'
-                            ? 'bg-blue-600 text-white shadow-md'
-                            : 'bg-white text-gray-700 border border-gray-300 hover:bg-gray-50'
-                            }`}
-                    >
-                        <TrendingUp className="w-4 h-4" />
-                        <span className="text-sm">Line</span>
-                    </button>
-                    <button
-                        onClick={() => setChartType('pie')}
-                        className={`flex items-center gap-2 px-4 py-2.5 rounded-lg font-medium transition-all ${chartType === 'pie'
-                            ? 'bg-blue-600 text-white shadow-md'
-                            : 'bg-white text-gray-700 border border-gray-300 hover:bg-gray-50'
-                            }`}
-                    >
-                        <PieChartIcon className="w-4 h-4" />
-                        <span className="text-sm">Pie</span>
-                    </button>
-
-                    <div className="flex-1" />
-
-                    {/* Show Top N Control */}
-                    <div className="w-40">
-                        <Combobox
-                            options={limitOptions}
-                            value={limit}
-                            onChange={setLimit}
-                            getKey={(n) => n}
-                            getLabel={getLimitLabel}
-                            placeholder="Select limit"
-                        />
-                    </div>
-
-                    {/* Settings Toggle */}
-                    <button
-                        onClick={() => setShowSettings(!showSettings)}
-                        className={`flex items-center gap-2 px-4 py-2.5 rounded-lg text-sm font-medium transition-all ${showSettings
-                            ? 'bg-gray-900 text-white shadow-md'
-                            : 'bg-white text-gray-700 border border-gray-300 hover:bg-gray-50'
-                            }`}
-                    >
-                        <Settings2 className="w-4 h-4" />
-                        Configure
-                    </button>
-                </div>
-
-                {/* Chart Render */}
-                <div className="bg-white border border-gray-200 rounded-lg shadow-sm">
-                    {/* Warning for large datasets */}
-                    {uniqueCount > limit && (
-                        <div className="px-6 pt-4 pb-2">
-                            <div className="bg-amber-50 border border-amber-200 rounded-lg px-4 py-2 flex items-center gap-2">
-                                <span className="text-amber-600 text-sm">
-                                    ℹ️ Showing top {limit} of {uniqueCount} categories (change in Configure settings)
-                                </span>
-                            </div>
-                        </div>
-                    )}
-                    <div className="p-6">
-                        {renderChart()}
-                    </div>
-                </div>
-            </div>
-
-            {/* Right Settings Panel */}
-            {showSettings && (
-                <div className="w-80 bg-white border border-gray-200 rounded-lg shadow-sm p-4 space-y-4">
-                    {/* Header */}
-                    <div className="flex items-center justify-between pb-3 border-b">
-                        <h3 className="font-semibold text-gray-900">Chart Settings</h3>
-                        <button
-                            onClick={() => setShowSettings(false)}
-                            className="p-1 hover:bg-gray-100 rounded transition-colors"
-                        >
-                            <X className="w-4 h-4 text-gray-500" />
-                        </button>
-                    </div>
-
-                    {/* Settings Content */}
-                    {chartType === 'pie' ? (
-                        // Simplified settings for Pie Chart
-                        <div className="space-y-4">
-                            <div>
-                                <label className="block text-sm font-medium text-gray-700 mb-2">
-                                    Label (Category)
-                                </label>
-                                <Combobox
-                                    options={columns}
-                                    value={xAxis}
-                                    onChange={setXAxis}
-                                    getKey={(col) => col}
-                                    getLabel={(col) => col}
-                                    placeholder="Select label"
-                                />
-                            </div>
-                            <div>
-                                <label className="block text-sm font-medium text-gray-700 mb-2">
-                                    Value (Size)
-                                </label>
-                                <Combobox
-                                    options={columns}
-                                    value={yAxis}
-                                    onChange={setYAxis}
-                                    getKey={(col) => col}
-                                    getLabel={(col) => col}
-                                    placeholder="Select value"
-                                />
-                            </div>
-                        </div>
-                    ) : (
-                        // Full settings for Bar/Line Charts
-                        <div className="space-y-4">
-                            <div>
-                                <label className="block text-sm font-medium text-gray-700 mb-2">
-                                    X Axis (Category)
-                                </label>
-                                <Combobox
-                                    options={columns}
-                                    value={xAxis}
-                                    onChange={setXAxis}
-                                    getKey={(col) => col}
-                                    getLabel={(col) => col}
-                                    placeholder="Select X axis"
-                                />
-                            </div>
-                            <div>
-                                <label className="block text-sm font-medium text-gray-700 mb-2">
-                                    Y Axis (Value)
-                                </label>
-                                <Combobox
-                                    options={columns}
-                                    value={yAxis}
-                                    onChange={setYAxis}
-                                    getKey={(col) => col}
-                                    getLabel={(col) => col}
-                                    placeholder="Select Y axis"
-                                />
-                            </div>
-                            <div>
-                                <label className="block text-sm font-medium text-gray-700 mb-2">
-                                    Aggregation
-                                </label>
-                                <Combobox
-                                    options={['SUM', 'COUNT', 'AVG', 'MAX', 'MIN']}
-                                    value={aggregation}
-                                    onChange={setAggregation}
-                                    getKey={(agg) => agg}
-                                    getLabel={(agg) => agg}
-                                    placeholder="Select method"
-                                />
-                            </div>
-                        </div>
-                    )}
-                </div>
-            )}
+        <div className="bg-white border border-gray-200 rounded-lg p-6">
+            {renderChart()}
         </div>
     );
 }
