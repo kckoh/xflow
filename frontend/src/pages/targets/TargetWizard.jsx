@@ -58,14 +58,14 @@ export default function TargetWizard() {
   });
   const [tagInput, setTagInput] = useState("");
   const [isNameDuplicate, setIsNameDuplicate] = useState(false);
-  const [isCheckingName, setIsCheckingName] = useState(false);
   const [detailPanelTab, setDetailPanelTab] = useState("details"); // 'details' or 'schema'
 
   // Step 3: Transformation
   const [sourceNodes, setSourceNodes] = useState([]); // Store source nodes for schema
-  const [targetSchema, setTargetSchema] = useState([]); // Array of column definitions
-  const [initialSchema, setInitialSchema] = useState([]); // Loaded or saved schema for initialization
-  const [isTestPassed, setIsTestPassed] = useState(false); // Track if Run Test was successful
+  const [activeSourceTab, setActiveSourceTab] = useState(0); // Active tab index for multiple sources
+  const [targetSchema, setTargetSchema] = useState([]); // Single shared target schema for all sources
+  const [initialTargetSchema, setInitialTargetSchema] = useState([]); // For edit mode
+  const [isTestPassed, setIsTestPassed] = useState(false); // Single test status for the combined schema
 
   // Step 4: Schedule
   const [jobType, setJobType] = useState("batch");
@@ -118,12 +118,21 @@ export default function TargetWizard() {
           const sources = job.nodes.filter(n => n.data?.nodeCategory === 'source');
           setSourceNodes(sources);
 
-          // Restore target schema from transform node
-          const transformNode = job.nodes.find(n => n.data?.nodeCategory === 'transform');
-          if (transformNode && transformNode.data?.outputSchema) {
-            setTargetSchema(transformNode.data.outputSchema);
-            setInitialSchema(transformNode.data.outputSchema);
-          }
+          // Restore combined target schema from all transform nodes
+          const combinedSchema = [];
+          sources.forEach(source => {
+            const transformNode = job.nodes.find(
+              n => n.data?.nodeCategory === 'transform' &&
+                job.edges?.some(e => e.source === source.id && e.target === n.id)
+            );
+
+            if (transformNode?.data?.outputSchema) {
+              combinedSchema.push(...transformNode.data.outputSchema);
+            }
+          });
+
+          setTargetSchema(combinedSchema);
+          setInitialTargetSchema(combinedSchema);
         }
 
         // Skip to Transform step in edit mode
@@ -199,49 +208,26 @@ export default function TargetWizard() {
     loadDatasets();
   }, []);
 
-  // Check for duplicate dataset name
+  // Check for duplicate dataset name (using already loaded datasets)
   useEffect(() => {
-    const checkDuplicateName = async () => {
-      if (!config.name.trim()) {
-        setIsNameDuplicate(false);
-        return;
-      }
+    if (!config.name.trim()) {
+      setIsNameDuplicate(false);
+      return;
+    }
 
-      // Skip check in edit mode if name hasn't changed
-      if (isEditMode) {
-        setIsNameDuplicate(false);
-        return;
-      }
+    // Skip check in edit mode
+    if (isEditMode) {
+      setIsNameDuplicate(false);
+      return;
+    }
 
-      setIsCheckingName(true);
-      try {
-        // Check both datasets and source-datasets
-        const [datasetsRes, sourceRes] = await Promise.all([
-          fetch(`${API_BASE_URL}/api/datasets`),
-          fetch(`${API_BASE_URL}/api/source-datasets`),
-        ]);
+    // Extract all dataset names from already loaded sourceDatasets
+    const allNames = sourceDatasets.map((d) => d.name?.toLowerCase()).filter(Boolean);
 
-        const datasets = datasetsRes.ok ? await datasetsRes.json() : [];
-        const sourceDatasets = sourceRes.ok ? await sourceRes.json() : [];
-
-        const allNames = [
-          ...datasets.map((d) => d.name?.toLowerCase()),
-          ...sourceDatasets.map((d) => d.name?.toLowerCase()),
-        ];
-
-        const isDuplicate = allNames.includes(config.name.trim().toLowerCase());
-        setIsNameDuplicate(isDuplicate);
-      } catch (err) {
-        console.error("Failed to check duplicate name:", err);
-        setIsNameDuplicate(false);
-      } finally {
-        setIsCheckingName(false);
-      }
-    };
-
-    const debounceTimer = setTimeout(checkDuplicateName, 300);
-    return () => clearTimeout(debounceTimer);
-  }, [config.name, isEditMode]);
+    // Check for duplicate (instant, no API call needed!)
+    const isDuplicate = allNames.includes(config.name.trim().toLowerCase());
+    setIsNameDuplicate(isDuplicate);
+  }, [config.name, isEditMode, sourceDatasets]);
 
 
 
@@ -483,31 +469,32 @@ export default function TargetWizard() {
     }
 
     try {
-      // Generate SQL Transform node
+      // Generate a single transform node with the combined schema
       const sql = generateSql(targetSchema);
-      const transformNodeId = `transform-sql-${Date.now()}`;
+      const transformNodeId = `transform-combined-${Date.now()}`;
 
       const transformNode = {
         id: transformNodeId,
         type: 'custom',
         position: { x: 500, y: 200 },
         data: {
-          label: 'Schema Transform',
-          name: 'Schema Transform',
+          label: `Transform: Combined`,
+          name: `Transform: Combined`,
           platform: 'SQL Transform',
           nodeCategory: 'transform',
           transformType: 'sql',
           query: sql,
           outputSchema: targetSchema,
+          sourceNodeIds: sourceNodes.map(n => n.id),
         }
       };
 
-      // Create edges from all sources to transform node
+      // Create edges from all sources to the single transform node
       const edges = sourceNodes.map(source => ({
         id: `edge-${source.id}-${transformNodeId}`,
         source: source.id,
         target: transformNodeId,
-        type: 'deletion'
+        type: 'default'
       }));
 
       // Combine all nodes
@@ -568,12 +555,12 @@ export default function TargetWizard() {
     switch (currentStep) {
       case 1:
         // Overview step - need unique name
-        return config.name.trim() !== "" && !isNameDuplicate && !isCheckingName;
+        return config.name.trim() !== "" && !isNameDuplicate;
       case 2:
         // Source step - check both Source and Target tabs
         return selectedJobIds.length > 0 || selectedTargetIds.length > 0;
       case 3:
-        // Process/Transform step - now requires successful test
+        // Process/Transform step - need schema with at least one column and test passed
         return targetSchema.length > 0 && isTestPassed;
       case 4:
         return true; // Schedule step - always can proceed
@@ -736,11 +723,6 @@ export default function TargetWizard() {
                           : "border-gray-300 focus:ring-orange-500"
                           }`}
                       />
-                      {isCheckingName && (
-                        <div className="absolute right-3 top-1/2 -translate-y-1/2">
-                          <div className="w-4 h-4 border-2 border-gray-300 border-t-orange-500 rounded-full animate-spin" />
-                        </div>
-                      )}
                     </div>
                     {isNameDuplicate && (
                       <p className="mt-1 text-sm text-red-500">
@@ -1117,13 +1099,50 @@ export default function TargetWizard() {
           <div className="flex-1 flex flex-col overflow-hidden px-4 py-4">
             <div className="max-w-[100%] mx-auto w-full h-full flex flex-col">
               <div className="flex-1 min-h-0">
-                <SchemaTransformEditor
-                  sourceSchema={sourceNodes.flatMap(n => n.data?.columns || [])}
-                  sourceDatasetId={sourceNodes[0]?.data?.sourceDatasetId || sourceNodes[0]?.data?.catalogDatasetId}
-                  initialTargetSchema={initialSchema}
-                  onSchemaChange={setTargetSchema}
-                  onTestStatusChange={setIsTestPassed}
-                />
+                {sourceNodes[activeSourceTab] && (
+                  <SchemaTransformEditor
+                    sourceSchema={sourceNodes[activeSourceTab].data?.columns || []}
+                    sourceName={sourceNodes[activeSourceTab].data?.name || `Source ${activeSourceTab + 1}`}
+                    sourceId={sourceNodes[activeSourceTab].id}
+                    sourceDatasetId={
+                      sourceNodes[activeSourceTab].data?.sourceDatasetId ||
+                      sourceNodes[activeSourceTab].data?.catalogDatasetId
+                    }
+                    targetSchema={targetSchema}
+                    initialTargetSchema={initialTargetSchema}
+                    onSchemaChange={setTargetSchema}
+                    onTestStatusChange={setIsTestPassed}
+                    allSources={sourceNodes.map(node => ({
+                      id: node.id,
+                      datasetId: node.data?.sourceDatasetId || node.data?.catalogDatasetId,
+                      name: node.data?.name
+                    }))}
+                    sourceTabs={
+                      sourceNodes.length > 1 ? (
+                        <div className="flex gap-1 flex-wrap">
+                          {sourceNodes.map((source, idx) => (
+                            <button
+                              key={source.id}
+                              onClick={() => setActiveSourceTab(idx)}
+                              className={`px-3 py-1.5 text-xs font-medium rounded-md transition-colors flex items-center gap-1.5 ${activeSourceTab === idx
+                                ? 'bg-blue-100 text-blue-700 border border-blue-300'
+                                : 'bg-slate-50 text-slate-600 border border-slate-200 hover:bg-slate-100'
+                                }`}
+                            >
+                              <div
+                                className="w-1.5 h-1.5 rounded-full"
+                                style={{
+                                  backgroundColor: ['#3b82f6', '#10b981', '#f59e0b', '#8b5cf6'][idx % 4]
+                                }}
+                              />
+                              Source {idx + 1}: {source.data.name}
+                            </button>
+                          ))}
+                        </div>
+                      ) : null
+                    }
+                  />
+                )}
               </div>
             </div>
           </div>
