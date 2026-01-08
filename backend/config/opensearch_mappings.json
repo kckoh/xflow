@@ -9,6 +9,15 @@
           "nori_tokenizer": {
             "type": "nori_tokenizer",
             "decompound_mode": "mixed"
+          },
+          "ngram_tokenizer": {
+            "type": "ngram",
+            "min_gram": 2,
+            "max_gram": 10,
+            "token_chars": [
+              "letter",
+              "digit"
+            ]
           }
         },
         "filter": {
@@ -44,6 +53,13 @@
               "nori_stopwords",
               "lowercase"
             ]
+          },
+          "ngram_analyzer": {
+            "type": "custom",
+            "tokenizer": "ngram_tokenizer",
+            "filter": [
+              "lowercase"
+            ]
           }
         }
       }
@@ -62,6 +78,10 @@
           "fields": {
             "keyword": {
               "type": "keyword"
+            },
+            "ngram": {
+              "type": "text",
+              "analyzer": "ngram_analyzer"
             }
           }
         },

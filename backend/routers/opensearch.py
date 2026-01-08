@@ -140,7 +140,10 @@ async def search(
                             "query": q,
                             "fields": [
                                 "name^3",
+                                "name.ngram^2",
                                 "description^2",
+                                "node_tags^2",
+                                "column_tags",
                                 "node_descriptions",
                                 "column_names^2",
                                 "column_descriptions"
