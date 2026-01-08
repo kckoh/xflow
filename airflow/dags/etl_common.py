@@ -604,21 +604,13 @@ def run_quality_check(**context):
             print("[Quality] No S3 path found in dataset destination")
             return
 
-        # Find the associated ETLJob (lineage record)
-        etl_job = db.etl_jobs.find_one({"dataset_id": dataset_id})
-        if not etl_job:
-            print(f"[Quality] No ETLJob found for dataset {dataset_id}")
-            return
-
-        etl_job_id = str(etl_job["_id"])
-
-        # Call Quality Check API
+        # Call Quality Check API with dataset_id
         backend_url = Variable.get(
             "BACKEND_URL", default_var="http://backend:8000"
         )
 
-        api_url = f"{backend_url}/api/quality/{etl_job_id}/run"
-        payload = {"s3_path": s3_path, "dataset_id": dataset_id}
+        api_url = f"{backend_url}/api/quality/{dataset_id}/run"
+        payload = {"s3_path": s3_path}
 
         print(f"[Quality] Calling API: {api_url}")
         print(f"[Quality] Payload: {payload}")
