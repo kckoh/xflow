@@ -176,11 +176,19 @@ class QualityService:
             env = os.getenv("ENVIRONMENT", "local")
             
             if env == "production":
-                # Production (AWS): Use IAM Role, minimal configuration
-                # DuckDB will use AWS SDK default credential chain
+                # Production (AWS): Get credentials from boto3 (supports IRSA)
+                import boto3
+                session = boto3.Session()
+                credentials = session.get_credentials()
+                
+                # Pass credentials to DuckDB explicitly
                 conn.execute(f"""
-                    CALL load_aws_credentials();
                     SET s3_region='{S3_REGION}';
+                    SET s3_access_key_id='{credentials.access_key}';
+                    SET s3_secret_access_key='{credentials.secret_key}';
+                    SET s3_session_token='{credentials.token}';
+                    SET s3_use_ssl=true;
+                    SET s3_url_style='path';
                 """)
             else:
                 # Local (LocalStack): Explicit endpoint and credentials
