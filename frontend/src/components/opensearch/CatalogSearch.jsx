@@ -1,6 +1,6 @@
 import { useState, useRef, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Search, RefreshCw, Database, Workflow, Loader2 } from 'lucide-react';
+import { Search, RefreshCw, Database, Workflow, Loader2, Edit, GitBranch, Info } from 'lucide-react';
 import { useSearch, useTriggerIndexing } from '../../hooks/useOpenSearch';
 
 /**
@@ -42,15 +42,28 @@ export default function CatalogSearch() {
     return () => document.removeEventListener('mousedown', handleClickOutside);
   }, []);
 
-  // 검색 결과 클릭 핸들러
-  const handleResultClick = (result) => {
-    if (result.doc_type === 'domain') {
-      // Domain 상세 페이지로 이동
-      navigate(`/domain/${result.doc_id}`);
-    } else if (result.doc_type === 'etl_job') {
-      // ETL Job 상세 페이지로 이동
-      navigate(`/etl/job/${result.doc_id}`);
+  // Edit 버튼: Dataset 편집
+  const handleEdit = (result) => {
+    const datasetType = result.dataset_type || 'source';
+    if (datasetType === 'target') {
+      navigate(`/target`, { state: { jobId: result.doc_id, editMode: true } });
+    } else {
+      navigate(`/source`, { state: { jobId: result.doc_id, editMode: true } });
     }
+    setIsOpen(false);
+    setQuery('');
+  };
+
+  // Catalog 버튼: 리니지 그래프
+  const handleCatalog = (result) => {
+    navigate(`/catalog/${result.doc_id}`);
+    setIsOpen(false);
+    setQuery('');
+  };
+
+  // Info 버튼: 상세 정보 (Runs, Quality)
+  const handleInfo = (result) => {
+    navigate(`/etl/job/${result.doc_id}/runs`);
     setIsOpen(false);
     setQuery('');
   };
@@ -62,6 +75,24 @@ export default function CatalogSearch() {
     } catch (err) {
       console.error('Indexing failed:', err);
     }
+  };
+
+  // 검색어 하이라이트 함수
+  const highlightText = (text, query) => {
+    if (!text || !query) return text;
+
+    const parts = text.split(new RegExp(`(${query})`, 'gi'));
+    return (
+      <>
+        {parts.map((part, index) =>
+          part.toLowerCase() === query.toLowerCase() ? (
+            <mark key={index} className="bg-yellow-200 text-gray-900">{part}</mark>
+          ) : (
+            part
+          )
+        )}
+      </>
+    );
   };
 
   // 결과를 doc_type별로 그룹화
@@ -93,7 +124,7 @@ export default function CatalogSearch() {
         </div>
         <input
           type="text"
-          placeholder="Search domains, ETL jobs..."
+          placeholder="Search datasets..."
           value={query}
           onChange={(e) => setQuery(e.target.value)}
           onFocus={() => {
@@ -137,19 +168,19 @@ export default function CatalogSearch() {
                       {/* Results */}
                       <div>
                         {items.slice(0, 5).map((result, idx) => (
-                          <button
+                          <div
                             key={`${result.doc_type}-${result.doc_id}-${idx}`}
-                            onClick={() => handleResultClick(result)}
-                            className="w-full px-4 py-2.5 hover:bg-blue-50 transition-colors text-left border-b border-gray-50 last:border-b-0"
+                            className="px-4 py-3 border-b border-gray-50 last:border-b-0 hover:bg-gray-50 transition-colors"
                           >
                             <div className="flex items-start gap-3">
                               <div className="mt-0.5">
                                 <IconComponent className="w-4 h-4 text-gray-400" />
                               </div>
                               <div className="flex-1 min-w-0">
+                                {/* Dataset Info */}
                                 <div className="flex items-center gap-2 mb-1">
                                   <span className="font-medium text-sm text-gray-900 truncate">
-                                    {result.name}
+                                    {highlightText(result.name, query)}
                                   </span>
                                   {result.status && (
                                     <span className={`text-xs px-1.5 py-0.5 rounded ${result.status === 'active'
@@ -161,12 +192,12 @@ export default function CatalogSearch() {
                                   )}
                                 </div>
                                 {result.description && (
-                                  <p className="text-xs text-gray-500 truncate">
-                                    {result.description}
+                                  <p className="text-xs text-gray-500 truncate mb-2">
+                                    {highlightText(result.description, query)}
                                   </p>
                                 )}
                                 {result.tags && result.tags.length > 0 && (
-                                  <div className="flex items-center gap-1 mt-1 flex-wrap">
+                                  <div className="flex items-center gap-1 mb-2 flex-wrap">
                                     {result.tags.slice(0, 3).map((tag, tagIdx) => (
                                       <span
                                         key={tagIdx}
@@ -182,9 +213,43 @@ export default function CatalogSearch() {
                                     )}
                                   </div>
                                 )}
+
+                                {/* Action Buttons */}
+                                <div className="flex items-center gap-2 mt-2">
+                                  <button
+                                    onClick={(e) => {
+                                      e.stopPropagation();
+                                      handleEdit(result);
+                                    }}
+                                    className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-gray-700 bg-white border border-gray-300 rounded-md hover:bg-gray-50 hover:border-gray-400 transition-colors"
+                                  >
+                                    <Edit className="w-3.5 h-3.5" />
+                                    Edit
+                                  </button>
+                                  <button
+                                    onClick={(e) => {
+                                      e.stopPropagation();
+                                      handleCatalog(result);
+                                    }}
+                                    className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-gray-700 bg-white border border-gray-300 rounded-md hover:bg-gray-50 hover:border-gray-400 transition-colors"
+                                  >
+                                    <GitBranch className="w-3.5 h-3.5" />
+                                    Catalog
+                                  </button>
+                                  <button
+                                    onClick={(e) => {
+                                      e.stopPropagation();
+                                      handleInfo(result);
+                                    }}
+                                    className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-gray-700 bg-white border border-gray-300 rounded-md hover:bg-gray-50 hover:border-gray-400 transition-colors"
+                                  >
+                                    <Info className="w-3.5 h-3.5" />
+                                    Info
+                                  </button>
+                                </div>
                               </div>
                             </div>
-                          </button>
+                          </div>
                         ))}
                       </div>
                     </div>
