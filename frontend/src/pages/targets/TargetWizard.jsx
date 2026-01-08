@@ -62,9 +62,10 @@ export default function TargetWizard() {
 
   // Step 3: Transformation
   const [sourceNodes, setSourceNodes] = useState([]); // Store source nodes for schema
-  const [targetSchema, setTargetSchema] = useState([]); // Array of column definitions
-  const [initialSchema, setInitialSchema] = useState([]); // Loaded or saved schema for initialization
-  const [isTestPassed, setIsTestPassed] = useState(false); // Track if Run Test was successful
+  const [activeSourceTab, setActiveSourceTab] = useState(0); // Active tab index for multiple sources
+  const [targetSchemas, setTargetSchemas] = useState({}); // { sourceId: schema } - one schema per source
+  const [initialSchemas, setInitialSchemas] = useState({}); // { sourceId: schema } - for edit mode
+  const [testResults, setTestResults] = useState({}); // { sourceId: boolean } - test status per source
 
   // Step 4: Schedule
   const [jobType, setJobType] = useState("batch");
@@ -117,12 +118,24 @@ export default function TargetWizard() {
           const sources = job.nodes.filter(n => n.data?.nodeCategory === 'source');
           setSourceNodes(sources);
 
-          // Restore target schema from transform node
-          const transformNode = job.nodes.find(n => n.data?.nodeCategory === 'transform');
-          if (transformNode && transformNode.data?.outputSchema) {
-            setTargetSchema(transformNode.data.outputSchema);
-            setInitialSchema(transformNode.data.outputSchema);
-          }
+          // Restore target schemas from transform nodes (one per source)
+          const schemas = {};
+          const initSchemas = {};
+
+          sources.forEach(source => {
+            const transformNode = job.nodes.find(
+              n => n.data?.nodeCategory === 'transform' &&
+                job.edges?.some(e => e.source === source.id && e.target === n.id)
+            );
+
+            if (transformNode?.data?.outputSchema) {
+              schemas[source.id] = transformNode.data.outputSchema;
+              initSchemas[source.id] = transformNode.data.outputSchema;
+            }
+          });
+
+          setTargetSchemas(schemas);
+          setInitialSchemas(initSchemas);
         }
 
         // Skip to Transform step in edit mode
@@ -459,35 +472,39 @@ export default function TargetWizard() {
     }
 
     try {
-      // Generate SQL Transform node
-      const sql = generateSql(targetSchema);
-      const transformNodeId = `transform-sql-${Date.now()}`;
+      // Generate transform nodes for each source
+      const transformNodes = sourceNodes.map((sourceNode, idx) => {
+        const schema = targetSchemas[sourceNode.id] || [];
+        const sql = generateSql(schema);
+        const transformNodeId = `transform-${sourceNode.id}-${Date.now()}`;
 
-      const transformNode = {
-        id: transformNodeId,
-        type: 'custom',
-        position: { x: 500, y: 200 },
-        data: {
-          label: 'Schema Transform',
-          name: 'Schema Transform',
-          platform: 'SQL Transform',
-          nodeCategory: 'transform',
-          transformType: 'sql',
-          query: sql,
-          outputSchema: targetSchema,
-        }
-      };
+        return {
+          id: transformNodeId,
+          type: 'custom',
+          position: { x: 500 + idx * 50, y: 200 + idx * 50 },
+          data: {
+            label: `Transform: ${sourceNode.data.name}`,
+            name: `Transform: ${sourceNode.data.name}`,
+            platform: 'SQL Transform',
+            nodeCategory: 'transform',
+            transformType: 'sql',
+            query: sql,
+            outputSchema: schema,
+            sourceNodeId: sourceNode.id,
+          }
+        };
+      });
 
-      // Create edges from all sources to transform node
-      const edges = sourceNodes.map(source => ({
-        id: `edge-${source.id}-${transformNodeId}`,
+      // Create edges from sources to their transform nodes
+      const edges = sourceNodes.map((source, idx) => ({
+        id: `edge-${source.id}-${transformNodes[idx].id}`,
         source: source.id,
-        target: transformNodeId,
+        target: transformNodes[idx].id,
         type: 'deletion'
       }));
 
       // Combine all nodes
-      const allNodes = [...sourceNodes, transformNode];
+      const allNodes = [...sourceNodes, ...transformNodes];
 
       const payload = {
         name: config.name,
@@ -549,8 +566,14 @@ export default function TargetWizard() {
         // Source step - check both Source and Target tabs
         return selectedJobIds.length > 0 || selectedTargetIds.length > 0;
       case 3:
-        // Process/Transform step - now requires successful test
-        return targetSchema.length > 0 && isTestPassed;
+        // Process/Transform step - all sources must have schema and pass test
+        const allHaveSchema = sourceNodes.every(
+          node => targetSchemas[node.id]?.length > 0
+        );
+        const allTestsPassed = sourceNodes.every(
+          node => testResults[node.id] === true
+        );
+        return allHaveSchema && allTestsPassed;
       case 4:
         return true; // Schedule step - always can proceed
       case 5:
@@ -1088,13 +1111,55 @@ export default function TargetWizard() {
           <div className="flex-1 flex flex-col overflow-hidden px-4 py-4">
             <div className="max-w-[100%] mx-auto w-full h-full flex flex-col">
               <div className="flex-1 min-h-0">
-                <SchemaTransformEditor
-                  sourceSchema={sourceNodes.flatMap(n => n.data?.columns || [])}
-                  sourceDatasetId={sourceNodes[0]?.data?.sourceDatasetId || sourceNodes[0]?.data?.catalogDatasetId}
-                  initialTargetSchema={initialSchema}
-                  onSchemaChange={setTargetSchema}
-                  onTestStatusChange={setIsTestPassed}
-                />
+                {sourceNodes[activeSourceTab] && (
+                  <SchemaTransformEditor
+                    sourceSchema={sourceNodes[activeSourceTab].data?.columns || []}
+                    sourceDatasetId={
+                      sourceNodes[activeSourceTab].data?.sourceDatasetId ||
+                      sourceNodes[activeSourceTab].data?.catalogDatasetId
+                    }
+                    initialTargetSchema={initialSchemas[sourceNodes[activeSourceTab].id] || []}
+                    onSchemaChange={(schema) => {
+                      setTargetSchemas(prev => ({
+                        ...prev,
+                        [sourceNodes[activeSourceTab].id]: schema
+                      }));
+                    }}
+                    onTestStatusChange={(passed) => {
+                      setTestResults(prev => ({
+                        ...prev,
+                        [sourceNodes[activeSourceTab].id]: passed
+                      }));
+                    }}
+                    sourceTabs={
+                      sourceNodes.length > 1 ? (
+                        <div className="flex gap-1 flex-wrap">
+                          {sourceNodes.map((source, idx) => (
+                            <button
+                              key={source.id}
+                              onClick={() => setActiveSourceTab(idx)}
+                              className={`px-3 py-1.5 text-xs font-medium rounded-md transition-colors flex items-center gap-1.5 ${activeSourceTab === idx
+                                ? 'bg-blue-100 text-blue-700 border border-blue-300'
+                                : 'bg-slate-50 text-slate-600 border border-slate-200 hover:bg-slate-100'
+                                }`}
+                            >
+                              <div
+                                className="w-1.5 h-1.5 rounded-full"
+                                style={{
+                                  backgroundColor: ['#3b82f6', '#10b981', '#f59e0b', '#8b5cf6'][idx % 4]
+                                }}
+                              />
+                              Source {idx + 1}: {source.data.name}
+                              {testResults[source.id] && (
+                                <span className="text-green-600 text-xs">✓</span>
+                              )}
+                            </button>
+                          ))}
+                        </div>
+                      ) : null
+                    }
+                  />
+                )}
               </div>
             </div>
           </div>
