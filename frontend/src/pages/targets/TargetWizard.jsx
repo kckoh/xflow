@@ -63,9 +63,9 @@ export default function TargetWizard() {
   // Step 3: Transformation
   const [sourceNodes, setSourceNodes] = useState([]); // Store source nodes for schema
   const [activeSourceTab, setActiveSourceTab] = useState(0); // Active tab index for multiple sources
-  const [targetSchemas, setTargetSchemas] = useState({}); // { sourceId: schema } - one schema per source
-  const [initialSchemas, setInitialSchemas] = useState({}); // { sourceId: schema } - for edit mode
-  const [testResults, setTestResults] = useState({}); // { sourceId: boolean } - test status per source
+  const [targetSchema, setTargetSchema] = useState([]); // Single shared target schema for all sources
+  const [initialTargetSchema, setInitialTargetSchema] = useState([]); // For edit mode
+  const [isTestPassed, setIsTestPassed] = useState(false); // Single test status for the combined schema
 
   // Step 4: Schedule
   const [jobType, setJobType] = useState("batch");
@@ -118,10 +118,8 @@ export default function TargetWizard() {
           const sources = job.nodes.filter(n => n.data?.nodeCategory === 'source');
           setSourceNodes(sources);
 
-          // Restore target schemas from transform nodes (one per source)
-          const schemas = {};
-          const initSchemas = {};
-
+          // Restore combined target schema from all transform nodes
+          const combinedSchema = [];
           sources.forEach(source => {
             const transformNode = job.nodes.find(
               n => n.data?.nodeCategory === 'transform' &&
@@ -129,13 +127,12 @@ export default function TargetWizard() {
             );
 
             if (transformNode?.data?.outputSchema) {
-              schemas[source.id] = transformNode.data.outputSchema;
-              initSchemas[source.id] = transformNode.data.outputSchema;
+              combinedSchema.push(...transformNode.data.outputSchema);
             }
           });
 
-          setTargetSchemas(schemas);
-          setInitialSchemas(initSchemas);
+          setTargetSchema(combinedSchema);
+          setInitialTargetSchema(combinedSchema);
         }
 
         // Skip to Transform step in edit mode
@@ -472,39 +469,36 @@ export default function TargetWizard() {
     }
 
     try {
-      // Generate transform nodes for each source
-      const transformNodes = sourceNodes.map((sourceNode, idx) => {
-        const schema = targetSchemas[sourceNode.id] || [];
-        const sql = generateSql(schema);
-        const transformNodeId = `transform-${sourceNode.id}-${Date.now()}`;
+      // Generate a single transform node with the combined schema
+      const sql = generateSql(targetSchema);
+      const transformNodeId = `transform-combined-${Date.now()}`;
 
-        return {
-          id: transformNodeId,
-          type: 'custom',
-          position: { x: 500 + idx * 50, y: 200 + idx * 50 },
-          data: {
-            label: `Transform: ${sourceNode.data.name}`,
-            name: `Transform: ${sourceNode.data.name}`,
-            platform: 'SQL Transform',
-            nodeCategory: 'transform',
-            transformType: 'sql',
-            query: sql,
-            outputSchema: schema,
-            sourceNodeId: sourceNode.id,
-          }
-        };
-      });
+      const transformNode = {
+        id: transformNodeId,
+        type: 'custom',
+        position: { x: 500, y: 200 },
+        data: {
+          label: `Transform: Combined`,
+          name: `Transform: Combined`,
+          platform: 'SQL Transform',
+          nodeCategory: 'transform',
+          transformType: 'sql',
+          query: sql,
+          outputSchema: targetSchema,
+          sourceNodeIds: sourceNodes.map(n => n.id),
+        }
+      };
 
-      // Create edges from sources to their transform nodes
-      const edges = sourceNodes.map((source, idx) => ({
-        id: `edge-${source.id}-${transformNodes[idx].id}`,
+      // Create edges from all sources to the single transform node
+      const edges = sourceNodes.map(source => ({
+        id: `edge-${source.id}-${transformNodeId}`,
         source: source.id,
-        target: transformNodes[idx].id,
-        type: 'deletion'
+        target: transformNodeId,
+        type: 'default'
       }));
 
       // Combine all nodes
-      const allNodes = [...sourceNodes, ...transformNodes];
+      const allNodes = [...sourceNodes, transformNode];
 
       const payload = {
         name: config.name,
@@ -566,14 +560,8 @@ export default function TargetWizard() {
         // Source step - check both Source and Target tabs
         return selectedJobIds.length > 0 || selectedTargetIds.length > 0;
       case 3:
-        // Process/Transform step - all sources must have schema and pass test
-        const allHaveSchema = sourceNodes.every(
-          node => targetSchemas[node.id]?.length > 0
-        );
-        const allTestsPassed = sourceNodes.every(
-          node => testResults[node.id] === true
-        );
-        return allHaveSchema && allTestsPassed;
+        // Process/Transform step - need schema with at least one column and test passed
+        return targetSchema.length > 0 && isTestPassed;
       case 4:
         return true; // Schedule step - always can proceed
       case 5:
@@ -1114,23 +1102,16 @@ export default function TargetWizard() {
                 {sourceNodes[activeSourceTab] && (
                   <SchemaTransformEditor
                     sourceSchema={sourceNodes[activeSourceTab].data?.columns || []}
+                    sourceName={sourceNodes[activeSourceTab].data?.name || `Source ${activeSourceTab + 1}`}
+                    sourceId={sourceNodes[activeSourceTab].id}
                     sourceDatasetId={
                       sourceNodes[activeSourceTab].data?.sourceDatasetId ||
                       sourceNodes[activeSourceTab].data?.catalogDatasetId
                     }
-                    initialTargetSchema={initialSchemas[sourceNodes[activeSourceTab].id] || []}
-                    onSchemaChange={(schema) => {
-                      setTargetSchemas(prev => ({
-                        ...prev,
-                        [sourceNodes[activeSourceTab].id]: schema
-                      }));
-                    }}
-                    onTestStatusChange={(passed) => {
-                      setTestResults(prev => ({
-                        ...prev,
-                        [sourceNodes[activeSourceTab].id]: passed
-                      }));
-                    }}
+                    targetSchema={targetSchema}
+                    initialTargetSchema={initialTargetSchema}
+                    onSchemaChange={setTargetSchema}
+                    onTestStatusChange={setIsTestPassed}
                     sourceTabs={
                       sourceNodes.length > 1 ? (
                         <div className="flex gap-1 flex-wrap">
@@ -1150,9 +1131,6 @@ export default function TargetWizard() {
                                 }}
                               />
                               Source {idx + 1}: {source.data.name}
-                              {testResults[source.id] && (
-                                <span className="text-green-600 text-xs">✓</span>
-                              )}
                             </button>
                           ))}
                         </div>

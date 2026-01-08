@@ -6,24 +6,32 @@ import { API_BASE_URL } from '../../config/api';
  * SchemaTransformEditor - Dual List Box style schema transformation UI
  * 
  * Props:
- * - sourceSchema: Array of { name, type } - columns from source dataset
+ * - sourceSchema: Array of { name, type } - columns from current source
+ * - sourceName: string - name of current source (for prefix when duplicates)
+ * - sourceId: string - ID of current source
  * - sourceDatasetId: string - ID of source dataset for testing
- * - onSchemaChange: (targetSchema) => void - callback when target schema changes
+ * - targetSchema: Array - shared target schema (from parent)
  * - initialTargetSchema: Array - initial target schema (for edit mode)
+ * - onSchemaChange: (targetSchema) => void - callback when target schema changes
+ * - onTestStatusChange: (boolean) => void - callback for test status
+ * - sourceTabs: ReactNode - tabs for switching between sources
  */
 export default function SchemaTransformEditor({
     sourceSchema = [],
+    sourceName = 'Source',
+    sourceId,
     sourceDatasetId,
+    targetSchema = [],
     onSchemaChange,
     onTestStatusChange,
     initialTargetSchema = [],
-    sourceTabs = null, // Source tabs to display below "Before (Source)" header
+    sourceTabs = null,
 }) {
-    // State
+    // State - beforeColumns is local, targetSchema is managed by parent
     const [beforeColumns, setBeforeColumns] = useState([]);
-    const [afterColumns, setAfterColumns] = useState([]);
     const [selectedBefore, setSelectedBefore] = useState(new Set());
     const [selectedAfter, setSelectedAfter] = useState(new Set());
+    const [isInitialized, setIsInitialized] = useState(false);
 
     // Transform function modal
     const [showFunctionModal, setShowFunctionModal] = useState(false);
@@ -36,52 +44,39 @@ export default function SchemaTransformEditor({
     const [isTestOpen, setIsTestOpen] = useState(false);
     const [isTestSuccessful, setIsTestSuccessful] = useState(false);
 
-    // Initialize from sourceSchema (only on sourceSchema change, not initialTargetSchema)
-    // Initialize from sourceSchema and initialTargetSchema
-    // Initialize from sourceSchema and initialTargetSchema
+    // Initialize beforeColumns when sourceSchema changes (source tab switches)
     useEffect(() => {
-        // Deep compare or simple length check to avoid re-running on new array reference with same data
-        // For now, we trust the parent to pass stable props OR we check if content changed.
-        // But simpler: just run this ONCE when mounting if we assume sourceSchema is stable from wizard step 1.
-        // However, user might go back and change sources.
-
         if (sourceSchema && sourceSchema.length > 0) {
             const columns = sourceSchema.map(col => ({
                 name: col.name || col.field,
                 type: col.type || 'string',
                 originalName: col.name || col.field,
             }));
-
-            // Always set beforeColumns to all source columns
             setBeforeColumns(columns);
-
-            // 1. If initialTargetSchema is provided and we haven't loaded it yet (empty afterColumns), load it.
-            if (initialTargetSchema && initialTargetSchema.length > 0 && afterColumns.length === 0) {
-                const initialAfter = initialTargetSchema.map(col => ({
-                    ...col,
-                    notNull: col.notNull || false,
-                    defaultValue: col.defaultValue || '',
-                    transform: col.transform || null,
-                    transformDisplay: col.transformDisplay || (col.transform ? `${col.transform}` : null),
-                    originalName: col.originalName || col.name,
-                }));
-
-                setAfterColumns(initialAfter);
-            }
+            // Clear selections when source changes
+            setSelectedBefore(new Set());
+            setSelectedAfter(new Set());
         }
-        // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [JSON.stringify(sourceSchema), JSON.stringify(initialTargetSchema)]);
+    }, [JSON.stringify(sourceSchema)]);
 
-    // Notify parent when afterColumns change
+    // Initialize targetSchema from initialTargetSchema only once
     useEffect(() => {
-        if (onSchemaChange) {
-            onSchemaChange(afterColumns);
+        if (!isInitialized && initialTargetSchema && initialTargetSchema.length > 0) {
+            const initialAfter = initialTargetSchema.map(col => ({
+                ...col,
+                notNull: col.notNull || false,
+                defaultValue: col.defaultValue || '',
+                transform: col.transform || null,
+                transformDisplay: col.transformDisplay || (col.transform ? `${col.transform}` : null),
+                originalName: col.originalName || col.name,
+                sourceId: col.sourceId || sourceId,
+                sourceName: col.sourceName || sourceName,
+            }));
+            onSchemaChange(initialAfter);
+            setIsInitialized(true);
         }
-        // Reset test status when schema changes
-        setIsTestSuccessful(false);
-        if (onTestStatusChange) onTestStatusChange(false);
         // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [afterColumns]);
+    }, [JSON.stringify(initialTargetSchema), isInitialized]);
 
     // Selection handlers
     const toggleBeforeSelection = (colName) => {
@@ -108,72 +103,120 @@ export default function SchemaTransformEditor({
         });
     };
 
+    // Check if column from current source is already in target
+    const isColumnInTarget = (colName) => {
+        return targetSchema.some(ac => ac.originalName === colName && ac.sourceId === sourceId);
+    };
+
+    // Generate unique name with prefix if needed
+    const getUniqueColumnName = (colName) => {
+        // Check if this exact name already exists in target (from different source)
+        const nameExists = targetSchema.some(ac => ac.name === colName && ac.sourceId !== sourceId);
+        if (nameExists) {
+            // Add source name as prefix
+            return `${sourceName}_${colName}`;
+        }
+        return colName;
+    };
+
     // Move handlers
     const moveSelectedToRight = () => {
         const toMove = beforeColumns.filter(c => selectedBefore.has(c.name));
-        const enriched = toMove.map(c => ({
+        // Filter out columns that are already in target from THIS source
+        const newColumns = toMove.filter(c => !isColumnInTarget(c.originalName));
+
+        if (newColumns.length === 0) {
+            setSelectedBefore(new Set());
+            return;
+        }
+
+        const enriched = newColumns.map(c => ({
             ...c,
+            name: getUniqueColumnName(c.name),
             notNull: false,
             defaultValue: '',
             transform: null,
             transformDisplay: null,
+            sourceId: sourceId,
+            sourceName: sourceName,
         }));
-        setAfterColumns(prev => [...prev, ...enriched]);
-        // Do NOT remove from beforeColumns
+
+        onSchemaChange([...targetSchema, ...enriched]);
         setSelectedBefore(new Set());
+        // Reset test status
+        setIsTestSuccessful(false);
+        if (onTestStatusChange) onTestStatusChange(false);
     };
 
     const moveAllToRight = () => {
-        const enriched = beforeColumns.map(c => ({
+        // Filter out columns that are already in target from THIS source
+        const newColumns = beforeColumns.filter(c => !isColumnInTarget(c.originalName));
+
+        if (newColumns.length === 0) {
+            setSelectedBefore(new Set());
+            return;
+        }
+
+        const enriched = newColumns.map(c => ({
             ...c,
+            name: getUniqueColumnName(c.name),
             notNull: false,
             defaultValue: '',
             transform: null,
             transformDisplay: null,
+            sourceId: sourceId,
+            sourceName: sourceName,
         }));
-        setAfterColumns(prev => [...prev, ...enriched]);
-        // Do NOT remove from beforeColumns
+
+        onSchemaChange([...targetSchema, ...enriched]);
         setSelectedBefore(new Set());
+        // Reset test status
+        setIsTestSuccessful(false);
+        if (onTestStatusChange) onTestStatusChange(false);
     };
 
     const moveSelectedToLeft = () => {
-        // Just remove from afterColumns
-        setAfterColumns(prev => prev.filter(c => !selectedAfter.has(c.name)));
+        // Remove selected columns from targetSchema
+        const newSchema = targetSchema.filter(c => !selectedAfter.has(c.name));
+        onSchemaChange(newSchema);
         setSelectedAfter(new Set());
+        // Reset test status
+        setIsTestSuccessful(false);
+        if (onTestStatusChange) onTestStatusChange(false);
     };
 
     const moveAllToLeft = () => {
-        // Just clear afterColumns
-        setAfterColumns([]);
+        // Clear all target columns
+        onSchemaChange([]);
         setSelectedAfter(new Set());
+        // Reset test status
+        setIsTestSuccessful(false);
+        if (onTestStatusChange) onTestStatusChange(false);
     };
 
     // Reorder handlers
     const moveUp = (index) => {
         if (index <= 0) return;
-        setAfterColumns(prev => {
-            const next = [...prev];
-            [next[index - 1], next[index]] = [next[index], next[index - 1]];
-            return next;
-        });
+        const next = [...targetSchema];
+        [next[index - 1], next[index]] = [next[index], next[index - 1]];
+        onSchemaChange(next);
     };
 
     const moveDown = (index) => {
-        if (index >= afterColumns.length - 1) return;
-        setAfterColumns(prev => {
-            const next = [...prev];
-            [next[index], next[index + 1]] = [next[index + 1], next[index]];
-            return next;
-        });
+        if (index >= targetSchema.length - 1) return;
+        const next = [...targetSchema];
+        [next[index], next[index + 1]] = [next[index + 1], next[index]];
+        onSchemaChange(next);
     };
 
     // Column property handlers
     const updateColumnProperty = (index, property, value) => {
-        setAfterColumns(prev => {
-            const next = [...prev];
-            next[index] = { ...next[index], [property]: value };
-            return next;
-        });
+        const next = [...targetSchema];
+        next[index] = { ...next[index], [property]: value };
+        onSchemaChange(next);
+        // Reset test status when properties change
+        setIsTestSuccessful(false);
+        if (onTestStatusChange) onTestStatusChange(false);
     };
 
     // Open transform function editor
@@ -185,27 +228,28 @@ export default function SchemaTransformEditor({
     // Apply transform function
     const applyTransform = (transformExpr, newName, newType) => {
         if (editingColumn) {
-            setAfterColumns(prev => {
-                const next = [...prev];
-                next[editingColumn.index] = {
-                    ...next[editingColumn.index],
-                    name: newName || next[editingColumn.index].name,
-                    type: newType || next[editingColumn.index].type,
-                    transform: transformExpr,
-                    transformDisplay: transformExpr ? `${transformExpr}` : null,
-                };
-                return next;
-            });
+            const next = [...targetSchema];
+            next[editingColumn.index] = {
+                ...next[editingColumn.index],
+                name: newName || next[editingColumn.index].name,
+                type: newType || next[editingColumn.index].type,
+                transform: transformExpr,
+                transformDisplay: transformExpr ? `${transformExpr}` : null,
+            };
+            onSchemaChange(next);
+            // Reset test status
+            setIsTestSuccessful(false);
+            if (onTestStatusChange) onTestStatusChange(false);
         }
         setShowFunctionModal(false);
         setEditingColumn(null);
     };
 
-    // Generate SQL from afterColumns
+    // Generate SQL from targetSchema
     const generateSql = () => {
-        if (afterColumns.length === 0) return 'SELECT * FROM input';
+        if (targetSchema.length === 0) return 'SELECT * FROM input';
 
-        const selectClauses = afterColumns.map(col => {
+        const selectClauses = targetSchema.map(col => {
             if (col.transform) {
                 return `${col.transform} AS ${col.name}`;
             }
@@ -221,7 +265,7 @@ export default function SchemaTransformEditor({
         setIsTestSuccessful(false);
         if (onTestStatusChange) onTestStatusChange(false);
 
-        if (afterColumns.length === 0) {
+        if (targetSchema.length === 0) {
             setTestError('Please move at least one column to the "After (Target)" list to test.');
             return;
         }
@@ -298,7 +342,7 @@ export default function SchemaTransformEditor({
                         ) : (
                             <div className="space-y-1">
                                 {beforeColumns.map(col => {
-                                    const isInTarget = afterColumns.some(ac => ac.originalName === col.name);
+                                    const isInTarget = isColumnInTarget(col.name);
                                     const isSelected = selectedBefore.has(col.name);
                                     return (
                                         <div
@@ -365,7 +409,7 @@ export default function SchemaTransformEditor({
                     </button>
                     <button
                         onClick={moveAllToLeft}
-                        disabled={afterColumns.length === 0}
+                        disabled={targetSchema.length === 0}
                         className="p-2 rounded-md bg-white border border-gray-300 hover:bg-red-50 hover:border-red-300 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
                         title="Remove all"
                     >
@@ -382,13 +426,13 @@ export default function SchemaTransformEditor({
                         </h3>
                     </div>
                     <div className="flex-1 overflow-y-auto p-2">
-                        {afterColumns.length === 0 ? (
+                        {targetSchema.length === 0 ? (
                             <div className="flex items-center justify-center h-full text-gray-400 text-sm">
                                 Select columns from the left
                             </div>
                         ) : (
                             <div className="space-y-2">
-                                {afterColumns.map((col, index) => (
+                                {targetSchema.map((col, index) => (
                                     <div
                                         key={`${col.name}-${index}`}
                                         className={`p-2.5 rounded-xl border transition-all ${selectedAfter.has(col.name)
@@ -447,7 +491,7 @@ export default function SchemaTransformEditor({
                                             </button>
                                             <button
                                                 onClick={() => moveDown(index)}
-                                                disabled={index === afterColumns.length - 1}
+                                                disabled={index === targetSchema.length - 1}
                                                 className="p-1 rounded hover:bg-gray-200 disabled:opacity-30 disabled:cursor-not-allowed"
                                             >
                                                 <ChevronDown className="w-4 h-4 text-gray-500" />
