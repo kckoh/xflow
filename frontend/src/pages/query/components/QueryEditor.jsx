@@ -2,8 +2,9 @@ import { useState } from "react";
 import { Play, Loader2, CheckCircle, XCircle, Clock, Download } from "lucide-react";
 import { executeQuery as runDuckDBQuery } from "../../../services/apiDuckDB";
 import { useToast } from "../../../components/common/Toast";
+import QueryChart from "./QueryChart";
 
-export default function QueryEditor({ selectedTable }) {
+export default function QueryEditor({ selectedTable, viewMode }) {
     const [query, setQuery] = useState("");
     const [executing, setExecuting] = useState(false);
     const [queryStatus, setQueryStatus] = useState(null);
@@ -184,54 +185,63 @@ export default function QueryEditor({ selectedTable }) {
                             </div>
 
                             {/* Download Button */}
-                            <button
-                                onClick={downloadCSV}
-                                className="flex items-center gap-1 px-3 py-1.5 text-sm font-medium text-gray-600 bg-white border border-gray-200 rounded-lg hover:bg-gray-50 transition-colors"
-                            >
-                                <Download className="w-4 h-4" />
-                                Download CSV
-                            </button>
+                            {viewMode === 'table' && (
+                                <button
+                                    onClick={downloadCSV}
+                                    className="flex items-center gap-1 px-3 py-1.5 text-sm font-medium text-gray-600 bg-white border border-gray-200 rounded-lg hover:bg-gray-50 transition-colors"
+                                >
+                                    <Download className="w-4 h-4" />
+                                    Download CSV
+                                </button>
+                            )}
                         </div>
 
                         {/* Table View */}
-                        <div className="overflow-auto border border-gray-200 rounded-lg">
-                            <table className="w-full text-sm">
-                                <thead className="bg-gray-50 border-b border-gray-200">
-                                    <tr>
-                                        {results.columns.map((column) => (
-                                            <th
-                                                key={column}
-                                                className="px-4 py-3 text-left font-medium text-gray-700"
-                                            >
-                                                {column}
-                                            </th>
-                                        ))}
-                                    </tr>
-                                </thead>
-                                <tbody className="divide-y divide-gray-200">
-                                    {results.data.map((row, rowIndex) => (
-                                        <tr
-                                            key={rowIndex}
-                                            className="hover:bg-gray-50 transition-colors"
-                                        >
+                        {viewMode === 'table' && (
+                            <div className="overflow-auto border border-gray-200 rounded-lg">
+                                <table className="w-full text-sm">
+                                    <thead className="bg-gray-50 border-b border-gray-200">
+                                        <tr>
                                             {results.columns.map((column) => (
-                                                <td
+                                                <th
                                                     key={column}
-                                                    className="px-4 py-3 text-gray-900"
+                                                    className="px-4 py-3 text-left font-medium text-gray-700"
                                                 >
-                                                    {(() => {
-                                                        const value = row[column];
-                                                        if (value === null || value === undefined) return "-";
-                                                        if (typeof value === "object") return JSON.stringify(value);
-                                                        return String(value);
-                                                    })()}
-                                                </td>
+                                                    {column}
+                                                </th>
                                             ))}
                                         </tr>
-                                    ))}
-                                </tbody>
-                            </table>
-                        </div>
+                                    </thead>
+                                    <tbody className="divide-y divide-gray-200">
+                                        {results.data.map((row, rowIndex) => (
+                                            <tr
+                                                key={rowIndex}
+                                                className="hover:bg-gray-50 transition-colors"
+                                            >
+                                                {results.columns.map((column) => (
+                                                    <td
+                                                        key={column}
+                                                        className="px-4 py-3 text-gray-900"
+                                                    >
+                                                        {(() => {
+                                                            const value = row[column];
+                                                            if (value === null || value === undefined) return "-";
+                                                            if (typeof value === "object") return JSON.stringify(value);
+                                                            return String(value);
+                                                        })()}
+                                                    </td>
+                                                ))}
+                                            </tr>
+                                        ))}
+                                    </tbody>
+                                </table>
+                            </div>
+                        )}
+
+                        {/* Chart View */}
+                        {viewMode === 'chart' && (
+                            <QueryChart data={results.data} columns={results.columns} />
+                        )}
                     </div>
                 ) : (
                     <div className="flex items-center justify-center h-full text-gray-400">
