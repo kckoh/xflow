@@ -368,7 +368,7 @@ class QualityService:
             result.null_counts = null_counts
             
             # B) Duplicate Check
-            duplicate_count = total_rows - distinct_rows
+            duplicate_count = max(0, total_rows - distinct_rows)  # Prevent negative
             result.duplicate_count = duplicate_count
             
             duplicate_ratio = 0.0
