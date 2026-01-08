@@ -256,11 +256,15 @@ export default function SchemaTransformEditor({
 
         if (columnsToUse.length === 0) return 'SELECT * FROM input';
 
+        // For UNION ALL, use the original column names from input DataFrame
+        // which already has all columns aligned
         const selectClauses = columnsToUse.map(col => {
             if (col.transform) {
                 return `${col.transform} AS ${col.name}`;
             }
-            return col.originalName === col.name ? col.name : `${col.originalName} AS ${col.name}`;
+            // Use originalName for SELECT since that's what exists in the source data
+            // The UNION ALL already aligned the columns by originalName
+            return col.originalName;
         });
 
         return `SELECT ${selectClauses.join(', ')} FROM input`;
@@ -309,10 +313,9 @@ export default function SchemaTransformEditor({
                 })
             });
 
+
             const result = await response.json();
 
-            // Debug: Log the result to see if source_samples is present
-            console.log('🔍 Test API Response:', result);
 
             if (!response.ok) {
                 throw new Error(result.detail || 'Test failed');
@@ -728,7 +731,7 @@ export default function SchemaTransformEditor({
                                             </tr>
                                         </thead>
                                         <tbody>
-                                            {testResult.afterRows.slice(0, 5).map((row, i) => (
+                                            {testResult.afterRows.map((row, i) => (
                                                 <tr key={i} className="hover:bg-indigo-50/30 transition-colors">
                                                     {(testResult.afterRows.length > 0
                                                         ? Array.from(new Set(testResult.afterRows.flatMap(Object.keys)))
