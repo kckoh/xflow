@@ -109,9 +109,15 @@ def convert_nodes_to_sources(nodes, edges, db):
                         if source_type == "s3":
                             source_config["bucket"] = source_dataset.get("bucket")
                             source_config["path"] = source_dataset.get("path")
+                            source_config["format"] = source_dataset.get("format", "parquet")
+                            # Get customRegex from node_data (set in Target Wizard)
+                            source_config["customRegex"] = node_data.get("customRegex") or source_dataset.get("customRegex")
 
                         sources.append(source_config)
-                        print(f"   Converted source node: {node_id} -> {source_type} (table: {table_name or collection_name or source_config.get('bucket')})")
+                        if source_type == "s3":
+                            print(f"   Converted S3 source node: {node_id} -> bucket={source_config.get('bucket')}, format={source_config.get('format')}, customRegex={bool(source_config.get('customRegex'))}")
+                        else:
+                            print(f"   Converted source node: {node_id} -> {source_type} (table: {table_name or collection_name or source_config.get('bucket')})")
                     else:
                         # ETL Job format - get source info from the ETL job's source config
                         job_source = source_dataset.get("source", {})

@@ -60,7 +60,8 @@ export default function S3LogProcessEditor({
                 filters: filters
             });
         }
-    }, [selectedFields, filters, onConfigChange]);
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [selectedFields, filters]);
 
     // Field selection handlers
     const toggleFieldSelection = (fieldName) => {

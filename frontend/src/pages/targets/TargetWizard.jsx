@@ -1269,6 +1269,7 @@ export default function TargetWizard() {
                         config.selected_fields.map((field) => ({
                           name: field,
                           type: "string",
+                          originalName: field,
                         }))
                       );
                     }}
