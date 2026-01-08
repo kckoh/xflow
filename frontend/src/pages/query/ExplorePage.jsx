@@ -18,6 +18,7 @@ export default function ExplorePage() {
     const [yAxes, setYAxes] = useState([]); // Multiple metrics
     const [calculatedMetrics, setCalculatedMetrics] = useState([]); // Calculated metrics from UI
     const [breakdownBy, setBreakdownBy] = useState(''); // For stacked bar
+    const [isStacked, setIsStacked] = useState(false); // Stack bars toggle
     const [aggregation, setAggregation] = useState('SUM');
     const [timeGrain, setTimeGrain] = useState(''); // day, week, month, year
     const [limit, setLimit] = useState(20);
@@ -120,6 +121,7 @@ export default function ExplorePage() {
                         yAxes={yAxes}
                         calculatedMetrics={calculatedMetrics}
                         breakdownBy={breakdownBy}
+                        isStacked={isStacked}
                         aggregation={aggregation}
                         timeGrain={timeGrain}
                         limit={limit}
@@ -142,6 +144,8 @@ export default function ExplorePage() {
                         setCalculatedMetrics={setCalculatedMetrics}
                         breakdownBy={breakdownBy}
                         setBreakdownBy={setBreakdownBy}
+                        isStacked={isStacked}
+                        setIsStacked={setIsStacked}
                         aggregation={aggregation}
                         setAggregation={setAggregation}
                         timeGrain={timeGrain}

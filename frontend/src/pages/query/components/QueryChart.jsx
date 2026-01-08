@@ -14,13 +14,75 @@ export default function QueryChart({
     yAxes, // Array of {column, aggregation}
     calculatedMetrics, // Array of {metricA, operation, metricB, label}
     breakdownBy,
+    isStacked,
     aggregation,
     timeGrain,
     limit
 }) {
     // Prepare chart data with aggregation
     const chartData = useMemo(() => {
-        if (!data || !xAxis || yAxes.length === 0) return [];
+        if (!data || yAxes.length === 0) return [];
+
+        // If no x-axis, aggregate everything into one group
+        if (!xAxis) {
+            const totalGroup = {
+                '_category': 'Total',
+                count: data.length,
+                sums: {},
+                maxes: {},
+                mins: {},
+            };
+
+            data.forEach(row => {
+                yAxes.forEach(metric => {
+                    const col = metric.column;
+                    const value = parseFloat(row[col]) || 0;
+
+                    if (!totalGroup.sums[col]) {
+                        totalGroup.sums[col] = 0;
+                        totalGroup.maxes[col] = value;
+                        totalGroup.mins[col] = value;
+                    }
+
+                    totalGroup.sums[col] += value;
+                    totalGroup.maxes[col] = Math.max(totalGroup.maxes[col], value);
+                    totalGroup.mins[col] = Math.min(totalGroup.mins[col], value);
+                });
+            });
+
+            // Create single result
+            const result = { '_category': 'Total' };
+            yAxes.forEach(metric => {
+                const col = metric.column;
+                const agg = metric.aggregation;
+                let value;
+
+                switch (agg) {
+                    case 'COUNT':
+                        value = totalGroup.count;
+                        break;
+                    case 'SUM':
+                        value = totalGroup.sums[col] || 0;
+                        break;
+                    case 'AVG':
+                        value = (totalGroup.sums[col] || 0) / totalGroup.count;
+                        break;
+                    case 'MAX':
+                        value = totalGroup.maxes[col] || 0;
+                        break;
+                    case 'MIN':
+                        value = totalGroup.mins[col] || 0;
+                        break;
+                    default:
+                        value = totalGroup.sums[col] || 0;
+                }
+
+                const metricKey = `${agg}(${col})`;
+                result[metricKey] = value;
+            });
+
+            return [result];
+        }
 
         // Group by x-axis and optionally breakdownBy
         const groups = {};
@@ -220,7 +282,7 @@ export default function QueryChart({
                     <ResponsiveContainer width="100%" height={600}>
                         <BarChart data={displayData} margin={{ bottom: 80 }}>
                             <CartesianGrid strokeDasharray="3 3" stroke="#E5E7EB" />
-                            <XAxis dataKey={xAxis} tick={{ fontSize: 12 }} />
+                            <XAxis dataKey={xAxis || '_category'} tick={{ fontSize: 12 }} />
                             <YAxis tick={{ fontSize: 12 }} />
                             <Tooltip />
                             <Legend
@@ -250,7 +312,7 @@ export default function QueryChart({
                                     );
                                 })()
                             ) : (
-                                // Multiple metrics as separate bars
+                                // Multiple metrics - stacked or grouped based on isStacked
                                 <>
                                     {yAxes.map((metric, index) => {
                                         const metricKey = `${metric.aggregation}(${metric.column})`;
@@ -258,9 +320,10 @@ export default function QueryChart({
                                             <Bar
                                                 key={metricKey}
                                                 dataKey={metricKey}
+                                                stackId={isStacked ? "metrics" : undefined}
                                                 fill={CHART_COLORS[index % CHART_COLORS.length]}
                                                 name={metricKey}
-                                                radius={[8, 8, 0, 0]}
+                                                radius={isStacked && index === yAxes.length - 1 ? [8, 8, 0, 0] : [8, 8, 0, 0]}
                                             />
                                         );
                                     })}
@@ -270,6 +333,7 @@ export default function QueryChart({
                                         <Bar
                                             key={calc.label}
                                             dataKey={calc.label}
+                                            stackId={isStacked ? "metrics" : undefined}
                                             fill={CHART_COLORS[(yAxes.length + index) % CHART_COLORS.length]}
                                             name={calc.label}
                                             radius={[8, 8, 0, 0]}
@@ -286,7 +350,7 @@ export default function QueryChart({
                     <ResponsiveContainer width="100%" height={600}>
                         <LineChart data={displayData} margin={{ bottom: 80 }}>
                             <CartesianGrid strokeDasharray="3 3" stroke="#E5E7EB" />
-                            <XAxis dataKey={xAxis} tick={{ fontSize: 12 }} />
+                            <XAxis dataKey={xAxis || '_category'} tick={{ fontSize: 12 }} />
                             <YAxis tick={{ fontSize: 12 }} />
                             <Tooltip />
                             <Legend
@@ -329,7 +393,7 @@ export default function QueryChart({
                     <ResponsiveContainer width="100%" height={600}>
                         <AreaChart data={displayData} margin={{ bottom: 80 }}>
                             <CartesianGrid strokeDasharray="3 3" stroke="#E5E7EB" />
-                            <XAxis dataKey={xAxis} tick={{ fontSize: 12 }} />
+                            <XAxis dataKey={xAxis || '_category'} tick={{ fontSize: 12 }} />
                             <YAxis tick={{ fontSize: 12 }} />
                             <Tooltip />
                             <Legend
