@@ -7,6 +7,8 @@ import {
     Database,
     FolderOpen,
     FileText,
+    Copy,
+    Check,
 } from "lucide-react";
 import { listBuckets, listBucketFiles, getSchema } from "../../../services/apiDuckDB";
 import Combobox from "../../../components/common/Combobox";
@@ -21,6 +23,7 @@ export default function TableColumnSidebar({ selectedTable, onSelectTable }) {
     const [loadingColumns, setLoadingColumns] = useState(false);
     const [error, setError] = useState(null);
     const [expandedFolder, setExpandedFolder] = useState(null);
+    const [copied, setCopied] = useState(false);
 
     // 버킷 목록 가져오기
     const fetchBuckets = async () => {
@@ -128,7 +131,7 @@ export default function TableColumnSidebar({ selectedTable, onSelectTable }) {
     };
 
     return (
-        <div className="w-80 bg-gray-50 border-r border-gray-200 flex flex-col">
+        <div className="w-80 h-full bg-gray-50 border-r border-gray-200 flex flex-col">
             {/* Header */}
             <div className="p-4 border-b border-gray-200 bg-white">
                 <div className="flex items-center justify-between mb-3">
@@ -139,11 +142,10 @@ export default function TableColumnSidebar({ selectedTable, onSelectTable }) {
                     <button
                         onClick={fetchBuckets}
                         disabled={loading}
-                        className={`flex items-center gap-1.5 px-2 py-1 text-xs font-medium rounded-md transition-colors ${
-                            loading
-                                ? "bg-gray-100 text-gray-400 cursor-not-allowed"
-                                : "bg-gray-200 text-gray-600 hover:bg-gray-300"
-                        }`}
+                        className={`flex items-center gap-1.5 px-2 py-1 text-xs font-medium rounded-md transition-colors ${loading
+                            ? "bg-gray-100 text-gray-400 cursor-not-allowed"
+                            : "bg-gray-200 text-gray-600 hover:bg-gray-300"
+                            }`}
                     >
                         <RefreshCw className={`w-3 h-3 ${loading ? "animate-spin" : ""}`} />
                     </button>
@@ -188,9 +190,8 @@ export default function TableColumnSidebar({ selectedTable, onSelectTable }) {
                             {/* Folder Row */}
                             <button
                                 onClick={() => handleFolderClick(folder)}
-                                className={`w-full text-left px-4 py-3 hover:bg-white transition-colors ${
-                                    expandedFolder?.name === folder.name ? "bg-white" : ""
-                                }`}
+                                className={`w-full text-left px-4 py-3 hover:bg-white transition-colors ${expandedFolder?.name === folder.name ? "bg-white" : ""
+                                    }`}
                             >
                                 <div className="flex items-center justify-between">
                                     <div className="flex items-center gap-2 flex-1 min-w-0">
@@ -256,12 +257,32 @@ export default function TableColumnSidebar({ selectedTable, onSelectTable }) {
             {/* Query Hint */}
             {selectedTable && (
                 <div className="p-3 bg-blue-50 border-t border-blue-100">
-                    <p className="text-xs text-blue-700">
-                        <span className="font-medium">Query:</span>
-                    </p>
-                    <code className="text-xs text-blue-800 break-all">
-                        SELECT * FROM "{selectedTable.path}"
-                    </code>
+                    <div className="flex items-start justify-between gap-2">
+                        <div className="flex-1">
+                            <p className="text-xs text-blue-700 mb-1">
+                                <span className="font-medium">Query:</span>
+                            </p>
+                            <code className="text-xs text-blue-800 break-all">
+                                SELECT * FROM "{selectedTable.path}"
+                            </code>
+                        </div>
+                        <button
+                            onClick={() => {
+                                const query = `SELECT * FROM "${selectedTable.path}"`;
+                                navigator.clipboard.writeText(query);
+                                setCopied(true);
+                                setTimeout(() => setCopied(false), 2000);
+                            }}
+                            className="flex-shrink-0 p-1.5 rounded hover:bg-blue-100 transition-colors"
+                            title="Copy to clipboard"
+                        >
+                            {copied ? (
+                                <Check className="w-4 h-4 text-green-600" />
+                            ) : (
+                                <Copy className="w-4 h-4 text-blue-600" />
+                            )}
+                        </button>
+                    </div>
                 </div>
             )}
         </div>

@@ -3,7 +3,7 @@ SQL Test API - Test SQL queries with DuckDB before execution
 """
 from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel
-from typing import List, Dict, Any, Optional
+from typing import List, Dict, Any, Optional, Tuple
 import duckdb
 import pandas as pd
 from bson import ObjectId
@@ -13,8 +13,14 @@ import database
 router = APIRouter()
 
 
-class SQLTestRequest(BaseModel):
+class SourceInfo(BaseModel):
+    """Information about a single source dataset"""
     source_dataset_id: str
+    columns: List[str]  # Columns to select from this source
+
+
+class SQLTestRequest(BaseModel):
+    sources: List[SourceInfo]  # Support multiple sources for UNION ALL
     sql: str
     limit: Optional[int] = 5
 
@@ -25,11 +31,18 @@ class ColumnSchema(BaseModel):
     nullable: bool = True
 
 
+class SourceSample(BaseModel):
+    """Sample data from a single source"""
+    source_name: str
+    rows: List[Dict[str, Any]]
+
+
 class SQLTestResponse(BaseModel):
     valid: bool
     schema: Optional[List[ColumnSchema]] = None
     sample_rows: Optional[List[Dict[str, Any]]] = None
     before_rows: Optional[List[Dict[str, Any]]] = None
+    source_samples: Optional[List[SourceSample]] = None  # Per-source samples
     error: Optional[str] = None
     execution_time_ms: Optional[int] = None
 
@@ -39,7 +52,7 @@ async def test_sql_query(request: SQLTestRequest):
     """
     Test SQL query with sample data using DuckDB
     
-    Fast validation before running full Spark job
+    Supports multiple sources combined with UNION ALL
     """
     import time
     start_time = time.time()
@@ -49,92 +62,30 @@ async def test_sql_query(request: SQLTestRequest):
         # Get MongoDB database
         db = database.mongodb_client[database.DATABASE_NAME]
         
-        # 1. Get source dataset details (Try source_datasets first, then catalog datasets)
-        source_dataset = None
-        connection = None
-        
-        # Try source_datasets
-        try:
-            source_dataset = await db.source_datasets.find_one({"_id": ObjectId(request.source_dataset_id)})
-        except:
-            pass
-            
-        if source_dataset:
-            # Get connection details for source_dataset
-            connection_id = source_dataset.get("connection_id")
-            if connection_id:
-                connection = await db.connections.find_one({"_id": ObjectId(connection_id)})
-        else:
-            # Try catalog datasets (Dataset model)
-            try:
-                catalog_dataset = await db.datasets.find_one({"_id": ObjectId(request.source_dataset_id)})
-                if catalog_dataset:
-                    # Map catalog dataset to a common format for _load_sample_data
-                    destination = catalog_dataset.get("destination", {})
-                    base_path = destination.get("path", "")
-                    name = catalog_dataset.get("name", "")
-                    
-                    full_path = base_path
-                    if base_path and name and not base_path.endswith(name):
-                        if not base_path.endswith('/'):
-                            full_path += '/'
-                        full_path += name
-                    
-                    # Fallback to URN if destination path is missing (similar to frontend)
-                    if not full_path and catalog_dataset.get("targets"):
-                        target = catalog_dataset.get("targets")[0]
-                        urn = target.get("urn", "")
-                        if urn.startswith("urn:s3:"):
-                            parts = urn.split(":")
-                            if len(parts) >= 4:
-                                bucket = parts[2]
-                                key = ":".join(parts[3:]) or name
-                                full_path = f"s3a://{bucket}/{key}"
-
-                    source_dataset = {
-                        "id": str(catalog_dataset.get("_id")),
-                        "name": catalog_dataset.get("name"),
-                        "source_type": destination.get("type", "s3"), # Usually s3 for catalog
-                        "path": full_path,
-                        "format": destination.get("format", "parquet"),
-                        "is_catalog": True
-                    }
-                    # For catalog datasets in S3, we might not need a connection object if credentials are env-based
-                    # but we look for a default S3 connection anyway
-                    connection = await db.connections.find_one({"type": "s3"})
-            except:
-                pass
-
-        if not source_dataset:
-            raise HTTPException(
-                status_code=404,
-                detail=f"Dataset not found: {request.source_dataset_id}"
-            )
-        
-        # 3. Load sample data (using limit)
-        sample_df = await _load_sample_data(source_dataset, connection, limit=100)
+        # Load and combine data from all sources
+        sample_df, source_samples = await _load_and_union_sources(request.sources, db, limit=100)
         
         if sample_df is None or len(sample_df) == 0:
             raise HTTPException(
                 status_code=400,
-                detail="No data available from source"
+                detail="No data available from sources"
             )
         
-        # 4. Execute SQL with DuckDB
+        # Execute SQL with DuckDB
         con = duckdb.connect()
         
-        # Register sample data as "input" table
+        # Register combined data as "input" table
         con.register('input', sample_df)
         
         # Execute user's SQL and apply limit
         sql = request.sql
-        # Only add limit if not present and if it's a simple select
+        # Only add limit if not present
         if "limit" not in sql.lower():
             sql = f"SELECT * FROM ({sql}) LIMIT {limit}"
             
         result_df = con.execute(sql).df()
         
-        # 5. Extract schema
+        # Extract schema
         schema = []
         for col in result_df.columns:
             dtype = str(result_df[col].dtype)
@@ -156,7 +107,7 @@ async def test_sql_query(request: SQLTestRequest):
                 nullable=result_df[col].isnull().any()
             ))
         
-        # 6. Get sample rows
+        # Get sample rows
         sample_rows = result_df.to_dict('records')
         
         # Convert any non-serializable types for sample_rows
@@ -167,7 +118,7 @@ async def test_sql_query(request: SQLTestRequest):
                 elif isinstance(value, (pd.Timestamp, pd.DatetimeTZDtype)):
                     row[key] = str(value)
 
-        # 7. Get before rows (source sample) - limit to same number as requested
+        # Get before rows (combined source sample) - limit to same number as requested
         before_rows = sample_df.head(limit).to_dict('records')
         for row in before_rows:
             for key, value in row.items():
@@ -183,6 +134,7 @@ async def test_sql_query(request: SQLTestRequest):
             schema=schema,
             sample_rows=sample_rows,
             before_rows=before_rows,
+            source_samples=source_samples,  # Include per-source samples
             execution_time_ms=execution_time
         )
         
@@ -203,6 +155,142 @@ async def test_sql_query(request: SQLTestRequest):
             valid=False,
             error=f"Error: {str(e)}"
         )
+
+
+async def _load_and_union_sources(
+    sources_info: List[SourceInfo],
+    db,
+    limit: int = 100
+) -> Tuple[pd.DataFrame, List[Dict[str, Any]]]:
+    """
+    Load data from multiple sources and combine with UNION ALL.
+    Aligns schemas by adding NULL columns where needed.
+    
+    Args:
+        sources_info: List of source information (dataset_id and columns)
+        db: MongoDB database instance
+        limit: Max rows to load from each source
+        
+    Returns:
+        Tuple of (combined DataFrame, list of per-source samples)
+    """
+    # Collect all unique columns across all sources
+    all_columns = []
+    for source in sources_info:
+        for col in source.columns:
+            if col not in all_columns:
+                all_columns.append(col)
+    
+    combined_dfs = []
+    source_samples = []  # Store individual source samples
+    
+    for source in sources_info:
+        # Get source dataset
+        source_dataset = None
+        connection = None
+        
+        # Try source_datasets first
+        try:
+            source_dataset = await db.source_datasets.find_one({"_id": ObjectId(source.source_dataset_id)})
+            if source_dataset:
+                connection_id = source_dataset.get("connection_id")
+                if connection_id:
+                    connection = await db.connections.find_one({"_id": ObjectId(connection_id)})
+        except:
+            pass
+        
+        # Try catalog datasets if not found
+        if not source_dataset:
+            try:
+                catalog_dataset = await db.datasets.find_one({"_id": ObjectId(source.source_dataset_id)})
+                if catalog_dataset:
+                    destination = catalog_dataset.get("destination", {})
+                    base_path = destination.get("path", "")
+                    name = catalog_dataset.get("name", "")
+                    
+                    full_path = base_path
+                    if base_path and name and not base_path.endswith(name):
+                        if not base_path.endswith('/'):
+                            full_path += '/'
+                        full_path += name
+                    
+                    if not full_path and catalog_dataset.get("targets"):
+                        target = catalog_dataset.get("targets")[0]
+                        urn = target.get("urn", "")
+                        if urn.startswith("urn:s3:"):
+                            parts = urn.split(":")
+                            if len(parts) >= 4:
+                                bucket = parts[2]
+                                key = ":".join(parts[3:]) or name
+                                full_path = f"s3a://{bucket}/{key}"
+                    
+                    source_dataset = {
+                        "id": str(catalog_dataset.get("_id")),
+                        "name": catalog_dataset.get("name"),
+                        "source_type": destination.get("type", "s3"),
+                        "path": full_path,
+                        "format": destination.get("format", "parquet"),
+                        "is_catalog": True
+                    }
+                    connection = await db.connections.find_one({"type": "s3"})
+            except:
+                pass
+        
+        if not source_dataset:
+            raise HTTPException(
+                status_code=404,
+                detail=f"Dataset not found: {source.source_dataset_id}"
+            )
+        
+        # Load sample data
+        df = await _load_sample_data(source_dataset, connection, limit=limit)
+        
+        if df is None or len(df) == 0:
+            continue
+        
+        # Select only the columns specified for this source
+        available_cols = [col for col in source.columns if col in df.columns]
+        if available_cols:
+            df_original = df[available_cols].copy()  # Keep original for source sample
+        else:
+            # If none of the requested columns exist, skip this source
+            continue
+        
+        # Store individual source sample (before adding NULL columns)
+        source_sample_rows = df_original.head(5).to_dict('records')
+        for row in source_sample_rows:
+            for key, value in row.items():
+                if pd.isna(value):
+                    row[key] = None
+                elif isinstance(value, (pd.Timestamp, pd.DatetimeTZDtype)):
+                    row[key] = str(value)
+        
+        source_samples.append({
+            "source_name": source_dataset.get("name", "Unknown Source"),
+            "rows": source_sample_rows
+        })
+        
+        # Add NULL columns for columns from other sources (for UNION ALL)
+        df = df[available_cols]
+        for col in all_columns:
+            if col not in df.columns:
+                df[col] = None
+        
+        # Reorder columns to match all_columns order
+        df = df[all_columns]
+        
+        combined_dfs.append(df)
+    
+    if not combined_dfs:
+        raise HTTPException(
+            status_code=400,
+            detail="No data available from any source"
+        )
+    
+    # Combine all DataFrames (UNION ALL)
+    combined_df = pd.concat(combined_dfs, ignore_index=True)
+    
+    return combined_df, source_samples
 
 
 async def _load_sample_data(
@@ -311,9 +399,9 @@ async def _load_sample_data(
         # 1. Resolve Region
         region = config.get("region") or os.getenv("AWS_REGION") or "us-east-1"
         
-        # 2. Get Credentials (Prioritize config, then Boto3 chain)
-        access_key = config.get("access_key")
-        secret_key = config.get("secret_key")
+        # 2. Get Credentials (Prioritize config, then environment variables)
+        access_key = config.get("access_key") or os.getenv("AWS_ACCESS_KEY_ID")
+        secret_key = config.get("secret_key") or os.getenv("AWS_SECRET_ACCESS_KEY")
         
         if access_key and secret_key:
             con.execute(f"SET s3_access_key_id='{access_key}';")
@@ -329,6 +417,9 @@ async def _load_sample_data(
                     con.execute(f"SET s3_secret_access_key='{frozen.secret_key}';")
                     if frozen.token:
                         con.execute(f"SET s3_session_token='{frozen.token}';")
+                    # Update access_key/secret_key for boto3 client later
+                    access_key = frozen.access_key
+                    secret_key = frozen.secret_key
             
             # Update region if session found one
             if session.region_name:
@@ -368,11 +459,12 @@ async def _load_sample_data(
             if endpoint:
                  s3_config = Config(s3={'addressing_style': 'path'}, signature_version='s3v4')
 
+            # Create boto3 client - use credentials from config or environment
             s3_client = boto3.client(
                 's3',
                 endpoint_url=endpoint if endpoint else None,
-                aws_access_key_id=access_key,
-                aws_secret_access_key=secret_key,
+                aws_access_key_id=access_key if access_key else None,
+                aws_secret_access_key=secret_key if secret_key else None,
                 region_name=region,
                 use_ssl=False if endpoint and "http://" in endpoint else True,
                 config=s3_config

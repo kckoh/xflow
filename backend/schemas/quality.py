@@ -28,8 +28,7 @@ class QualityCheckResponse(BaseModel):
 class QualityResultResponse(BaseModel):
     """Quality result response"""
     id: str
-    etl_job_id: str                       # ETLJob (lineage) ID
-    dataset_id: Optional[str]             # Dataset (pipeline) ID
+    dataset_id: str                        # Dataset (pipeline) ID
     s3_path: str
     row_count: int
     column_count: int

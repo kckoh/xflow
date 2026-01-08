@@ -33,8 +33,6 @@ const STEPS = [
   { id: 6, name: "Review", icon: Eye },
 ];
 
-
-
 export default function TargetWizard() {
   const navigate = useNavigate();
   const location = useLocation();
@@ -60,15 +58,15 @@ export default function TargetWizard() {
   });
   const [tagInput, setTagInput] = useState("");
   const [isNameDuplicate, setIsNameDuplicate] = useState(false);
-  const [isCheckingName, setIsCheckingName] = useState(false);
   const [detailPanelTab, setDetailPanelTab] = useState("details"); // 'details' or 'schema'
   const [s3RegexPatterns, setS3RegexPatterns] = useState({}); // Store regex patterns by dataset ID
 
   // Step 3: Transformation
   const [sourceNodes, setSourceNodes] = useState([]); // Store source nodes for schema
-  const [targetSchema, setTargetSchema] = useState([]); // Array of column definitions
-  const [initialSchema, setInitialSchema] = useState([]); // Loaded or saved schema for initialization
-  const [isTestPassed, setIsTestPassed] = useState(false); // Track if Run Test was successful
+  const [activeSourceTab, setActiveSourceTab] = useState(0); // Active tab index for multiple sources
+  const [targetSchema, setTargetSchema] = useState([]); // Single shared target schema for all sources
+  const [initialTargetSchema, setInitialTargetSchema] = useState([]); // For edit mode
+  const [isTestPassed, setIsTestPassed] = useState(false); // Single test status for the combined schema
 
   // Step 4: Schedule
   const [jobType, setJobType] = useState("batch");
@@ -86,7 +84,7 @@ export default function TargetWizard() {
       try {
         // Fetch job details
         const jobResponse = await fetch(
-          `${API_BASE_URL}/api/datasets/${jobId}`,
+          `${API_BASE_URL}/api/datasets/${jobId}`
         );
         if (!jobResponse.ok) throw new Error("Failed to fetch job");
         const job = await jobResponse.json();
@@ -105,28 +103,44 @@ export default function TargetWizard() {
           setSchedules(job.schedules);
         } else if (job.schedule_frequency) {
           // Reconstruct schedule object from backend fields for UI
-          setSchedules([{
-            id: Date.now().toString(),
-            name: `${job.schedule_frequency}-schedule`,
-            frequency: job.schedule_frequency,
-            cron: job.schedule,
-            enabled: true,
-            uiParams: job.ui_params,
-            createdAt: job.created_at || new Date().toISOString()
-          }]);
+          setSchedules([
+            {
+              id: Date.now().toString(),
+              name: `${job.schedule_frequency}-schedule`,
+              frequency: job.schedule_frequency,
+              cron: job.schedule,
+              enabled: true,
+              uiParams: job.ui_params,
+              createdAt: job.created_at || new Date().toISOString(),
+            },
+          ]);
         }
 
         // Restore source nodes and schema
         if (job.nodes && job.nodes.length > 0) {
-          const sources = job.nodes.filter(n => n.data?.nodeCategory === 'source');
+          const sources = job.nodes.filter(
+            (n) => n.data?.nodeCategory === "source"
+          );
           setSourceNodes(sources);
 
-          // Restore target schema from transform node
-          const transformNode = job.nodes.find(n => n.data?.nodeCategory === 'transform');
-          if (transformNode && transformNode.data?.outputSchema) {
-            setTargetSchema(transformNode.data.outputSchema);
-            setInitialSchema(transformNode.data.outputSchema);
-          }
+          // Restore combined target schema from all transform nodes
+          const combinedSchema = [];
+          sources.forEach((source) => {
+            const transformNode = job.nodes.find(
+              (n) =>
+                n.data?.nodeCategory === "transform" &&
+                job.edges?.some(
+                  (e) => e.source === source.id && e.target === n.id
+                )
+            );
+
+            if (transformNode?.data?.outputSchema) {
+              combinedSchema.push(...transformNode.data.outputSchema);
+            }
+          });
+
+          setTargetSchema(combinedSchema);
+          setInitialTargetSchema(combinedSchema);
         }
 
         // Skip to Transform step in edit mode
@@ -150,7 +164,7 @@ export default function TargetWizard() {
       try {
         // Fetch source datasets
         const sourceResponse = await fetch(
-          `${API_BASE_URL}/api/source-datasets`,
+          `${API_BASE_URL}/api/source-datasets`
         );
         const sourceData = sourceResponse.ok ? await sourceResponse.json() : [];
 
@@ -175,7 +189,11 @@ export default function TargetWizard() {
               if (!schema || schema.length === 0) {
                 schema = ds.targets?.[0]?.schema || [];
                 if ((!schema || schema.length === 0) && ds.nodes) {
-                  const transformNode = ds.nodes.find(n => n.data?.nodeCategory === 'transform' || n.data?.transformType);
+                  const transformNode = ds.nodes.find(
+                    (n) =>
+                      n.data?.nodeCategory === "transform" ||
+                      n.data?.transformType
+                  );
                   if (transformNode && transformNode.data?.outputSchema) {
                     schema = transformNode.data.outputSchema;
                   }
@@ -202,51 +220,28 @@ export default function TargetWizard() {
     loadDatasets();
   }, []);
 
-  // Check for duplicate dataset name
+  // Check for duplicate dataset name (using already loaded datasets)
   useEffect(() => {
-    const checkDuplicateName = async () => {
-      if (!config.name.trim()) {
-        setIsNameDuplicate(false);
-        return;
-      }
+    if (!config.name.trim()) {
+      setIsNameDuplicate(false);
+      return;
+    }
 
-      // Skip check in edit mode if name hasn't changed
-      if (isEditMode) {
-        setIsNameDuplicate(false);
-        return;
-      }
+    // Skip check in edit mode
+    if (isEditMode) {
+      setIsNameDuplicate(false);
+      return;
+    }
 
-      setIsCheckingName(true);
-      try {
-        // Check both datasets and source-datasets
-        const [datasetsRes, sourceRes] = await Promise.all([
-          fetch(`${API_BASE_URL}/api/datasets`),
-          fetch(`${API_BASE_URL}/api/source-datasets`),
-        ]);
+    // Extract all dataset names from already loaded sourceDatasets
+    const allNames = sourceDatasets
+      .map((d) => d.name?.toLowerCase())
+      .filter(Boolean);
 
-        const datasets = datasetsRes.ok ? await datasetsRes.json() : [];
-        const sourceDatasets = sourceRes.ok ? await sourceRes.json() : [];
-
-        const allNames = [
-          ...datasets.map((d) => d.name?.toLowerCase()),
-          ...sourceDatasets.map((d) => d.name?.toLowerCase()),
-        ];
-
-        const isDuplicate = allNames.includes(config.name.trim().toLowerCase());
-        setIsNameDuplicate(isDuplicate);
-      } catch (err) {
-        console.error("Failed to check duplicate name:", err);
-        setIsNameDuplicate(false);
-      } finally {
-        setIsCheckingName(false);
-      }
-    };
-
-    const debounceTimer = setTimeout(checkDuplicateName, 300);
-    return () => clearTimeout(debounceTimer);
-  }, [config.name, isEditMode]);
-
-
+    // Check for duplicate (instant, no API call needed!)
+    const isDuplicate = allNames.includes(config.name.trim().toLowerCase());
+    setIsNameDuplicate(isDuplicate);
+  }, [config.name, isEditMode, sourceDatasets]);
 
   const handleToggleJob = (jobId) => {
     setSelectedJobIds((prev) => {
@@ -271,7 +266,7 @@ export default function TargetWizard() {
       try {
         // Get source datasets from state (includes regex-extracted columns)
         const sources = selectedJobIds
-          .map(id => sourceDatasets.find(ds => ds.id === id))
+          .map((id) => sourceDatasets.find((ds) => ds.id === id))
           .filter(Boolean);
 
         if (sources.length === 0) {
@@ -300,7 +295,7 @@ export default function TargetWizard() {
           };
 
           // S3 source인 경우에만 customRegex 추가
-          if (source.source_type === 's3' && s3RegexPatterns[source.id]) {
+          if (source.source_type === "s3" && s3RegexPatterns[source.id]) {
             nodeData.customRegex = s3RegexPatterns[source.id];
           }
 
@@ -345,7 +340,7 @@ export default function TargetWizard() {
         for (const datasetId of selectedTargetIds) {
           try {
             const response = await fetch(
-              `${API_BASE_URL}/api/catalog/${datasetId}`,
+              `${API_BASE_URL}/api/catalog/${datasetId}`
             );
             if (!response.ok) continue;
 
@@ -362,8 +357,15 @@ export default function TargetWizard() {
             }
 
             // 2. Fallback: Try to get schema from Transform Node (Wizard-created datasets)
-            if ((!schema || schema.length === 0) && dataset.nodes && dataset.nodes.length > 0) {
-              const transformNode = dataset.nodes.find(n => n.data?.nodeCategory === 'transform' || n.data?.transformType);
+            if (
+              (!schema || schema.length === 0) &&
+              dataset.nodes &&
+              dataset.nodes.length > 0
+            ) {
+              const transformNode = dataset.nodes.find(
+                (n) =>
+                  n.data?.nodeCategory === "transform" || n.data?.transformType
+              );
               if (transformNode && transformNode.data?.outputSchema) {
                 schema = transformNode.data.outputSchema;
               }
@@ -379,17 +381,23 @@ export default function TargetWizard() {
                 : `${basePath}/`;
               s3Path = `${normalizedPath}${datasetName}`;
             } else if (target.urn) {
-              const urnParts = target.urn.split(':');
-              if (urnParts[0] === 'urn' && urnParts[1] === 's3' && urnParts.length >= 3) {
+              const urnParts = target.urn.split(":");
+              if (
+                urnParts[0] === "urn" &&
+                urnParts[1] === "s3" &&
+                urnParts.length >= 3
+              ) {
                 const bucket = urnParts[2];
                 const key = urnParts.slice(3).join(":") || dataset.name;
                 s3Path = `s3a://${bucket}/${key}`;
               }
             }
 
-
             if (!s3Path) {
-              console.error('Could not determine S3 path for dataset:', dataset.name);
+              console.error(
+                "Could not determine S3 path for dataset:",
+                dataset.name
+              );
               continue;
             }
 
@@ -402,7 +410,7 @@ export default function TargetWizard() {
                 name: dataset.name,
                 platform: "S3",
                 sourceType: "s3",
-                columns: schema.map(col => ({
+                columns: schema.map((col) => ({
                   name: col.name || col.field,
                   type: col.type || "string",
                   description: col.description || "",
@@ -481,16 +489,18 @@ export default function TargetWizard() {
 
   // Generate SQL from targetSchema
   const generateSql = (schema) => {
-    if (!schema || schema.length === 0) return 'SELECT * FROM input';
+    if (!schema || schema.length === 0) return "SELECT * FROM input";
 
-    const selectClauses = schema.map(col => {
+    const selectClauses = schema.map((col) => {
       if (col.transform) {
         return `${col.transform} AS ${col.name}`;
       }
-      return col.originalName === col.name ? col.name : `${col.originalName} AS ${col.name}`;
+      return col.originalName === col.name
+        ? col.name
+        : `${col.originalName} AS ${col.name}`;
     });
 
-    return `SELECT ${selectClauses.join(', ')} FROM input`;
+    return `SELECT ${selectClauses.join(", ")} FROM input`;
   };
 
   const handleCreate = async () => {
@@ -500,31 +510,32 @@ export default function TargetWizard() {
     }
 
     try {
-      // Generate SQL Transform node
+      // Generate a single transform node with the combined schema
       const sql = generateSql(targetSchema);
-      const transformNodeId = `transform-sql-${Date.now()}`;
+      const transformNodeId = `transform-combined-${Date.now()}`;
 
       const transformNode = {
         id: transformNodeId,
-        type: 'custom',
+        type: "custom",
         position: { x: 500, y: 200 },
         data: {
-          label: 'Schema Transform',
-          name: 'Schema Transform',
-          platform: 'SQL Transform',
-          nodeCategory: 'transform',
-          transformType: 'sql',
+          label: `Transform: Combined`,
+          name: `Transform: Combined`,
+          platform: "SQL Transform",
+          nodeCategory: "transform",
+          transformType: "sql",
           query: sql,
           outputSchema: targetSchema,
-        }
+          sourceNodeIds: sourceNodes.map((n) => n.id),
+        },
       };
 
-      // Create edges from all sources to transform node
-      const edges = sourceNodes.map(source => ({
+      // Create edges from all sources to the single transform node
+      const edges = sourceNodes.map((source) => ({
         id: `edge-${source.id}-${transformNodeId}`,
         source: source.id,
         target: transformNodeId,
-        type: 'deletion'
+        type: "default",
       }));
 
       // Combine all nodes
@@ -564,7 +575,7 @@ export default function TargetWizard() {
         const errorData = await response.json().catch(() => ({}));
         throw new Error(
           errorData.detail ||
-          `Failed to save target dataset (${response.status})`,
+            `Failed to save target dataset (${response.status})`
         );
       }
 
@@ -572,7 +583,7 @@ export default function TargetWizard() {
         isEditMode
           ? "Target dataset updated successfully!"
           : "Target dataset created successfully!",
-        "success",
+        "success"
       );
       navigate("/dataset");
     } catch (error) {
@@ -585,12 +596,12 @@ export default function TargetWizard() {
     switch (currentStep) {
       case 1:
         // Overview step - need unique name
-        return config.name.trim() !== "" && !isNameDuplicate && !isCheckingName;
+        return config.name.trim() !== "" && !isNameDuplicate;
       case 2:
         // Source step - check both Source and Target tabs
         return selectedJobIds.length > 0 || selectedTargetIds.length > 0;
       case 3:
-        // Process/Transform step - now requires successful test
+        // Process/Transform step - need schema with at least one column and test passed
         return targetSchema.length > 0 && isTestPassed;
       case 4:
         return true; // Schedule step - always can proceed
@@ -602,8 +613,6 @@ export default function TargetWizard() {
         return false;
     }
   };
-
-
 
   return (
     <div className="h-full bg-gray-50 flex flex-col -m-6">
@@ -636,10 +645,11 @@ export default function TargetWizard() {
               <button
                 onClick={handleBack}
                 disabled={currentStep === 1}
-                className={`flex items-center gap-2 px-4 py-2 rounded-lg transition-colors ${currentStep === 1
-                  ? "text-gray-300 cursor-not-allowed"
-                  : "text-gray-600 hover:bg-gray-100"
-                  }`}
+                className={`flex items-center gap-2 px-4 py-2 rounded-lg transition-colors ${
+                  currentStep === 1
+                    ? "text-gray-300 cursor-not-allowed"
+                    : "text-gray-600 hover:bg-gray-100"
+                }`}
               >
                 <ArrowLeft className="w-4 h-4" />
                 Back
@@ -649,10 +659,11 @@ export default function TargetWizard() {
                 <button
                   onClick={handleNext}
                   disabled={!canProceed() || isLoading}
-                  className={`flex items-center gap-2 px-5 py-2 rounded-lg transition-colors ${canProceed() && !isLoading
-                    ? "bg-orange-600 text-white hover:bg-orange-700"
-                    : "bg-gray-200 text-gray-400 cursor-not-allowed"
-                    }`}
+                  className={`flex items-center gap-2 px-5 py-2 rounded-lg transition-colors ${
+                    canProceed() && !isLoading
+                      ? "bg-orange-600 text-white hover:bg-orange-700"
+                      : "bg-gray-200 text-gray-400 cursor-not-allowed"
+                  }`}
                 >
                   {isLoading ? (
                     <>
@@ -689,12 +700,13 @@ export default function TargetWizard() {
               >
                 <div className="flex flex-col items-center">
                   <div
-                    className={`w-10 h-10 rounded-full flex items-center justify-center transition-colors shrink-0 ${currentStep > step.id
-                      ? "bg-orange-500 text-white"
-                      : currentStep === step.id
+                    className={`w-10 h-10 rounded-full flex items-center justify-center transition-colors shrink-0 ${
+                      currentStep > step.id
+                        ? "bg-orange-500 text-white"
+                        : currentStep === step.id
                         ? "bg-orange-500 text-white"
                         : "bg-gray-200 text-gray-500"
-                      }`}
+                    }`}
                   >
                     {currentStep > step.id ? (
                       <Check className="w-5 h-5" />
@@ -703,16 +715,18 @@ export default function TargetWizard() {
                     )}
                   </div>
                   <span
-                    className={`mt-2 text-xs font-medium whitespace-nowrap ${currentStep >= step.id ? "text-gray-900" : "text-gray-500"
-                      }`}
+                    className={`mt-2 text-xs font-medium whitespace-nowrap ${
+                      currentStep >= step.id ? "text-gray-900" : "text-gray-500"
+                    }`}
                   >
                     {step.name}
                   </span>
                 </div>
                 {index < STEPS.length - 1 && (
                   <div
-                    className={`flex-1 h-1 mx-4 rounded self-center -mt-6 ${currentStep > step.id ? "bg-orange-500" : "bg-gray-200"
-                      }`}
+                    className={`flex-1 h-1 mx-4 rounded self-center -mt-6 ${
+                      currentStep > step.id ? "bg-orange-500" : "bg-gray-200"
+                    }`}
                   />
                 )}
               </div>
@@ -748,20 +762,17 @@ export default function TargetWizard() {
                           setConfig({ ...config, name: e.target.value })
                         }
                         placeholder="Enter dataset name"
-                        className={`w-full px-4 py-2 border rounded-lg focus:outline-none focus:ring-2 ${isNameDuplicate
-                          ? "border-red-500 focus:ring-red-500"
-                          : "border-gray-300 focus:ring-orange-500"
-                          }`}
+                        className={`w-full px-4 py-2 border rounded-lg focus:outline-none focus:ring-2 ${
+                          isNameDuplicate
+                            ? "border-red-500 focus:ring-red-500"
+                            : "border-gray-300 focus:ring-orange-500"
+                        }`}
                       />
-                      {isCheckingName && (
-                        <div className="absolute right-3 top-1/2 -translate-y-1/2">
-                          <div className="w-4 h-4 border-2 border-gray-300 border-t-orange-500 rounded-full animate-spin" />
-                        </div>
-                      )}
                     </div>
                     {isNameDuplicate && (
                       <p className="mt-1 text-sm text-red-500">
-                        This dataset name already exists. Please choose a different name.
+                        This dataset name already exists. Please choose a
+                        different name.
                       </p>
                     )}
                   </div>
@@ -802,7 +813,7 @@ export default function TargetWizard() {
                                 setConfig({
                                   ...config,
                                   tags: config.tags.filter(
-                                    (_, i) => i !== index,
+                                    (_, i) => i !== index
                                   ),
                                 })
                               }
@@ -858,19 +869,21 @@ export default function TargetWizard() {
                     <div className="flex items-center gap-1">
                       <button
                         onClick={() => setSourceTab("source")}
-                        className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-all ${sourceTab === "source"
-                          ? "bg-blue-600 text-white"
-                          : "bg-gray-100 text-gray-600 hover:bg-gray-200"
-                          }`}
+                        className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-all ${
+                          sourceTab === "source"
+                            ? "bg-blue-600 text-white"
+                            : "bg-gray-100 text-gray-600 hover:bg-gray-200"
+                        }`}
                       >
                         Source
                       </button>
                       <button
                         onClick={() => setSourceTab("target")}
-                        className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-all ${sourceTab === "target"
-                          ? "bg-orange-600 text-white"
-                          : "bg-gray-100 text-gray-600 hover:bg-gray-200"
-                          }`}
+                        className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-all ${
+                          sourceTab === "target"
+                            ? "bg-orange-600 text-white"
+                            : "bg-gray-100 text-gray-600 hover:bg-gray-200"
+                        }`}
                       >
                         Target
                       </button>
@@ -929,20 +942,27 @@ export default function TargetWizard() {
                                   setSelectedTargetIds((prev) =>
                                     prev.includes(dataset.id)
                                       ? prev.filter(
-                                        (item) => item !== dataset.id,
-                                      )
-                                      : [...prev, dataset.id],
+                                          (item) => item !== dataset.id
+                                        )
+                                      : [...prev, dataset.id]
                                   );
                                 }
                               }}
-                              className={`cursor-pointer transition-colors ${isFocused ? "bg-orange-50" : isSelected ? "bg-blue-50" : "hover:bg-gray-50"}`}
+                              className={`cursor-pointer transition-colors ${
+                                isFocused
+                                  ? "bg-orange-50"
+                                  : isSelected
+                                  ? "bg-blue-50"
+                                  : "hover:bg-gray-50"
+                              }`}
                             >
                               <td className="px-3 py-2">
                                 <div
-                                  className={`w-4 h-4 rounded border flex items-center justify-center transition-colors ${isSelected
-                                    ? "bg-orange-600 border-orange-600"
-                                    : "border-gray-300 bg-white hover:border-gray-400"
-                                    }`}
+                                  className={`w-4 h-4 rounded border flex items-center justify-center transition-colors ${
+                                    isSelected
+                                      ? "bg-orange-600 border-orange-600"
+                                      : "border-gray-300 bg-white hover:border-gray-400"
+                                  }`}
                                 >
                                   {isSelected && (
                                     <Check className="w-2.5 h-2.5 text-white" />
@@ -959,11 +979,12 @@ export default function TargetWizard() {
                               </td>
                               <td className="px-3 py-2">
                                 <span
-                                  className={`inline-flex items-center px-1.5 py-0.5 rounded text-xs font-medium ${dataset.status === "active" ||
+                                  className={`inline-flex items-center px-1.5 py-0.5 rounded text-xs font-medium ${
+                                    dataset.status === "active" ||
                                     dataset.is_active
-                                    ? "bg-green-100 text-green-700"
-                                    : "bg-gray-100 text-gray-600"
-                                    }`}
+                                      ? "bg-green-100 text-green-700"
+                                      : "bg-gray-100 text-gray-600"
+                                  }`}
                                 >
                                   {dataset.status ||
                                     (dataset.is_active ? "Active" : "-")}
@@ -989,11 +1010,11 @@ export default function TargetWizard() {
                     const matchesType = ds.datasetType === sourceTab;
                     return matchesSearch && matchesType;
                   }).length === 0 && (
-                      <div className="text-center py-12 text-gray-500">
-                        <Database className="w-10 h-10 mx-auto mb-3 text-gray-300" />
-                        <p className="text-sm">No datasets found</p>
-                      </div>
-                    )}
+                    <div className="text-center py-12 text-gray-500">
+                      <Database className="w-10 h-10 mx-auto mb-3 text-gray-300" />
+                      <p className="text-sm">No datasets found</p>
+                    </div>
+                  )}
                 </div>
 
                 {/* Footer */}
@@ -1010,19 +1031,21 @@ export default function TargetWizard() {
                 <div className="flex border-b border-gray-200">
                   <button
                     onClick={() => setDetailPanelTab("details")}
-                    className={`flex-1 px-4 py-3 text-sm font-medium transition-colors ${detailPanelTab === "details"
-                      ? "text-orange-600 border-b-2 border-orange-600 bg-orange-50"
-                      : "text-gray-600 hover:bg-gray-50"
-                      }`}
+                    className={`flex-1 px-4 py-3 text-sm font-medium transition-colors ${
+                      detailPanelTab === "details"
+                        ? "text-orange-600 border-b-2 border-orange-600 bg-orange-50"
+                        : "text-gray-600 hover:bg-gray-50"
+                    }`}
                   >
                     Details
                   </button>
                   <button
                     onClick={() => setDetailPanelTab("schema")}
-                    className={`flex-1 px-4 py-3 text-sm font-medium transition-colors ${detailPanelTab === "schema"
-                      ? "text-orange-600 border-b-2 border-orange-600 bg-orange-50"
-                      : "text-gray-600 hover:bg-gray-50"
-                      }`}
+                    className={`flex-1 px-4 py-3 text-sm font-medium transition-colors ${
+                      detailPanelTab === "schema"
+                        ? "text-orange-600 border-b-2 border-orange-600 bg-orange-50"
+                        : "text-gray-600 hover:bg-gray-50"
+                    }`}
                   >
                     Schema
                   </button>
@@ -1031,7 +1054,9 @@ export default function TargetWizard() {
                 {!focusedDataset ? (
                   <div className="flex-1 flex flex-col items-center justify-center text-gray-400 p-6">
                     <Database className="w-12 h-12 mb-3 opacity-30" />
-                    <p className="text-sm text-center">Select a dataset to view details</p>
+                    <p className="text-sm text-center">
+                      Select a dataset to view details
+                    </p>
                   </div>
                 ) : (
                   <div className="flex-1 overflow-y-auto p-4">
@@ -1039,36 +1064,71 @@ export default function TargetWizard() {
                     {detailPanelTab === "details" && (
                       <>
                         <div className="pb-4 mb-4 border-b border-gray-100">
-                          <h3 className="font-semibold text-gray-900">{focusedDataset.name}</h3>
-                          <p className="text-sm text-gray-500 mt-1">{focusedDataset.source_type || focusedDataset.datasetType}</p>
+                          <h3 className="font-semibold text-gray-900">
+                            {focusedDataset.name}
+                          </h3>
+                          <p className="text-sm text-gray-500 mt-1">
+                            {focusedDataset.source_type ||
+                              focusedDataset.datasetType}
+                          </p>
                         </div>
                         <div className="space-y-4">
                           <div>
-                            <h4 className="text-xs font-semibold text-gray-500 uppercase mb-1">Description</h4>
-                            <p className="text-sm text-gray-700">{focusedDataset.description || "-"}</p>
+                            <h4 className="text-xs font-semibold text-gray-500 uppercase mb-1">
+                              Description
+                            </h4>
+                            <p className="text-sm text-gray-700">
+                              {focusedDataset.description || "-"}
+                            </p>
                           </div>
                           <div>
-                            <h4 className="text-xs font-semibold text-gray-500 uppercase mb-1">Type</h4>
-                            <p className="text-sm text-gray-700 capitalize">{focusedDataset.datasetType || "-"}</p>
+                            <h4 className="text-xs font-semibold text-gray-500 uppercase mb-1">
+                              Type
+                            </h4>
+                            <p className="text-sm text-gray-700 capitalize">
+                              {focusedDataset.datasetType || "-"}
+                            </p>
                           </div>
                           <div>
-                            <h4 className="text-xs font-semibold text-gray-500 uppercase mb-1">Source</h4>
-                            <p className="text-sm text-gray-700">{focusedDataset.source_type || focusedDataset.sourceType || "-"}</p>
+                            <h4 className="text-xs font-semibold text-gray-500 uppercase mb-1">
+                              Source
+                            </h4>
+                            <p className="text-sm text-gray-700">
+                              {focusedDataset.source_type ||
+                                focusedDataset.sourceType ||
+                                "-"}
+                            </p>
                           </div>
                           <div>
-                            <h4 className="text-xs font-semibold text-gray-500 uppercase mb-1">Columns</h4>
-                            {focusedDataset.destination?.type === 's3' && !focusedDataset.columns ? (
-                              <p className="text-sm text-gray-500 italic">Loading schema from S3...</p>
-                            ) : focusedDataset.destination?.type === 's3' && focusedDataset.columns?.length === 0 ? (
-                              <p className="text-sm text-red-600">Failed to load schema</p>
+                            <h4 className="text-xs font-semibold text-gray-500 uppercase mb-1">
+                              Columns
+                            </h4>
+                            {focusedDataset.destination?.type === "s3" &&
+                            !focusedDataset.columns ? (
+                              <p className="text-sm text-gray-500 italic">
+                                Loading schema from S3...
+                              </p>
+                            ) : focusedDataset.destination?.type === "s3" &&
+                              focusedDataset.columns?.length === 0 ? (
+                              <p className="text-sm text-red-600">
+                                Failed to load schema
+                              </p>
                             ) : (
-                              <p className="text-sm text-gray-700">{focusedDataset.columns?.length || 0}</p>
+                              <p className="text-sm text-gray-700">
+                                {focusedDataset.columns?.length || 0}
+                              </p>
                             )}
                           </div>
                           {focusedDataset.updated_at && (
                             <div>
-                              <h4 className="text-xs font-semibold text-gray-500 uppercase mb-1">Last Modified</h4>
-                              <p className="text-sm text-gray-700">{new Date(focusedDataset.updated_at).toLocaleString()}</p>
+                              <h4 className="text-xs font-semibold text-gray-500 uppercase mb-1">
+                                Last Modified
+                              </h4>
+                              <p className="text-sm text-gray-700">
+                                {new Date(
+                                  focusedDataset.updated_at
+                                ).toLocaleString()}
+                              </p>
                             </div>
                           )}
                         </div>
@@ -1079,27 +1139,37 @@ export default function TargetWizard() {
                     {detailPanelTab === "schema" && (
                       <div>
                         {/* S3 Source - Show Regex Parsing Config */}
-                        {focusedDataset.source_type === 's3' ? (
+                        {focusedDataset.source_type === "s3" ? (
                           <S3LogParsingConfig
                             sourceDatasetId={focusedDataset.id}
-                            initialPattern={s3RegexPatterns[focusedDataset.id] || ""}
+                            initialPattern={
+                              s3RegexPatterns[focusedDataset.id] || ""
+                            }
                             onPatternChange={(pattern, fields) => {
-                              setS3RegexPatterns(prev => ({
+                              setS3RegexPatterns((prev) => ({
                                 ...prev,
-                                [focusedDataset.id]: pattern
+                                [focusedDataset.id]: pattern,
                               }));
                               // Update focused dataset columns to show extracted fields
-                              setSourceDatasets(datasets =>
-                                datasets.map(ds =>
+                              setSourceDatasets((datasets) =>
+                                datasets.map((ds) =>
                                   ds.id === focusedDataset.id
-                                    ? { ...ds, columns: fields, extractedFromRegex: true }
+                                    ? {
+                                        ...ds,
+                                        columns: fields,
+                                        extractedFromRegex: true,
+                                      }
                                     : ds
                                 )
                               );
                               // Update focused dataset to trigger re-render
-                              setFocusedDataset(prev =>
+                              setFocusedDataset((prev) =>
                                 prev?.id === focusedDataset.id
-                                  ? { ...prev, columns: fields, extractedFromRegex: true }
+                                  ? {
+                                      ...prev,
+                                      columns: fields,
+                                      extractedFromRegex: true,
+                                    }
                                   : prev
                               );
                             }}
@@ -1108,35 +1178,55 @@ export default function TargetWizard() {
                           /* Non-S3 Source - Show Normal Schema Table */
                           <>
                             <div className="flex items-center justify-between mb-3">
-                              <h4 className="text-xs font-semibold text-gray-500 uppercase">Columns</h4>
-                              <span className="text-xs text-gray-400">{focusedDataset.columns?.length || 0} columns</span>
+                              <h4 className="text-xs font-semibold text-gray-500 uppercase">
+                                Columns
+                              </h4>
+                              <span className="text-xs text-gray-400">
+                                {focusedDataset.columns?.length || 0} columns
+                              </span>
                             </div>
-                            {focusedDataset.destination?.type === 's3' && !focusedDataset.columns ? (
+                            {focusedDataset.destination?.type === "s3" &&
+                            !focusedDataset.columns ? (
                               <div className="text-center py-8 text-gray-500">
                                 <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-orange-600 mx-auto mb-3"></div>
-                                <p className="text-sm">Loading schema from S3...</p>
+                                <p className="text-sm">
+                                  Loading schema from S3...
+                                </p>
                               </div>
-                            ) : focusedDataset.destination?.type === 's3' && focusedDataset.columns?.length === 0 ? (
+                            ) : focusedDataset.destination?.type === "s3" &&
+                              focusedDataset.columns?.length === 0 ? (
                               <div className="text-center py-8 text-red-600">
                                 <X className="w-8 h-8 mx-auto mb-3" />
-                                <p className="text-sm font-medium">Failed to load schema</p>
-                                <p className="text-xs text-gray-500 mt-1">Check S3 path and credentials</p>
+                                <p className="text-sm font-medium">
+                                  Failed to load schema
+                                </p>
+                                <p className="text-xs text-gray-500 mt-1">
+                                  Check S3 path and credentials
+                                </p>
                               </div>
                             ) : focusedDataset.columns?.length > 0 ? (
                               <div className="border border-gray-200 rounded-lg overflow-hidden">
                                 <table className="w-full">
                                   <thead className="bg-gray-50">
                                     <tr>
-                                      <th className="px-3 py-2 text-left text-xs font-medium text-gray-500">Column</th>
-                                      <th className="px-3 py-2 text-left text-xs font-medium text-gray-500">Type</th>
+                                      <th className="px-3 py-2 text-left text-xs font-medium text-gray-500">
+                                        Column
+                                      </th>
+                                      <th className="px-3 py-2 text-left text-xs font-medium text-gray-500">
+                                        Type
+                                      </th>
                                     </tr>
                                   </thead>
                                   <tbody className="divide-y divide-gray-100">
                                     {focusedDataset.columns.map((col, idx) => (
                                       <tr key={idx}>
-                                        <td className="px-3 py-2 text-sm text-gray-800">{col.name}</td>
+                                        <td className="px-3 py-2 text-sm text-gray-800">
+                                          {col.name}
+                                        </td>
                                         <td className="px-3 py-2">
-                                          <span className="text-xs px-2 py-0.5 rounded bg-blue-100 text-blue-700">{col.type}</span>
+                                          <span className="text-xs px-2 py-0.5 rounded bg-blue-100 text-blue-700">
+                                            {col.type}
+                                          </span>
                                         </td>
                                       </tr>
                                     ))}
@@ -1164,32 +1254,85 @@ export default function TargetWizard() {
           <div className="flex-1 flex flex-col overflow-hidden px-4 py-4">
             <div className="max-w-[100%] mx-auto w-full h-full flex flex-col">
               <div className="flex-1 min-h-0">
-                {/* S3 Log source인 경우: S3LogProcessEditor 사용 */}
+                {/* ================= S3 Log Source ================= */}
                 {sourceNodes[0]?.data?.customRegex &&
-                 (sourceNodes[0]?.data?.sourceType === 's3' ||
-                  sourceNodes[0]?.data?.platform?.toLowerCase() === 's3') ? (
+                (sourceNodes[0]?.data?.sourceType === "s3" ||
+                  sourceNodes[0]?.data?.platform?.toLowerCase() === "s3") ? (
                   <S3LogProcessEditor
-                    sourceSchema={sourceNodes.flatMap(n => n.data?.columns || [])}
+                    sourceSchema={sourceNodes.flatMap(
+                      (n) => n.data?.columns || []
+                    )}
                     sourceDatasetId={sourceNodes[0]?.data?.sourceDatasetId}
                     customRegex={sourceNodes[0]?.data?.customRegex}
                     onConfigChange={(config) => {
-                      // Store S3 log config for job creation
-                      setTargetSchema(config.selected_fields.map(field => ({
-                        name: field,
-                        type: 'string'
-                      })));
+                      setTargetSchema(
+                        config.selected_fields.map((field) => ({
+                          name: field,
+                          type: "string",
+                        }))
+                      );
                     }}
                     onTestStatusChange={setIsTestPassed}
                   />
                 ) : (
-                  /* RDB/MongoDB source인 경우: 기존 SchemaTransformEditor 사용 */
-                  <SchemaTransformEditor
-                    sourceSchema={sourceNodes.flatMap(n => n.data?.columns || [])}
-                    sourceDatasetId={sourceNodes[0]?.data?.sourceDatasetId || sourceNodes[0]?.data?.catalogDatasetId}
-                    initialTargetSchema={initialSchema}
-                    onSchemaChange={setTargetSchema}
-                    onTestStatusChange={setIsTestPassed}
-                  />
+                  /* ================= RDB / Mongo Source ================= */
+                  sourceNodes[activeSourceTab] && (
+                    <SchemaTransformEditor
+                      sourceSchema={
+                        sourceNodes[activeSourceTab].data?.columns || []
+                      }
+                      sourceName={
+                        sourceNodes[activeSourceTab].data?.name ||
+                        `Source ${activeSourceTab + 1}`
+                      }
+                      sourceId={sourceNodes[activeSourceTab].id}
+                      sourceDatasetId={
+                        sourceNodes[activeSourceTab].data?.sourceDatasetId ||
+                        sourceNodes[activeSourceTab].data?.catalogDatasetId
+                      }
+                      targetSchema={targetSchema}
+                      initialTargetSchema={initialTargetSchema}
+                      onSchemaChange={setTargetSchema}
+                      onTestStatusChange={setIsTestPassed}
+                      allSources={sourceNodes.map((node) => ({
+                        id: node.id,
+                        datasetId:
+                          node.data?.sourceDatasetId ||
+                          node.data?.catalogDatasetId,
+                        name: node.data?.name,
+                      }))}
+                      sourceTabs={
+                        sourceNodes.length > 1 ? (
+                          <div className="flex gap-1 flex-wrap">
+                            {sourceNodes.map((source, idx) => (
+                              <button
+                                key={source.id}
+                                onClick={() => setActiveSourceTab(idx)}
+                                className={`px-3 py-1.5 text-xs font-medium rounded-md transition-colors flex items-center gap-1.5 ${
+                                  activeSourceTab === idx
+                                    ? "bg-blue-100 text-blue-700 border border-blue-300"
+                                    : "bg-slate-50 text-slate-600 border border-slate-200 hover:bg-slate-100"
+                                }`}
+                              >
+                                <div
+                                  className="w-1.5 h-1.5 rounded-full"
+                                  style={{
+                                    backgroundColor: [
+                                      "#3b82f6",
+                                      "#10b981",
+                                      "#f59e0b",
+                                      "#8b5cf6",
+                                    ][idx % 4],
+                                  }}
+                                />
+                                Source {idx + 1}: {source.data?.name}
+                              </button>
+                            ))}
+                          </div>
+                        ) : null
+                      }
+                    />
+                  )
                 )}
               </div>
             </div>
@@ -1286,25 +1429,34 @@ export default function TargetWizard() {
                   {/* Detailed Column List */}
                   <div className="bg-white">
                     <div className="px-6 py-3 border-b border-gray-100 flex items-center justify-between">
-                      <h4 className="text-xs font-bold text-gray-500 uppercase tracking-wider">Target Columns</h4>
+                      <h4 className="text-xs font-bold text-gray-500 uppercase tracking-wider">
+                        Target Columns
+                      </h4>
                       <span className="text-[10px] px-1.5 py-0.5 bg-blue-50 text-blue-600 rounded-md font-medium border border-blue-100">
                         {targetSchema.length} fields
                       </span>
                     </div>
                     <div className="divide-y divide-gray-100 max-h-[500px] overflow-y-auto">
                       {targetSchema.map((col, idx) => (
-                        <div key={idx} className="px-6 py-3 flex items-center justify-between hover:bg-gray-50 transition-colors">
+                        <div
+                          key={idx}
+                          className="px-6 py-3 flex items-center justify-between hover:bg-gray-50 transition-colors"
+                        >
                           <div className="flex items-center gap-3">
-                            <span className="text-[10px] font-mono text-gray-400 w-4">{idx + 1}</span>
+                            <span className="text-[10px] font-mono text-gray-400 w-4">
+                              {idx + 1}
+                            </span>
                             <div className="flex flex-col">
-                              <span className="text-sm font-semibold text-gray-800">{col.name}</span>
+                              <span className="text-sm font-semibold text-gray-800">
+                                {col.name}
+                              </span>
                               <span className="text-[10px] font-mono text-gray-400 italic">
                                 {col.expression || "Direct Map"}
                               </span>
                             </div>
                           </div>
                           <span className="text-[10px] font-mono px-2 py-0.5 bg-gray-50 text-gray-600 rounded border border-gray-200 uppercase">
-                            {col.type || 'string'}
+                            {col.type || "string"}
                           </span>
                         </div>
                       ))}

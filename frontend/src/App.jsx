@@ -12,6 +12,8 @@ import JobsPage from "./pages/etl/JobsPage";
 import ConnectionListPage from "./pages/sources/ConnectionListPage";
 import ConnectionCreatePage from "./pages/sources/ConnectionCreatePage";
 import QueryPage from "./pages/query/QueryPage";
+import SqlLabPage from "./pages/query/SqlLabPage";
+import ExplorePage from "./pages/query/ExplorePage";
 import AdminPage from "./pages/admin/AdminPage";
 import QualityDashboard from "./pages/Quality/QualityDashboard";
 import CatalogPage from "./pages/catalog/CatalogPage";
@@ -165,8 +167,19 @@ function App() {
             path="/query"
             element={
               <ProtectedRoute>
-                <MainLayout>
-                  <QueryPage />
+                <MainLayout fullWidth={true}>
+                  <SqlLabPage />
+                </MainLayout>
+              </ProtectedRoute>
+            }
+          />
+
+          <Route
+            path="/query/explore"
+            element={
+              <ProtectedRoute>
+                <MainLayout fullWidth={true}>
+                  <ExplorePage />
                 </MainLayout>
               </ProtectedRoute>
             }

@@ -24,6 +24,7 @@ import { connectionApi } from "../../services/connectionApi";
 import ConnectionForm from "../../components/sources/ConnectionForm";
 import Combobox from "../../components/common/Combobox";
 import ConnectionCombobox from "../../components/sources/ConnectionCombobox";
+import MongoDBSourceConfig from "../../components/sources/MongoDBSourceConfig";
 
 const STEPS = [
   { id: 1, name: "Select Source", icon: Database },
@@ -82,7 +83,6 @@ export default function SourceWizard() {
   const [showCreateConnectionModal, setShowCreateConnectionModal] =
     useState(false);
   const [tables, setTables] = useState([]);
-  const [collections, setCollections] = useState([]);
   const [loadingTables, setLoadingTables] = useState(false);
   const [config, setConfig] = useState({
     id: `src-${Date.now()}`,
@@ -195,7 +195,6 @@ export default function SourceWizard() {
     const loadTablesOrCollections = async () => {
       if (!config.connectionId) {
         setTables([]);
-        setCollections([]);
         return;
       }
 
@@ -206,11 +205,6 @@ export default function SourceWizard() {
             config.connectionId
           );
           setTables(response.tables || []);
-        } else if (selectedSource?.id === "mongodb") {
-          const response = await connectionApi.fetchMongoDBCollections(
-            config.connectionId
-          );
-          setCollections(response.collections || []);
         } else if (selectedSource?.id === "s3") {
           const matchedConnection = connections.find(
             (conn) => conn.id === config.connectionId
@@ -223,7 +217,6 @@ export default function SourceWizard() {
       } catch (err) {
         console.error("Failed to load tables/collections:", err);
         setTables([]);
-        setCollections([]);
       } finally {
         setLoadingTables(false);
       }
@@ -312,13 +305,15 @@ export default function SourceWizard() {
         config.connectionId,
         collectionName
       );
-      const columns = schema.fields || [];
+      // API returns array directly, not { fields: [...] }
+      const columns = Array.isArray(schema) ? schema : [];
 
       setConfig({
         ...config,
         collection: collectionName,
         columns: columns.map((col) => ({
-          ...col,
+          name: col.field,  // MongoDB uses 'field', not 'name'
+          type: col.type,
           description: "",
         })),
       });
@@ -329,9 +324,9 @@ export default function SourceWizard() {
       // Initialize column mapping
       setColumnMapping(
         columns.map((col) => ({
-          source: col,
+          source: { name: col.field, type: col.type },
           selected: true,
-          targetName: col.name,
+          targetName: col.field,
           targetType: col.type,
           filter: null,
         }))
@@ -510,11 +505,10 @@ export default function SourceWizard() {
               <button
                 onClick={handleBack}
                 disabled={currentStep === 1}
-                className={`flex items-center gap-2 px-4 py-2 rounded-lg transition-colors ${
-                  currentStep === 1
-                    ? "text-gray-300 cursor-not-allowed"
-                    : "text-gray-600 hover:bg-gray-100"
-                }`}
+                className={`flex items-center gap-2 px-4 py-2 rounded-lg transition-colors ${currentStep === 1
+                  ? "text-gray-300 cursor-not-allowed"
+                  : "text-gray-600 hover:bg-gray-100"
+                  }`}
               >
                 <ArrowLeft className="w-4 h-4" />
                 Back
@@ -524,11 +518,10 @@ export default function SourceWizard() {
                 <button
                   onClick={handleNext}
                   disabled={!canProceed() || isLoading}
-                  className={`flex items-center gap-2 px-5 py-2 rounded-lg transition-colors ${
-                    canProceed() && !isLoading
-                      ? "bg-emerald-600 text-white hover:bg-emerald-700"
-                      : "bg-gray-200 text-gray-400 cursor-not-allowed"
-                  }`}
+                  className={`flex items-center gap-2 px-5 py-2 rounded-lg transition-colors ${canProceed() && !isLoading
+                    ? "bg-emerald-600 text-white hover:bg-emerald-700"
+                    : "bg-gray-200 text-gray-400 cursor-not-allowed"
+                    }`}
                 >
                   {isLoading ? (
                     <>
@@ -546,11 +539,10 @@ export default function SourceWizard() {
                 <button
                   onClick={handleCreate}
                   disabled={isLoading}
-                  className={`flex items-center gap-2 px-5 py-2 rounded-lg transition-colors ${
-                    isLoading
-                      ? "bg-gray-400 cursor-not-allowed"
-                      : "bg-emerald-600 hover:bg-emerald-700"
-                  } text-white`}
+                  className={`flex items-center gap-2 px-5 py-2 rounded-lg transition-colors ${isLoading
+                    ? "bg-gray-400 cursor-not-allowed"
+                    : "bg-emerald-600 hover:bg-emerald-700"
+                    } text-white`}
                 >
                   <Check className="w-4 h-4" />
                   {isLoading ? "Saving..." : isEditMode ? "Save Changes" : "Create"}
@@ -570,13 +562,12 @@ export default function SourceWizard() {
               >
                 <div className="flex flex-col items-center">
                   <div
-                    className={`w-10 h-10 rounded-full flex items-center justify-center transition-colors shrink-0 ${
-                      currentStep > step.id
-                        ? "bg-emerald-500 text-white"
-                        : currentStep === step.id
+                    className={`w-10 h-10 rounded-full flex items-center justify-center transition-colors shrink-0 ${currentStep > step.id
+                      ? "bg-emerald-500 text-white"
+                      : currentStep === step.id
                         ? "bg-emerald-500 text-white"
                         : "bg-gray-200 text-gray-500"
-                    }`}
+                      }`}
                   >
                     {currentStep > step.id ? (
                       <Check className="w-5 h-5" />
@@ -585,18 +576,16 @@ export default function SourceWizard() {
                     )}
                   </div>
                   <span
-                    className={`mt-2 text-xs font-medium whitespace-nowrap ${
-                      currentStep >= step.id ? "text-gray-900" : "text-gray-500"
-                    }`}
+                    className={`mt-2 text-xs font-medium whitespace-nowrap ${currentStep >= step.id ? "text-gray-900" : "text-gray-500"
+                      }`}
                   >
                     {step.name}
                   </span>
                 </div>
                 {index < STEPS.length - 1 && (
                   <div
-                    className={`flex-1 h-1 mx-4 rounded self-center -mt-6 ${
-                      currentStep > step.id ? "bg-emerald-500" : "bg-gray-200"
-                    }`}
+                    className={`flex-1 h-1 mx-4 rounded self-center -mt-6 ${currentStep > step.id ? "bg-emerald-500" : "bg-gray-200"
+                      }`}
                   />
                 )}
               </div>
@@ -624,13 +613,12 @@ export default function SourceWizard() {
                     key={source.id}
                     onClick={() => !source.disabled && setSelectedSource(source)}
                     disabled={source.disabled}
-                    className={`relative p-8 rounded-xl border-2 text-left transition-all ${
-                      source.disabled
-                        ? "border-gray-200 bg-gray-50 cursor-not-allowed opacity-60"
-                        : selectedSource?.id === source.id
+                    className={`relative p-8 rounded-xl border-2 text-left transition-all ${source.disabled
+                      ? "border-gray-200 bg-gray-50 cursor-not-allowed opacity-60"
+                      : selectedSource?.id === source.id
                         ? "border-emerald-500 bg-emerald-50"
                         : "border-gray-200 hover:border-gray-300 hover:bg-gray-50"
-                    }`}
+                      }`}
                   >
                     {source.comingSoon && (
                       <span className="absolute top-4 right-4 text-sm font-medium text-gray-500 bg-gray-200 px-3 py-1 rounded-full">
@@ -763,10 +751,10 @@ export default function SourceWizard() {
                         loadingTables
                           ? "Loading tables..."
                           : !config.connectionId
-                          ? "Select a connection first"
-                          : tables.length === 0
-                          ? "No tables available"
-                          : "Select a table..."
+                            ? "Select a connection first"
+                            : tables.length === 0
+                              ? "No tables available"
+                              : "Select a table..."
                       }
                       emptyMessage={
                         !config.connectionId
@@ -788,53 +776,20 @@ export default function SourceWizard() {
                   </div>
                 )}
 
-              {/* MongoDB - Collection selection */}
-              {selectedSource?.id === "mongodb" && (
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">
-                    Collection
-                  </label>
-                  <Combobox
-                    options={collections}
-                    value={config.collection}
-                    onChange={(collection) => {
-                      if (!collection) {
-                        return;
-                      }
-                      handleCollectionChange(collection);
+                {/* MongoDB - Collection selection */}
+                {selectedSource?.id === "mongodb" && (
+                  <MongoDBSourceConfig
+                    connectionId={config.connectionId}
+                    collection={config.collection}
+                    columns={config.columns}
+                    onCollectionChange={(collectionName) => {
+                      setConfig({ ...config, collection: collectionName });
                     }}
-                    getKey={(collection) => collection}
-                    getLabel={(collection) => collection}
-                    isLoading={loadingTables}
-                    disabled={!config.connectionId}
-                    placeholder={
-                      loadingTables
-                        ? "Loading collections..."
-                        : !config.connectionId
-                        ? "Select a connection first"
-                        : collections.length === 0
-                        ? "No collections available"
-                        : "Select a collection..."
-                    }
-                    emptyMessage={
-                      !config.connectionId
-                        ? "Select a connection first"
-                        : "No collections available"
-                    }
-                    classNames={{
-                      button:
-                        "px-4 py-2.5 rounded-xl border-emerald-200/70 bg-gradient-to-r from-white via-emerald-50/50 to-emerald-100/40 shadow-sm shadow-emerald-100/70 hover:shadow-md hover:shadow-emerald-200/70 focus:ring-2 focus:ring-emerald-400/60 focus:border-emerald-300 transition-all",
-                      panel:
-                        "mt-2 rounded-xl border-emerald-100/90 bg-white/95 shadow-xl shadow-emerald-100/60 ring-1 ring-emerald-100/70 backdrop-blur",
-                      option:
-                        "rounded-lg mx-1 my-0.5 hover:bg-emerald-50/70",
-                      optionSelected: "bg-emerald-50/80",
-                      icon: "text-emerald-500",
-                      empty: "text-emerald-500/70",
+                    onColumnsUpdate={(columns) => {
+                      setConfig({ ...config, columns });
                     }}
                   />
-                </div>
-              )}
+                )}
 
                 {/* Amazon S3 - Path only */}
                 {selectedSource?.id === "s3" && (
@@ -878,8 +833,8 @@ export default function SourceWizard() {
                   </div>
                 )}
 
-                {/* Columns Section */}
-                {config.columns.length > 0 && (
+                {/* Columns Section - Only for PostgreSQL (MongoDB has its own in MongoDBSourceConfig) */}
+                {config.columns.length > 0 && selectedSource?.id !== "mongodb" && (
                   <div>
                     <label className="block text-sm font-medium text-gray-700 mb-3">
                       Columns ({config.columns.length})
