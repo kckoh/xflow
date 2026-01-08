@@ -10,7 +10,7 @@ export const nodeWidth = 220;
 export const nodeHeight = 220;
 
 const SchemaNodeComponent = ({ id, data, selected }) => {
-    const [schemaExpanded, setSchemaExpanded] = useState(true);
+    const [schemaExpanded] = useState(true);
     const [etlOpen, setEtlOpen] = useState(false);
     const [mainNodeScrollVersion, setMainNodeScrollVersion] = useState(0);
 
@@ -25,25 +25,9 @@ const SchemaNodeComponent = ({ id, data, selected }) => {
     const hasJobs = data.jobs && data.jobs.length > 0; // Only show ETL toggle for job nodes
 
     // Handlers
-    const handleDelete = (e) => {
-        e.stopPropagation();
-        if (!hasPermission) return; // Disable for denied nodes
-        if (data.onDelete) data.onDelete(id, data.mongoId);
-    };
 
-    const handleEtlToggle = (e) => {
-        e.stopPropagation();
-        if (!hasPermission) return; // Disable for denied nodes
-        setEtlOpen(!etlOpen);
 
-        if (data.onToggleEtl) data.onToggleEtl(id, !etlOpen);
-    };
-
-    const handleHeaderToggle = (expanded) => {
-        if (!hasPermission) return; // Disable for denied nodes
-        setSchemaExpanded(expanded);
-        if (expanded) setEtlOpen(false); // Close ETL if expanding schema manually
-    };
+    const isRoot = data.nodeCategory === "source";
 
     return (
         <div
@@ -69,21 +53,14 @@ const SchemaNodeComponent = ({ id, data, selected }) => {
                 </div>
             )}
 
-            {/* Delete Button (Top-Right, Hover Only) */}
-            {hasPermission && (
-                <button
-                    onClick={handleDelete}
-                    className="absolute -top-2 -right-2 z-50 flex items-center justify-center w-6 h-6 bg-red-500 text-white rounded-full opacity-0 group-hover:opacity-100 transition-opacity duration-200 hover:bg-red-600 hover:scale-110"
-                    title="Delete Node"
-                >
-                    <X className="w-3 h-3" />
-                </button>
-            )}
 
             {/* ETL Toggle Button (Left Side, Aligned with Columns) - Only for job nodes */}
             {hasPermission && hasJobs && (
                 <button
-                    onClick={handleEtlToggle}
+                    onClick={(e) => {
+                        e.stopPropagation();
+                        setEtlOpen(!etlOpen);
+                    }}
                     className={clsx(
                         "absolute top-[52px] -left-3 z-50 flex items-center justify-center w-6 h-6 rounded-full shadow-sm border border-gray-200",
                         "bg-gray-50 text-gray-500 transition-all duration-200",
@@ -104,7 +81,7 @@ const SchemaNodeComponent = ({ id, data, selected }) => {
                     label: data.label || data.jobs?.[0]?.name
                 }}
                 expanded={schemaExpanded}
-                onToggle={hasPermission ? handleHeaderToggle : undefined}
+                onToggle={undefined}
                 id={id}
             />
 
@@ -115,6 +92,7 @@ const SchemaNodeComponent = ({ id, data, selected }) => {
                         columns={columns}
                         nodeId={id}
                         withHandles={hasPermission}
+                        withTargetHandle={hasPermission && !isRoot}
                         onScroll={() => setMainNodeScrollVersion(v => v + 1)}
                         onColumnClick={onColumnClick ? (colName) => onColumnClick(id, colName) : undefined}
                         activeColumnName={activeColumnName}

@@ -8,77 +8,109 @@ import os
 
 async def get_lineage(dataset_id: str) -> Dict:
     """
-    Dataset의 lineage 정보 반환
-    - Source: nodes에서 source 카테고리 추출
-    - Target: S3에서 DuckDB로 실제 스키마 조회 (실패 시 nodes에서 fallback)
-    - Transform: 제외 (Source → Target 직접 연결)
+    Dataset의 lineage 정보 반환 (재귀적)
+    - Recursion: Source가 다른 Dataset의 Output인 경우 상위 리니지 병합
+    - Layout: 
+      - X: Level based (Right to Left)
+      - Y: Dynamic Smart Layout (Leaf Stacking + Centering)
+    - Deduplication: Intermediate Dataset인 경우 중복 노드 제거
     """
-    db = database.mongodb_client[database.DATABASE_NAME]
+    full_graph = {
+        "sources": [],
+        "targets": [],
+        "nodes": [],
+        "edges": []
+    }
+    
+    visited_datasets = set()
+    
+    # y_cursor: [next_available_y] - Mutable container to track global vertical usage
+    y_cursor = [-150]
+    
+    # level: 0(Current), -1(Parent), -2(Grandparent) ...
+    await _fetch_recursive(dataset_id, full_graph, visited_datasets, level=0, y_cursor=y_cursor)
+    
+    return full_graph
 
+
+async def _fetch_recursive(dataset_id: str, graph: Dict, visited: Set[str], level: int, y_cursor: List[int]) -> float:
+    """
+    재귀적으로 리니지 정보를 가져와서 graph에 병합
+    Returns: The Y-coordinate of the primary 'Target Node' for this dataset (for centering)
+    """
+    # Circular dependency check: return a placeholder Y if already visited? 
+    # But current logic needs to traverse to draw. 
+    # If visited, we assume the node exists. Find its Y? 
+    # For now, simplistic handle: just return current cursor if visited to avoid crash, 
+    # but ideally we should lookup the existing node's Y. 
+    # Given the strict DAG nature usually, we'll proceed.
+    prefix = f"ds_{dataset_id}_"
+    target_unique_id = f"{prefix}target_0"
+    
+    # 이미 존재하는 노드라면 그 위치 반환 (Duplicate Visit)
+    existing_node = next((n for n in graph["nodes"] if n["id"] == target_unique_id), None)
+    if existing_node:
+        return existing_node["position"]["y"]
+        
+    if dataset_id in visited:
+        # Should catch above, but safety
+        return y_cursor[0]
+        
+    visited.add(dataset_id)
+    
+    db = database.mongodb_client[database.DATABASE_NAME]
+    
     try:
         obj_id = ObjectId(dataset_id)
     except:
-        return {"sources": [], "transforms": [], "targets": [], "nodes": [], "edges": []}
+        return y_cursor[0]
 
     doc = await db.datasets.find_one({"_id": obj_id})
     if not doc:
-        return {"sources": [], "transforms": [], "targets": [], "nodes": [], "edges": []}
+        return y_cursor[0]
 
-    # 1. Source 노드 추출 - sources 필드 또는 nodes에서 추출
-    sources = doc.get("sources", [])
-
-    # sources가 비어있으면 nodes에서 source 카테고리 추출
-    if not sources and doc.get("nodes"):
+    # === 1. Prepare Data ===
+    current_sources = doc.get("sources", [])
+    if not current_sources and doc.get("nodes"):
         for node in doc.get("nodes", []):
             node_data = node.get("data", {})
             if node_data.get("nodeCategory") == "source":
-                sources.append({
+                current_sources.append({
                     "nodeId": node.get("id"),
                     "type": node_data.get("platform", "rdb"),
                     "schema": node_data.get("columns", []),
                     "config": {
                         "name": node_data.get("name") or node_data.get("label"),
                         "table": node_data.get("tableName"),
+                        "path": node_data.get("path") or node_data.get("s3Location"),
+                        "catalogDatasetId": node_data.get("catalogDatasetId"),
                         "platform": node_data.get("platform")
                     }
                 })
 
-    # 2. Target 노드 - S3에서 실제 스키마 조회
-    targets = []
+    current_targets = []
     destination = doc.get("destination", {})
-
-    # nodes에서 target 스키마 가져오기 (fallback용)
-    # 우선순위: target 노드 > 마지막 transform의 outputSchema
+    
+    # Fallback schema logic
     fallback_target_schema = []
     last_transform_schema = []
-
     for node in doc.get("nodes", []):
         node_data = node.get("data", {})
         if node_data.get("nodeCategory") == "target":
             fallback_target_schema = node_data.get("columns", []) or node_data.get("schema", [])
         elif node_data.get("nodeCategory") == "transform":
-            # Transform의 outputSchema 저장 (마지막 transform 사용)
             output_schema = node_data.get("outputSchema", [])
             if output_schema:
                 last_transform_schema = output_schema
-
-    # target 노드에 스키마가 없으면 transform의 outputSchema 사용
+                
     if not fallback_target_schema and last_transform_schema:
         fallback_target_schema = last_transform_schema
 
     if destination.get("type") == "s3":
-        # DuckDB로 S3 실제 스키마 조회 시도
-        target_schema = await _get_s3_schema(destination, doc.get("name", ""))
-
-        # S3 스키마 조회 실패 시 fallback 사용
-        if not target_schema:
-            target_schema = fallback_target_schema
-            print(f"Using fallback schema for {doc.get('name')}")
-
-        targets.append({
+        current_targets.append({
             "nodeId": "target_0",
             "type": "s3",
-            "schema": target_schema,
+            "schema": fallback_target_schema,
             "config": {
                 "path": destination.get("path", ""),
                 "name": doc.get("name", ""),
@@ -86,59 +118,101 @@ async def get_lineage(dataset_id: str) -> Dict:
             }
         })
 
-    # 3. 노드와 엣지 생성 (ReactFlow 형식)
-    nodes = []
-    edges = []
-
-    # Source 노드들 추가
-    for idx, source in enumerate(sources):
-        node_id = source.get("nodeId", f"source_{idx}")
-        nodes.append({
-            "id": node_id,
-            "type": "custom",
-            "position": {"x": 100, "y": 100 + idx * 150},
-            "data": {
-                "label": source.get("config", {}).get("name") or source.get("config", {}).get("table") or node_id,
-                "name": source.get("config", {}).get("name") or source.get("config", {}).get("table") or node_id,
-                "platform": source.get("type", "rdb"),
-                "columns": source.get("schema", []),
-                "nodeCategory": "source"
-            }
-        })
-
-        # Source → Target 엣지
-        if targets:
-            edges.append({
-                "id": f"edge-{node_id}-target_0",
-                "source": node_id,
-                "target": "target_0",
-                "type": "smoothstep",
+    # === 2. Calculate Layout & Build Graph ===
+    # Special handling for Level 0 (Final Target) to push it to the right
+    if level == 0:
+        base_x = 600
+    else:
+        # Move upstream closer to 600
+        # Level -1 will be at 600 + (-1 * 300) = 300. (Gap 300)
+        base_x = 600 + (level * 300)
+    
+    # 2-1. Process Sources to determine Y position
+    source_y_positions = []
+    
+    for idx, source in enumerate(current_sources):
+        upstream_dataset_id = source.get("config", {}).get("catalogDatasetId")
+        
+        if upstream_dataset_id:
+            # Case A: Recursive Upstream
+            # Recurse FIRST to layout upstream nodes. 
+            # It returns the Y of the upstream target.
+            upstream_y = await _fetch_recursive(upstream_dataset_id, graph, visited, level - 1, y_cursor)
+            source_y_positions.append(upstream_y)
+            
+            # Connect Upstream -> Current
+            upstream_target_id = f"ds_{upstream_dataset_id}_target_0"
+            link_id = f"link_{upstream_target_id}_{target_unique_id}"
+            if not any(e["id"] == link_id for e in graph["edges"]):
+                graph["edges"].append({
+                    "id": link_id,
+                    "source": upstream_target_id,
+                    "target": target_unique_id,
+                    "type": "default",
+                    "animated": True,
+                    "style": { "strokeDasharray": "5 5", "stroke": "#f97316", "strokeWidth": 2 }
+                    # Removed label
+                })
+        else:
+            # Case B: Root Source (Leaf)
+            # Allocate new Y slot
+            current_y = y_cursor[0]
+            y_cursor[0] += 300 # Increment for next slot
+            
+            source_y_positions.append(current_y)
+            
+            unique_source_id = f"{prefix}{source.get('nodeId', f'source_{idx}')}"
+            if not any(n["id"] == unique_source_id for n in graph["nodes"]):
+                graph["nodes"].append({
+                    "id": unique_source_id,
+                    "type": "custom",
+                    "position": {"x": base_x - 300, "y": current_y},
+                    "data": {
+                        "label": source.get("config", {}).get("name") or unique_source_id,
+                        "name": source.get("config", {}).get("name") or unique_source_id,
+                        "platform": source.get("type", "rdb"),
+                        "columns": source.get("schema", []),
+                        "nodeCategory": "source",
+                        "expanded": True
+                    }
+                })
+                
+            # Connect Root Source -> Current
+            edge_id = f"edge-{unique_source_id}-{target_unique_id}"
+            graph["edges"].append({
+                "id": edge_id,
+                "source": unique_source_id,
+                "target": target_unique_id,
+                "type": "default",
                 "animated": True
             })
 
-    # Target 노드 추가
-    for idx, target in enumerate(targets):
-        node_id = target.get("nodeId", f"target_{idx}")
-        nodes.append({
-            "id": node_id,
+    # 2-2. Determine Target Node Y (Centering)
+    if source_y_positions:
+        my_y = sum(source_y_positions) / len(source_y_positions)
+    else:
+        # No sources? Just take next slot
+        my_y = y_cursor[0]
+        y_cursor[0] += 250
+
+    # 2-3. Create Target Node
+    if current_targets and not any(n["id"] == target_unique_id for n in graph["nodes"]):
+        target_info = current_targets[0]
+        graph["nodes"].append({
+            "id": target_unique_id,
             "type": "custom",
-            "position": {"x": 500, "y": 100 + idx * 150},
+            "position": {"x": base_x, "y": my_y},
             "data": {
-                "label": target.get("config", {}).get("name") or doc.get("name", "Target"),
-                "name": target.get("config", {}).get("name") or doc.get("name", "Target"),
+                "label": target_info.get("config", {}).get("name") or doc.get("name", "Target"),
+                "name": target_info.get("config", {}).get("name") or doc.get("name", "Target"),
                 "platform": "S3",
-                "columns": target.get("schema", []),
-                "nodeCategory": "target"
+                "columns": target_info.get("schema", []),
+                "nodeCategory": "target",
+                "expanded": True
             }
         })
-
-    return {
-        "sources": sources,
-        "transforms": [],  # Transform 제외
-        "targets": targets,
-        "nodes": nodes,
-        "edges": edges
-    }
+        
+    return my_y
 
 
 async def _get_s3_schema(destination: Dict, dataset_name: str) -> List[Dict]:
