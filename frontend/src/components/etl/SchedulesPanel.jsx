@@ -82,6 +82,13 @@ export default function SchedulesPanel({ schedules = [], onUpdate }) {
         if (frequency === 'interval' && !startDate && (intervalDays === 0 && intervalHours === 0 && intervalMinutes === 0)) return;
         if (['hourly', 'daily', 'weekly', 'monthly', 'interval'].includes(frequency) && !startDate) return;
 
+        // Convert local datetime to UTC ISO string for backend
+        let utcStartDate = startDate;
+        if (startDate) {
+            const localDate = new Date(startDate);
+            utcStartDate = localDate.toISOString();
+        }
+
         const scheduleData = {
             id: editingId || Date.now().toString(),
             name: `${frequency}-schedule`,
@@ -93,7 +100,7 @@ export default function SchedulesPanel({ schedules = [], onUpdate }) {
             // Store UI parameters to restore them later
             uiParams: {
                 hourInterval,
-                startDate,
+                startDate: utcStartDate,
                 intervalDays,
                 intervalHours,
                 intervalMinutes,
@@ -121,7 +128,18 @@ export default function SchedulesPanel({ schedules = [], onUpdate }) {
         // Restore UI params if available
         if (schedule.uiParams) {
             setHourInterval(schedule.uiParams.hourInterval || 1);
-            setStartDate(schedule.uiParams.startDate || '');
+
+            // Convert UTC ISO string back to local datetime-local format
+            if (schedule.uiParams.startDate) {
+                const utcDate = new Date(schedule.uiParams.startDate);
+                const localDateString = new Date(utcDate.getTime() - utcDate.getTimezoneOffset() * 60000)
+                    .toISOString()
+                    .slice(0, 16);
+                setStartDate(localDateString);
+            } else {
+                setStartDate('');
+            }
+
             setIntervalDays(schedule.uiParams.intervalDays || 0);
             setIntervalHours(schedule.uiParams.intervalHours || 0);
             setIntervalMinutes(schedule.uiParams.intervalMinutes || 0);
