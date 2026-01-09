@@ -321,9 +321,10 @@ def fetch_dataset_config(as_base64=False, **context):
     import pymongo
     from bson import ObjectId
 
-    dataset_id = context["dag_run"].conf.get("dataset_id")
+    # Support both dataset_id (direct run) and job_id (scheduled run)
+    dataset_id = context["dag_run"].conf.get("dataset_id") or context["dag_run"].conf.get("job_id")
     if not dataset_id:
-        raise ValueError("dataset_id is required in dag_run.conf")
+        raise ValueError("dataset_id or job_id is required in dag_run.conf")
 
     # Connect to MongoDB
     mongo_url = Variable.get(
@@ -499,7 +500,8 @@ def finalize_import(**context):
     import pymongo
     from bson import ObjectId
 
-    dataset_id = context["dag_run"].conf.get("dataset_id")
+    # Support both dataset_id (direct run) and job_id (scheduled run)
+    dataset_id = context["dag_run"].conf.get("dataset_id") or context["dag_run"].conf.get("job_id")
 
     mongo_url = Variable.get(
         "MONGODB_URL", default_var="mongodb://mongo:mongo@mongodb:27017"
@@ -613,9 +615,10 @@ def run_quality_check(**context):
     import pymongo
     from bson import ObjectId
 
-    dataset_id = context["dag_run"].conf.get("dataset_id")
+    # Support both dataset_id (direct run) and job_id (scheduled run)
+    dataset_id = context["dag_run"].conf.get("dataset_id") or context["dag_run"].conf.get("job_id")
     if not dataset_id:
-        print("[Quality] No dataset_id found, skipping quality check")
+        print("[Quality] No dataset_id or job_id found, skipping quality check")
         return
 
     # Get MongoDB connection
