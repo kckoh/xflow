@@ -22,6 +22,8 @@ const ColumnHandle = ({ type, position, colId }) => (
 export const SchemaNodeColumns = ({
     columns = [],
     withHandles = true,
+    withTargetHandle = withHandles,
+    withSourceHandle = withHandles,
     nodeId = null,
     onScroll,
     onColumnClick,
@@ -45,7 +47,7 @@ export const SchemaNodeColumns = ({
 
     return (
         <div
-            className="bg-gray-50 rounded-b-lg max-h-[300px] overflow-y-auto overflow-x-hidden custom-scrollbar nodrag"
+            className="bg-gray-50 rounded-b-lg overflow-x-hidden nodrag"
             onScroll={handleScroll}
         >
             {/* Column Header */}
@@ -87,8 +89,8 @@ export const SchemaNodeColumns = ({
                                     isActive && "ring-1 ring-orange-300"
                                 )}
                             >
-                                {/* Left Handle */}
-                                {withHandles && (
+                                {/* Left Handle (Target) */}
+                                {withTargetHandle && (
                                     <ColumnHandle
                                         type="target"
                                         position={Position.Left}
@@ -103,8 +105,8 @@ export const SchemaNodeColumns = ({
                                     {colType}
                                 </span>
 
-                                {/* Right Handle */}
-                                {withHandles && (
+                                {/* Right Handle (Source) */}
+                                {withSourceHandle && (
                                     <ColumnHandle
                                         type="source"
                                         position={Position.Right}
