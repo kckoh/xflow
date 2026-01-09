@@ -6,6 +6,15 @@ import {
 
 const CHART_COLORS = ['#3B82F6', '#10B981', '#F59E0B', '#EF4444', '#8B5CF6', '#EC4899', '#14B8A6'];
 
+const formatDate = (value) => {
+    if (typeof value !== 'string') return value;
+    // Check if it's an ISO date string like 2025-12-29T17:59:10.695148
+    if (/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(\.\d+)?$/.test(value)) {
+        return value.replace('T', ' ').split('.')[0];
+    }
+    return value;
+};
+
 export default function QueryChart({
     data,
     columns,
@@ -17,7 +26,9 @@ export default function QueryChart({
     isStacked,
     aggregation,
     timeGrain,
-    limit
+    limit,
+    sortBy,
+    sortOrder = 'desc',
 }) {
     // Prepare chart data with aggregation
     const chartData = useMemo(() => {
@@ -226,8 +237,26 @@ export default function QueryChart({
             return item;
         });
 
-        // Sort by first metric descending
-        if (yAxes.length > 0) {
+        // Apply sorting
+        if (sortBy) {
+            result.sort((a, b) => {
+                const valA = a[sortBy];
+                const valB = b[sortBy];
+
+                // Handle different types
+                if (typeof valA === 'number' && typeof valB === 'number') {
+                    return sortOrder === 'asc' ? valA - valB : valB - valA;
+                }
+
+                // String comparison
+                const strA = String(valA || '');
+                const strB = String(valB || '');
+                return sortOrder === 'asc'
+                    ? strA.localeCompare(strB)
+                    : strB.localeCompare(strA);
+            });
+        } else if (yAxes.length > 0) {
+            // Default sort: first metric descending
             const firstMetricKey = `${yAxes[0].aggregation}(${yAxes[0].column})`;
             result.sort((a, b) => (b[firstMetricKey] || 0) - (a[firstMetricKey] || 0));
         }
@@ -239,7 +268,7 @@ export default function QueryChart({
         }
 
         return result;
-    }, [data, xAxis, yAxes, breakdownBy, aggregation, timeGrain, limit]);
+    }, [data, xAxis, yAxes, breakdownBy, aggregation, timeGrain, limit, sortBy, sortOrder]);
 
     // For stacked bar with breakdown
     const stackedChartData = useMemo(() => {
@@ -282,9 +311,13 @@ export default function QueryChart({
                     <ResponsiveContainer width="100%" height={600}>
                         <BarChart data={displayData} margin={{ bottom: 80 }}>
                             <CartesianGrid strokeDasharray="3 3" stroke="#E5E7EB" />
-                            <XAxis dataKey={xAxis || '_category'} tick={{ fontSize: 12 }} />
+                            <XAxis
+                                dataKey={xAxis || '_category'}
+                                tick={{ fontSize: 12 }}
+                                tickFormatter={formatDate}
+                            />
                             <YAxis tick={{ fontSize: 12 }} />
-                            <Tooltip />
+                            <Tooltip labelFormatter={formatDate} />
                             <Legend
                                 verticalAlign="bottom"
                                 height={60}
@@ -323,7 +356,13 @@ export default function QueryChart({
                                                 stackId={isStacked ? "metrics" : undefined}
                                                 fill={CHART_COLORS[index % CHART_COLORS.length]}
                                                 name={metricKey}
-                                                radius={isStacked && index === yAxes.length - 1 ? [8, 8, 0, 0] : [8, 8, 0, 0]}
+                                                radius={
+                                                    isStacked
+                                                        ? (index === yAxes.length - 1 && (!calculatedMetrics || calculatedMetrics.length === 0)
+                                                            ? [8, 8, 0, 0]
+                                                            : [0, 0, 0, 0])
+                                                        : [8, 8, 0, 0]
+                                                }
                                             />
                                         );
                                     })}
@@ -336,7 +375,13 @@ export default function QueryChart({
                                             stackId={isStacked ? "metrics" : undefined}
                                             fill={CHART_COLORS[(yAxes.length + index) % CHART_COLORS.length]}
                                             name={calc.label}
-                                            radius={[8, 8, 0, 0]}
+                                            radius={
+                                                isStacked
+                                                    ? (index === calculatedMetrics.length - 1
+                                                        ? [8, 8, 0, 0]
+                                                        : [0, 0, 0, 0])
+                                                    : [8, 8, 0, 0]
+                                            }
                                         />
                                     ))}
                                 </>
@@ -350,9 +395,13 @@ export default function QueryChart({
                     <ResponsiveContainer width="100%" height={600}>
                         <LineChart data={displayData} margin={{ bottom: 80 }}>
                             <CartesianGrid strokeDasharray="3 3" stroke="#E5E7EB" />
-                            <XAxis dataKey={xAxis || '_category'} tick={{ fontSize: 12 }} />
+                            <XAxis
+                                dataKey={xAxis || '_category'}
+                                tick={{ fontSize: 12 }}
+                                tickFormatter={formatDate}
+                            />
                             <YAxis tick={{ fontSize: 12 }} />
-                            <Tooltip />
+                            <Tooltip labelFormatter={formatDate} />
                             <Legend
                                 verticalAlign="bottom"
                                 height={60}
@@ -393,9 +442,13 @@ export default function QueryChart({
                     <ResponsiveContainer width="100%" height={600}>
                         <AreaChart data={displayData} margin={{ bottom: 80 }}>
                             <CartesianGrid strokeDasharray="3 3" stroke="#E5E7EB" />
-                            <XAxis dataKey={xAxis || '_category'} tick={{ fontSize: 12 }} />
+                            <XAxis
+                                dataKey={xAxis || '_category'}
+                                tick={{ fontSize: 12 }}
+                                tickFormatter={formatDate}
+                            />
                             <YAxis tick={{ fontSize: 12 }} />
-                            <Tooltip />
+                            <Tooltip labelFormatter={formatDate} />
                             <Legend
                                 verticalAlign="bottom"
                                 height={60}

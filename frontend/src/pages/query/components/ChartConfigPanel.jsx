@@ -21,6 +21,10 @@ export default function ChartConfigPanel({
     setTimeGrain,
     limit,
     setLimit,
+    sortBy,
+    setSortBy,
+    sortOrder,
+    setSortOrder,
 }) {
     const limitOptions = [10, 20, 50, 100, 200, 500, 1000, 'All'];
     const aggregationOptions = ['SUM', 'COUNT', 'AVG', 'MAX', 'MIN'];
@@ -347,6 +351,46 @@ export default function ChartConfigPanel({
             <div>
                 <h3 className="text-sm font-semibold text-gray-900 mb-3">Chart Options</h3>
                 <div className="space-y-3">
+                    <div>
+                        <label className="block text-xs font-medium text-gray-700 mb-1.5">
+                            Sort By
+                        </label>
+                        <Combobox
+                            options={['', xAxis, ...yAxes.map(m => `${m.aggregation}(${m.column})`)]}
+                            value={sortBy}
+                            onChange={setSortBy}
+                            getKey={(opt) => opt}
+                            getLabel={(opt) => opt || 'Default (First Metric)'}
+                            placeholder="Select sort field"
+                        />
+                    </div>
+
+                    <div>
+                        <label className="block text-xs font-medium text-gray-700 mb-1.5">
+                            Sort Order
+                        </label>
+                        <div className="flex gap-2">
+                            <button
+                                onClick={() => setSortOrder('asc')}
+                                className={`flex-1 py-1.5 text-xs font-medium rounded-lg border transition-colors ${sortOrder === 'asc'
+                                    ? 'bg-blue-50 border-blue-500 text-blue-700'
+                                    : 'bg-white border-gray-300 text-gray-700 hover:bg-gray-50'
+                                    }`}
+                            >
+                                Ascending
+                            </button>
+                            <button
+                                onClick={() => setSortOrder('desc')}
+                                className={`flex-1 py-1.5 text-xs font-medium rounded-lg border transition-colors ${sortOrder === 'desc'
+                                    ? 'bg-blue-50 border-blue-500 text-blue-700'
+                                    : 'bg-white border-gray-300 text-gray-700 hover:bg-gray-50'
+                                    }`}
+                            >
+                                Descending
+                            </button>
+                        </div>
+                    </div>
+
                     <div>
                         <label className="block text-xs font-medium text-gray-700 mb-1.5">
                             Show Top N

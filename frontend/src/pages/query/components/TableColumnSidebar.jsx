@@ -9,11 +9,13 @@ import {
     FileText,
     Copy,
     Check,
+    BarChart3,
+    Table2,
 } from "lucide-react";
 import { listBuckets, listBucketFiles, getSchema } from "../../../services/apiDuckDB";
 import Combobox from "../../../components/common/Combobox";
 
-export default function TableColumnSidebar({ selectedTable, onSelectTable }) {
+export default function TableColumnSidebar({ selectedTable, onSelectTable, results, viewMode, setViewMode }) {
     const [buckets, setBuckets] = useState([]);
     const [selectedBucket, setSelectedBucket] = useState(null);
     const [folders, setFolders] = useState([]);
@@ -150,6 +152,32 @@ export default function TableColumnSidebar({ selectedTable, onSelectTable }) {
                         <RefreshCw className={`w-3 h-3 ${loading ? "animate-spin" : ""}`} />
                     </button>
                 </div>
+
+                {/* View Mode Toggle - Tabs Style */}
+                {results && viewMode && setViewMode && (
+                    <div className="mb-3 p-1 bg-gray-100 rounded-lg flex gap-1">
+                        <button
+                            onClick={() => setViewMode('table')}
+                            className={`flex-1 flex items-center justify-center gap-1.5 py-1.5 text-xs font-medium rounded-md transition-all ${viewMode === 'table'
+                                ? 'bg-white text-blue-600 shadow-sm ring-1 ring-black/5'
+                                : 'text-gray-500 hover:text-gray-700 hover:bg-gray-200/50'
+                                }`}
+                        >
+                            <Table2 className="w-3.5 h-3.5" />
+                            Table
+                        </button>
+                        <button
+                            onClick={() => setViewMode('chart')}
+                            className={`flex-1 flex items-center justify-center gap-1.5 py-1.5 text-xs font-medium rounded-md transition-all ${viewMode === 'chart'
+                                ? 'bg-white text-blue-600 shadow-sm ring-1 ring-black/5'
+                                : 'text-gray-500 hover:text-gray-700 hover:bg-gray-200/50'
+                                }`}
+                        >
+                            <BarChart3 className="w-3.5 h-3.5" />
+                            Chart
+                        </button>
+                    </div>
+                )}
 
                 {/* Bucket Selector */}
                 <Combobox
