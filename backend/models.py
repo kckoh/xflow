@@ -117,6 +117,10 @@ class Dataset(Document):
     # Estimated total source size in GB (for Spark executor auto-scaling)
     estimated_size_gb: float = 1.0
 
+    # Actual size of files stored in S3 (in bytes)
+    # Updated after successful job runs
+    actual_size_bytes: Optional[int] = None
+
     # Visual Editor state (for UI restoration)
     nodes: Optional[List[dict]] = None
     edges: Optional[List[dict]] = None
