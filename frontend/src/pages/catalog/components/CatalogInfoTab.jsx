@@ -1,5 +1,6 @@
 import React from "react";
 import { Layers, FileText, Database, Table } from "lucide-react";
+import { formatFileSize } from "../../../utils/formatters";
 
 export const CatalogInfoTab = ({ catalogItem, targetPath, selectedNode }) => {
     // If a node is selected, show node details instead of dataset info
@@ -169,7 +170,7 @@ export const CatalogInfoTab = ({ catalogItem, targetPath, selectedNode }) => {
                         </div>
                         <div className="bg-gray-50 rounded-lg p-3 text-center">
                             <p className="text-lg font-bold text-gray-900">
-                                {catalogItem.size_gb || "-"} GB
+                                {formatFileSize(catalogItem.size_bytes)}
                             </p>
                             <p className="text-xs text-gray-500">Size</p>
                         </div>
