@@ -4,6 +4,7 @@ import { Play, Loader2, XCircle, Download, BarChart3 } from "lucide-react";
 import { executeQuery as runDuckDBQuery } from "../../services/apiDuckDB";
 import { useToast } from "../../components/common/Toast";
 import TableColumnSidebar from "./components/TableColumnSidebar";
+import QueryExplorer from "./components/QueryExplorer";
 
 const QUERY_STORAGE_KEY = 'sqllab_current_query';
 const RESULTS_STORAGE_KEY = 'sqllab_last_results';
@@ -15,10 +16,10 @@ export default function SqlLabPage() {
 
     const [selectedTable, setSelectedTable] = useState(null);
     const [query, setQuery] = useState("");
-    const [queryLimit, setQueryLimit] = useState(30); // User-selectable limit
     const [executing, setExecuting] = useState(false);
     const [results, setResults] = useState(null);
     const [error, setError] = useState(null);
+    const [viewMode, setViewMode] = useState('table'); // 'table' | 'chart'
 
     // Load query and results from multiple sources (priority order)
     useEffect(() => {
@@ -83,13 +84,11 @@ export default function SqlLabPage() {
         try {
             let finalQuery = query.trim();
 
-            // Apply limit if user hasn't specified one and limit is not 'All'
-            if (!/\bLIMIT\b/i.test(finalQuery) && queryLimit !== 'All') {
-                finalQuery = `${finalQuery.replace(/;$/, "")} LIMIT ${queryLimit}`;
-            } else if (queryLimit === 'All') {
-                // Remove any existing LIMIT if user selects 'All'
-                finalQuery = finalQuery.replace(/\s+LIMIT\s+\d+\s*;?\s*$/i, '');
+            // Default to LIMIT 30 if not specified
+            if (!/\bLIMIT\b/i.test(finalQuery)) {
+                finalQuery = `${finalQuery.replace(/;$/, "")} LIMIT 30`;
             }
+
 
             const response = await runDuckDBQuery(finalQuery);
             const columns = response.data.length > 0 ? Object.keys(response.data[0]) : [];
@@ -143,17 +142,7 @@ export default function SqlLabPage() {
         }
     };
 
-    const exploreAsChart = () => {
-        if (!results) return;
 
-        // Pass results to Explore page via navigation state
-        navigate('/query/explore', {
-            state: {
-                queryResults: results,
-                sourceQuery: query,
-            }
-        });
-    };
 
     return (
         <div className="flex h-full overflow-hidden bg-gray-50">
@@ -161,6 +150,9 @@ export default function SqlLabPage() {
             <TableColumnSidebar
                 selectedTable={selectedTable}
                 onSelectTable={setSelectedTable}
+                results={results}
+                viewMode={viewMode}
+                setViewMode={setViewMode}
             />
 
             {/* Main SQL Lab Area */}
@@ -177,60 +169,39 @@ export default function SqlLabPage() {
 
                 {/* Query Editor */}
                 <div className="p-4 border-b border-gray-200">
-                    <textarea
-                        value={query}
-                        onChange={(e) => setQuery(e.target.value)}
-                        placeholder="Enter your SQL query here...&#10;Example: SELECT * FROM orders"
-                        className="w-full h-32 px-4 py-3 border border-gray-300 rounded-lg font-mono text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none resize-none"
-                    />
-                    <div className="flex items-center justify-between mt-3">
-                        <div className="flex items-center gap-3">
-                            {/* Limit Selector */}
-                            <div className="flex items-center gap-2">
-                                <label className="text-sm font-medium text-gray-700">Limit:</label>
-                                <select
-                                    value={queryLimit}
-                                    onChange={(e) => setQueryLimit(e.target.value === 'All' ? 'All' : parseInt(e.target.value))}
-                                    className="px-3 py-1.5 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                                >
-                                    <option value={10}>10 rows</option>
-                                    <option value={30}>30 rows</option>
-                                    <option value={100}>100 rows</option>
-                                    <option value={500}>500 rows</option>
-                                    <option value={1000}>1000 rows</option>
-                                    <option value="All">All rows</option>
-                                </select>
-                            </div>
+                    <div className="relative">
+                        <textarea
+                            value={query}
+                            onChange={(e) => setQuery(e.target.value)}
+                            placeholder="Enter your SQL query here...&#10;Example: SELECT * FROM orders"
+                            className="w-full h-32 px-4 py-3 pb-12 border border-gray-300 rounded-lg font-mono text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none resize-none"
+                        />
 
+                        <div className="absolute bottom-3 right-3 flex items-center gap-3">
                             {/* Execution Status */}
                             {executing && (
-                                <div className="flex items-center gap-2 text-sm text-gray-600">
+                                <div className="flex items-center gap-2 text-sm text-gray-600 bg-white/80 px-2 py-1 rounded">
                                     <Loader2 className="w-4 h-4 animate-spin text-blue-600" />
-                                    <span>Executing query...</span>
+                                    <span>Executing...</span>
                                 </div>
                             )}
-                        </div>
 
-                        <button
-                            onClick={executeQuery}
-                            disabled={executing || !query.trim()}
-                            className={`flex items-center gap-2 px-4 py-2 rounded-lg font-medium transition-colors ${executing || !query.trim()
-                                    ? "bg-gray-100 text-gray-400 cursor-not-allowed"
-                                    : "bg-blue-600 text-white hover:bg-blue-700"
-                                }`}
-                        >
-                            {executing ? (
-                                <>
-                                    <Loader2 className="w-4 h-4 animate-spin" />
-                                    Executing...
-                                </>
-                            ) : (
-                                <>
-                                    <Play className="w-4 h-4" />
-                                    Run Query
-                                </>
-                            )}
-                        </button>
+                            <button
+                                onClick={executeQuery}
+                                disabled={executing || !query.trim()}
+                                className={`flex items-center gap-2 px-4 py-1.5 rounded-lg text-sm font-medium transition-all shadow-sm ${executing || !query.trim()
+                                    ? "bg-gray-100 text-gray-400 cursor-not-allowed border border-gray-200"
+                                    : "bg-blue-600 text-white hover:bg-blue-700 hover:shadow-md"
+                                    }`}
+                            >
+                                {executing ? (
+                                    <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                                ) : (
+                                    <Play className="w-3.5 h-3.5" />
+                                )}
+                                Run
+                            </button>
+                        </div>
                     </div>
                 </div>
 
@@ -250,20 +221,15 @@ export default function SqlLabPage() {
                 {/* Results */}
                 <div className="flex-1 overflow-auto">
                     {results ? (
-                        <div className="p-4">
-                            {/* Results Header */}
-                            <div className="mb-4 flex items-center justify-between">
-                                <span className="text-sm font-medium text-gray-900">
-                                    Results ({results.row_count} rows)
-                                </span>
-                                <div className="flex items-center gap-2">
-                                    <button
-                                        onClick={exploreAsChart}
-                                        className="flex items-center gap-2 px-3 py-1.5 text-sm font-medium text-white bg-blue-600 rounded-lg hover:bg-blue-700 transition-colors"
-                                    >
-                                        <BarChart3 className="w-4 h-4" />
-                                        Explore as Chart
-                                    </button>
+                        viewMode === 'chart' ? (
+                            <QueryExplorer results={results} query={query} />
+                        ) : (
+                            <div className="p-4 h-full flex flex-col">
+                                {/* Results Header */}
+                                <div className="mb-4 flex items-center justify-between shrink-0">
+                                    <span className="text-sm font-medium text-gray-900">
+                                        Results ({results.row_count} rows)
+                                    </span>
                                     <button
                                         onClick={downloadCSV}
                                         className="flex items-center gap-1 px-3 py-1.5 text-sm font-medium text-gray-600 bg-white border border-gray-200 rounded-lg hover:bg-gray-50 transition-colors"
@@ -272,48 +238,48 @@ export default function SqlLabPage() {
                                         Download CSV
                                     </button>
                                 </div>
-                            </div>
 
-                            {/* Results Table */}
-                            <div className="overflow-auto border border-gray-200 rounded-lg">
-                                <table className="w-full text-sm">
-                                    <thead className="bg-gray-50 border-b border-gray-200">
-                                        <tr>
-                                            {results.columns.map((column) => (
-                                                <th
-                                                    key={column}
-                                                    className="px-4 py-3 text-left font-medium text-gray-700"
-                                                >
-                                                    {column}
-                                                </th>
-                                            ))}
-                                        </tr>
-                                    </thead>
-                                    <tbody className="divide-y divide-gray-200">
-                                        {results.data.map((row, rowIndex) => (
-                                            <tr
-                                                key={rowIndex}
-                                                className="hover:bg-gray-50 transition-colors"
-                                            >
+                                {/* Results Table - Full Height */}
+                                <div className="flex-1 overflow-auto border border-gray-200 rounded-lg">
+                                    <table className="w-full text-sm relative">
+                                        <thead className="bg-gray-50 border-b border-gray-200 sticky top-0 z-10">
+                                            <tr>
                                                 {results.columns.map((column) => (
-                                                    <td
+                                                    <th
                                                         key={column}
-                                                        className="px-4 py-3 text-gray-900"
+                                                        className="px-4 py-3 text-left font-medium text-gray-700 bg-gray-50"
                                                     >
-                                                        {(() => {
-                                                            const value = row[column];
-                                                            if (value === null || value === undefined) return "-";
-                                                            if (typeof value === "object") return JSON.stringify(value);
-                                                            return String(value);
-                                                        })()}
-                                                    </td>
+                                                        {column}
+                                                    </th>
                                                 ))}
                                             </tr>
-                                        ))}
-                                    </tbody>
-                                </table>
+                                        </thead>
+                                        <tbody className="divide-y divide-gray-200 bg-white">
+                                            {results.data.map((row, rowIndex) => (
+                                                <tr
+                                                    key={rowIndex}
+                                                    className="hover:bg-gray-50 transition-colors"
+                                                >
+                                                    {results.columns.map((column) => (
+                                                        <td
+                                                            key={column}
+                                                            className="px-4 py-3 text-gray-900 whitespace-nowrap"
+                                                        >
+                                                            {(() => {
+                                                                const value = row[column];
+                                                                if (value === null || value === undefined) return <span className="text-gray-400">-</span>;
+                                                                if (typeof value === "object") return JSON.stringify(value);
+                                                                return String(value);
+                                                            })()}
+                                                        </td>
+                                                    ))}
+                                                </tr>
+                                            ))}
+                                        </tbody>
+                                    </table>
+                                </div>
                             </div>
-                        </div>
+                        )
                     ) : (
                         <div className="flex items-center justify-center h-full text-gray-400">
                             <div className="text-center">
