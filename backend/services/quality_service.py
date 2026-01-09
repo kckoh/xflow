@@ -527,6 +527,21 @@ class QualityService:
             result.duration_ms = int((time.time() - start_time) * 1000)
             
             await result.save()
+            
+            # Update Dataset with row_count (similar to how actual_size_bytes is updated)
+            try:
+                from beanie import PydanticObjectId
+                from models import Dataset
+                
+                dataset = await Dataset.get(PydanticObjectId(dataset_id))
+                if dataset:
+                    dataset.row_count = total_rows
+                    dataset.updated_at = datetime.utcnow()
+                    await dataset.save()
+                    print(f"Updated Dataset {dataset.name} with row count: {total_rows}")
+            except Exception as e:
+                print(f"Warning: Failed to update Dataset row_count: {str(e)}")
+            
             return result
             
         except Exception as e:

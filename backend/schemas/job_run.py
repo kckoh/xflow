@@ -29,3 +29,9 @@ class JobRunListResponse(BaseModel):
 
     class Config:
         from_attributes = True
+
+
+class JobRunUpdate(BaseModel):
+    """Schema for updating job run status"""
+    status: str  # pending, running, success, failed
+    error_message: Optional[str] = None
