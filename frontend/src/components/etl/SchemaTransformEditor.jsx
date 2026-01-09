@@ -28,6 +28,7 @@ export default function SchemaTransformEditor({
     onTestStatusChange,
     onSqlChange,
     initialTargetSchema = [],
+    initialCustomSql = '',
     sourceTabs = null,
     allSources = [], // All source nodes info: [{ id, datasetId, name, schema }]
 }) {
@@ -93,6 +94,13 @@ export default function SchemaTransformEditor({
             onSqlChange(customSql);
         }
     }, [customSql, onSqlChange]);
+
+    // Initialize customSql from prop (edit mode)
+    useEffect(() => {
+        if (initialCustomSql && initialCustomSql.trim()) {
+            setCustomSql(initialCustomSql);
+        }
+    }, [initialCustomSql]);
 
     // Selection handlers
     const toggleBeforeSelection = (colName) => {
