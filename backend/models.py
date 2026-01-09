@@ -120,6 +120,10 @@ class Dataset(Document):
     # Actual size of files stored in S3 (in bytes)
     # Updated after successful job runs
     actual_size_bytes: Optional[int] = None
+    
+    # Row count from quality checks
+    # Updated when quality checks are run
+    row_count: Optional[int] = None
 
     # Visual Editor state (for UI restoration)
     nodes: Optional[List[dict]] = None
