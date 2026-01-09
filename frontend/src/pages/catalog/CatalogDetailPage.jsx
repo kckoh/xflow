@@ -10,31 +10,12 @@ import {
   useEdgesState,
 } from "@xyflow/react";
 import "@xyflow/react/dist/style.css";
-import {
-  ArrowLeft,
-  Database,
-  Clock,
-  Info,
-  Layers,
-  FileText,
-  ChevronRight,
-  BarChart3,
-  CheckCircle,
-  XCircle,
-  AlertCircle,
-  Play,
-  RefreshCw,
-  Activity,
-  Zap,
-} from "lucide-react";
-import { useToast } from "../../components/common/Toast/ToastContext";
-import {
-  getLatestQualityResult,
-  getQualityHistory,
-  runQualityCheck,
-} from "../domain/api/domainApi";
+import { Database } from "lucide-react";
+
 import { SchemaNode } from "../domain/components/schema-node/SchemaNode";
 import { catalogAPI } from "../../services/catalog";
+import { CatalogHeader } from "./components/CatalogHeader";
+import { CatalogSidebar } from "./components/CatalogSidebar";
 
 const nodeTypes = {
   custom: SchemaNode,
@@ -208,14 +189,6 @@ export default function CatalogDetailPage() {
   const [nodes, setNodes, onNodesChange] = useNodesState([]);
   const [edges, setEdges, onEdgesChange] = useEdgesState([]);
 
-  // Quality State
-  const [activeTab, setActiveTab] = useState("info");
-  const [qualityResult, setQualityResult] = useState(null);
-  const [qualityHistory, setQualityHistory] = useState([]);
-  const [qualityLoading, setQualityLoading] = useState(false);
-  const [runningCheck, setRunningCheck] = useState(false);
-  const { showToast } = useToast();
-
   useEffect(() => {
     let isActive = true;
 
@@ -243,57 +216,13 @@ export default function CatalogDetailPage() {
       }
     };
 
-    const fetchQualityData = async () => {
-      setQualityLoading(true);
-      try {
-        // Assuming catalogItem.job_id or using the dataset ID as job ID if they map 1:1
-        // Catalog ID is passed as 'id'. We need to check if we use 'id' or 'job_id'.
-        // For now using 'id' (datasetId) as it's the main param.
-        const [latest, history] = await Promise.all([
-          getLatestQualityResult(id).catch(() => null),
-          getQualityHistory(id, 5).catch(() => [])
-        ]);
-        if (!isActive) return;
-        setQualityResult(latest);
-        setQualityHistory(history);
-      } catch (error) {
-        console.error('Failed to fetch quality data:', error);
-      } finally {
-        if (isActive) setQualityLoading(false);
-      }
-    };
-
     loadCatalog();
     loadLineage();
-    fetchQualityData();
 
     return () => {
       isActive = false;
     };
   }, [id]);
-
-  const handleRunQualityCheck = async () => {
-    // Determine S3 path from catalogItem
-    const s3Path = catalogItem?.destination?.path || catalogItem?.target?.path || catalogItem?.target;
-
-    if (!s3Path) {
-      showToast('No S3 path configured for this dataset', 'error');
-      return;
-    }
-
-    setRunningCheck(true);
-    try {
-      const result = await runQualityCheck(id, s3Path, { jobId: id });
-      setQualityResult(result);
-      setQualityHistory(prev => [result, ...prev.slice(0, 4)]);
-      showToast(`Quality check completed! Score: ${result.overall_score}`, 'success');
-    } catch (error) {
-      console.error('Failed to run quality check:', error);
-      showToast('Failed to run quality check', 'error');
-    } finally {
-      setRunningCheck(false);
-    }
-  };
 
   const graph = useMemo(
     () => buildGraph(lineageData || catalogItem),
@@ -477,44 +406,7 @@ export default function CatalogDetailPage() {
 
   return (
     <div className="h-[calc(100vh-64px)] flex flex-col -mx-6 -mb-6">
-      {/* Header */}
-      <div className="bg-white border-b border-gray-200 px-6 py-3 flex items-center justify-between shrink-0">
-        <div className="flex items-center gap-3">
-          <button
-            onClick={() => navigate("/catalog")}
-            className="p-2 hover:bg-gray-100 rounded-lg transition-colors"
-          >
-            <ArrowLeft className="w-5 h-5 text-gray-500" />
-          </button>
-          <div className="flex items-center gap-3">
-            <div className="p-2 bg-orange-100 rounded-lg">
-              <Database className="w-5 h-5 text-orange-600" />
-            </div>
-            <div>
-              <h1 className="text-lg font-semibold text-gray-900">
-                {catalogItem.name}
-              </h1>
-              <p className="text-sm text-gray-500">Data Lineage</p>
-            </div>
-          </div>
-        </div>
-        <div className="flex items-center gap-3">
-          <div className="flex items-center gap-2 text-sm text-gray-500 bg-gray-100 px-3 py-1.5 rounded-lg">
-            <Clock className="w-4 h-4" />
-            <span>{catalogItem.schedule || "Manual"}</span>
-          </div>
-          <div className="flex gap-2">
-            {catalogItem.tags?.slice(0, 3).map((tag) => (
-              <span
-                key={tag}
-                className="px-2 py-1 bg-blue-50 text-blue-600 text-xs rounded-full"
-              >
-                {tag}
-              </span>
-            ))}
-          </div>
-        </div>
-      </div>
+      <CatalogHeader catalogItem={catalogItem} />
 
       {/* Main Content */}
       <div className="flex-1 flex overflow-hidden">
@@ -552,258 +444,12 @@ export default function CatalogDetailPage() {
           </ReactFlow>
         </div>
 
-        {/* Right Sidebar */}
-        <div
-          className={`bg-white border-l border-gray-200 transition-all duration-300 ${sidebarOpen ? "w-80" : "w-0"
-            } overflow-hidden`}
-        >
-          <div className="w-80 h-full overflow-y-auto flex flex-col">
-            {/* Tabs Header */}
-            <div className="flex border-b border-gray-200 bg-gray-50">
-              <button
-                onClick={() => setActiveTab('info')}
-                className={`flex-1 py-3 text-sm font-medium border-b-2 transition-colors flex items-center justify-center gap-2 ${activeTab === 'info'
-                    ? 'border-blue-500 text-blue-600 bg-white'
-                    : 'border-transparent text-gray-500 hover:text-gray-700 hover:bg-gray-100'
-                  }`}
-              >
-                <Info className="w-4 h-4" />
-                Info
-              </button>
-              <button
-                onClick={() => setActiveTab('quality')}
-                className={`flex-1 py-3 text-sm font-medium border-b-2 transition-colors flex items-center justify-center gap-2 ${activeTab === 'quality'
-                    ? 'border-blue-500 text-blue-600 bg-white'
-                    : 'border-transparent text-gray-500 hover:text-gray-700 hover:bg-gray-100'
-                  }`}
-              >
-                <BarChart3 className="w-4 h-4" />
-                Quality
-              </button>
-            </div>
-
-            {/* Tab Content */}
-            <div className="flex-1 overflow-y-auto">
-
-              {/* INFO TAB */}
-              {activeTab === 'info' && (
-                <div className="p-4 space-y-6">
-                  {/* Description */}
-                  <div>
-                    <h4 className="text-xs font-medium text-gray-500 uppercase mb-2">
-                      Description
-                    </h4>
-                    <p className="text-sm text-gray-700">
-                      {catalogItem.description || "-"}
-                    </p>
-                  </div>
-
-                  {/* Owner */}
-                  <div>
-                    <h4 className="text-xs font-medium text-gray-500 uppercase mb-2">
-                      Owner
-                    </h4>
-                    <p className="text-sm text-gray-900">
-                      {catalogItem.owner || "-"}
-                    </p>
-                  </div>
-
-                  {/* Sources */}
-                  <div>
-                    <h4 className="text-xs font-medium text-gray-500 uppercase mb-2 flex items-center gap-1">
-                      <Layers className="w-3 h-3" />
-                      Sources ({catalogItem.sources?.length || 0})
-                    </h4>
-                    <div className="space-y-2">
-                      {catalogItem.sources?.map((source, idx) => {
-                        const sourceName =
-                          typeof source === "string"
-                            ? source
-                            : source?.table || source?.name || `Source ${idx + 1}`;
-                        return (
-                          <div
-                            key={idx}
-                            className="flex items-center gap-2 text-sm bg-blue-50 text-blue-700 px-3 py-2 rounded-lg"
-                          >
-                            <Database className="w-4 h-4" />
-                            <span>{sourceName}</span>
-                          </div>
-                        );
-                      })}
-                    </div>
-                  </div>
-
-                  {/* Target */}
-                  <div>
-                    <h4 className="text-xs font-medium text-gray-500 uppercase mb-2 flex items-center gap-1">
-                      <FileText className="w-3 h-3" />
-                      Target
-                    </h4>
-                    <div className="bg-orange-50 text-orange-700 px-3 py-2 rounded-lg">
-                      <p className="text-sm font-mono break-all">{targetPath}</p>
-                    </div>
-                  </div>
-
-                  {/* Stats */}
-                  <div>
-                    <h4 className="text-xs font-medium text-gray-500 uppercase mb-2">
-                      Statistics
-                    </h4>
-                    <div className="grid grid-cols-2 gap-3">
-                      <div className="bg-gray-50 rounded-lg p-3 text-center">
-                        <p className="text-lg font-bold text-gray-900">
-                          {catalogItem.row_count?.toLocaleString() || "-"}
-                        </p>
-                        <p className="text-xs text-gray-500">Rows</p>
-                      </div>
-                      <div className="bg-gray-50 rounded-lg p-3 text-center">
-                        <p className="text-lg font-bold text-gray-900">
-                          {catalogItem.size_gb || "-"} GB
-                        </p>
-                        <p className="text-xs text-gray-500">Size</p>
-                      </div>
-                    </div>
-                  </div>
-
-                  {/* Format */}
-                  <div>
-                    <h4 className="text-xs font-medium text-gray-500 uppercase mb-2">
-                      Format
-                    </h4>
-                    <span className="inline-flex items-center px-3 py-1 bg-gray-100 text-gray-700 text-sm rounded-lg">
-                      {catalogItem.format || "Parquet"}
-                    </span>
-                  </div>
-
-                  {/* Last Updated */}
-                  <div>
-                    <h4 className="text-xs font-medium text-gray-500 uppercase mb-2">
-                      Last Updated
-                    </h4>
-                    <p className="text-sm text-gray-700">
-                      {catalogItem.updated_at
-                        ? new Date(catalogItem.updated_at).toLocaleString()
-                        : "-"}
-                    </p>
-                  </div>
-                </div>
-              )}
-
-              {/* QUALITY TAB */}
-              {activeTab === 'quality' && (
-                <div className="p-4 space-y-4">
-                  {/* Run Check Button */}
-                  <button
-                    onClick={handleRunQualityCheck}
-                    disabled={runningCheck}
-                    className="w-full flex items-center justify-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors disabled:opacity-50 text-sm font-medium"
-                  >
-                    {runningCheck ? <RefreshCw className="w-4 h-4 animate-spin" /> : <Play className="w-4 h-4" />}
-                    {runningCheck ? "Checking..." : "Run Quality Check"}
-                  </button>
-
-                  {qualityLoading ? (
-                    <div className="py-12 text-center">
-                      <RefreshCw className="w-6 h-6 text-gray-400 mx-auto animate-spin mb-2" />
-                      <p className="text-xs text-gray-500">Loading metrics...</p>
-                    </div>
-                  ) : !qualityResult ? (
-                    <div className="py-8 text-center bg-gray-50 rounded-lg border border-gray-100">
-                      <BarChart3 className="w-8 h-8 text-gray-300 mx-auto mb-2" />
-                      <p className="text-sm text-gray-500">No quality data available</p>
-                      <p className="text-xs text-gray-400 mt-1">Run a check to see metrics</p>
-                    </div>
-                  ) : (
-                    <div className="space-y-4">
-                      {/* Score Card */}
-                      <div className="bg-white rounded-lg border border-gray-200 p-4 shadow-sm flex items-center justify-between">
-                        <div>
-                          <p className="text-xs text-gray-500 font-medium">Quality Score</p>
-                          <p className={`text-2xl font-bold ${qualityResult.overall_score >= 90 ? 'text-green-600' :
-                              qualityResult.overall_score >= 70 ? 'text-yellow-600' : 'text-red-600'
-                            }`}>
-                            {Math.round(qualityResult.overall_score)}
-                          </p>
-                        </div>
-                        <div className={`p-2 rounded-full ${qualityResult.overall_score >= 90 ? 'bg-green-100' :
-                            qualityResult.overall_score >= 70 ? 'bg-yellow-100' : 'bg-red-100'
-                          }`}>
-                          {qualityResult.overall_score >= 90 ? (
-                            <CheckCircle className="w-5 h-5 text-green-500" />
-                          ) : qualityResult.overall_score >= 70 ? (
-                            <AlertCircle className="w-5 h-5 text-yellow-500" />
-                          ) : (
-                            <XCircle className="w-5 h-5 text-red-500" />
-                          )}
-                        </div>
-                      </div>
-
-                      {/* Key Metrics Grid */}
-                      <div className="grid grid-cols-2 gap-2">
-                        <div className="bg-gray-50 p-3 rounded-lg border border-gray-100">
-                          <p className="text-xs text-gray-500">Rows</p>
-                          <p className="text-lg font-semibold text-gray-900">{qualityResult.row_count?.toLocaleString() || 0}</p>
-                        </div>
-                        <div className="bg-gray-50 p-3 rounded-lg border border-gray-100">
-                          <p className="text-xs text-gray-500">Columns</p>
-                          <p className="text-lg font-semibold text-gray-900">{qualityResult.column_count || 0}</p>
-                        </div>
-                        <div className="bg-gray-50 p-3 rounded-lg border border-gray-100 col-span-2">
-                          <p className="text-xs text-gray-500">Duplicates</p>
-                          <p className="text-lg font-semibold text-gray-900">{qualityResult.duplicate_count?.toLocaleString() || 0}</p>
-                        </div>
-                      </div>
-
-                      {/* Checks List */}
-                      <div>
-                        <h4 className="text-xs font-semibold text-gray-900 mb-2 mt-2">Check Results</h4>
-                        <div className="space-y-2">
-                          {qualityResult.checks?.map((check, idx) => (
-                            <div key={idx} className="bg-white border border-gray-200 rounded p-2 text-xs hover:bg-gray-50 transition-colors">
-                              <div className="flex items-center justify-between mb-1">
-                                <span className="font-medium text-gray-700 truncate max-w-[150px]" title={check.name}>{check.name}</span>
-                                <span className={`inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-medium ${check.passed ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-700'
-                                  }`}>
-                                  {check.passed ? <CheckCircle className="w-3 h-3" /> : <XCircle className="w-3 h-3" />}
-                                  {check.passed ? 'Pass' : 'Fail'}
-                                </span>
-                              </div>
-                              {check.message && (
-                                <p className="text-gray-500 truncate" title={check.message}>{check.message}</p>
-                              )}
-                            </div>
-                          ))}
-                          {(!qualityResult.checks || qualityResult.checks.length === 0) && (
-                            <p className="text-xs text-gray-400 italic text-center py-2">No individual checks found</p>
-                          )}
-                        </div>
-                      </div>
-
-                      {/* Last Updated */}
-                      <div className="text-xs text-gray-400 flex items-center gap-1 justify-end pt-2">
-                        <Clock className="w-3 h-3" />
-                        <span>Checked: {qualityResult.run_at ? new Date(qualityResult.run_at).toLocaleDateString() : '-'}</span>
-                      </div>
-                    </div>
-                  )}
-                </div>
-              )}
-            </div>
-
-          </div>
-        </div>
-
-        {/* Sidebar Toggle */}
-        <button
-          onClick={() => setSidebarOpen(!sidebarOpen)}
-          className="absolute right-0 top-1/2 -translate-y-1/2 bg-white border border-gray-200 rounded-l-lg p-1.5 shadow-sm hover:bg-gray-50 z-10"
-          style={{ right: sidebarOpen ? "320px" : "0px" }}
-        >
-          <ChevronRight
-            className={`w-4 h-4 text-gray-500 transition-transform ${sidebarOpen ? "rotate-0" : "rotate-180"
-              }`}
-          />
-        </button>
+        <CatalogSidebar
+          isOpen={sidebarOpen}
+          setIsOpen={setSidebarOpen}
+          catalogItem={catalogItem}
+          targetPath={targetPath}
+        />
       </div>
     </div>
   );
