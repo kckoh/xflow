@@ -287,10 +287,19 @@ export default function SchemaTransformEditor({
         setIsTestSuccessful(false);
         if (onTestStatusChange) onTestStatusChange(false);
 
-        // Check if there are any columns in target
-        if (targetSchema.length === 0) {
-            setTestError('Please move at least one column to the "After (Target)" list to test.');
-            return;
+        // Validation based on active tab
+        if (activeTab === 'columns') {
+            // Visual Transform: check if columns are selected
+            if (targetSchema.length === 0) {
+                setTestError('Please move at least one column to the "After (Target)" list to test.');
+                return;
+            }
+        } else if (activeTab === 'sql') {
+            // SQL Transform: check if SQL query is provided
+            if (!customSql.trim()) {
+                setTestError('Please enter a SQL query to test.');
+                return;
+            }
         }
 
         setIsTestLoading(true);
@@ -298,16 +307,28 @@ export default function SchemaTransformEditor({
         setTestResult(null);
 
         try {
-            // Build sources array: for each source, include its datasetId and its columns from targetSchema
-            const sources = allSources.map(source => ({
-                source_dataset_id: source.datasetId,
-                columns: targetSchema
-                    .filter(col => col.sourceId === source.id)
-                    .map(col => col.originalName)
-            })).filter(source => source.columns.length > 0); // Only include sources with columns
+            // Build sources array based on active tab
+            let sources;
+
+            if (activeTab === 'sql') {
+                // SQL Transform: include ALL columns from ALL sources
+                // This allows users to reference any column in their SQL query
+                sources = allSources.map(source => ({
+                    source_dataset_id: source.datasetId,
+                    columns: source.schema?.map(col => col.name) || []
+                })).filter(source => source.columns.length > 0);
+            } else {
+                // Visual Transform: only include columns that are in targetSchema
+                sources = allSources.map(source => ({
+                    source_dataset_id: source.datasetId,
+                    columns: targetSchema
+                        .filter(col => col.sourceId === source.id)
+                        .map(col => col.originalName)
+                })).filter(source => source.columns.length > 0);
+            }
 
             if (sources.length === 0) {
-                setTestError('No columns selected from any source.');
+                setTestError('No data sources available.');
                 return;
             }
 

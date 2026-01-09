@@ -64,7 +64,7 @@ async def test_sql_query(request: SQLTestRequest):
         
         # Load and combine data from all sources
         # Load 'limit' rows from each source so all sources appear in preview
-        sample_df, source_samples = await _load_and_union_sources(request.sources, db, limit=limit)
+        sample_df, source_samples, individual_sources = await _load_and_union_sources(request.sources, db, limit=limit)
         
         if sample_df is None or len(sample_df) == 0:
             raise HTTPException(
@@ -75,7 +75,13 @@ async def test_sql_query(request: SQLTestRequest):
         # Execute SQL with DuckDB
         con = duckdb.connect()
         
-        # Register combined data as "input" table
+        # Register each individual source as a separate table (for JOIN/SQL Transform support)
+        for source_info in individual_sources:
+            table_name = source_info['dataset_name']
+            table_df = source_info['dataframe']
+            con.register(table_name, table_df)
+        
+        # Also register combined data as "input" table (for Visual Transform/backward compatibility)
         con.register('input', sample_df)
         
         # Execute user's SQL and apply limit
@@ -186,6 +192,7 @@ async def _load_and_union_sources(
     
     combined_dfs = []
     source_samples = []  # Store individual source samples
+    individual_sources = []  # Store individual source DataFrames for separate table registration
     
     for source in sources_info:
         # Get source dataset
@@ -273,6 +280,14 @@ async def _load_and_union_sources(
             "rows": source_sample_rows
         })
         
+        # Store individual source DataFrame (before adding NULL columns for UNION ALL)
+        # This allows each source to be registered as a separate table in DuckDB
+        dataset_name = source_dataset.get("name", f"source_{source.source_dataset_id}")
+        individual_sources.append({
+            "dataset_name": dataset_name,
+            "dataframe": df_original.copy()
+        })
+        
         # Add NULL columns for columns from other sources (for UNION ALL)
         df = df[available_cols]
         for col in all_columns:
@@ -293,7 +308,7 @@ async def _load_and_union_sources(
     # Combine all DataFrames (UNION ALL)
     combined_df = pd.concat(combined_dfs, ignore_index=True)
     
-    return combined_df, source_samples
+    return combined_df, source_samples, individual_sources
 
 
 async def _load_sample_data(
