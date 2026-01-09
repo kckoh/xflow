@@ -356,20 +356,10 @@ export default function SchemaTransformEditor({
                 setIsTestSuccessful(true);
                 if (onTestStatusChange) onTestStatusChange(true);
 
-                // For SQL Transform: extract result schema and update targetSchema
-                if (activeTab === 'sql' && result.schema) {
-                    const resultSchema = result.schema.map(col => ({
-                        name: col.name,
-                        type: col.type,
-                        originalName: col.name,
-                        sourceId: null, // SQL result doesn't belong to a specific source
-                        transform: null,
-                        nullable: col.nullable !== false
-                    }));
-                    if (onSchemaChange) {
-                        onSchemaChange(resultSchema);
-                    }
-                }
+                // Note: SQL Transform does NOT update targetSchema
+                // The SQL query result schema will be inferred by Spark ETL at runtime
+                // Only customSql (the query itself) needs to be saved
+                // This prevents schema duplication and keeps Visual/SQL Transform separate
             } else {
                 setTestError(result.error || 'Invalid SQL');
             }

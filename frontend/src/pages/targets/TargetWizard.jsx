@@ -128,24 +128,22 @@ export default function TargetWizard() {
           );
           setSourceNodes(sources);
 
-          // Restore combined target schema from all transform nodes
-          const combinedSchema = [];
-          sources.forEach((source) => {
-            const transformNode = job.nodes.find(
-              (n) =>
-                n.data?.nodeCategory === "transform" &&
-                job.edges?.some(
-                  (e) => e.source === source.id && e.target === n.id
-                )
-            );
 
-            if (transformNode?.data?.outputSchema) {
-              combinedSchema.push(...transformNode.data.outputSchema);
-            }
-          });
+          // Restore combined target schema from transform node
+          // Find the combined transform node (not per-source to avoid duplicates)
+          const transformNode = job.nodes.find(
+            (n) => n.data?.nodeCategory === "transform" && n.data?.transformType === "sql"
+          );
 
-          setTargetSchema(combinedSchema);
-          setInitialTargetSchema(combinedSchema);
+          if (transformNode?.data?.outputSchema) {
+            setTargetSchema(transformNode.data.outputSchema);
+            setInitialTargetSchema(transformNode.data.outputSchema);
+          }
+
+          // Also restore customSql if it exists
+          if (transformNode?.data?.query) {
+            setCustomSql(transformNode.data.query);
+          }
         }
 
         // Skip to Transform step in edit mode
@@ -727,8 +725,12 @@ export default function TargetWizard() {
         // Source step - check both Source and Target tabs
         return selectedJobIds.length > 0 || selectedTargetIds.length > 0;
       case 3:
-        // Process/Transform step - need schema with at least one column and test passed
-        return targetSchema.length > 0 && isTestPassed;
+        // Process/Transform step
+        // Visual Transform: need schema with test passed
+        // SQL Transform: need customSql (schema inferred at runtime)
+        const hasVisualTransform = targetSchema.length > 0 && isTestPassed;
+        const hasSqlTransform = customSql && customSql.trim() && isTestPassed;
+        return hasVisualTransform || hasSqlTransform;
       case 4:
         return true; // Schedule step - always can proceed
       case 5:
