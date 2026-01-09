@@ -48,7 +48,8 @@ def get_executor_count(size_gb: float) -> int:
 def generate_spark_application(**context):
     """Generate SparkApplication YAML from dataset config"""
     config_json = context["ti"].xcom_pull(task_ids="fetch_dataset_config")
-    dataset_id = context["dag_run"].conf.get("dataset_id", "unknown")
+    # Support both dataset_id (direct run) and job_id (scheduled run)
+    dataset_id = context["dag_run"].conf.get("dataset_id") or context["dag_run"].conf.get("job_id", "unknown")
 
     # Extract run_id from dag_run_id for unique naming
     dag_run_id = context["dag_run"].run_id
