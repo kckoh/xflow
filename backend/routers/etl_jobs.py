@@ -490,6 +490,29 @@ async def activate_etl_job(job_id: str):
     job.updated_at = datetime.utcnow()
     await job.save()
 
+    # Unpause the corresponding Airflow DAG
+    try:
+        import hashlib
+        schedule_hash = hashlib.md5(job.schedule.encode()).hexdigest()[:8]
+        dag_id = f"scheduler_{job_id}_{schedule_hash}"
+
+        async with httpx.AsyncClient() as client:
+            # Unpause the DAG via Airflow API
+            response = await client.patch(
+                f"{AIRFLOW_BASE_URL}/dags/{dag_id}",
+                json={"is_paused": False},
+                auth=AIRFLOW_AUTH,
+                timeout=10.0,
+            )
+
+            if response.status_code == 200:
+                print(f"Successfully unpaused Airflow DAG: {dag_id}")
+            else:
+                print(f"Failed to unpause Airflow DAG {dag_id}: {response.status_code}")
+    except Exception as e:
+        print(f"Error unpausing Airflow DAG: {e}")
+        # Don't fail the activation if Airflow API call fails
+
     return {"message": "Job schedule activated", "status": "active"}
 
 
@@ -508,12 +531,36 @@ async def deactivate_etl_job(job_id: str):
     job.updated_at = datetime.utcnow()
     await job.save()
 
+    # Pause the corresponding Airflow DAG
+    if job.schedule:
+        try:
+            import hashlib
+            schedule_hash = hashlib.md5(job.schedule.encode()).hexdigest()[:8]
+            dag_id = f"scheduler_{job_id}_{schedule_hash}"
+
+            async with httpx.AsyncClient() as client:
+                # Pause the DAG via Airflow API
+                response = await client.patch(
+                    f"{AIRFLOW_BASE_URL}/dags/{dag_id}",
+                    json={"is_paused": True},
+                    auth=AIRFLOW_AUTH,
+                    timeout=10.0,
+                )
+
+                if response.status_code == 200:
+                    print(f"Successfully paused Airflow DAG: {dag_id}")
+                else:
+                    print(f"Failed to pause Airflow DAG {dag_id}: {response.status_code}")
+        except Exception as e:
+            print(f"Error pausing Airflow DAG: {e}")
+            # Don't fail the deactivation if Airflow API call fails
+
     return {"message": "Job schedule paused", "status": "paused"}
 
 
 @router.post("/{job_id}/run")
 async def run_etl_job(job_id: str):
-    """Trigger an ETL job execution or activate schedule"""
+    """Trigger immediate ETL job execution (regardless of schedule)"""
     try:
         job = await ETLJob.get(PydanticObjectId(job_id))
     except Exception:
@@ -522,29 +569,7 @@ async def run_etl_job(job_id: str):
     if not job:
         raise HTTPException(status_code=404, detail="Job not found")
 
-    # [Logic for Action Button]
-    # Case 1: Job has a schedule → Activate schedule, don't run immediately
-    if job.schedule:
-        if job.status != "active":
-            job.status = "active"
-            job.updated_at = datetime.utcnow()
-            await job.save()
-            return {
-                "message": "Schedule activated. Job will run according to schedule.",
-                "job_id": job_id,
-                "schedule": job.schedule,
-                "schedule_activated": True,
-            }
-        else:
-            return {
-                "message": "Schedule is already active",
-                "job_id": job_id,
-                "schedule": job.schedule,
-                "schedule_activated": False,
-            }
-
-    # Case 2: No schedule → Run immediately (one-time execution)
-    # Create job run record
+    # Always run immediately - create job run record
     job_run = JobRun(
         job_id=job_id,
         status="pending",

@@ -336,9 +336,9 @@ services:
       - LOCALSTACK_AUTH_TOKEN=${LOCALSTACK_AUTH_TOKEN}
       - PERSISTENCE=1
       - EAGER_SERVICE_LOADING=0
-      - DEFAULT_REGION=ap-northeast-2
-      - AWS_DEFAULT_REGION=ap-northeast-2
-      - AWS_REGION=ap-northeast-2
+      # - DEFAULT_REGION=ap-northeast-2
+      # - AWS_DEFAULT_REGION=ap-northeast-2
+      # - AWS_REGION=ap-northeast-2
     env_file:
       - .env
     volumes:
