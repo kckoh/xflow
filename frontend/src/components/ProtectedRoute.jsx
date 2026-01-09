@@ -2,7 +2,12 @@ import { Navigate, Outlet } from "react-router-dom";
 import { useAuth } from "../context/AuthContext";
 
 function ProtectedRoute({ children, requireAdmin = false, requireEtlAccess = false }) {
-  const { sessionId, user } = useAuth();
+  const { sessionId, user, isAuthReady } = useAuth();
+
+  // Wait for auth to be restored from sessionStorage before checking
+  if (!isAuthReady) {
+    return null; // or a loading spinner
+  }
 
   if (!sessionId) {
     return <Navigate to="/login" replace />;

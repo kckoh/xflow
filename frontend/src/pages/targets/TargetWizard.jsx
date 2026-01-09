@@ -742,7 +742,13 @@ export default function TargetWizard() {
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-4">
               <button
-                onClick={() => navigate("/dataset")}
+                onClick={() => {
+                  if (currentStep === 1) {
+                    navigate("/dataset");
+                  } else {
+                    handleBack();
+                  }
+                }}
                 className="p-2 hover:bg-gray-100 rounded-lg transition-colors"
               >
                 <ArrowLeft className="w-5 h-5 text-gray-500" />
@@ -765,8 +771,8 @@ export default function TargetWizard() {
                 onClick={handleBack}
                 disabled={currentStep === 1}
                 className={`flex items-center gap-2 px-4 py-2 rounded-lg transition-colors ${currentStep === 1
-                    ? "text-gray-300 cursor-not-allowed"
-                    : "text-gray-600 hover:bg-gray-100"
+                  ? "text-gray-300 cursor-not-allowed"
+                  : "text-gray-600 hover:bg-gray-100"
                   }`}
               >
                 <ArrowLeft className="w-4 h-4" />
@@ -778,8 +784,8 @@ export default function TargetWizard() {
                   onClick={handleNext}
                   disabled={!canProceed() || isLoading}
                   className={`flex items-center gap-2 px-5 py-2 rounded-lg transition-colors ${canProceed() && !isLoading
-                      ? "bg-orange-600 text-white hover:bg-orange-700"
-                      : "bg-gray-200 text-gray-400 cursor-not-allowed"
+                    ? "bg-orange-600 text-white hover:bg-orange-700"
+                    : "bg-gray-200 text-gray-400 cursor-not-allowed"
                     }`}
                 >
                   {isLoading ? (
@@ -818,10 +824,10 @@ export default function TargetWizard() {
                 <div className="flex flex-col items-center">
                   <div
                     className={`w-10 h-10 rounded-full flex items-center justify-center transition-colors shrink-0 ${currentStep > step.id
+                      ? "bg-orange-500 text-white"
+                      : currentStep === step.id
                         ? "bg-orange-500 text-white"
-                        : currentStep === step.id
-                          ? "bg-orange-500 text-white"
-                          : "bg-gray-200 text-gray-500"
+                        : "bg-gray-200 text-gray-500"
                       }`}
                   >
                     {currentStep > step.id ? (
@@ -877,8 +883,8 @@ export default function TargetWizard() {
                         }
                         placeholder="Enter dataset name"
                         className={`w-full px-4 py-2 border rounded-lg focus:outline-none focus:ring-2 ${isNameDuplicate
-                            ? "border-red-500 focus:ring-red-500"
-                            : "border-gray-300 focus:ring-orange-500"
+                          ? "border-red-500 focus:ring-red-500"
+                          : "border-gray-300 focus:ring-orange-500"
                           }`}
                       />
                     </div>
@@ -983,8 +989,8 @@ export default function TargetWizard() {
                       <button
                         onClick={() => setSourceTab("source")}
                         className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-all ${sourceTab === "source"
-                            ? "bg-blue-600 text-white"
-                            : "bg-gray-100 text-gray-600 hover:bg-gray-200"
+                          ? "bg-blue-600 text-white"
+                          : "bg-gray-100 text-gray-600 hover:bg-gray-200"
                           }`}
                       >
                         Source
@@ -992,8 +998,8 @@ export default function TargetWizard() {
                       <button
                         onClick={() => setSourceTab("target")}
                         className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-all ${sourceTab === "target"
-                            ? "bg-orange-600 text-white"
-                            : "bg-gray-100 text-gray-600 hover:bg-gray-200"
+                          ? "bg-orange-600 text-white"
+                          : "bg-gray-100 text-gray-600 hover:bg-gray-200"
                           }`}
                       >
                         Target
@@ -1060,17 +1066,17 @@ export default function TargetWizard() {
                                 }
                               }}
                               className={`cursor-pointer transition-colors ${isFocused
-                                  ? "bg-orange-50"
-                                  : isSelected
-                                    ? "bg-blue-50"
-                                    : "hover:bg-gray-50"
+                                ? "bg-orange-50"
+                                : isSelected
+                                  ? "bg-blue-50"
+                                  : "hover:bg-gray-50"
                                 }`}
                             >
                               <td className="px-3 py-2">
                                 <div
                                   className={`w-4 h-4 rounded border flex items-center justify-center transition-colors ${isSelected
-                                      ? "bg-orange-600 border-orange-600"
-                                      : "border-gray-300 bg-white hover:border-gray-400"
+                                    ? "bg-orange-600 border-orange-600"
+                                    : "border-gray-300 bg-white hover:border-gray-400"
                                     }`}
                                 >
                                   {isSelected && (
@@ -1089,9 +1095,9 @@ export default function TargetWizard() {
                               <td className="px-3 py-2">
                                 <span
                                   className={`inline-flex items-center px-1.5 py-0.5 rounded text-xs font-medium ${dataset.status === "active" ||
-                                      dataset.is_active
-                                      ? "bg-green-100 text-green-700"
-                                      : "bg-gray-100 text-gray-600"
+                                    dataset.is_active
+                                    ? "bg-green-100 text-green-700"
+                                    : "bg-gray-100 text-gray-600"
                                     }`}
                                 >
                                   {dataset.status ||
@@ -1140,8 +1146,8 @@ export default function TargetWizard() {
                   <button
                     onClick={() => setDetailPanelTab("details")}
                     className={`flex-1 px-4 py-3 text-sm font-medium transition-colors ${detailPanelTab === "details"
-                        ? "text-orange-600 border-b-2 border-orange-600 bg-orange-50"
-                        : "text-gray-600 hover:bg-gray-50"
+                      ? "text-orange-600 border-b-2 border-orange-600 bg-orange-50"
+                      : "text-gray-600 hover:bg-gray-50"
                       }`}
                   >
                     Details
@@ -1149,8 +1155,8 @@ export default function TargetWizard() {
                   <button
                     onClick={() => setDetailPanelTab("schema")}
                     className={`flex-1 px-4 py-3 text-sm font-medium transition-colors ${detailPanelTab === "schema"
-                        ? "text-orange-600 border-b-2 border-orange-600 bg-orange-50"
-                        : "text-gray-600 hover:bg-gray-50"
+                      ? "text-orange-600 border-b-2 border-orange-600 bg-orange-50"
+                      : "text-gray-600 hover:bg-gray-50"
                       }`}
                   >
                     Schema
@@ -1416,8 +1422,8 @@ export default function TargetWizard() {
                                 key={source.id}
                                 onClick={() => setActiveSourceTab(idx)}
                                 className={`px-3 py-1.5 text-xs font-medium rounded-md transition-colors flex items-center gap-1.5 ${activeSourceTab === idx
-                                    ? "bg-blue-100 text-blue-700 border border-blue-300"
-                                    : "bg-slate-50 text-slate-600 border border-slate-200 hover:bg-slate-100"
+                                  ? "bg-blue-100 text-blue-700 border border-blue-300"
+                                  : "bg-slate-50 text-slate-600 border border-slate-200 hover:bg-slate-100"
                                   }`}
                               >
                                 <div
