@@ -527,20 +527,67 @@ def finalize_import(**context):
             update_fields["last_sync_timestamp"] = current_time
             print(f"[Incremental] Updated last_sync_timestamp: {current_time.isoformat()}")
 
-        # Calculate S3 file size via Backend API
-        import requests
-        backend_url = Variable.get("BACKEND_URL", default_var="http://xflow-backend:8000")
-        api_url = f"{backend_url}/api/datasets/{dataset_id}/calculate-size"
+        # Calculate S3 file size directly
+        destination = dataset.get("destination", {})
+        s3_path = destination.get("path")
         
-        print(f"📊 Calculating S3 file size for dataset {dataset_id}...")
-        response = requests.post(api_url, timeout=60)
-        
-        if response.status_code == 200:
-            result_data = response.json()
-            size_bytes = result_data.get("size_bytes", 0)
-            print(f"✅ S3 file size calculated: {size_bytes} bytes")
-        else:
-            print(f"⚠️ Failed to calculate S3 size: {response.status_code} - {response.text}")
+        if s3_path:
+            print(f"📊 Calculating S3 file size for dataset {dataset_id}...")
+            try:
+                import boto3
+                import re
+                
+                # Parse S3 path (s3://bucket/path or s3a://bucket/path)
+                path = re.sub(r'^s3a?://', '', s3_path)
+                parts = path.split('/', 1)
+                bucket = parts[0]
+                prefix = parts[1].rstrip('/') if len(parts) > 1 else ''
+                
+                # Get S3 client (supports both LocalStack and AWS)
+                aws_endpoint = Variable.get("AWS_ENDPOINT", default_var=None) or Variable.get("AWS_ENDPOINT_URL", default_var=None)
+                
+                if aws_endpoint:
+                    # LocalStack configuration
+                    s3_client = boto3.client(
+                        's3',
+                        endpoint_url=aws_endpoint,
+                        aws_access_key_id=Variable.get("AWS_ACCESS_KEY_ID", default_var="test"),
+                        aws_secret_access_key=Variable.get("AWS_SECRET_ACCESS_KEY", default_var="test"),
+                        region_name=Variable.get("AWS_REGION", default_var="ap-northeast-2")
+                    )
+                else:
+                    # AWS configuration (IRSA)
+                    s3_client = boto3.client(
+                        's3',
+                        region_name=Variable.get("AWS_REGION", default_var="ap-northeast-2")
+                    )
+                
+                # Calculate total size with pagination
+                total_size = 0
+                continuation_token = None
+                
+                while True:
+                    list_params = {'Bucket': bucket, 'Prefix': prefix}
+                    if continuation_token:
+                        list_params['ContinuationToken'] = continuation_token
+                    
+                    response = s3_client.list_objects_v2(**list_params)
+                    
+                    if 'Contents' in response:
+                        for obj in response['Contents']:
+                            total_size += obj['Size']
+                    
+                    if response.get('IsTruncated'):
+                        continuation_token = response.get('NextContinuationToken')
+                    else:
+                        break
+                
+                # Update dataset with calculated size
+                update_fields["actual_size_bytes"] = total_size
+                print(f"✅ S3 file size calculated: {total_size} bytes ({total_size / (1024**3):.2f} GB)")
+            except Exception as e:
+                print(f"⚠️ Error calculating S3 size: {e}")
+                # Continue even if size calculation fails
 
         # Update dataset with all fields
         result = db.datasets.update_one(
