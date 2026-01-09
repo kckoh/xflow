@@ -134,7 +134,7 @@ async def search(
 
         query = {
             "bool": {
-                "must": [
+                "should": [
                     {
                         "multi_match": {
                             "query": q,
@@ -151,8 +151,17 @@ async def search(
                             "type": "best_fields",
                             "fuzziness": "AUTO"
                         }
+                    },
+                    {
+                        "wildcard": {
+                            "name.keyword": {
+                                "value": f"*{q}*",
+                                "boost": 2.0
+                            }
+                        }
                     }
                 ],
+                "minimum_should_match": 1,
                 "filter": []
             }
         }

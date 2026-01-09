@@ -917,9 +917,27 @@ def run_etl(config: dict):
                 result_df = MULTI_INPUT_TRANSFORMS[transform_type](input_dfs, transform_config)
 
             elif transform_type in TRANSFORMS:
-                # Single-input transform
+                # Single-input transform (or multi-input for SQL with UNION ALL)
                 if input_node_ids:
-                    input_df = dataframes[input_node_ids[0]]
+                    # Special handling for SQL transform with multiple inputs
+                    if transform_type == "sql" and len(input_node_ids) > 1:
+                        # UNION ALL multiple sources before SQL execution
+                        print(f"   Combining {len(input_node_ids)} sources with UNION ALL...")
+                        input_dfs = []
+                        for input_id in input_node_ids:
+                            if input_id not in dataframes:
+                                raise ValueError(f"Input node {input_id} not found for transform {node_id}")
+                            input_dfs.append(dataframes[input_id])
+                        
+                        # Use unionByName with allowMissingColumns for schema alignment
+                        input_df = input_dfs[0]
+                        for df in input_dfs[1:]:
+                            input_df = input_df.unionByName(df, allowMissingColumns=True)
+                        
+                        print(f"   UNION ALL complete. Combined schema has {len(input_df.columns)} columns")
+                    else:
+                        # Regular single input
+                        input_df = dataframes[input_node_ids[0]]
                 elif last_node_id:
                     input_df = dataframes[last_node_id]
                 else:

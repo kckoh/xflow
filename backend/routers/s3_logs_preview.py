@@ -373,18 +373,41 @@ async def preview_s3_logs(request: S3LogPreviewRequest):
 
         # Timestamp filter
         if filters.get("timestampField") and (filters.get("timestampFrom") or filters.get("timestampTo")):
+            from datetime import datetime, timezone
             timestamp_field = filters["timestampField"]
             timestamp_from = filters.get("timestampFrom")
             timestamp_to = filters.get("timestampTo")
 
+            def parse_ts(value):
+                if not value:
+                    return None
+                try:
+                    return datetime.fromisoformat(value)
+                except ValueError:
+                    try:
+                        return datetime.strptime(value, "%d/%b/%Y:%H:%M:%S %z")
+                    except ValueError:
+                        return None
+
+            def to_utc(dt):
+                if dt is None:
+                    return None
+                if dt.tzinfo is None:
+                    return dt.replace(tzinfo=timezone.utc)
+                return dt.astimezone(timezone.utc)
+
+            dt_from = to_utc(parse_ts(timestamp_from))
+            dt_to = to_utc(parse_ts(timestamp_to))
+
             def timestamp_filter(row):
                 try:
-                    # Simplified: Just do string comparison for now
-                    # Real implementation would parse timestamp format
                     ts = row.get(timestamp_field, "")
-                    if timestamp_from and ts < timestamp_from:
+                    dt_value = to_utc(parse_ts(ts))
+                    if not dt_value:
                         return False
-                    if timestamp_to and ts > timestamp_to:
+                    if dt_from and dt_value < dt_from:
+                        return False
+                    if dt_to and dt_value > dt_to:
                         return False
                     return True
                 except:
