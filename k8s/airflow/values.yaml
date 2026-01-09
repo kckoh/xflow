@@ -43,6 +43,9 @@ scheduler:
   serviceAccount:
     annotations:
       eks.amazonaws.com/role-arn: "arn:aws:iam::134059028370:role/eksctl-xflow-cluster-addon-iamserviceaccount--Role1-bLIJeAhC8jWI"
+  env:
+    - name: BACKEND_URL
+      value: "http://backend.default.svc.cluster.local/api/datasets"
   resources:
     requests:
       memory: "1Gi"
@@ -58,6 +61,9 @@ dagProcessor:
   serviceAccount:
     annotations:
       eks.amazonaws.com/role-arn: "arn:aws:iam::134059028370:role/eksctl-xflow-cluster-addon-iamserviceaccount--Role1-bLIJeAhC8jWI"
+  env:
+    - name: BACKEND_URL
+      value: "http://backend.default.svc.cluster.local/api/datasets"
   resources:
     requests:
       memory: "256Mi"
