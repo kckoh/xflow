@@ -67,6 +67,10 @@ export default function TargetWizard() {
   const [targetSchema, setTargetSchema] = useState([]); // Single shared target schema for all sources
   const [initialTargetSchema, setInitialTargetSchema] = useState([]); // For edit mode
   const [isTestPassed, setIsTestPassed] = useState(false); // Single test status for the combined schema
+  const [s3ProcessConfig, setS3ProcessConfig] = useState({
+    selected_fields: [],
+    filters: {},
+  });
 
   // Step 4: Schedule
   const [jobType, setJobType] = useState("batch");
@@ -510,36 +514,103 @@ export default function TargetWizard() {
     }
 
     try {
-      // Generate a single transform node with the combined schema
-      const sql = generateSql(targetSchema);
-      const transformNodeId = `transform-combined-${Date.now()}`;
+      const isS3LogSource =
+        sourceNodes[0]?.data?.customRegex &&
+        (sourceNodes[0]?.data?.sourceType === "s3" ||
+          sourceNodes[0]?.data?.platform?.toLowerCase() === "s3");
 
-      const transformNode = {
-        id: transformNodeId,
-        type: "custom",
-        position: { x: 500, y: 200 },
-        data: {
-          label: `Transform: Combined`,
-          name: `Transform: Combined`,
-          platform: "SQL Transform",
-          nodeCategory: "transform",
-          transformType: "sql",
-          query: sql,
-          outputSchema: targetSchema,
-          sourceNodeIds: sourceNodes.map((n) => n.id),
-        },
-      };
+      let edges = [];
+      let allNodes = [];
 
-      // Create edges from all sources to the single transform node
-      const edges = sourceNodes.map((source) => ({
-        id: `edge-${source.id}-${transformNodeId}`,
-        source: source.id,
-        target: transformNodeId,
-        type: "default",
-      }));
+      if (isS3LogSource) {
+        const nodeSuffix = Date.now();
+        const selectNodeId = `transform-s3-select-${nodeSuffix}`;
+        const filterNodeId = `transform-s3-filter-${nodeSuffix}`;
 
-      // Combine all nodes
-      const allNodes = [...sourceNodes, transformNode];
+        const selectTransformNode = {
+          id: selectNodeId,
+          type: "custom",
+          position: { x: 500, y: 200 },
+          data: {
+            label: "Transform: Select Fields",
+            name: "Transform: Select Fields",
+            platform: "S3 Log Transform",
+            nodeCategory: "transform",
+            transformType: "s3-select-fields",
+            transformConfig: {
+              selected_fields: s3ProcessConfig.selected_fields || [],
+            },
+            outputSchema: targetSchema,
+            sourceNodeIds: sourceNodes.map((n) => n.id),
+          },
+        };
+
+        const filterTransformNode = {
+          id: filterNodeId,
+          type: "custom",
+          position: { x: 700, y: 200 },
+          data: {
+            label: "Transform: Apply Filters",
+            name: "Transform: Apply Filters",
+            platform: "S3 Log Transform",
+            nodeCategory: "transform",
+            transformType: "s3-filter",
+            transformConfig: {
+              filters: s3ProcessConfig.filters || {},
+            },
+            outputSchema: targetSchema,
+            sourceNodeIds: sourceNodes.map((n) => n.id),
+          },
+        };
+
+        edges = [
+          ...sourceNodes.map((source) => ({
+            id: `edge-${source.id}-${selectNodeId}`,
+            source: source.id,
+            target: selectNodeId,
+            type: "default",
+          })),
+          {
+            id: `edge-${selectNodeId}-${filterNodeId}`,
+            source: selectNodeId,
+            target: filterNodeId,
+            type: "default",
+          },
+        ];
+
+        allNodes = [...sourceNodes, selectTransformNode, filterTransformNode];
+      } else {
+        // Generate a single transform node with the combined schema
+        const sql = generateSql(targetSchema);
+        const transformNodeId = `transform-combined-${Date.now()}`;
+
+        const transformNode = {
+          id: transformNodeId,
+          type: "custom",
+          position: { x: 500, y: 200 },
+          data: {
+            label: `Transform: Combined`,
+            name: `Transform: Combined`,
+            platform: "SQL Transform",
+            nodeCategory: "transform",
+            transformType: "sql",
+            query: sql,
+            outputSchema: targetSchema,
+            sourceNodeIds: sourceNodes.map((n) => n.id),
+          },
+        };
+
+        // Create edges from all sources to the single transform node
+        edges = sourceNodes.map((source) => ({
+          id: `edge-${source.id}-${transformNodeId}`,
+          source: source.id,
+          target: transformNodeId,
+          type: "default",
+        }));
+
+        // Combine all nodes
+        allNodes = [...sourceNodes, transformNode];
+      }
 
       const payload = {
         name: config.name,
@@ -1265,6 +1336,7 @@ export default function TargetWizard() {
                     sourceDatasetId={sourceNodes[0]?.data?.sourceDatasetId}
                     customRegex={sourceNodes[0]?.data?.customRegex}
                     onConfigChange={(config) => {
+                      setS3ProcessConfig(config);
                       setTargetSchema(
                         config.selected_fields.map((field) => ({
                           name: field,
