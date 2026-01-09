@@ -67,6 +67,7 @@ export default function TargetWizard() {
   const [targetSchema, setTargetSchema] = useState([]); // Single shared target schema for all sources
   const [initialTargetSchema, setInitialTargetSchema] = useState([]); // For edit mode
   const [isTestPassed, setIsTestPassed] = useState(false); // Single test status for the combined schema
+  const [customSql, setCustomSql] = useState(''); // Custom SQL from SQL Transform tab
   const [s3ProcessConfig, setS3ProcessConfig] = useState({
     selected_fields: [],
     filters: {},
@@ -535,6 +536,12 @@ export default function TargetWizard() {
 
   // Generate SQL from targetSchema
   const generateSql = (schema) => {
+    // If custom SQL is provided (from SQL Transform tab), use it
+    if (customSql && customSql.trim()) {
+      return customSql.trim();
+    }
+
+    // Otherwise generate SQL from schema (Visual Transform tab)
     if (!schema || schema.length === 0) return "SELECT * FROM input";
 
     const selectClauses = schema.map((col) => {
@@ -1407,6 +1414,7 @@ export default function TargetWizard() {
                       initialTargetSchema={initialTargetSchema}
                       onSchemaChange={setTargetSchema}
                       onTestStatusChange={setIsTestPassed}
+                      onSqlChange={setCustomSql}
                       allSources={sourceNodes.map((node) => ({
                         id: node.id,
                         datasetId:

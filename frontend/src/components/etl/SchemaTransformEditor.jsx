@@ -26,6 +26,7 @@ export default function SchemaTransformEditor({
     targetSchema = [],
     onSchemaChange,
     onTestStatusChange,
+    onSqlChange,
     initialTargetSchema = [],
     sourceTabs = null,
     allSources = [], // All source nodes info: [{ id, datasetId, name, schema }]
@@ -85,6 +86,13 @@ export default function SchemaTransformEditor({
         }
         // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [JSON.stringify(initialTargetSchema), isInitialized]);
+
+    // Notify parent when customSql changes
+    useEffect(() => {
+        if (onSqlChange) {
+            onSqlChange(customSql);
+        }
+    }, [customSql, onSqlChange]);
 
     // Selection handlers
     const toggleBeforeSelection = (colName) => {
@@ -347,6 +355,21 @@ export default function SchemaTransformEditor({
                 });
                 setIsTestSuccessful(true);
                 if (onTestStatusChange) onTestStatusChange(true);
+
+                // For SQL Transform: extract result schema and update targetSchema
+                if (activeTab === 'sql' && result.schema) {
+                    const resultSchema = result.schema.map(col => ({
+                        name: col.name,
+                        type: col.type,
+                        originalName: col.name,
+                        sourceId: null, // SQL result doesn't belong to a specific source
+                        transform: null,
+                        nullable: col.nullable !== false
+                    }));
+                    if (onSchemaChange) {
+                        onSchemaChange(resultSchema);
+                    }
+                }
             } else {
                 setTestError(result.error || 'Invalid SQL');
             }
