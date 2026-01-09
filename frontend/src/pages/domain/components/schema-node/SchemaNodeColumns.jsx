@@ -2,22 +2,29 @@ import { Handle, Position, useUpdateNodeInternals } from "@xyflow/react";
 import clsx from "clsx";
 
 // Column Handle Logic
-const ColumnHandle = ({ type, position, colId }) => (
-    <Handle
-        type={type}
-        position={position}
-        id={colId}
-        isConnectable={true}
-        className={clsx(
-            "absolute !w-3 !h-3 !border-2 !border-white hover:!scale-125 transition-all !bg-indigo-400",
-            {
-                "!left-1": position === Position.Left,
-                "!right-1": position === Position.Right
-            }
-        )}
-        style={{ zIndex: 50 }}
-    />
-);
+const ColumnHandle = ({ type, position, colId, collapsed }) => {
+    if (collapsed) {
+        // When collapsed, don't render individual column handles
+        return null;
+    }
+
+    return (
+        <Handle
+            type={type}
+            position={position}
+            id={colId}
+            isConnectable={true}
+            className={clsx(
+                "absolute !w-3 !h-3 !border-2 !border-white hover:!scale-125 transition-all !bg-indigo-400",
+                {
+                    "!left-1": position === Position.Left,
+                    "!right-1": position === Position.Right
+                }
+            )}
+            style={{ zIndex: 50 }}
+        />
+    );
+};
 
 export const SchemaNodeColumns = ({
     columns = [],
@@ -28,7 +35,8 @@ export const SchemaNodeColumns = ({
     onScroll,
     onColumnClick,
     activeColumnName = null,
-    relatedColumnNames = null
+    relatedColumnNames = null,
+    collapsed = false
 }) => {
     const updateNodeInternals = useUpdateNodeInternals();
     const activeKey = activeColumnName ? activeColumnName.toLowerCase() : null;
@@ -95,6 +103,7 @@ export const SchemaNodeColumns = ({
                                         type="target"
                                         position={Position.Left}
                                         colId={`target-col:${prefix}${colName}`}
+                                        collapsed={collapsed}
                                     />
                                 )}
 
@@ -111,6 +120,7 @@ export const SchemaNodeColumns = ({
                                         type="source"
                                         position={Position.Right}
                                         colId={`source-col:${prefix}${colName}`}
+                                        collapsed={collapsed}
                                     />
                                 )}
                             </div>

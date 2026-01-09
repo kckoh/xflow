@@ -2,12 +2,14 @@ import { useState, useEffect, useMemo, useCallback } from "react";
 import { useParams, useNavigate, useLocation } from "react-router-dom";
 import {
   ReactFlow,
+  ReactFlowProvider,
   MiniMap,
   Controls,
   Background,
   BackgroundVariant,
   useNodesState,
   useEdgesState,
+  useReactFlow,
 } from "@xyflow/react";
 import "@xyflow/react/dist/style.css";
 import { Database } from "lucide-react";
@@ -43,8 +45,8 @@ const normalizeNodes = (nodes = []) =>
       type: node.type || "custom",
       position: node.position || { x: 100 + idx * 250, y: 100 },
       data: {
-        ...data,
-        columns: getColumns(data),
+        ...data, // Preserve all existing data fields including description
+        columns: data.columns || getColumns(data), // Only set columns if not already present
       },
     };
   });
@@ -67,6 +69,7 @@ const buildNodesFromExecution = (execution) => {
           columns: nodeColumns,
           nodeCategory: category,
           inputSchema: item.config?.inputSchema,
+          description: item.config?.description || item.description || null,
         },
       });
     });
@@ -101,37 +104,97 @@ const buildEdgesFromExecution = (execution) => {
   return edges;
 };
 
+// Mark nodes that have no outgoing edges as final targets
+const markFinalTargets = (nodes, edges) => {
+  const nodesWithOutgoing = new Set(edges.map(e => e.source));
+  return nodes.map(node => ({
+    ...node,
+    data: {
+      ...node.data,
+      isFinalTarget: !nodesWithOutgoing.has(node.id),
+    },
+  }));
+};
+
 const buildColumnEdges = (baseEdges = [], nodesById) => {
   const edges = [];
+
+  // Global tracking: which target columns have been connected with exact match
+  // Key: `${targetNodeId}:${columnNameLower}`
+  const usedTargetColumns = new Set();
 
   baseEdges.forEach((edge, edgeIndex) => {
     const sourceNode = nodesById.get(edge.source);
     const targetNode = nodesById.get(edge.target);
     const sourceCols = getColumns(sourceNode?.data || {});
     const targetCols = getColumns(targetNode?.data || {});
-    const targetMap = new Map(
-      targetCols.map((col) => [getColumnName(col).toLowerCase(), col])
-    );
+
+    // Build a list of target columns (not a Map, to allow duplicates)
+    const targetColList = targetCols.map((col) => ({
+      name: getColumnName(col),
+      nameLower: getColumnName(col).toLowerCase(),
+      col: col,
+    }));
+
     const baseId = edge.id || `edge-${edgeIndex}-${edge.source}-${edge.target}`;
     let matched = 0;
 
+    // Get source node name for pattern matching (e.g., "t_order")
+    const sourceNodeName = sourceNode?.data?.name || sourceNode?.data?.label || edge.source;
+    const sourcePrefix = sourceNodeName.toLowerCase().replace(/[^a-z0-9]/g, '_') + '_';
+
     sourceCols.forEach((col) => {
       const sourceName = getColumnName(col);
-      const targetMatch = targetMap.get(sourceName.toLowerCase());
-      if (!targetMatch) {
-        return;
-      }
-      matched += 1;
-      const targetName = getColumnName(targetMatch);
-      edges.push({
-        ...edge,
-        id: `${baseId}:${sourceName}:${targetName}`,
-        sourceHandle: `source-col:${edge.source}:${sourceName}`,
-        targetHandle: `target-col:${edge.target}:${targetName}`,
-        type: edge.type || "default",
-        animated: edge.animated ?? true,
-        style: edge.style || DEFAULT_EDGE_STYLE,
+      const sourceNameLower = sourceName.toLowerCase();
+
+      let bestMatch = null;
+      let matchType = null; // 'exact' or 'pattern'
+
+      // Find the BEST matching target column for this source column
+      // Priority: exact match (if not used) > pattern match
+      targetColList.forEach((targetItem, targetIdx) => {
+        const targetKey = `${edge.target}:${targetItem.nameLower}`;
+
+        // Exact match - highest priority, but only if not already used by another source
+        if (targetItem.nameLower === sourceNameLower) {
+          if (!usedTargetColumns.has(targetKey)) {
+            if (!bestMatch || matchType !== 'exact') {
+              bestMatch = { targetItem, targetIdx };
+              matchType = 'exact';
+            }
+          }
+        }
+        // Pattern match - lower priority, only if no exact match found
+        else if (targetItem.nameLower === `${sourcePrefix}${sourceNameLower}`) {
+          if (!bestMatch) {
+            bestMatch = { targetItem, targetIdx };
+            matchType = 'pattern';
+          }
+        }
       });
+
+      // Create edge only for the best match
+      if (bestMatch) {
+        matched += 1;
+        const targetName = bestMatch.targetItem.name;
+        const targetKey = `${edge.target}:${bestMatch.targetItem.nameLower}`;
+
+        // Mark this target column as used if it's an exact match
+        if (matchType === 'exact') {
+          usedTargetColumns.add(targetKey);
+        }
+
+
+        edges.push({
+          ...edge,
+          id: `${baseId}:${sourceName}:${targetName}:${bestMatch.targetIdx}`,
+          sourceHandle: `source-col:${edge.source}:${sourceName}`,
+          targetHandle: `target-col:${edge.target}:${targetName}`,
+          type: edge.type || "default",
+          animated: edge.animated ?? true,
+          style: edge.style || DEFAULT_EDGE_STYLE,
+        });
+      }
     });
 
     if (matched === 0) {
@@ -168,14 +231,15 @@ const buildGraph = (lineageData) => {
     baseEdges = buildEdgesFromExecution(lineageData);
   }
 
-  const nodes = normalizeNodes(baseNodes);
-  const nodesById = new Map(nodes.map((node) => [node.id, node]));
+  const normalizedNodes = normalizeNodes(baseNodes);
+  const nodesWithTargetFlag = markFinalTargets(normalizedNodes, baseEdges);
+  const nodesById = new Map(nodesWithTargetFlag.map((node) => [node.id, node]));
   const edges = buildColumnEdges(baseEdges, nodesById);
 
-  return { nodes, edges };
+  return { nodes: nodesWithTargetFlag, edges };
 };
 
-export default function CatalogDetailPage() {
+function CatalogDetailContent() {
   const { id } = useParams();
   const navigate = useNavigate();
   const location = useLocation();
@@ -185,9 +249,43 @@ export default function CatalogDetailPage() {
   const [lineageData, setLineageData] = useState(null);
   const [loading, setLoading] = useState(true);
   const [sidebarOpen, setSidebarOpen] = useState(true);
+  const [activeTab, setActiveTab] = useState("info");
   const [highlightedColumn, setHighlightedColumn] = useState(null);
+  const [selectedNode, setSelectedNode] = useState(null);
   const [nodes, setNodes, onNodesChange] = useNodesState([]);
   const [edges, setEdges, onEdgesChange] = useEdgesState([]);
+  const { fitView, getNode } = useReactFlow();
+
+  // Navigate to a specific node
+  const handleNavigateToNode = useCallback(
+    (nodeId) => {
+      const node = getNode(nodeId);
+      if (node) {
+        setSelectedNode(node);
+        setSidebarOpen(true);
+        setActiveTab("info"); // Switch to Info tab when navigating to a node
+
+        // Mark this node as selected and deselect others
+        setNodes((nds) =>
+          nds.map((n) => ({
+            ...n,
+            selected: n.id === nodeId,
+          }))
+        );
+
+        // Smooth cinematic camera movement to the node
+        setTimeout(() => {
+          fitView({
+            nodes: [{ id: nodeId }],
+            duration: 800, // Longer duration for smoother animation
+            padding: 0.8, // More padding to zoom in closer
+            maxZoom: 1.5, // Allow closer zoom
+          });
+        }, 50); // Small delay to ensure state updates
+      }
+    },
+    [getNode, fitView, setNodes]
+  );
 
   useEffect(() => {
     let isActive = true;
@@ -405,7 +503,7 @@ export default function CatalogDetailPage() {
       : catalogItem.destination?.path || catalogItem.target?.path || "-";
 
   return (
-    <div className="h-[calc(100vh-64px)] flex flex-col -mx-6 -mb-6">
+    <div className="h-[calc(100vh-64px)] flex flex-col">
       <CatalogHeader catalogItem={catalogItem} />
 
       {/* Main Content */}
@@ -417,6 +515,14 @@ export default function CatalogDetailPage() {
             edges={displayEdges}
             onNodesChange={onNodesChange}
             onEdgesChange={onEdgesChange}
+            onNodeClick={(event, node) => {
+              setSelectedNode(node);
+              setSidebarOpen(true); // Auto-open sidebar when node is clicked
+            }}
+            onPaneClick={() => {
+              setSelectedNode(null);
+              setHighlightedColumn(null);
+            }}
             nodeTypes={nodeTypes}
             fitView
             // view padding
@@ -449,8 +555,21 @@ export default function CatalogDetailPage() {
           setIsOpen={setSidebarOpen}
           catalogItem={catalogItem}
           targetPath={targetPath}
+          selectedNode={selectedNode}
+          lineageData={lineageData}
+          onNavigateToNode={handleNavigateToNode}
+          activeTab={activeTab}
+          setActiveTab={setActiveTab}
         />
       </div>
     </div>
+  );
+}
+
+export default function CatalogDetailPage() {
+  return (
+    <ReactFlowProvider>
+      <CatalogDetailContent />
+    </ReactFlowProvider>
   );
 }

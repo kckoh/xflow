@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from "react";
-import { ChevronRight, Info, BarChart3 } from "lucide-react";
+import { ChevronRight, ChevronLeft, Info, BarChart3, GitBranch } from "lucide-react";
 import { useToast } from "../../../components/common/Toast/ToastContext";
 import {
     getLatestQualityResult,
@@ -8,14 +8,24 @@ import {
 } from "../../domain/api/domainApi";
 import { CatalogInfoTab } from "./CatalogInfoTab";
 import { CatalogQualityTab } from "./CatalogQualityTab";
+import { CatalogStreamTab } from "./CatalogStreamTab";
 
 export const CatalogSidebar = ({
     isOpen,
     setIsOpen,
     catalogItem,
     targetPath,
+    selectedNode,
+    lineageData,
+    onNavigateToNode,
+    activeTab: externalActiveTab,
+    setActiveTab: externalSetActiveTab,
 }) => {
-    const [activeTab, setActiveTab] = useState("info");
+    const [internalActiveTab, setInternalActiveTab] = useState("info");
+
+    // Use external state if provided, otherwise use internal state
+    const activeTab = externalActiveTab !== undefined ? externalActiveTab : internalActiveTab;
+    const setActiveTab = externalSetActiveTab || setInternalActiveTab;
 
     // Quality State
     const [qualityResult, setQualityResult] = useState(null);
@@ -85,59 +95,78 @@ export const CatalogSidebar = ({
 
     return (
         <>
+            {/* Vertical Tab Strip - Always Visible */}
+            <div className="w-14 bg-gray-50 border-l border-gray-200 flex flex-col items-center py-6 gap-4 shrink-0 relative">
+                <button
+                    onClick={() => setActiveTab("info")}
+                    title="Info"
+                    className={`group flex flex-col items-center justify-center w-10 py-4 rounded-lg transition-all gap-2 ${activeTab === "info"
+                        ? "bg-white text-blue-600 font-semibold shadow-sm ring-1 ring-blue-100"
+                        : "text-gray-400 hover:text-gray-600 hover:bg-gray-100"
+                        }`}
+                >
+                    <Info className="w-5 h-5" />
+                    <span className="text-[10px] font-medium tracking-wide">INFO</span>
+                </button>
+
+                <div className="w-6 border-b border-gray-300" />
+
+                <button
+                    onClick={() => setActiveTab("quality")}
+                    title="Quality"
+                    className={`group flex flex-col items-center justify-center w-10 py-4 rounded-lg transition-all gap-2 ${activeTab === "quality"
+                        ? "bg-white text-blue-600 font-semibold shadow-sm ring-1 ring-blue-100"
+                        : "text-gray-400 hover:text-gray-600 hover:bg-gray-100"
+                        }`}
+                >
+                    <BarChart3 className="w-5 h-5" />
+                    <span className="text-[10px] font-medium tracking-wide">
+                        QUALITY
+                    </span>
+                </button>
+
+                <div className="w-6 border-b border-gray-300" />
+
+                <button
+                    onClick={() => setActiveTab("stream")}
+                    title="Stream"
+                    className={`group flex flex-col items-center justify-center w-10 py-4 rounded-lg transition-all gap-2 ${activeTab === "stream"
+                        ? "bg-white text-blue-600 font-semibold shadow-sm ring-1 ring-blue-100"
+                        : "text-gray-400 hover:text-gray-600 hover:bg-gray-100"
+                        }`}
+                >
+                    <GitBranch className="w-5 h-5" />
+                    <span className="text-[10px] font-medium tracking-wide">
+                        STREAM
+                    </span>
+                </button>
+
+                {/* Toggle Button - Attached to Tab Strip */}
+                <button
+                    onClick={() => setIsOpen(!isOpen)}
+                    className="absolute -left-3 top-1/2 -translate-y-1/2 bg-white border border-gray-200 rounded-full p-1 shadow-md hover:shadow-lg hover:bg-gray-50 transition-all z-30"
+                    title={isOpen ? "Close Sidebar" : "Open Sidebar"}
+                >
+                    {isOpen ? (
+                        <ChevronRight className="w-5 h-5 text-gray-600" />
+                    ) : (
+                        <ChevronLeft className="w-5 h-5 text-gray-600" />
+                    )}
+                </button>
+            </div>
+
+            {/* Content Area - Slides In/Out */}
             <div
-                className={`bg-white border-l border-gray-200 transition-all duration-300 ${isOpen ? "w-96" : "w-0"
-                    } overflow-hidden flex`}
+                className={`bg-white border-l border-gray-200 transition-all duration-300 ease-in-out ${isOpen ? "w-80" : "w-0"
+                    } overflow-hidden`}
             >
-                {/* Vertical Navigation Strip */}
-                <div className="w-12 bg-gray-50 border-r border-gray-200 flex flex-col items-center py-6 gap-6 shrink-0 z-20">
-                    <button
-                        onClick={() => setActiveTab("info")}
-                        className={`group flex flex-col items-center justify-center w-8 py-3 rounded-lg transition-all gap-3 ${activeTab === "info"
-                            ? "bg-white text-blue-600 font-semibold shadow-sm ring-1 ring-gray-100"
-                            : "text-gray-400 hover:text-gray-600 hover:bg-gray-100"
-                            }`}
-                    >
-                        <Info className="w-4 h-4" />
-                        <span
-                            className="text-xs tracking-wider whitespace-nowrap"
-                            style={{
-                                writingMode: "vertical-rl",
-                                textOrientation: "mixed",
-                                transform: "scale(-1, 1)",
-                            }}
-                        >
-                            INFO
-                        </span>
-                    </button>
-
-                    <div className="w-4 border-b border-gray-200 shrink-0" />
-
-                    <button
-                        onClick={() => setActiveTab("quality")}
-                        className={`group flex flex-col items-center justify-center w-8 py-3 rounded-lg transition-all gap-3 ${activeTab === "quality"
-                            ? "bg-white text-blue-600 font-semibold shadow-sm ring-1 ring-gray-100"
-                            : "text-gray-400 hover:text-gray-600 hover:bg-gray-100"
-                            }`}
-                    >
-                        <BarChart3 className="w-4 h-4" />
-                        <span
-                            className="text-xs tracking-wider whitespace-nowrap"
-                            style={{
-                                writingMode: "vertical-rl",
-                                textOrientation: "mixed",
-                                transform: "scale(-1, 1)",
-                            }}
-                        >
-                            QUALITY
-                        </span>
-                    </button>
-                </div>
-
-                {/* Content Area */}
-                <div className="flex-1 h-full overflow-y-auto bg-white">
+                <div className="w-80 h-full overflow-y-auto bg-white">
                     {activeTab === "info" && (
-                        <CatalogInfoTab catalogItem={catalogItem} targetPath={targetPath} />
+                        <CatalogInfoTab
+                            catalogItem={catalogItem}
+                            targetPath={targetPath}
+                            selectedNode={selectedNode}
+                        />
                     )}
 
                     {activeTab === "quality" && (
@@ -148,20 +177,16 @@ export const CatalogSidebar = ({
                             onRunQualityCheck={handleRunQualityCheck}
                         />
                     )}
+
+                    {activeTab === "stream" && (
+                        <CatalogStreamTab
+                            lineageData={lineageData}
+                            selectedNode={selectedNode}
+                            onNavigateToNode={onNavigateToNode}
+                        />
+                    )}
                 </div>
             </div>
-
-            {/* Sidebar Toggle */}
-            <button
-                onClick={() => setIsOpen(!isOpen)}
-                className="absolute right-0 top-1/2 -translate-y-1/2 bg-white border border-gray-200 rounded-l-lg p-1.5 shadow-sm hover:bg-gray-50 z-10"
-                style={{ right: isOpen ? "384px" : "0px" }}
-            >
-                <ChevronRight
-                    className={`w-4 h-4 text-gray-500 transition-transform ${isOpen ? "rotate-0" : "rotate-180"
-                        }`}
-                />
-            </button>
         </>
     );
 };
