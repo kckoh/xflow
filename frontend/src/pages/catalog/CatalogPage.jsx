@@ -30,8 +30,8 @@ export default function CatalogPage() {
   const fetchCatalog = async () => {
     setIsLoading(true);
     try {
-      // In real app, fetch from API with dataset_type=target filter
-      const response = await fetch(`${API_BASE_URL}/api/datasets?dataset_type=target`);
+      // Fetch from catalog API which includes size_bytes, row_count, format
+      const response = await fetch(`${API_BASE_URL}/api/catalog`);
       if (response.ok) {
         const data = await response.json();
         setCatalog(data);

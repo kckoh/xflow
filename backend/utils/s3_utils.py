@@ -15,7 +15,8 @@ def get_s3_client():
     Supports both LocalStack and AWS environments.
     """
     # Check if using LocalStack (development)
-    aws_endpoint = os.getenv("AWS_ENDPOINT_URL")
+    # docker-compose.yml sets AWS_ENDPOINT for LocalStack
+    aws_endpoint = os.getenv("AWS_ENDPOINT") or os.getenv("AWS_ENDPOINT_URL")
     
     if aws_endpoint:
         # LocalStack configuration
@@ -24,10 +25,11 @@ def get_s3_client():
             endpoint_url=aws_endpoint,
             aws_access_key_id=os.getenv("AWS_ACCESS_KEY_ID", "test"),
             aws_secret_access_key=os.getenv("AWS_SECRET_ACCESS_KEY", "test"),
-            region_name=os.getenv("AWS_REGION", "us-east-1")
+            region_name=os.getenv("AWS_REGION", "ap-northeast-2")
         )
     else:
         # Real AWS configuration (IRSA or credentials)
+        print("S3 client initialized with AWS (IRSA)")
         s3_client = boto3.client(
             's3',
             region_name=os.getenv("AWS_REGION", "us-east-1")
