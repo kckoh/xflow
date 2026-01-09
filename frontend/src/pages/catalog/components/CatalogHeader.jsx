@@ -1,6 +1,7 @@
 import React from "react";
-import { ArrowLeft, Database, Clock } from "lucide-react";
+import { ArrowLeft, Database, Clock, HardDrive } from "lucide-react";
 import { useNavigate } from "react-router-dom";
+import { formatFileSize } from "../../../utils/formatters";
 
 export const CatalogHeader = ({ catalogItem, onBack }) => {
     const navigate = useNavigate();
@@ -35,6 +36,10 @@ export const CatalogHeader = ({ catalogItem, onBack }) => {
                 </div>
             </div>
             <div className="flex items-center gap-3">
+                <div className="flex items-center gap-2 text-sm text-gray-500 bg-gray-100 px-3 py-1.5 rounded-lg">
+                    <HardDrive className="w-4 h-4" />
+                    <span>{formatFileSize(catalogItem.size_bytes)}</span>
+                </div>
                 <div className="flex items-center gap-2 text-sm text-gray-500 bg-gray-100 px-3 py-1.5 rounded-lg">
                     <Clock className="w-4 h-4" />
                     <span>{catalogItem.schedule || "Manual"}</span>
