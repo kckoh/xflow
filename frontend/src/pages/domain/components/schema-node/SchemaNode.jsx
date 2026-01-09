@@ -1,5 +1,5 @@
-import { memo, useState } from "react";
-import { Handle, Position } from "@xyflow/react";
+import { memo, useState, useEffect } from "react";
+import { Handle, Position, useUpdateNodeInternals } from "@xyflow/react";
 import { X, ChevronLeft, ChevronRight } from "lucide-react";
 import clsx from "clsx";
 import { SchemaNodeHeader, getStyleConfig } from "./SchemaNodeHeader";
@@ -10,9 +10,15 @@ export const nodeWidth = 220;
 export const nodeHeight = 220;
 
 const SchemaNodeComponent = ({ id, data, selected }) => {
-    const [schemaExpanded] = useState(true);
+    const [schemaExpanded, setSchemaExpanded] = useState(true);
     const [etlOpen, setEtlOpen] = useState(false);
     const [mainNodeScrollVersion, setMainNodeScrollVersion] = useState(0);
+    const updateNodeInternals = useUpdateNodeInternals();
+
+    // Update node internals when expanding/collapsing
+    useEffect(() => {
+        updateNodeInternals(id);
+    }, [schemaExpanded, id, updateNodeInternals]);
 
     // Data extraction
     const columns = data.columns || [];
@@ -28,6 +34,7 @@ const SchemaNodeComponent = ({ id, data, selected }) => {
 
 
     const isRoot = data.nodeCategory === "source";
+    const isFinalTarget = data.isFinalTarget === true;
 
     return (
         <div
@@ -81,24 +88,83 @@ const SchemaNodeComponent = ({ id, data, selected }) => {
                     label: data.label || data.jobs?.[0]?.name
                 }}
                 expanded={schemaExpanded}
-                onToggle={undefined}
+                onToggle={(e) => {
+                    e?.stopPropagation();
+                    setSchemaExpanded(!schemaExpanded);
+                }}
                 id={id}
             />
 
-            {/* Content Area: Columns (Always render if expanded) */}
-            {schemaExpanded && (
-                <div id={`main-cols-${id}`}>
-                    <SchemaNodeColumns
-                        columns={columns}
-                        nodeId={id}
-                        withHandles={hasPermission}
-                        withTargetHandle={hasPermission && !isRoot}
-                        onScroll={() => setMainNodeScrollVersion(v => v + 1)}
-                        onColumnClick={onColumnClick ? (colName) => onColumnClick(id, colName) : undefined}
-                        activeColumnName={activeColumnName}
-                        relatedColumnNames={relatedColumnNames}
-                    />
-                </div>
+            {/* Content Area: Columns */}
+            <div
+                id={`main-cols-${id}`}
+                style={{
+                    overflow: 'hidden',
+                    height: schemaExpanded ? 'auto' : 0,
+                    position: 'relative'
+                }}
+            >
+                <SchemaNodeColumns
+                    columns={columns}
+                    nodeId={id}
+                    withHandles={hasPermission}
+                    withTargetHandle={hasPermission && !isRoot}
+                    withSourceHandle={hasPermission && !isFinalTarget}
+                    collapsed={!schemaExpanded}
+                    onScroll={() => setMainNodeScrollVersion(v => v + 1)}
+                    onColumnClick={onColumnClick ? (colName) => onColumnClick(id, colName) : undefined}
+                    activeColumnName={activeColumnName}
+                    relatedColumnNames={relatedColumnNames}
+                />
+            </div>
+
+            {/* Collapsed State Handles - Render handles for each column ID at node center */}
+            {!schemaExpanded && hasPermission && columns.length > 0 && (
+                <>
+                    {/* Target Handles - One for each column */}
+                    {!isRoot && columns.map((col, idx) => {
+                        const colName = typeof col === 'string' ? col : (col?.name || col?.key || col?.field || `col-${idx}`);
+                        return (
+                            <Handle
+                                key={`target-${colName}`}
+                                type="target"
+                                position={Position.Left}
+                                id={`target-col:${id}:${colName}`}
+                                isConnectable={true}
+                                className="!w-3 !h-3 !border-2 !border-white !bg-indigo-400"
+                                style={{
+                                    position: 'absolute',
+                                    left: 0,
+                                    top: '50%',
+                                    transform: 'translateY(-50%)',
+                                    zIndex: 100
+                                }}
+                            />
+                        );
+                    })}
+
+                    {/* Source Handles - One for each column */}
+                    {!isFinalTarget && columns.map((col, idx) => {
+                        const colName = typeof col === 'string' ? col : (col?.name || col?.key || col?.field || `col-${idx}`);
+                        return (
+                            <Handle
+                                key={`source-${colName}`}
+                                type="source"
+                                position={Position.Right}
+                                id={`source-col:${id}:${colName}`}
+                                isConnectable={true}
+                                className="!w-3 !h-3 !border-2 !border-white !bg-indigo-400"
+                                style={{
+                                    position: 'absolute',
+                                    right: 0,
+                                    top: '50%',
+                                    transform: 'translateY(-50%)',
+                                    zIndex: 100
+                                }}
+                            />
+                        );
+                    })}
+                </>
             )}
 
             {/* ETL View: External Popover (Left of the Node) - Only for job nodes */}

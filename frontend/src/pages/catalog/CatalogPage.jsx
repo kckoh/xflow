@@ -13,105 +13,7 @@ import {
 } from "lucide-react";
 import { API_BASE_URL } from "../../config/api";
 
-// Mock Catalog Data (Target datasets only)
-const MOCK_CATALOG = [
-  {
-    id: "cat-001",
-    name: "product_catalog_sync",
-    description: "Hourly product catalog sync to data lake",
-    job_id: "etl-003",
-    created_at: "2024-01-10T09:00:00Z",
-    updated_at: "2024-01-20T15:00:00Z",
-    schedule: "Hourly",
-    sources: ["PostgreSQL.products", "PostgreSQL.categories"],
-    target: "S3://data-lake/product_catalog/",
-    format: "Parquet",
-    row_count: 125430,
-    size_gb: 2.3,
-    owner: "data-team",
-    tags: ["product", "catalog", "data-lake"],
-  },
-  {
-    id: "cat-002",
-    name: "customer_360_aggregation",
-    description: "Weekly customer 360 view aggregation",
-    job_id: "etl-004",
-    created_at: "2024-01-05T10:00:00Z",
-    updated_at: "2024-01-14T03:00:00Z",
-    schedule: "Weekly",
-    sources: ["PostgreSQL.users", "PostgreSQL.orders", "PostgreSQL.interactions"],
-    target: "S3://data-lake/customer_360/",
-    format: "Parquet",
-    row_count: 89234,
-    size_gb: 5.7,
-    owner: "analytics-team",
-    tags: ["customer", "360", "analytics"],
-  },
-  {
-    id: "cat-003",
-    name: "sales_report_monthly",
-    description: "Monthly sales aggregation report",
-    job_id: "etl-007",
-    created_at: "2024-01-01T01:00:00Z",
-    updated_at: "2024-01-01T01:30:00Z",
-    schedule: "Monthly",
-    sources: ["PostgreSQL.orders", "PostgreSQL.order_items", "PostgreSQL.products"],
-    target: "S3://reports/sales_monthly/",
-    format: "Parquet",
-    row_count: 1523456,
-    size_gb: 12.4,
-    owner: "finance-team",
-    tags: ["sales", "report", "monthly"],
-  },
-  {
-    id: "cat-004",
-    name: "ml_feature_store_sync",
-    description: "Sync ML features to feature store",
-    job_id: "etl-009",
-    created_at: "2024-01-08T12:00:00Z",
-    updated_at: "2024-01-20T12:00:00Z",
-    schedule: "Every 4 hours",
-    sources: ["PostgreSQL.users", "PostgreSQL.user_behavior", "S3://logs/clickstream/"],
-    target: "S3://feature-store/user_features/",
-    format: "Parquet",
-    row_count: 456789,
-    size_gb: 8.9,
-    owner: "ml-team",
-    tags: ["ml", "features", "user"],
-  },
-  {
-    id: "cat-005",
-    name: "data_quality_check",
-    description: "Daily data quality validation pipeline",
-    job_id: "etl-011",
-    created_at: "2024-01-12T05:00:00Z",
-    updated_at: "2024-01-20T05:00:00Z",
-    schedule: "Daily",
-    sources: ["S3://data-lake/product_catalog/", "S3://data-lake/customer_360/"],
-    target: "S3://data-quality/reports/",
-    format: "JSON",
-    row_count: 234,
-    size_gb: 0.1,
-    owner: "data-team",
-    tags: ["quality", "validation", "report"],
-  },
-  {
-    id: "cat-006",
-    name: "customer_churn_model_data",
-    description: "Prepare training data for churn prediction model",
-    job_id: "etl-012",
-    created_at: "2024-01-14T10:00:00Z",
-    updated_at: "2024-01-14T10:00:00Z",
-    schedule: "Manual",
-    sources: ["PostgreSQL.users", "PostgreSQL.subscriptions", "PostgreSQL.support_tickets"],
-    target: "S3://ml-data/churn_training/",
-    format: "Parquet",
-    row_count: 78543,
-    size_gb: 3.2,
-    owner: "ml-team",
-    tags: ["ml", "churn", "training"],
-  },
-];
+
 
 export default function CatalogPage() {
   const navigate = useNavigate();
@@ -131,13 +33,13 @@ export default function CatalogPage() {
       const response = await fetch(`${API_BASE_URL}/api/datasets?dataset_type=target`);
       if (response.ok) {
         const data = await response.json();
-        setCatalog(data.length > 0 ? data : MOCK_CATALOG);
+        setCatalog(data);
       } else {
-        setCatalog(MOCK_CATALOG);
+        setCatalog([]);
       }
     } catch (error) {
       console.error("Failed to fetch catalog:", error);
-      setCatalog(MOCK_CATALOG);
+      setCatalog([]);
     } finally {
       setIsLoading(false);
     }
@@ -198,11 +100,10 @@ export default function CatalogPage() {
         <div className="flex flex-wrap gap-2">
           <button
             onClick={() => setSelectedTag(null)}
-            className={`px-3 py-1 rounded-full text-sm font-medium transition-colors ${
-              !selectedTag
+            className={`px-3 py-1 rounded-full text-sm font-medium transition-colors ${!selectedTag
                 ? "bg-blue-600 text-white"
                 : "bg-gray-100 text-gray-600 hover:bg-gray-200"
-            }`}
+              }`}
           >
             All
           </button>
@@ -210,11 +111,10 @@ export default function CatalogPage() {
             <button
               key={tag}
               onClick={() => setSelectedTag(tag === selectedTag ? null : tag)}
-              className={`px-3 py-1 rounded-full text-sm font-medium transition-colors ${
-                selectedTag === tag
+              className={`px-3 py-1 rounded-full text-sm font-medium transition-colors ${selectedTag === tag
                   ? "bg-blue-600 text-white"
                   : "bg-gray-100 text-gray-600 hover:bg-gray-200"
-              }`}
+                }`}
             >
               {tag}
             </button>
