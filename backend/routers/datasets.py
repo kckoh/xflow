@@ -566,3 +566,46 @@ async def run_dataset(dataset_id: str):
         "run_id": str(job_run.id),
         "airflow_run_id": job_run.airflow_run_id,
     }
+
+
+@router.post("/{dataset_id}/calculate-size")
+async def calculate_dataset_size(dataset_id: str):
+    """Calculate and update S3 file size for a dataset"""
+    from utils.s3_utils import calculate_s3_size_bytes
+    
+    try:
+        dataset = await Dataset.get(PydanticObjectId(dataset_id))
+    except Exception:
+        raise HTTPException(status_code=404, detail="Dataset not found")
+
+    if not dataset:
+        raise HTTPException(status_code=404, detail="Dataset not found")
+
+    # Get S3 path
+    s3_path = dataset.destination.get("path") if dataset.destination else None
+    if not s3_path:
+        raise HTTPException(status_code=400, detail="Dataset has no S3 destination path")
+
+    try:
+        # Calculate S3 file size
+        file_size_bytes = await calculate_s3_size_bytes(s3_path)
+        
+        # Update Dataset
+        dataset.actual_size_bytes = file_size_bytes
+        dataset.updated_at = datetime.utcnow()
+        await dataset.save()
+        
+        print(f"✅ Updated Dataset {dataset.name} with actual size: {file_size_bytes} bytes")
+        
+        return {
+            "message": "S3 file size calculated successfully",
+            "dataset_id": dataset_id,
+            "size_bytes": file_size_bytes,
+            "path": s3_path
+        }
+    except Exception as e:
+        print(f"❌ Failed to calculate S3 size: {e}")
+        raise HTTPException(
+            status_code=500,
+            detail=f"Failed to calculate S3 size: {str(e)}"
+        )

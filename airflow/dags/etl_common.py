@@ -525,6 +525,25 @@ def finalize_import(**context):
             update_fields["last_sync_timestamp"] = current_time
             print(f"[Incremental] Updated last_sync_timestamp: {current_time.isoformat()}")
 
+        # Calculate S3 file size via Backend API
+        try:
+            import requests
+            backend_url = Variable.get("BACKEND_URL", default_var="http://xflow-backend:8000")
+            api_url = f"{backend_url}/api/datasets/{dataset_id}/calculate-size"
+            
+            print(f"📊 Calculating S3 file size for dataset {dataset_id}...")
+            response = requests.post(api_url, timeout=60)
+            
+            if response.status_code == 200:
+                result_data = response.json()
+                size_bytes = result_data.get("size_bytes", 0)
+                print(f"✅ S3 file size calculated: {size_bytes} bytes")
+            else:
+                print(f"⚠️ Failed to calculate S3 size: {response.status_code} - {response.text}")
+        except Exception as e:
+            print(f"⚠️ Error calculating S3 size: {e}")
+            # Don't fail the task if size calculation fails
+
         result = db.datasets.update_one(
             {"_id": ObjectId(dataset_id)},
             {"$set": update_fields}
