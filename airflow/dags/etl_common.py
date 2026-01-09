@@ -113,6 +113,12 @@ def convert_nodes_to_sources(nodes, edges, db):
                             # Get customRegex from node_data (set in Target Wizard)
                             source_config["customRegex"] = node_data.get("customRegex") or source_dataset.get("customRegex")
 
+                        # Add incremental load config from node_data
+                        incremental_config = node_data.get("incrementalConfig")
+                        if incremental_config and incremental_config.get("enabled"):
+                            source_config["incremental_config"] = incremental_config
+                            print(f"   [Incremental Load] Enabled for {node_id}: timestamp_column={incremental_config.get('timestamp_column')}")
+
                         sources.append(source_config)
                         if source_type == "s3":
                             print(f"   Converted S3 source node: {node_id} -> bucket={source_config.get('bucket')}, format={source_config.get('format')}, customRegex={bool(source_config.get('customRegex'))}")
@@ -162,6 +168,13 @@ def convert_nodes_to_sources(nodes, edges, db):
                                                 if source_type == "s3":
                                                     source_config["bucket"] = nested_source.get("bucket")
                                                     source_config["path"] = nested_source.get("path")
+
+                                                # Add incremental load config from node_data
+                                                incremental_config = jn_data.get("incrementalConfig")
+                                                if incremental_config and incremental_config.get("enabled"):
+                                                    source_config["incremental_config"] = incremental_config
+                                                    print(f"   [Incremental Load] Enabled for nested {node_id}: timestamp_column={incremental_config.get('timestamp_column')}")
+
                                                 sources.append(source_config)
                                                 print(f"   Converted nested source: {node_id} -> {mapped_type} (table: {source_config.get('table') or source_config.get('bucket')})")
                                                 break

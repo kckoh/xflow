@@ -303,6 +303,27 @@ export default function TargetWizard() {
             nodeData.customRegex = s3RegexPatterns[source.id];
           }
 
+          // 자동으로 timestamp 컬럼 감지하여 증분 로드 설정
+          const timestampColumnNames = ['updated_at', 'created_at', 'timestamp', 'modified_at', 'last_modified', 'date_modified'];
+          const timestampColumn = columns.find(col =>
+            timestampColumnNames.includes(col.name.toLowerCase())
+          );
+
+          if (timestampColumn) {
+            nodeData.incrementalConfig = {
+              enabled: true,
+              timestamp_column: timestampColumn.name
+            };
+            console.log(`[Incremental Load] Auto-detected timestamp column: ${timestampColumn.name} for source ${source.name}`);
+          } else {
+            // timestamp 컬럼이 없으면 증분 로드 비활성화
+            nodeData.incrementalConfig = {
+              enabled: false,
+              timestamp_column: null
+            };
+            console.log(`[Incremental Load] No timestamp column found for source ${source.name}, using full load`);
+          }
+
           nodes.push({
             id: `source-${source.id}`,
             type: "custom",
@@ -405,6 +426,26 @@ export default function TargetWizard() {
               continue;
             }
 
+            // 자동으로 timestamp 컬럼 감지하여 증분 로드 설정
+            const timestampColumnNames = ['updated_at', 'created_at', 'timestamp', 'modified_at', 'last_modified', 'date_modified'];
+            const timestampColumn = schema.find(col =>
+              timestampColumnNames.includes((col.name || col.field || '').toLowerCase())
+            );
+
+            const incrementalConfig = timestampColumn ? {
+              enabled: true,
+              timestamp_column: timestampColumn.name || timestampColumn.field
+            } : {
+              enabled: false,
+              timestamp_column: null
+            };
+
+            if (timestampColumn) {
+              console.log(`[Incremental Load] Auto-detected timestamp column: ${timestampColumn.name || timestampColumn.field} for catalog dataset ${dataset.name}`);
+            } else {
+              console.log(`[Incremental Load] No timestamp column found for catalog dataset ${dataset.name}, using full load`);
+            }
+
             nodes.push({
               id: `source-catalog-${datasetId}`,
               type: "custom",
@@ -432,6 +473,7 @@ export default function TargetWizard() {
                   dataset.destination?.format ||
                   target?.config?.format ||
                   "parquet",
+                incrementalConfig: incrementalConfig,
                 // Note: s3_config is not needed here
                 // Spark ETL runner will use environment-specific credentials:
                 // - LocalStack: credentials from Airflow DAG
@@ -612,6 +654,10 @@ export default function TargetWizard() {
         allNodes = [...sourceNodes, transformNode];
       }
 
+      // Extract incremental config from first source node
+      const firstSourceNode = sourceNodes[0];
+      const incrementalConfig = firstSourceNode?.data?.incrementalConfig;
+
       const payload = {
         name: config.name,
         description: config.description,
@@ -623,6 +669,8 @@ export default function TargetWizard() {
         // Map first schedule to backend format (backend currently supports single schedule)
         schedule_frequency: schedules.length > 0 ? schedules[0].frequency : "",
         ui_params: schedules.length > 0 ? schedules[0].uiParams : null,
+        // Add incremental load config for automatic sync timestamp tracking
+        incremental_config: incrementalConfig || { enabled: false },
         destination: {
           type: "s3",
           path: "s3a://xflows-output/",
