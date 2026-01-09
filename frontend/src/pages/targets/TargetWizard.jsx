@@ -1413,6 +1413,7 @@ export default function TargetWizard() {
                           node.data?.sourceDatasetId ||
                           node.data?.catalogDatasetId,
                         name: node.data?.name,
+                        schema: node.data?.columns || [], // Add schema/columns
                       }))}
                       sourceTabs={
                         sourceNodes.length > 1 ? (

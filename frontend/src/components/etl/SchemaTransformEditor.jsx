@@ -28,7 +28,7 @@ export default function SchemaTransformEditor({
     onTestStatusChange,
     initialTargetSchema = [],
     sourceTabs = null,
-    allSources = [], // All source nodes info: [{ id, datasetId, name }]
+    allSources = [], // All source nodes info: [{ id, datasetId, name, schema }]
 }) {
     // State - beforeColumns is local, targetSchema is managed by parent
     const [beforeColumns, setBeforeColumns] = useState([]);
@@ -642,8 +642,8 @@ export default function SchemaTransformEditor({
                             />
                             <div className="mt-3 p-3 bg-blue-50 border border-blue-200 rounded-lg">
                                 <p className="text-xs text-blue-800">
-                                    <strong>Tip:</strong> Use <code className="px-1.5 py-0.5 bg-white rounded text-indigo-600 font-mono text-xs">input</code> as the table name for UNION ALL operations.
-                                    For JOIN operations, use the source dataset names shown on the left.
+                                    <strong>Advanced SQL Transform:</strong> Write complex queries with JOIN, GROUP BY, WHERE, and aggregations.
+                                    Reference sources by their dataset names (shown on the left) to perform multi-table operations.
                                 </p>
                             </div>
                         </div>
