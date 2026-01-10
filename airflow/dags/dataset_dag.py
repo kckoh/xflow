@@ -54,7 +54,10 @@ with DAG(
                 --conf 'spark.sql.shuffle.partitions=100' \
                 --conf 'spark.memory.fraction=0.6' \
                 --name "ETL-{{ dag_run.conf.get('dataset_id', 'unknown') }}" \
-                --jars /opt/spark/jars/extra/postgresql-42.7.4.jar,/opt/spark/jars/extra/hadoop-aws-3.3.4.jar,/opt/spark/jars/extra/aws-java-sdk-bundle-1.12.262.jar,/opt/spark/jars/extra/mongo-spark-connector_2.12-10.3.0.jar,/opt/spark/jars/extra/bson-4.11.1.jar,/opt/spark/jars/extra/mongodb-driver-core-4.11.1.jar,/opt/spark/jars/extra/mongodb-driver-sync-4.11.1.jar \
+                --packages io.delta:delta-spark_2.12:3.2.0 \
+                --conf 'spark.sql.extensions=io.delta.sql.DeltaSparkSessionExtension' \
+                --conf 'spark.sql.catalog.spark_catalog=org.apache.spark.sql.delta.catalog.DeltaCatalog' \
+                --jars /opt/spark/jars/extra/postgresql-42.7.4.jar,/opt/spark/jars/extra/hadoop-aws-3.3.4.jar,/opt/spark/jars/extra/aws-java-sdk-bundle-1.12.262.jar,/opt/spark/jars/extra/mongo-spark-connector_2.12-10.3.0.jar,/opt/spark/jars/extra/bson-4.11.1.jar,/opt/spark/jars/extra/mongodb-driver-core-4.11.1.jar,/opt/spark/jars/extra/mongodb-driver-sync-4.11.1.jar,/opt/spark/jars/extra/delta-spark_2.12-3.2.0.jar,/opt/spark/jars/extra/delta-storage-3.2.0.jar \
                 /opt/spark/jobs/etl_runner.py --base64 '{{ ti.xcom_pull(task_ids="fetch_dataset_config") }}'
         """,
     )

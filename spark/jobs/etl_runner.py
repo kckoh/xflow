@@ -125,12 +125,16 @@ def transform_s3_filter(df: DataFrame, config: dict) -> DataFrame:
     return filtered_df
 
 
-def transform_sql(df: DataFrame, config: dict) -> DataFrame:
+def transform_sql(df: DataFrame, config: dict, additional_tables: dict = None) -> DataFrame:
     """
     Execute SQL query on DataFrame using temp view
     
     User writes SQL like: SELECT id, UPPER(name) as name_upper FROM input
-    "input" refers to the upstream DataFrame
+    "input" refers to the upstream DataFrame (usually UNION ALL of all sources)
+    
+    For JOIN queries, additional_tables can be provided:
+    {"user_join": df1, "order_join": df2}
+    These will be registered as separate temp views for direct access.
     """
     from pyspark.sql import SparkSession
     
@@ -141,7 +145,13 @@ def transform_sql(df: DataFrame, config: dict) -> DataFrame:
     # Get or create Spark session
     spark = SparkSession.builder.getOrCreate()
     
-    # Create temporary view named "input"
+    # Register additional named tables first (for JOIN support)
+    if additional_tables:
+        for table_name, table_df in additional_tables.items():
+            table_df.createOrReplaceTempView(table_name)
+            print(f"   Registered table '{table_name}' with {table_df.count()} rows")
+    
+    # Create temporary view named "input" (for backward compatibility)
     df.createOrReplaceTempView("input")
     
     # Execute user's SQL query
@@ -712,7 +722,7 @@ def read_s3_file_source(spark: SparkSession, source_config: dict) -> DataFrame:
 # ============ Destination Writers ============
 
 def write_s3_destination(df: DataFrame, dest_config: dict, job_name: str = "output", has_nosql_source: bool = False):
-    """Write DataFrame to S3 as Parquet"""
+    """Write DataFrame to S3 as Delta Lake format"""
     path = dest_config.get("path")
     if not path:
         raise ValueError("Destination path is required")
@@ -757,23 +767,26 @@ def write_s3_destination(df: DataFrame, dest_config: dict, job_name: str = "outp
                 writer_df = writer_df.withColumn(field.name, writer_df[field.name].cast(StringType()))
 
     writer = writer_df.write \
+        .format("delta") \
         .mode(mode) \
         .option("compression", compression)
 
     if partition_by:
         writer = writer.partitionBy(*partition_by)
 
-    writer.parquet(path)
-    print(f"✅ Data written to {path}")
+    writer.save(path)
+    print(f"✅ Data written to {path} (Delta Lake format)")
 
 
 # ============ Main ETL Runner ============
 
 def create_spark_session(config: dict) -> SparkSession:
-    """Create SparkSession with S3 configuration"""
+    """Create SparkSession with S3 and Delta Lake configuration"""
     dest = config.get("destination", {})
 
-    builder = SparkSession.builder.appName(f"ETL: {config.get('name', 'Unknown')}")
+    builder = SparkSession.builder.appName(f"ETL: {config.get('name', 'Unknown')}") \
+        .config("spark.sql.extensions", "io.delta.sql.DeltaSparkSessionExtension") \
+        .config("spark.sql.catalog.spark_catalog", "org.apache.spark.sql.delta.catalog.DeltaCatalog")
 
     # S3 configuration
     if dest.get("type") == "s3":
@@ -851,6 +864,8 @@ def run_etl(config: dict):
     try:
         # Dictionary to store DataFrames by nodeId
         dataframes = {}
+        # Dictionary to store source names by nodeId (for SQL JOIN support)
+        source_names = {}
 
         # Handle multiple sources (new) or single source (legacy)
         sources = config.get("sources", [])
@@ -885,7 +900,10 @@ def run_etl(config: dict):
                 raise ValueError(f"Unsupported source type: {source_type}")
 
             dataframes[node_id] = df
-            print(f"   [{node_id}] Schema:")
+            # Store source name for SQL JOIN support (use name from config, fallback to node_id)
+            source_name = source_config.get("name") or source_config.get("table") or source_config.get("collection") or node_id
+            source_names[node_id] = source_name
+            print(f"   [{node_id}] Schema (name: {source_name}):")
             df.printSchema()
 
         # Apply transforms
@@ -918,16 +936,26 @@ def run_etl(config: dict):
 
             elif transform_type in TRANSFORMS:
                 # Single-input transform (or multi-input for SQL with UNION ALL)
+                additional_tables = None  # For SQL transforms with multiple inputs
+                
                 if input_node_ids:
                     # Special handling for SQL transform with multiple inputs
                     if transform_type == "sql" and len(input_node_ids) > 1:
                         # UNION ALL multiple sources before SQL execution
                         print(f"   Combining {len(input_node_ids)} sources with UNION ALL...")
                         input_dfs = []
+                        additional_tables = {}  # Build named tables for JOIN support
+                        
                         for input_id in input_node_ids:
                             if input_id not in dataframes:
                                 raise ValueError(f"Input node {input_id} not found for transform {node_id}")
-                            input_dfs.append(dataframes[input_id])
+                            df = dataframes[input_id]
+                            input_dfs.append(df)
+                            
+                            # Add to additional_tables using source name
+                            table_name = source_names.get(input_id, input_id)
+                            additional_tables[table_name] = df
+                            print(f"   → Table '{table_name}' prepared for SQL access")
                         
                         # Use unionByName with allowMissingColumns for schema alignment
                         input_df = input_dfs[0]
@@ -943,7 +971,11 @@ def run_etl(config: dict):
                 else:
                     raise ValueError(f"No input available for transform {node_id}")
 
-                result_df = TRANSFORMS[transform_type](input_df, transform_config)
+                # Call transform function with additional_tables for SQL
+                if transform_type == "sql" and additional_tables:
+                    result_df = transform_sql(input_df, transform_config, additional_tables)
+                else:
+                    result_df = TRANSFORMS[transform_type](input_df, transform_config)
 
             else:
                 print(f"⚠️ Unknown transform type: {transform_type}, skipping...")

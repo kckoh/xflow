@@ -1,13 +1,15 @@
 import { useState, useEffect } from "react";
 import { useNavigate, useLocation } from "react-router-dom";
-import { Play, Loader2, XCircle, Download, BarChart3 } from "lucide-react";
+import { Play, Loader2, XCircle, Download, BarChart3, Database } from "lucide-react";
 import { executeQuery as runDuckDBQuery } from "../../services/apiDuckDB";
+import { executeQuery as runTrinoQuery } from "../../services/apiTrino";
 import { useToast } from "../../components/common/Toast";
 import TableColumnSidebar from "./components/TableColumnSidebar";
 import QueryExplorer from "./components/QueryExplorer";
 
 const QUERY_STORAGE_KEY = 'sqllab_current_query';
 const RESULTS_STORAGE_KEY = 'sqllab_last_results';
+const ENGINE_STORAGE_KEY = 'sqllab_query_engine';
 
 export default function SqlLabPage() {
     const navigate = useNavigate();
@@ -20,6 +22,9 @@ export default function SqlLabPage() {
     const [results, setResults] = useState(null);
     const [error, setError] = useState(null);
     const [viewMode, setViewMode] = useState('table'); // 'table' | 'chart'
+    const [engine, setEngine] = useState(() => {
+        return sessionStorage.getItem(ENGINE_STORAGE_KEY) || 'duckdb';
+    }); // 'duckdb' | 'trino'
 
     // Load query and results from multiple sources (priority order)
     useEffect(() => {
@@ -72,6 +77,11 @@ export default function SqlLabPage() {
         }
     }, [results]);
 
+    // Save engine selection to sessionStorage
+    useEffect(() => {
+        sessionStorage.setItem(ENGINE_STORAGE_KEY, engine);
+    }, [engine]);
+
     const executeQuery = async () => {
         if (!query.trim()) {
             setError("Please enter a query");
@@ -89,8 +99,10 @@ export default function SqlLabPage() {
                 finalQuery = `${finalQuery.replace(/;$/, "")} LIMIT 30`;
             }
 
-
-            const response = await runDuckDBQuery(finalQuery);
+            // Execute query based on selected engine
+            const response = engine === 'trino'
+                ? await runTrinoQuery(finalQuery)
+                : await runDuckDBQuery(finalQuery);
             const columns = response.data.length > 0 ? Object.keys(response.data[0]) : [];
             setResults({
                 data: response.data,
@@ -159,12 +171,28 @@ export default function SqlLabPage() {
             <div className="flex-1 flex flex-col bg-white">
                 {/* Header */}
                 <div className="p-4 border-b border-gray-200">
-                    <h2 className="font-semibold text-gray-900">SQL Lab</h2>
-                    {selectedTable && (
-                        <p className="text-xs text-gray-500 mt-1">
-                            xflow_db.{selectedTable.name}
-                        </p>
-                    )}
+                    <div className="flex items-center justify-between">
+                        <div>
+                            <h2 className="font-semibold text-gray-900">SQL Lab</h2>
+                            {selectedTable && (
+                                <p className="text-xs text-gray-500 mt-1">
+                                    xflow_db.{selectedTable.name}
+                                </p>
+                            )}
+                        </div>
+                        {/* Engine Selector */}
+                        <div className="flex items-center gap-2">
+                            <Database className="w-4 h-4 text-gray-500" />
+                            <select
+                                value={engine}
+                                onChange={(e) => setEngine(e.target.value)}
+                                className="px-3 py-1.5 text-sm border border-gray-300 rounded-lg bg-white focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none"
+                            >
+                                <option value="duckdb">DuckDB (Fast)</option>
+                                <option value="trino">Trino (Distributed)</option>
+                            </select>
+                        </div>
+                    </div>
                 </div>
 
                 {/* Query Editor */}

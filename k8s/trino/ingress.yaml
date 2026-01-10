@@ -1,24 +1,25 @@
 apiVersion: networking.k8s.io/v1
 kind: Ingress
 metadata:
-  name: xflow-ingress
+  name: trino-ingress
+  namespace: default
   annotations:
     alb.ingress.kubernetes.io/group.name: xflow-alb
     alb.ingress.kubernetes.io/scheme: internet-facing
     alb.ingress.kubernetes.io/target-type: ip
     alb.ingress.kubernetes.io/certificate-arn: arn:aws:acm:ap-northeast-2:134059028370:certificate/8bbac11a-efa0-4289-bfc4-edf8fed7b96c
     alb.ingress.kubernetes.io/listen-ports: '[{"HTTP": 80}, {"HTTPS": 443}]'
-    alb.ingress.kubernetes.io/ssl-redirect: '443'
+    alb.ingress.kubernetes.io/ssl-redirect: "443"
 spec:
   ingressClassName: alb
   rules:
-    - host: api.xflows.net
+    - host: trino.xflows.net
       http:
         paths:
           - path: /
             pathType: Prefix
             backend:
               service:
-                name: backend
+                name: trino-cluster-trino
                 port:
-                  number: 80
+                  number: 8080
