@@ -528,12 +528,6 @@ def calculate_and_update_dataset_size(db, dataset_id, s3_client):
 
         dataset_name = dataset.get("name", "")
 
-        # Append dataset name if not already in path (matches etl_runner.py behavior)
-        if dataset_name and not s3_path.endswith(dataset_name):
-            if not s3_path.endswith('/'):
-                s3_path += '/'
-            s3_path += dataset_name
-
         print(f"   Calculating size for {dataset_name}...")
 
         # Parse S3 path (s3://bucket/path or s3a://bucket/path)
@@ -541,10 +535,8 @@ def calculate_and_update_dataset_size(db, dataset_id, s3_client):
         parts = path.split('/', 1)
         bucket = parts[0]
         prefix = parts[1] if len(parts) > 1 else ''
-        # Remove trailing slash for consistency, then add it back for directory listing
+        # Remove trailing slash for consistency (matches Backend approach)
         prefix = prefix.rstrip('/')
-        if prefix:
-            prefix = prefix + '/'
 
         # Calculate total size with pagination and retry logic
         total_size = 0
@@ -661,12 +653,6 @@ def finalize_import(**context):
         if s3_path:
             dataset_name = dataset.get("name", "")
 
-            # Append dataset name if not already in path (matches etl_runner.py behavior)
-            if dataset_name and not s3_path.endswith(dataset_name):
-                if not s3_path.endswith('/'):
-                    s3_path += '/'
-                s3_path += dataset_name
-
             print(f"📊 Calculating S3 file size for dataset {dataset_name}...")
             try:
                 import re
@@ -676,10 +662,8 @@ def finalize_import(**context):
                 parts = path.split('/', 1)
                 bucket = parts[0]
                 prefix = parts[1] if len(parts) > 1 else ''
-                # Remove trailing slash for consistency, then add it back for directory listing
+                # Remove trailing slash for consistency (matches Backend approach)
                 prefix = prefix.rstrip('/')
-                if prefix:
-                    prefix = prefix + '/'
 
                 # Calculate total size with pagination and retry logic
                 total_size = 0
