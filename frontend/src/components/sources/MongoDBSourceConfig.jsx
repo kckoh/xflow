@@ -142,7 +142,8 @@ export default function MongoDBSourceConfig({
             return (
                 <div key={value.fullPath}>
                     {/* Current node */}
-                    <div className="flex items-center gap-2 py-1.5 group hover:bg-white/50 rounded px-2 -mx-2 transition-colors">
+                    {/* nested 계층구조 위아래 간격 */}
+                    <div className="flex items-center gap-2 py-0.5 group hover:bg-white/50 rounded px-2 -mx-2 transition-colors">
                         {/* Tree lines */}
                         {depth > 0 && (
                             <span className="text-gray-400 font-mono text-xs select-none whitespace-pre">
