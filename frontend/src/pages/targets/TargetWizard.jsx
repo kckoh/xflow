@@ -247,6 +247,9 @@ export default function TargetWizard() {
   }, [config.name, isEditMode, sourceDatasets]);
 
   const handleToggleJob = (jobId) => {
+    // Clear target selections when selecting from source
+    setSelectedTargetIds([]);
+
     setSelectedJobIds((prev) => {
       // For Source tab: only allow single selection
       // If clicked item is already selected, deselect it
@@ -1067,6 +1070,9 @@ export default function TargetWizard() {
                                 if (dataset.datasetType === "source") {
                                   handleToggleJob(dataset.id);
                                 } else {
+                                  // Clear source selections when selecting from target
+                                  setSelectedJobIds([]);
+
                                   setSelectedTargetIds((prev) =>
                                     prev.includes(dataset.id)
                                       ? prev.filter(
