@@ -1,6 +1,7 @@
 import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
 import Home from "./pages/home";
 import Login from "./pages/login";
+import LandingPage from "./pages/LandingPage";
 import DomainPage from "./pages/domain/DomainPage";
 import DomainDetailPage from "./pages/domain/DomainDetailPage";
 
@@ -62,7 +63,7 @@ function App() {
           </Route>
 
           {/* Re-structuring for clarity: */}
-          <Route path="/" element={<Navigate to="/dataset" replace />} />
+          <Route path="/" element={<LandingPage />} />
 
           <Route
             path="/dataset"
