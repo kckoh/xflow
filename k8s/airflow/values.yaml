@@ -34,6 +34,17 @@ webserver:
     limits:
       memory: "3Gi"
       cpu: "500m"
+  startupProbe:
+    failureThreshold: 30
+    periodSeconds: 10
+  livenessProbe:
+    initialDelaySeconds: 30
+    periodSeconds: 10
+    failureThreshold: 5
+  readinessProbe:
+    initialDelaySeconds: 30
+    periodSeconds: 10
+    failureThreshold: 5
   service:
     type: ClusterIP
 
@@ -43,6 +54,9 @@ scheduler:
   serviceAccount:
     annotations:
       eks.amazonaws.com/role-arn: "arn:aws:iam::134059028370:role/eksctl-xflow-cluster-addon-iamserviceaccount--Role1-bLIJeAhC8jWI"
+  env:
+    - name: BACKEND_URL
+      value: "http://backend.default.svc.cluster.local/api/datasets"
   resources:
     requests:
       memory: "1Gi"
@@ -58,6 +72,9 @@ dagProcessor:
   serviceAccount:
     annotations:
       eks.amazonaws.com/role-arn: "arn:aws:iam::134059028370:role/eksctl-xflow-cluster-addon-iamserviceaccount--Role1-bLIJeAhC8jWI"
+  env:
+    - name: BACKEND_URL
+      value: "http://backend.default.svc.cluster.local/api/datasets"
   resources:
     requests:
       memory: "256Mi"
