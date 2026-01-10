@@ -771,25 +771,27 @@ export default function SchemaTransformEditor({
                         <div className="flex gap-4 h-36">
                             {/* Before */}
                             <div className="flex-1 flex flex-col min-w-0 w-0">
-                                <h5 className="text-[9px] font-bold text-slate-400 uppercase mb-1.5 tracking-tight">Source Sample</h5>
-
-                                {/* Source sample tabs */}
-                                {testResult.source_samples && testResult.source_samples.length > 1 && (
-                                    <div className="flex gap-1 mb-2">
-                                        {testResult.source_samples.map((sample, idx) => (
-                                            <button
-                                                key={idx}
-                                                onClick={() => setActiveSourceSampleTab(idx)}
-                                                className={`px-2 py-1 text-[10px] font-medium rounded transition-colors ${activeSourceSampleTab === idx
-                                                    ? 'bg-blue-100 text-blue-700 border border-blue-300'
-                                                    : 'bg-slate-100 text-slate-600 border border-slate-200 hover:bg-slate-200'
-                                                    }`}
-                                            >
-                                                {sample.source_name}
-                                            </button>
-                                        ))}
-                                    </div>
-                                )}
+                                {/* Header with inline tabs */}
+                                <div className="flex items-center gap-3 mb-1.5">
+                                    <h5 className="text-[9px] font-bold text-slate-400 uppercase tracking-tight">Source Sample</h5>
+                                    {/* Source sample tabs - inline with header */}
+                                    {testResult.source_samples && testResult.source_samples.length > 1 && (
+                                        <div className="flex gap-1">
+                                            {testResult.source_samples.map((sample, idx) => (
+                                                <button
+                                                    key={idx}
+                                                    onClick={() => setActiveSourceSampleTab(idx)}
+                                                    className={`px-2 py-0.5 text-[10px] font-medium rounded transition-colors ${activeSourceSampleTab === idx
+                                                        ? 'bg-blue-100 text-blue-700 border border-blue-300'
+                                                        : 'bg-slate-100 text-slate-600 border border-slate-200 hover:bg-slate-200'
+                                                        }`}
+                                                >
+                                                    {sample.source_name}
+                                                </button>
+                                            ))}
+                                        </div>
+                                    )}
+                                </div>
 
                                 <div className="flex-1 overflow-auto border border-slate-200 rounded-xl bg-slate-50/50 max-w-full">
                                     {testResult.source_samples && testResult.source_samples.length > 0 ? (
