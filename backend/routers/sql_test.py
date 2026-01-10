@@ -309,6 +309,7 @@ async def _load_sample_data(
     elif source_type == 'mongodb':
         # MongoDB
         from pymongo import MongoClient
+        import json
         
         client = MongoClient(config.get('uri'))
         db = client[config.get('database')]
@@ -317,16 +318,33 @@ async def _load_sample_data(
         # Get documents
         data = list(collection.find().limit(limit))
         
-        # Convert to DataFrame
-        df = pd.DataFrame(data)
+        # Flatten nested documents using json_normalize
+        # This converts nested objects into flat columns
+        # Example: {"address": {"city": "Seoul"}} -> address_city column
+        df = pd.json_normalize(data, sep='_')
         
         # Remove MongoDB _id if present
         if '_id' in df.columns:
             df = df.drop('_id', axis=1)
         
-        # Convert dot notation columns to underscore (e.g., address.city -> address_city)
-        # This prevents DuckDB from interpreting them as table references
-        df.columns = [col.replace('.', '_') for col in df.columns]
+        # Process array of objects columns: extract each field as a separate array column
+        # Example: projects: [{"name": "A", "budget": 100}] 
+        # → projects_name: ["A"], projects_budget: [100]
+        for col in df.columns:
+            # Check if column contains array of dicts
+            if df[col].dtype == 'object':
+                sample_val = df[col].dropna().iloc[0] if len(df[col].dropna()) > 0 else None
+                if sample_val is not None and isinstance(sample_val, list) and len(sample_val) > 0 and isinstance(sample_val[0], dict):
+                    # This is an array of objects - extract each field
+                    first_item = sample_val[0]
+                    for field_name in first_item.keys():
+                        new_col_name = f"{col}_{field_name}"
+                        # Extract the field from each dict in the array
+                        df[new_col_name] = df[col].apply(
+                            lambda x: [item.get(field_name) for item in x] if isinstance(x, list) else None
+                        )
+                    # Drop the original column
+                    df = df.drop(col, axis=1)
         
         client.close()
         
