@@ -29,6 +29,7 @@ from routers import (
     connections,
     domains,
     duckdb,
+    trino,
     datasets,
     job_runs,
     logs,
@@ -118,6 +119,9 @@ app.include_router(s3_logs_preview.router, prefix="/api/s3-logs", tags=["s3-logs
 
 # DuckDB Query Engine
 app.include_router(duckdb.router, prefix="/api/duckdb", tags=["duckdb"])
+
+# Trino Query Engine
+app.include_router(trino.router, prefix="/api/trino", tags=["trino"])
 
 # SQL Test (DuckDB-based query testing)
 app.include_router(sql_test.router, prefix="/api/sql", tags=["sql-test"])
