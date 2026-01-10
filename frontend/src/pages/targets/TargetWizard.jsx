@@ -248,11 +248,13 @@ export default function TargetWizard() {
 
   const handleToggleJob = (jobId) => {
     setSelectedJobIds((prev) => {
+      // For Source tab: only allow single selection
+      // If clicked item is already selected, deselect it
       if (prev.includes(jobId)) {
-        return prev.filter((id) => id !== jobId);
-      } else {
-        return [...prev, jobId];
+        return [];
       }
+      // Otherwise, replace with new selection
+      return [jobId];
     });
   };
 
