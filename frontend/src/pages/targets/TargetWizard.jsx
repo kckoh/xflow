@@ -67,6 +67,7 @@ export default function TargetWizard() {
   const [targetSchema, setTargetSchema] = useState([]); // Single shared target schema for all sources
   const [initialTargetSchema, setInitialTargetSchema] = useState([]); // For edit mode
   const [isTestPassed, setIsTestPassed] = useState(false); // Single test status for the combined schema
+  const [customSql, setCustomSql] = useState(''); // Custom SQL from SQL Transform tab
   const [s3ProcessConfig, setS3ProcessConfig] = useState({
     selected_fields: [],
     filters: {},
@@ -127,24 +128,22 @@ export default function TargetWizard() {
           );
           setSourceNodes(sources);
 
-          // Restore combined target schema from all transform nodes
-          const combinedSchema = [];
-          sources.forEach((source) => {
-            const transformNode = job.nodes.find(
-              (n) =>
-                n.data?.nodeCategory === "transform" &&
-                job.edges?.some(
-                  (e) => e.source === source.id && e.target === n.id
-                )
-            );
 
-            if (transformNode?.data?.outputSchema) {
-              combinedSchema.push(...transformNode.data.outputSchema);
-            }
-          });
+          // Restore combined target schema from transform node
+          // Find the combined transform node (not per-source to avoid duplicates)
+          const transformNode = job.nodes.find(
+            (n) => n.data?.nodeCategory === "transform" && n.data?.transformType === "sql"
+          );
 
-          setTargetSchema(combinedSchema);
-          setInitialTargetSchema(combinedSchema);
+          if (transformNode?.data?.outputSchema) {
+            setTargetSchema(transformNode.data.outputSchema);
+            setInitialTargetSchema(transformNode.data.outputSchema);
+          }
+
+          // Also restore customSql if it exists
+          if (transformNode?.data?.query) {
+            setCustomSql(transformNode.data.query);
+          }
         }
 
         // Skip to Transform step in edit mode
@@ -535,6 +534,12 @@ export default function TargetWizard() {
 
   // Generate SQL from targetSchema
   const generateSql = (schema) => {
+    // If custom SQL is provided (from SQL Transform tab), use it
+    if (customSql && customSql.trim()) {
+      return customSql.trim();
+    }
+
+    // Otherwise generate SQL from schema (Visual Transform tab)
     if (!schema || schema.length === 0) return "SELECT * FROM input";
 
     const selectClauses = schema.map((col) => {
@@ -720,8 +725,12 @@ export default function TargetWizard() {
         // Source step - check both Source and Target tabs
         return selectedJobIds.length > 0 || selectedTargetIds.length > 0;
       case 3:
-        // Process/Transform step - need schema with at least one column and test passed
-        return targetSchema.length > 0 && isTestPassed;
+        // Process/Transform step
+        // Visual Transform: need schema with test passed
+        // SQL Transform: need customSql (schema inferred at runtime)
+        const hasVisualTransform = targetSchema.length > 0 && isTestPassed;
+        const hasSqlTransform = customSql && customSql.trim() && isTestPassed;
+        return hasVisualTransform || hasSqlTransform;
       case 4:
         return true; // Schedule step - always can proceed
       case 5:
@@ -1405,14 +1414,17 @@ export default function TargetWizard() {
                       }
                       targetSchema={targetSchema}
                       initialTargetSchema={initialTargetSchema}
+                      initialCustomSql={customSql}
                       onSchemaChange={setTargetSchema}
                       onTestStatusChange={setIsTestPassed}
+                      onSqlChange={setCustomSql}
                       allSources={sourceNodes.map((node) => ({
                         id: node.id,
                         datasetId:
                           node.data?.sourceDatasetId ||
                           node.data?.catalogDatasetId,
                         name: node.data?.name,
+                        schema: node.data?.columns || [], // Add schema/columns
                       }))}
                       sourceTabs={
                         sourceNodes.length > 1 ? (

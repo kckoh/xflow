@@ -148,6 +148,16 @@ async def get_catalog(
         # Add is_active flag (based on import_ready)
         doc["is_active"] = doc.get("import_ready", False)
         
+        # Add actual file size from S3 (bytes)
+        doc["size_bytes"] = doc.get("actual_size_bytes")
+        
+        # Add row_count (from quality check results or placeholder)
+        doc["row_count"] = doc.get("row_count")
+        
+        # Add format from destination
+        destination = doc.get("destination", {})
+        doc["format"] = destination.get("format", "parquet") if destination else "parquet"
+        
         # ✅ Ensure targets and destination are present for CatalogDatasetSelector
         if "targets" not in doc:
             doc["targets"] = []
@@ -236,6 +246,16 @@ async def get_dataset_detail(id: str):
     if "schema" in doc:
         doc["columns"] = doc["schema"]
         # del doc["schema"] # Optional: remove original key or keep it
+    
+    # Add actual file size from S3 (bytes)
+    doc["size_bytes"] = doc.get("actual_size_bytes")
+    
+    # Add row_count
+    doc["row_count"] = doc.get("row_count")
+    
+    # Add format from destination
+    destination = doc.get("destination", {})
+    doc["format"] = destination.get("format", "parquet") if destination else "parquet"
         
     return doc
 

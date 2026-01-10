@@ -25,6 +25,7 @@ class CatalogItem(BaseModel):
     tags: List[str] = []
     description: Optional[str] = None
     properties: Dict[str, Any] = {}
+    size_bytes: Optional[int] = None  # Actual file size in S3 (bytes)
 
 class DatasetDetail(CatalogItem):
     """
