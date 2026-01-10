@@ -121,7 +121,7 @@ function LandingPage() {
                             border-radius: 50%;
                         }
                     `}</style>
-
+                    <br /><br /><br />
                     <div className="relative mb-4 group w-full flex justify-center">
                         {/* Base Logo (Black) - Acts as the container shape */}
                         <div className="relative h-48 md:h-48 w-auto aspect-[7/2]">
@@ -212,7 +212,7 @@ function LandingPage() {
                         </button>
                     </div>
                 </div>
-                <br /><br />
+                <br /><br /><br /><br /><br />
                 {/* Hero Visual Placeholder */}
                 <div className="mt-20 w-full max-w-6xl mx-auto px-6">
                     <div className="aspect-[16/9] bg-[#F8F9FA] rounded-[32px] border border-gray-100 shadow-2xl flex items-center justify-center relative overflow-hidden group">
@@ -339,69 +339,69 @@ function LandingPage() {
                     className="flex gap-6 overflow-x-auto snap-x snap-mandatory pb-12 hide-scrollbar"
                     style={{ scrollbarWidth: 'none', msOverflowStyle: 'none' }}
                 >
-                    {/* Card 1: Data Engineer */}
+                    {/* Card 1: PM & Fullstack Developer*/}
                     <div className="min-w-[85vw] md:min-w-[600px] snap-center">
                         <div className="aspect-[16/10] bg-[#F1F3F4] rounded-[32px] relative overflow-hidden group mb-6">
                             <img
                                 src={kc}
-                                alt="Data Engineer"
+                                alt="PM & Fullstack Developer"
                                 className="absolute inset-0 w-full h-full object-cover transition-transform duration-700 group-hover:scale-105"
                             />
                             <div className="absolute inset-0 bg-black/20 group-hover:bg-black/10 transition-colors duration-500" />
                             <div className="absolute inset-0 flex items-center justify-center">
-                                <h3 className="text-3xl md:text-4xl font-medium text-white drop-shadow-lg">Anal</h3>
+                                <h3 className="text-3xl md:text-4xl font-medium text-white drop-shadow-lg">PM & Fullstack Developer</h3>
                             </div>
                             <div className="absolute bottom-6 right-6 w-10 h-10 bg-white/30 backdrop-blur rounded-full flex items-center justify-center text-white">
                                 <ArrowRight size={16} />
                             </div>
                         </div>
-                        <h4 className="text-xl font-medium mb-2">Data Engineer</h4>
+                        <h4 className="text-xl font-medium mb-2">PM & Fullstack Developer</h4>
                         <p className="text-[#5F6368]">
                             Automate complex ETL pipelines with drag-and-drop simplicity.
                             Monitor health and performance in real-time.
                         </p>
                     </div>
 
-                    {/* Card 2: Data Scientist */}
+                    {/* Card 2:Fullstack Developer */}
                     <div className="min-w-[85vw] md:min-w-[600px] snap-center">
                         <div className="aspect-[16/10] bg-[#E8F0FE] rounded-[32px] relative overflow-hidden group mb-6">
                             <img
                                 src={mh}
-                                alt="Data Scientist"
+                                alt="Fullstack Developer"
                                 className="absolute inset-0 w-full h-full object-cover transition-transform duration-700 group-hover:scale-105"
                             />
                             <div className="absolute inset-0 bg-black/20 group-hover:bg-black/10 transition-colors duration-500" />
                             <div className="absolute inset-0 flex items-center justify-center">
-                                <h3 className="text-3xl md:text-4xl font-medium text-white drop-shadow-lg">GAY</h3>
+                                <h3 className="text-3xl md:text-4xl font-medium text-white drop-shadow-lg">Fullstack Developer</h3>
                             </div>
                             <div className="absolute bottom-6 right-6 w-10 h-10 bg-white/30 backdrop-blur rounded-full flex items-center justify-center text-white">
                                 <ArrowRight size={16} />
                             </div>
                         </div>
-                        <h4 className="text-xl font-medium mb-2">Data Scientist</h4>
+                        <h4 className="text-xl font-medium mb-2">Fullstack Developer</h4>
                         <p className="text-[#5F6368]">
                             Access clean, cataloged data instantly.
                             Spend less time wrangling and more time modeling.
                         </p>
                     </div>
 
-                    {/* Card 3: Business Analyst */}
+                    {/* Card 3: Fullstack Developer */}
                     <div className="min-w-[85vw] md:min-w-[600px] snap-center">
                         <div className="aspect-[16/10] bg-[#F3E8FD] rounded-[32px] relative overflow-hidden group mb-6">
                             <img
                                 src={sc}
-                                alt="Business Analyst"
+                                alt="Fullstack Developer"
                                 className="absolute inset-0 w-full h-full object-cover transition-transform duration-700 group-hover:scale-105"
                             />
                             <div className="absolute inset-0 bg-black/20 group-hover:bg-black/10 transition-colors duration-500" />
                             <div className="absolute inset-0 flex items-center justify-center">
-                                <h3 className="text-3xl md:text-4xl font-medium text-white drop-shadow-lg">로리타</h3>
+                                <h3 className="text-3xl md:text-4xl font-medium text-white drop-shadow-lg">Fullstack Developer</h3>
                             </div>
                             <div className="absolute bottom-6 right-6 w-10 h-10 bg-white/30 backdrop-blur rounded-full flex items-center justify-center text-white">
                                 <ArrowRight size={16} />
                             </div>
                         </div>
-                        <h4 className="text-xl font-medium mb-2">Business Analyst</h4>
+                        <h4 className="text-xl font-medium mb-2">Fullstack Developer</h4>
                         <p className="text-[#5F6368]">
                             Trust your metrics with full lineage visibility.
                             Self-serve insights without waiting on engineering.
@@ -417,7 +417,7 @@ function LandingPage() {
                             />
                             <div className="absolute inset-0 bg-black/20 group-hover:bg-black/10 transition-colors duration-500" />
                             <div className="absolute inset-0 flex items-center justify-center">
-                                <h3 className="text-3xl md:text-4xl font-medium text-white drop-shadow-lg">NONE Sexually</h3>
+                                <h3 className="text-3xl md:text-4xl font-medium text-white drop-shadow-lg">Fullstack Developer</h3>
                             </div>
                             <div className="absolute bottom-6 right-6 w-10 h-10 bg-white/30 backdrop-blur rounded-full flex items-center justify-center text-white">
                                 <ArrowRight size={16} />
@@ -429,23 +429,23 @@ function LandingPage() {
                             Focus on UX while XFlow handles the backend complexity.
                         </p>
                     </div>
-                    {/* Card 5: Product Manager */}
+                    {/* Card 5:Fullstack Developer */}
                     <div className="min-w-[85vw] md:min-w-[600px] snap-center">
                         <div className="aspect-[16/10] bg-[#FEF7E0] rounded-[32px] relative overflow-hidden group mb-6">
                             <img
                                 src={sk}
-                                alt="Product Manager"
+                                alt="Fullstack Developer"
                                 className="absolute inset-0 w-full h-full object-cover transition-transform duration-700 group-hover:scale-105"
                             />
                             <div className="absolute inset-0 bg-black/20 group-hover:bg-black/10 transition-colors duration-500" />
                             <div className="absolute inset-0 flex items-center justify-center">
-                                <h3 className="text-3xl md:text-4xl font-medium text-white drop-shadow-lg">BI Sexually</h3>
+                                <h3 className="text-3xl md:text-4xl font-medium text-white drop-shadow-lg">Fullstack Developer</h3>
                             </div>
                             <div className="absolute bottom-6 right-6 w-10 h-10 bg-white/30 backdrop-blur rounded-full flex items-center justify-center text-white">
                                 <ArrowRight size={16} />
                             </div>
                         </div>
-                        <h4 className="text-xl font-medium mb-2">Product Manager</h4>
+                        <h4 className="text-xl font-medium mb-2">Fullstack Developer</h4>
                         <p className="text-[#5F6368]">
                             Track product metrics and user behavior instantly.
                             Validate hypotheses with real-time data access.
