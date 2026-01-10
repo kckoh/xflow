@@ -1,4 +1,4 @@
-from typing import List
+from typing import List, Dict
 from datetime import datetime
 
 from beanie import PydanticObjectId
@@ -47,6 +47,72 @@ async def list_job_runs(dataset_id: str = None, limit: int = 50):
         ))
 
     return result
+
+
+@router.get("/bulk", response_model=Dict[str, List[JobRunListResponse]])
+async def get_bulk_job_runs(dataset_ids: str, limit: int = 10):
+    """
+    Get job runs for multiple datasets in one request
+    
+    Args:
+        dataset_ids: Comma-separated dataset IDs (e.g., "id1,id2,id3")
+        limit: Maximum number of runs per dataset (default: 10)
+    
+    Returns:
+        Dictionary mapping dataset_id to list of job runs
+        {
+            "dataset_id_1": [run1, run2, ...],
+            "dataset_id_2": [run1, run2, ...],
+            ...
+        }
+    """
+    try:
+        # Parse dataset IDs
+        ids = [id.strip() for id in dataset_ids.split(',') if id.strip()]
+        
+        if not ids:
+            return {}
+        
+        # Fetch all runs for these datasets in one query
+        all_runs = await JobRun.find(
+            {"dataset_id": {"$in": ids}}
+        ).sort(-JobRun.started_at).to_list()
+        
+        # Group runs by dataset_id
+        runs_by_dataset = {}
+        for run in all_runs:
+            dataset_id = run.dataset_id
+            if dataset_id not in runs_by_dataset:
+                runs_by_dataset[dataset_id] = []
+            
+            # Calculate duration
+            duration = None
+            if run.started_at and run.finished_at:
+                duration = (run.finished_at - run.started_at).total_seconds()
+            
+            runs_by_dataset[dataset_id].append(JobRunListResponse(
+                id=str(run.id),
+                dataset_id=run.dataset_id,
+                dataset_name=None,  # Not needed for JobsPage
+                status=run.status,
+                started_at=run.started_at,
+                finished_at=run.finished_at,
+                duration_seconds=duration,
+            ))
+        
+        # Limit runs per dataset and sort
+        for dataset_id in runs_by_dataset:
+            runs_by_dataset[dataset_id] = sorted(
+                runs_by_dataset[dataset_id],
+                key=lambda x: x.started_at if x.started_at else datetime.min,
+                reverse=True
+            )[:limit]
+        
+        return runs_by_dataset
+        
+    except Exception as e:
+        print(f"Bulk job runs error: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
 
 
 @router.get("/{run_id}", response_model=JobRunResponse)

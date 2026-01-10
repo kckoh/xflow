@@ -60,88 +60,17 @@ async def get_catalog(
         if "properties" in doc and "layer" in doc["properties"]:
             doc["layer"] = doc["properties"]["layer"]
             
-        # Extract schema for S3 datasets using DuckDB
+        # Use stored schema from MongoDB (fast!)
+        # Schema is already saved when ETL job runs
         schema = None
-        
-        if doc.get("destination", {}).get("type") == "s3":
-            # Extract schema from S3 using DuckDB
-            try:
-                import duckdb
-                import os
-                
-                # Construct S3 path
-                destination = doc.get("destination", {})
-                base_path = destination.get("path", "")
-                name = doc.get("name", "")
-                
-                if base_path:
-                    # Append dataset name if not already in path
-                    s3_path = base_path
-                    if name and not base_path.endswith(name):
-                        if not base_path.endswith('/'):
-                            s3_path += '/'
-                        s3_path += name
-                    
-                    # Convert s3a:// to s3://
-                    s3_path = s3_path.replace("s3a://", "s3://")
-                    
-                    # Setup DuckDB with S3 credentials
-                    con = duckdb.connect()
-                    con.execute("INSTALL httpfs; LOAD httpfs;")
-                    
-                    # Get credentials from environment (supports IAM roles)
-                    import boto3
-                    session = boto3.Session()
-                    creds = session.get_credentials()
-                    
-                    if creds:
-                        frozen = creds.get_frozen_credentials()
-                        con.execute(f"SET s3_access_key_id='{frozen.access_key}';")
-                        con.execute(f"SET s3_secret_access_key='{frozen.secret_key}';")
-                        if frozen.token:
-                            con.execute(f"SET s3_session_token='{frozen.token}';")
-                    
-                    region = session.region_name or os.getenv("AWS_REGION", "us-east-1")
-                    con.execute(f"SET s3_region='{region}';")
-                    
-                    # Handle custom endpoint (LocalStack)
-                    endpoint = os.getenv("AWS_ENDPOINT") or os.getenv("S3_ENDPOINT_URL")
-                    if endpoint:
-                        endpoint_url = endpoint.replace("http://", "").replace("https://", "")
-                        con.execute(f"SET s3_endpoint='{endpoint_url}';")
-                        if "http://" in endpoint:
-                            con.execute("SET s3_use_ssl=false;")
-                            con.execute("SET s3_url_style='path';")
-                    
-                    # Read schema only (LIMIT 0 = no data)
-                    query = f"SELECT * FROM read_parquet('{s3_path}/*.parquet') LIMIT 0"
-                    df = con.execute(query).df()
-                    
-                    # Extract column info from DataFrame
-                    schema = []
-                    for col_name in df.columns:
-                        col_type = str(df[col_name].dtype)
-                        schema.append({
-                            "key": col_name,
-                            "type": col_type
-                        })
-                    
-                    con.close()
-                    
-            except Exception as e:
-                print(f"Failed to extract schema from S3 for {doc.get('name')}: {e}")
-                schema = None
-        
-        # Fallback to stored schema if DuckDB extraction failed or not S3
-        if not schema:
-            if "schema" in doc and doc["schema"]:
-                schema = doc["schema"]
-            elif "targets" in doc and len(doc["targets"]) > 0 and "schema" in doc["targets"][0]:
-                schema = doc["targets"][0]["schema"]
-            elif "nodes" in doc:
-                transform_node = next((n for n in doc["nodes"] if n.get("data", {}).get("nodeCategory") == "transform" or n.get("data", {}).get("transformType")), None)
-                if transform_node and "outputSchema" in transform_node.get("data", {}):
-                    schema = transform_node["data"]["outputSchema"]
+        if "schema" in doc and doc["schema"]:
+            schema = doc["schema"]
+        elif "targets" in doc and len(doc["targets"]) > 0 and "schema" in doc["targets"][0]:
+            schema = doc["targets"][0]["schema"]
+        elif "nodes" in doc:
+            transform_node = next((n for n in doc["nodes"] if n.get("data", {}).get("nodeCategory") == "transform" or n.get("data", {}).get("transformType")), None)
+            if transform_node and "outputSchema" in transform_node.get("data", {}):
+                schema = transform_node["data"]["outputSchema"]
         
         doc["columns"] = schema if schema else []
              
