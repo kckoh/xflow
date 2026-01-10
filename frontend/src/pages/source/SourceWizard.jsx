@@ -116,6 +116,10 @@ export default function SourceWizard() {
       config: {},
     },
     responsePath: "",
+    // API Incremental Load
+    incrementalEnabled: false,
+    timestampParam: "",
+    startFromDate: "",
   });
 
   // Load existing job data in edit mode
@@ -175,6 +179,10 @@ export default function SourceWizard() {
           queryParams: job.api?.query_params || {},
           pagination: job.api?.pagination || { type: "none", config: {} },
           responsePath: job.api?.response_path || "",
+          // API Incremental Load
+          incrementalEnabled: job.api?.incremental_config?.enabled || false,
+          timestampParam: job.api?.incremental_config?.timestamp_param || "",
+          startFromDate: job.api?.incremental_config?.start_from || "",
         });
 
         // Skip to Review step in edit mode
@@ -455,6 +463,11 @@ export default function SourceWizard() {
           query_params: config.queryParams,
           pagination: config.pagination,
           response_path: config.responsePath,
+          incremental_config: {
+            enabled: config.incrementalEnabled,
+            timestamp_param: config.timestampParam,
+            start_from: config.startFromDate,
+          },
         };
       }
 
@@ -891,6 +904,9 @@ export default function SourceWizard() {
                     paginationType={config.pagination?.type || "none"}
                     paginationConfig={config.pagination?.config || {}}
                     responsePath={config.responsePath}
+                    incrementalEnabled={config.incrementalEnabled}
+                    timestampParam={config.timestampParam}
+                    startFromDate={config.startFromDate}
                     onEndpointChange={(endpoint) =>
                       setConfig({ ...config, endpoint })
                     }
@@ -905,6 +921,14 @@ export default function SourceWizard() {
                     }
                     onResponsePathChange={(responsePath) =>
                       setConfig({ ...config, responsePath })
+                    }
+                    onIncrementalChange={({ enabled, timestampParam, startFromDate }) =>
+                      setConfig({
+                        ...config,
+                        incrementalEnabled: enabled,
+                        timestampParam: timestampParam,
+                        startFromDate: startFromDate
+                      })
                     }
                   />
                 )}

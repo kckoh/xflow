@@ -89,9 +89,9 @@ export default function APIPreview({
   };
 
   return (
-    <div className="h-full flex flex-col">
+    <div className="h-full flex flex-col max-w-full overflow-hidden">
       {/* Header */}
-      <div className="flex-shrink-0 bg-white border-b border-gray-200 px-6 py-4">
+      <div className="flex-shrink-0 bg-white border-b border-gray-200 px-6 py-4 min-w-0">
         <div className="flex items-center justify-between">
           <div>
             <h3 className="text-lg font-semibold text-gray-900">API Preview</h3>
@@ -122,7 +122,7 @@ export default function APIPreview({
       </div>
 
       {/* Content */}
-      <div className="flex-1 overflow-auto p-6">
+      <div className="flex-1 overflow-auto p-6 min-w-0">
         {/* Initial State */}
         {!previewData && !error && !loading && (
           <div className="flex items-center justify-center h-full">
@@ -187,50 +187,12 @@ export default function APIPreview({
               </button>
             </div>
 
-            {/* Data Table */}
+            {/* Data JSON View */}
             <div className="bg-white border border-gray-200 rounded-lg overflow-hidden">
-              <div className="overflow-x-auto max-w-full">
-                <table className="w-max min-w-full divide-y divide-gray-200 table-fixed">
-                  <thead className="bg-gray-50">
-                    <tr>
-                      <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                        #
-                      </th>
-                      {Object.keys(previewData[0] || {}).map((key) => (
-                        <th
-                          key={key}
-                          className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider"
-                        >
-                          {key}
-                        </th>
-                      ))}
-                    </tr>
-                  </thead>
-                  <tbody className="bg-white divide-y divide-gray-200">
-                    {previewData.map((row, rowIndex) => (
-                      <tr key={rowIndex} className="hover:bg-gray-50">
-                        <td className="px-4 py-3 text-sm text-gray-500">
-                          {rowIndex + 1}
-                        </td>
-                        {Object.values(row).map((value, colIndex) => (
-                          <td
-                            key={colIndex}
-                            className="px-4 py-3 text-sm text-gray-900 max-w-xs truncate"
-                            title={
-                              typeof value === 'object'
-                                ? JSON.stringify(value)
-                                : String(value)
-                            }
-                          >
-                            {typeof value === 'object'
-                              ? JSON.stringify(value)
-                              : String(value)}
-                          </td>
-                        ))}
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
+              <div className="overflow-auto max-h-96 p-4">
+                <pre className="text-xs text-gray-800 font-mono whitespace-pre-wrap break-words">
+                  {JSON.stringify(previewData, null, 2)}
+                </pre>
               </div>
             </div>
 

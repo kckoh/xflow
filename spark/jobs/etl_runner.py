@@ -125,12 +125,16 @@ def transform_s3_filter(df: DataFrame, config: dict) -> DataFrame:
     return filtered_df
 
 
-def transform_sql(df: DataFrame, config: dict) -> DataFrame:
+def transform_sql(df: DataFrame, config: dict, additional_tables: dict = None) -> DataFrame:
     """
     Execute SQL query on DataFrame using temp view
     
     User writes SQL like: SELECT id, UPPER(name) as name_upper FROM input
-    "input" refers to the upstream DataFrame
+    "input" refers to the upstream DataFrame (usually UNION ALL of all sources)
+    
+    For JOIN queries, additional_tables can be provided:
+    {"user_join": df1, "order_join": df2}
+    These will be registered as separate temp views for direct access.
     """
     from pyspark.sql import SparkSession
     
@@ -141,7 +145,13 @@ def transform_sql(df: DataFrame, config: dict) -> DataFrame:
     # Get or create Spark session
     spark = SparkSession.builder.getOrCreate()
     
-    # Create temporary view named "input"
+    # Register additional named tables first (for JOIN support)
+    if additional_tables:
+        for table_name, table_df in additional_tables.items():
+            table_df.createOrReplaceTempView(table_name)
+            print(f"   Registered table '{table_name}' with {table_df.count()} rows")
+    
+    # Create temporary view named "input" (for backward compatibility)
     df.createOrReplaceTempView("input")
     
     # Execute user's SQL query
@@ -838,9 +848,18 @@ def read_api_source(spark: SparkSession, source_config: dict) -> DataFrame:
     incremental = source_config.get("incremental_config") or {}
     if incremental.get("enabled"):
         last_sync = incremental.get("last_sync_timestamp")
+        start_from = incremental.get("start_from")
         timestamp_param = incremental.get("timestamp_param")
+
         if last_sync and timestamp_param:
+            # Subsequent runs: use last_sync_timestamp
             params[timestamp_param] = last_sync
+            print(f"   [Incremental] Using last_sync_timestamp: {last_sync}")
+        elif start_from and timestamp_param:
+            # First run with start_from: use start_from date
+            params[timestamp_param] = start_from
+            print(f"   [Incremental] First run, using start_from: {start_from}")
+        # else: No timestamp parameter (fetch all data)
 
     pagination = source_config.get("pagination") or {}
     if isinstance(pagination, dict):
@@ -869,10 +888,18 @@ def read_api_source(spark: SparkSession, source_config: dict) -> DataFrame:
             print(f"   Making API request: {full_url} with params={request_params}")
             response = requests.get(full_url, headers=headers, params=request_params, timeout=30)
             print(f"   Response status: {response.status_code}, Content-Type: {response.headers.get('Content-Type')}")
+
+            # Handle rate limiting (429)
             if response.status_code == 429 and attempt <= max_retries:
                 retry_after = int(response.headers.get("Retry-After", "1"))
                 time.sleep(retry_after)
                 continue
+
+            # Handle pagination limit errors (422, 404) - treat as end of data
+            if response.status_code in [422, 404]:
+                print(f"   API pagination limit reached (status={response.status_code}), stopping pagination")
+                return None  # Signal no more data
+
             response.raise_for_status()
             return response
 
@@ -912,6 +939,8 @@ def read_api_source(spark: SparkSession, source_config: dict) -> DataFrame:
             page_params[offset_param] = offset
             page_params[limit_param] = page_size
             response = _request_api(page_params)
+            if response is None:  # Pagination limit reached
+                break
             items = _extract_items(_parse_json(response))
             if not items:
                 break
@@ -931,6 +960,8 @@ def read_api_source(spark: SparkSession, source_config: dict) -> DataFrame:
             page_params[page_param] = page
             page_params[per_page_param] = page_size
             response = _request_api(page_params)
+            if response is None:  # Pagination limit reached
+                break
             items = _extract_items(_parse_json(response))
             if not items:
                 break
@@ -949,6 +980,8 @@ def read_api_source(spark: SparkSession, source_config: dict) -> DataFrame:
             if cursor:
                 page_params[cursor_param] = cursor
             response = _request_api(page_params)
+            if response is None:  # Pagination limit reached
+                break
             payload = _parse_json(response)
             items = _extract_items(payload)
             if items:
@@ -961,8 +994,12 @@ def read_api_source(spark: SparkSession, source_config: dict) -> DataFrame:
             cursor = next_cursor
 
     else:
+        # No pagination - single request
         response = _request_api(params)
-        all_data = _extract_items(_parse_json(response))
+        if response is not None:
+            all_data = _extract_items(_parse_json(response))
+        else:
+            all_data = []
 
     if not all_data:
         return spark.createDataFrame([], StructType([]))
@@ -1114,6 +1151,8 @@ def run_etl(config: dict):
     try:
         # Dictionary to store DataFrames by nodeId
         dataframes = {}
+        # Dictionary to store source names by nodeId (for SQL JOIN support)
+        source_names = {}
 
         # Handle multiple sources (new) or single source (legacy)
         sources = config.get("sources", [])
@@ -1160,7 +1199,10 @@ def run_etl(config: dict):
                 raise ValueError(f"Unsupported source type: {source_type}")
 
             dataframes[node_id] = df
-            print(f"   [{node_id}] Schema:")
+            # Store source name for SQL JOIN support (use name from config, fallback to node_id)
+            source_name = source_config.get("name") or source_config.get("table") or source_config.get("collection") or node_id
+            source_names[node_id] = source_name
+            print(f"   [{node_id}] Schema (name: {source_name}):")
             df.printSchema()
 
         # Apply transforms
@@ -1193,16 +1235,26 @@ def run_etl(config: dict):
 
             elif transform_type in TRANSFORMS:
                 # Single-input transform (or multi-input for SQL with UNION ALL)
+                additional_tables = None  # For SQL transforms with multiple inputs
+                
                 if input_node_ids:
                     # Special handling for SQL transform with multiple inputs
                     if transform_type == "sql" and len(input_node_ids) > 1:
                         # UNION ALL multiple sources before SQL execution
                         print(f"   Combining {len(input_node_ids)} sources with UNION ALL...")
                         input_dfs = []
+                        additional_tables = {}  # Build named tables for JOIN support
+                        
                         for input_id in input_node_ids:
                             if input_id not in dataframes:
                                 raise ValueError(f"Input node {input_id} not found for transform {node_id}")
-                            input_dfs.append(dataframes[input_id])
+                            df = dataframes[input_id]
+                            input_dfs.append(df)
+                            
+                            # Add to additional_tables using source name
+                            table_name = source_names.get(input_id, input_id)
+                            additional_tables[table_name] = df
+                            print(f"   → Table '{table_name}' prepared for SQL access")
                         
                         # Use unionByName with allowMissingColumns for schema alignment
                         input_df = input_dfs[0]
@@ -1218,7 +1270,11 @@ def run_etl(config: dict):
                 else:
                     raise ValueError(f"No input available for transform {node_id}")
 
-                result_df = TRANSFORMS[transform_type](input_df, transform_config)
+                # Call transform function with additional_tables for SQL
+                if transform_type == "sql" and additional_tables:
+                    result_df = transform_sql(input_df, transform_config, additional_tables)
+                else:
+                    result_df = TRANSFORMS[transform_type](input_df, transform_config)
 
             else:
                 print(f"⚠️ Unknown transform type: {transform_type}, skipping...")

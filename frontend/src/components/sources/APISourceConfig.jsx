@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Globe, ChevronDown, Check } from 'lucide-react';
+import { Globe, ChevronDown, Check, Clock } from 'lucide-react';
 
 export default function APISourceConfig({
   connectionId,
@@ -9,11 +9,15 @@ export default function APISourceConfig({
   paginationType = 'none',
   paginationConfig = {},
   responsePath = '',
+  incrementalEnabled = false,
+  timestampParam = '',
+  startFromDate = '',
   onEndpointChange,
   onMethodChange,
   onQueryParamsChange,
   onPaginationChange,
   onResponsePathChange,
+  onIncrementalChange,
 }) {
   const [isMethodOpen, setIsMethodOpen] = useState(false);
   const [isPaginationOpen, setIsPaginationOpen] = useState(false);
@@ -367,6 +371,81 @@ export default function APISourceConfig({
           </div>
         </div>
       )}
+
+      {/* Incremental Load Settings */}
+      <div className="border-t border-gray-200 pt-6">
+        <div className="flex items-center justify-between mb-4">
+          <div className="flex items-center gap-2">
+            <Clock className="w-5 h-5 text-gray-600" />
+            <h3 className="text-sm font-semibold text-gray-900">Incremental Load</h3>
+          </div>
+          <label className="relative inline-flex items-center cursor-pointer">
+            <input
+              type="checkbox"
+              checked={incrementalEnabled}
+              onChange={(e) => onIncrementalChange({ enabled: e.target.checked, timestampParam })}
+              className="sr-only peer"
+            />
+            <div className="w-11 h-6 bg-gray-200 peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-emerald-100 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-emerald-600"></div>
+          </label>
+        </div>
+
+        <p className="text-sm text-gray-600 mb-4">
+          Fetch only new or updated records by using a timestamp query parameter. This reduces API calls and improves performance.
+        </p>
+
+        {incrementalEnabled && (
+          <div className="bg-emerald-50 border border-emerald-200 rounded-lg p-4 space-y-3">
+            <div>
+              <label className="block text-xs font-medium text-emerald-900 mb-2">
+                Timestamp Query Parameter *
+              </label>
+              <input
+                type="text"
+                value={timestampParam}
+                onChange={(e) => onIncrementalChange({ enabled: incrementalEnabled, timestampParam: e.target.value, startFromDate })}
+                placeholder="since, updated_after, from_date, etc."
+                className="w-full px-3 py-2 text-sm border border-emerald-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-emerald-500 bg-white"
+              />
+              <p className="mt-2 text-xs text-emerald-700">
+                The parameter name used by the API to filter by timestamp (e.g., <code className="px-1 py-0.5 bg-emerald-100 rounded">since</code> for GitHub, <code className="px-1 py-0.5 bg-emerald-100 rounded">updated_after</code> for other APIs)
+              </p>
+            </div>
+
+            <div>
+              <label className="block text-xs font-medium text-emerald-900 mb-2">
+                Start From Date (Optional)
+              </label>
+              <input
+                type="datetime-local"
+                value={startFromDate}
+                onChange={(e) => onIncrementalChange({ enabled: incrementalEnabled, timestampParam, startFromDate: e.target.value })}
+                className="w-full px-3 py-2 text-sm border border-emerald-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-emerald-500 bg-white"
+              />
+              <p className="mt-2 text-xs text-emerald-700">
+                First run will start from this date instead of fetching all historical data. Leave empty to fetch everything.
+              </p>
+            </div>
+
+            <div className="bg-white border border-emerald-200 rounded-lg p-3">
+              <p className="text-xs font-medium text-emerald-900 mb-1">How it works:</p>
+              <ul className="text-xs text-emerald-700 space-y-1 list-disc list-inside">
+                <li>First run: {startFromDate ? `Fetches data from ${new Date(startFromDate).toLocaleDateString()}` : 'Fetches all historical data'}</li>
+                <li>Subsequent runs: Only fetches data after the last sync timestamp</li>
+                <li>Example: <code className="px-1 py-0.5 bg-emerald-100 rounded">?{timestampParam || 'since'}={startFromDate ? new Date(startFromDate).toISOString() : '2026-01-10T12:00:00'}</code></li>
+              </ul>
+            </div>
+          </div>
+        )}
+
+        {!incrementalEnabled && (
+          <div className="bg-gray-50 border border-gray-200 rounded-lg p-3">
+            <p className="text-xs text-gray-600">
+              <strong>Full load mode:</strong> Every run will fetch all data from the API. Enable incremental load to fetch only new/updated records.
+            </p>
+          </div>
+        )}
+      </div>
     </div>
   );
 }
