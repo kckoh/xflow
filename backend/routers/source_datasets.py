@@ -101,11 +101,26 @@ async def create_source_dataset(dataset: SourceDatasetCreate):
         "created_at": now,
         "updated_at": now,
     }
+    
+    # Extract schema from S3 when creating S3 source dataset (one-time operation)
+    if dataset.source_type == "s3" and not dataset_data.get("columns"):
+        bucket = dataset_data.get("bucket")
+        path = dataset_data.get("path")
+        if bucket and path:
+            try:
+                s3_schema = await get_s3_schema(bucket, path)
+                if s3_schema:
+                    dataset_data["columns"] = s3_schema
+                    print(f"Extracted schema from S3 for {dataset.name}: {len(s3_schema)} columns")
+            except Exception as e:
+                print(f"Warning: Failed to extract schema from S3: {e}")
+                # Continue without schema - user can add manually later
 
     result = await db.source_datasets.insert_one(dataset_data)
     dataset_data["id"] = str(result.inserted_id)
 
     return dataset_data
+
 
 
 @router.get("", response_model=List[SourceDatasetResponse])
@@ -119,16 +134,11 @@ async def get_source_datasets():
         doc["id"] = str(doc["_id"])
         del doc["_id"]
 
-        # S3 타입인 경우 DuckDB로 스키마 조회
-        if doc.get("source_type") == "s3":
-            # 저장된 columns가 없거나 비어있으면 S3에서 조회
-            if not doc.get("columns"):
-                bucket = doc.get("bucket")
-                path = doc.get("path")
-                if bucket and path:
-                    s3_schema = await get_s3_schema(bucket, path)
-                    if s3_schema:
-                        doc["columns"] = s3_schema
+        # Use stored columns/schema from MongoDB (fast!)
+        # Schema is saved when source dataset is created
+        if not doc.get("columns"):
+            # Fallback to schema field if columns not present
+            doc["columns"] = doc.get("schema", [])
 
         datasets.append(doc)
 
