@@ -215,8 +215,21 @@ export default function JobsPage() {
           (a, b) => new Date(b.updated_at) - new Date(a.updated_at)
         );
         setJobs(sortedJobs);
-        // Fetch runs for each job
-        fetchAllJobRuns(sortedJobs);
+        // Fetch all runs in ONE bulk request (instead of N requests)
+        if (sortedJobs.length > 0) {
+          const datasetIds = sortedJobs.map(job => job.id).join(',');
+          try {
+            const runsResponse = await fetch(
+              `${API_BASE_URL}/api/job-runs/bulk?dataset_ids=${datasetIds}&limit=10`
+            );
+            if (runsResponse.ok) {
+              const runsData = await runsResponse.json();
+              setJobRuns(runsData);  // Already grouped by dataset_id
+            }
+          } catch (error) {
+            console.error("Failed to fetch job runs:", error);
+          }
+        }
       } else {
         setJobs([]);
       }
@@ -226,27 +239,6 @@ export default function JobsPage() {
     } finally {
       setIsLoading(false);
     }
-  };
-
-  const fetchAllJobRuns = async (jobsList) => {
-    const runsData = {};
-    await Promise.all(
-      jobsList.map(async (job) => {
-        try {
-          const response = await fetch(`${API_BASE_URL}/api/job-runs?dataset_id=${job.id}`);
-          if (response.ok) {
-            const runs = await response.json();
-            // Store runs sorted by started_at descending (most recent first)
-            runsData[job.id] = runs.sort((a, b) =>
-              new Date(b.started_at) - new Date(a.started_at)
-            );
-          }
-        } catch (error) {
-          console.error(`Failed to fetch runs for job ${job.id}:`, error);
-        }
-      })
-    );
-    setJobRuns(runsData);
   };
 
   const handleScheduleSave = (jobId, { jobType, schedules }) => {
