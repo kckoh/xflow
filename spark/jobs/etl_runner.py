@@ -709,6 +709,269 @@ def read_s3_file_source(spark: SparkSession, source_config: dict) -> DataFrame:
     return df
 
 
+def _extract_json_path(data: object, path: str):
+    """
+    Enhanced JSONPath-like extractor with recursive array handling.
+    Supports:
+    - Dot paths: $.data.items
+    - Array index: $.data[0]
+    - Array wildcard: $.data[*]
+    - Nested wildcards: $.results[*].items (recursively applies path to each element)
+    """
+    if not path:
+        return data
+
+    if path.startswith("$."):
+        path = path[2:]
+    elif path.startswith("$"):
+        path = path[1:]
+
+    tokens = [p for p in path.split(".") if p]
+    current = data
+
+    for token_idx, token in enumerate(tokens):
+        if current is None:
+            return None
+
+        if "[" in token and token.endswith("]"):
+            base, bracket = token.split("[", 1)
+            index_token = bracket[:-1]
+
+            # Navigate to base field first if exists
+            if base:
+                if isinstance(current, dict):
+                    current = current.get(base)
+                else:
+                    return None
+
+            # Handle array indexing
+            if index_token == "*":
+                # Wildcard - apply remaining path to each element
+                if not isinstance(current, list):
+                    return None
+
+                # Check if there are more tokens after this wildcard
+                remaining_tokens = tokens[token_idx + 1:]
+
+                if remaining_tokens:
+                    # Recursively apply remaining path to each element
+                    remaining_path = ".".join(remaining_tokens)
+                    results = []
+                    for item in current:
+                        extracted = _extract_json_path(item, remaining_path)
+                        if extracted is not None:
+                            # If extracted is a list, extend; otherwise append
+                            if isinstance(extracted, list):
+                                results.extend(extracted)
+                            else:
+                                results.append(extracted)
+                    return results if results else None
+                else:
+                    # No remaining path - return the list as-is
+                    return current
+            else:
+                # Numeric index
+                try:
+                    idx = int(index_token)
+                except ValueError:
+                    return None
+                if isinstance(current, list) and 0 <= idx < len(current):
+                    current = current[idx]
+                else:
+                    return None
+        else:
+            # Simple field access
+            if isinstance(current, dict):
+                current = current.get(token)
+            else:
+                return None
+
+    return current
+
+
+def read_api_source(spark: SparkSession, source_config: dict) -> DataFrame:
+    """Read data from a RESTful API with basic pagination and JSON parsing."""
+    import json
+    import time
+    import requests
+    from pyspark.sql.types import StructType
+
+    connection = source_config.get("connection", {})
+    connection_config = connection.get("config", {})
+
+    base_url = connection.get("base_url") or connection_config.get("base_url") or source_config.get("base_url")
+    endpoint = source_config.get("endpoint") or ""
+    method = (source_config.get("method") or "GET").upper()
+
+    if not base_url:
+        raise ValueError("API base_url is required in connection config")
+    if not base_url.startswith("http://") and not base_url.startswith("https://"):
+        base_url = f"https://{base_url}"
+    if method != "GET":
+        raise ValueError(f"Unsupported API method: {method}")
+
+    headers = {}
+    headers.update(connection_config.get("headers") or {})
+    headers.setdefault("Accept", "application/json")
+
+    auth_type = connection_config.get("auth_type", "none")
+    auth_config = connection_config.get("auth_config") or {}
+
+    if auth_type == "api_key":
+        header_name = auth_config.get("header_name")
+        api_key = auth_config.get("api_key")
+        if header_name and api_key:
+            headers[header_name] = api_key
+    elif auth_type == "bearer":
+        token = auth_config.get("token")
+        if token:
+            headers["Authorization"] = f"Bearer {token}"
+    elif auth_type == "basic":
+        username = auth_config.get("username")
+        password = auth_config.get("password")
+        if username and password:
+            headers["Authorization"] = requests.auth._basic_auth_str(username, password)
+
+    params = {}
+    params.update(source_config.get("query_params") or {})
+
+    incremental = source_config.get("incremental_config") or {}
+    if incremental.get("enabled"):
+        last_sync = incremental.get("last_sync_timestamp")
+        timestamp_param = incremental.get("timestamp_param")
+        if last_sync and timestamp_param:
+            params[timestamp_param] = last_sync
+
+    pagination = source_config.get("pagination") or {}
+    if isinstance(pagination, dict):
+        pagination_type = pagination.get("type", "none")
+        pagination_config = pagination.get("config", {})
+    else:
+        pagination_type = "none"
+        pagination_config = {}
+
+    response_path = source_config.get("response_path")
+    all_data = []
+
+    # Build full URL with proper formatting
+    full_url = base_url.rstrip("/") + "/" + endpoint.lstrip("/") if endpoint else base_url
+    print(f"   API URL: {full_url}")
+    print(f"   Auth type: {auth_type}")
+    print(f"   Pagination: {pagination_type}")
+    if response_path:
+        print(f"   Response path: {response_path}")
+
+    def _request_api(request_params: dict):
+        max_retries = 3
+        attempt = 0
+        while True:
+            attempt += 1
+            print(f"   Making API request: {full_url} with params={request_params}")
+            response = requests.get(full_url, headers=headers, params=request_params, timeout=30)
+            print(f"   Response status: {response.status_code}, Content-Type: {response.headers.get('Content-Type')}")
+            if response.status_code == 429 and attempt <= max_retries:
+                retry_after = int(response.headers.get("Retry-After", "1"))
+                time.sleep(retry_after)
+                continue
+            response.raise_for_status()
+            return response
+
+    def _parse_json(response):
+        try:
+            return response.json()
+        except ValueError:
+            content_type = response.headers.get("Content-Type", "unknown")
+            snippet = response.text[:200].replace("\n", " ")
+            raise ValueError(
+                f"API response is not valid JSON (status={response.status_code}, "
+                f"content_type={content_type}, body='{snippet}')"
+            )
+
+    def _extract_items(payload: object):
+        if response_path:
+            extracted = _extract_json_path(payload, response_path)
+        else:
+            extracted = payload
+
+        if extracted is None:
+            return []
+        if isinstance(extracted, list):
+            return extracted
+        if isinstance(extracted, dict):
+            return [extracted]
+        return []
+
+    if pagination_type == "offset_limit":
+        offset_param = pagination_config.get("offset_param", "offset")
+        limit_param = pagination_config.get("limit_param", "limit")
+        page_size = int(pagination_config.get("page_size", 100))
+        offset = int(pagination_config.get("start_offset", 0))
+
+        while True:
+            page_params = dict(params)
+            page_params[offset_param] = offset
+            page_params[limit_param] = page_size
+            response = _request_api(page_params)
+            items = _extract_items(_parse_json(response))
+            if not items:
+                break
+            all_data.extend(items)
+            if len(items) < page_size:
+                break
+            offset += page_size
+
+    elif pagination_type == "page":
+        page_param = pagination_config.get("page_param", "page")
+        per_page_param = pagination_config.get("per_page_param", "per_page")
+        page_size = int(pagination_config.get("page_size", 100))
+        page = int(pagination_config.get("start_page", 1))
+
+        while True:
+            page_params = dict(params)
+            page_params[page_param] = page
+            page_params[per_page_param] = page_size
+            response = _request_api(page_params)
+            items = _extract_items(_parse_json(response))
+            if not items:
+                break
+            all_data.extend(items)
+            if len(items) < page_size:
+                break
+            page += 1
+
+    elif pagination_type == "cursor":
+        cursor_param = pagination_config.get("cursor_param", "cursor")
+        next_cursor_path = pagination_config.get("next_cursor_path")
+        cursor = pagination_config.get("start_cursor")
+
+        while True:
+            page_params = dict(params)
+            if cursor:
+                page_params[cursor_param] = cursor
+            response = _request_api(page_params)
+            payload = _parse_json(response)
+            items = _extract_items(payload)
+            if items:
+                all_data.extend(items)
+            next_cursor = None
+            if next_cursor_path:
+                next_cursor = _extract_json_path(payload, next_cursor_path)
+            if not next_cursor:
+                break
+            cursor = next_cursor
+
+    else:
+        response = _request_api(params)
+        all_data = _extract_items(_parse_json(response))
+
+    if not all_data:
+        return spark.createDataFrame([], StructType([]))
+
+    json_rdd = spark.sparkContext.parallelize([json.dumps(item) for item in all_data])
+    df = spark.read.json(json_rdd)
+    return df
+
+
 # ============ Destination Writers ============
 
 def write_s3_destination(df: DataFrame, dest_config: dict, job_name: str = "output", has_nosql_source: bool = False):
@@ -867,12 +1130,24 @@ def run_etl(config: dict):
             node_id = source_config.get("nodeId", f"source_{idx}")
             source_type = source_config.get("type", "rdb")
 
-            print(f"   [{node_id}] Reading from {source_type}: {source_config.get('table') or source_config.get('collection') or source_config.get('connection', {}).get('bucket', 'unknown')}")
+            # Build source description based on type
+            if source_type == "api":
+                connection = source_config.get("connection", {})
+                connection_config = connection.get("config", {})
+                base_url = connection.get("base_url") or connection_config.get("base_url") or source_config.get("base_url")
+                endpoint = source_config.get("endpoint", "")
+                source_desc = f"{base_url}/{endpoint}" if endpoint else base_url
+            else:
+                source_desc = source_config.get('table') or source_config.get('collection') or source_config.get('connection', {}).get('bucket', 'unknown')
+
+            print(f"   [{node_id}] Reading from {source_type}: {source_desc}")
             if source_type == "rdb":
                 df = read_rdb_source(spark, source_config)
             elif source_type in ["mongodb", "nosql"]:
                 df = read_nosql_source(spark, source_config)
                 has_nosql_source = True  # Mark that we have NoSQL source
+            elif source_type == "api":
+                df = read_api_source(spark, source_config)
             elif source_type == "s3":
                 # Distinguish between S3 logs (with customRegex) and S3 files (without)
                 if source_config.get("customRegex"):

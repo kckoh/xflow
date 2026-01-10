@@ -8,8 +8,9 @@ const CONNECTION_TYPES = [
   { id: "postgres", label: "PostgreSQL", category: "RDB" },
   { id: "mysql", label: "MySQL", category: "RDB" },
   { id: "mariadb", label: "MariaDB", category: "RDB" },
-  { id: "mongodb", label: "MongoDB", category: "NoSQL" }, // Placeholder
-  { id: "s3", label: "Amazon S3", category: "Storage" }, // Placeholder
+  { id: "mongodb", label: "MongoDB", category: "NoSQL" },
+  { id: "s3", label: "Amazon S3", category: "Storage" },
+  { id: "api", label: "REST API", category: "API" },
 ];
 
 const S3_REGIONS = [
@@ -56,6 +57,13 @@ export default function ConnectionForm({ onSuccess, onCancel, initialType }) {
         return {
           uri: "mongodb://mongo:mongo@mongodb:27017",
           database: "",
+        };
+      case "api":
+        return {
+          base_url: "",
+          auth_type: "none",
+          auth_config: {},
+          headers: {},
         };
       default:
         return {};
@@ -306,6 +314,154 @@ export default function ConnectionForm({ onSuccess, onCancel, initialType }) {
               onChange={(e) => handleConfigChange("database", e.target.value)}
             />
           </div>
+        </div>
+      );
+    } else if (type === "api") {
+      return (
+        <div className="space-y-4">
+          <div>
+            <label className="block text-sm font-medium text-gray-700">
+              Base URL *
+            </label>
+            <input
+              type="text"
+              required
+              placeholder="https://api.example.com"
+              className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:ring-blue-500 focus:border-blue-500 sm:text-sm"
+              value={config.base_url || ""}
+              onChange={(e) => handleConfigChange("base_url", e.target.value)}
+            />
+            <p className="mt-1 text-xs text-gray-500">
+              The base URL of the API (endpoint paths will be specified in the dataset)
+            </p>
+          </div>
+
+          <div>
+            <label className="block text-sm font-medium text-gray-700">
+              Authentication Type
+            </label>
+            <select
+              className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:ring-blue-500 focus:border-blue-500 sm:text-sm"
+              value={config.auth_type || "none"}
+              onChange={(e) => {
+                const newAuthType = e.target.value;
+                handleConfigChange("auth_type", newAuthType);
+                // Reset auth_config when changing auth type
+                handleConfigChange("auth_config", {});
+              }}
+            >
+              <option value="none">No Authentication</option>
+              <option value="api_key">API Key</option>
+              <option value="bearer">Bearer Token</option>
+              <option value="basic">Basic Auth</option>
+            </select>
+          </div>
+
+          {/* API Key Auth */}
+          {config.auth_type === "api_key" && (
+            <>
+              <div>
+                <label className="block text-sm font-medium text-gray-700">
+                  Header Name *
+                </label>
+                <input
+                  type="text"
+                  required
+                  placeholder="X-API-Key"
+                  className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:ring-blue-500 focus:border-blue-500 sm:text-sm"
+                  value={config.auth_config?.header_name || ""}
+                  onChange={(e) =>
+                    handleConfigChange("auth_config", {
+                      ...config.auth_config,
+                      header_name: e.target.value,
+                    })
+                  }
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700">
+                  API Key *
+                </label>
+                <input
+                  type="password"
+                  required
+                  placeholder="Your API key"
+                  className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:ring-blue-500 focus:border-blue-500 sm:text-sm"
+                  value={config.auth_config?.api_key || ""}
+                  onChange={(e) =>
+                    handleConfigChange("auth_config", {
+                      ...config.auth_config,
+                      api_key: e.target.value,
+                    })
+                  }
+                />
+              </div>
+            </>
+          )}
+
+          {/* Bearer Token Auth */}
+          {config.auth_type === "bearer" && (
+            <div>
+              <label className="block text-sm font-medium text-gray-700">
+                Bearer Token *
+              </label>
+              <input
+                type="password"
+                required
+                placeholder="Your bearer token"
+                className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:ring-blue-500 focus:border-blue-500 sm:text-sm"
+                value={config.auth_config?.token || ""}
+                onChange={(e) =>
+                  handleConfigChange("auth_config", {
+                    ...config.auth_config,
+                    token: e.target.value,
+                  })
+                }
+              />
+            </div>
+          )}
+
+          {/* Basic Auth */}
+          {config.auth_type === "basic" && (
+            <>
+              <div>
+                <label className="block text-sm font-medium text-gray-700">
+                  Username *
+                </label>
+                <input
+                  type="text"
+                  required
+                  placeholder="Username"
+                  className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:ring-blue-500 focus:border-blue-500 sm:text-sm"
+                  value={config.auth_config?.username || ""}
+                  onChange={(e) =>
+                    handleConfigChange("auth_config", {
+                      ...config.auth_config,
+                      username: e.target.value,
+                    })
+                  }
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700">
+                  Password *
+                </label>
+                <input
+                  type="password"
+                  required
+                  placeholder="Password"
+                  className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:ring-blue-500 focus:border-blue-500 sm:text-sm"
+                  value={config.auth_config?.password || ""}
+                  onChange={(e) =>
+                    handleConfigChange("auth_config", {
+                      ...config.auth_config,
+                      password: e.target.value,
+                    })
+                  }
+                />
+              </div>
+            </>
+          )}
         </div>
       );
     } else {

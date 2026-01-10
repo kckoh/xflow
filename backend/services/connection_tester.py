@@ -1,5 +1,6 @@
 from typing import Dict, Any, Tuple
 import boto3
+import requests
 from sqlalchemy import create_engine, text
 from botocore.exceptions import ClientError
 
@@ -20,6 +21,8 @@ class ConnectionTester:
             return ConnectionTester._test_s3(config)
         elif conn_type == 'mongodb':
             return ConnectionTester._test_mongodb(config)
+        elif conn_type == 'api':
+            return ConnectionTester._test_api(config)
         else:
             return False, f"Unsupported connection type: {conn_type}"
 
@@ -88,14 +91,72 @@ class ConnectionTester:
         """Test MongoDB connection."""
         try:
             from services.mongodb_connector import test_mongodb_connection
-            
+
             uri = config.get('uri')
             database = config.get('database')
-            
+
             if not uri or not database:
                 return False, "Missing MongoDB connection parameters (uri or database)"
-            
+
             return test_mongodb_connection(uri, database)
-            
+
         except Exception as e:
             return False, f"MongoDB connection test failed: {str(e)}"
+
+    @staticmethod
+    def _test_api(config: Dict[str, Any]) -> Tuple[bool, str]:
+        """Test REST API connection."""
+        try:
+            base_url = config.get('base_url')
+            if not base_url:
+                return False, "Base URL is required"
+
+            # Prepare headers
+            headers = config.get('headers', {}).copy() if config.get('headers') else {}
+
+            # Add authentication
+            auth_type = config.get('auth_type', 'none')
+            auth_config = config.get('auth_config', {})
+
+            if auth_type == 'api_key':
+                header_name = auth_config.get('header_name')
+                api_key = auth_config.get('api_key')
+                if header_name and api_key:
+                    headers[header_name] = api_key
+            elif auth_type == 'bearer':
+                token = auth_config.get('token')
+                if token:
+                    headers['Authorization'] = f'Bearer {token}'
+            elif auth_type == 'basic':
+                username = auth_config.get('username')
+                password = auth_config.get('password')
+                if username and password:
+                    from requests.auth import HTTPBasicAuth
+                    auth = HTTPBasicAuth(username, password)
+                else:
+                    auth = None
+            else:
+                auth = None
+
+            # Test connection with a simple GET request to base URL
+            # Use timeout to avoid hanging
+            if auth_type == 'basic' and 'auth' in locals():
+                response = requests.get(base_url, headers=headers, auth=auth, timeout=10)
+            else:
+                response = requests.get(base_url, headers=headers, timeout=10)
+
+            # Consider 2xx and 3xx as successful (redirect is ok)
+            # 401/403 might mean auth is required but connection works
+            if response.status_code < 500:
+                return True, f"Successfully connected to API (Status: {response.status_code})"
+            else:
+                return False, f"API returned server error (Status: {response.status_code})"
+
+        except requests.exceptions.ConnectionError:
+            return False, f"Connection failed: Unable to reach {config.get('base_url')}"
+        except requests.exceptions.Timeout:
+            return False, f"Connection timeout: {config.get('base_url')} did not respond in time"
+        except requests.exceptions.RequestException as e:
+            return False, f"Request failed: {str(e)}"
+        except Exception as e:
+            return False, f"API connection test failed: {str(e)}"

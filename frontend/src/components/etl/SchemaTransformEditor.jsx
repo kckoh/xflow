@@ -114,6 +114,9 @@ export default function SchemaTransformEditor({
 
     // Generate unique name with prefix if needed
     const getUniqueColumnName = (colName) => {
+        if (allSources.length <= 1) {
+            return colName;
+        }
         // Check if this exact name already exists in target (from different source)
         const nameExists = targetSchema.some(ac => ac.name === colName && ac.sourceId !== sourceId);
         if (nameExists) {

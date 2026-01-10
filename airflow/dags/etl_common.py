@@ -113,6 +113,16 @@ def convert_nodes_to_sources(nodes, edges, db):
                             # Get customRegex from node_data (set in Target Wizard)
                             source_config["customRegex"] = node_data.get("customRegex") or source_dataset.get("customRegex")
 
+                        # Add API-specific fields
+                        if source_type == "api" or mapped_type == "api":
+                            api_config = source_dataset.get("api", {})
+                            source_config["endpoint"] = api_config.get("endpoint", "")
+                            source_config["method"] = api_config.get("method", "GET")
+                            source_config["query_params"] = api_config.get("query_params", {})
+                            source_config["pagination"] = api_config.get("pagination", {"type": "none", "config": {}})
+                            source_config["response_path"] = api_config.get("response_path", "")
+                            print(f"   [API] Added API config: endpoint={source_config['endpoint']}, pagination={source_config['pagination'].get('type')}")
+
                         # Add incremental load config from node_data
                         incremental_config = node_data.get("incrementalConfig")
                         if incremental_config and incremental_config.get("enabled"):
@@ -390,6 +400,15 @@ def fetch_dataset_config(as_base64=False, **context):
             )
             if connection:
                 source["connection"] = connection.get("config", {})
+        elif source.get("type") == "api" and source.get("connection_id"):
+            connection = db.connections.find_one(
+                {"_id": ObjectId(source["connection_id"])}
+            )
+            if connection:
+                source["connection"] = {
+                    "type": connection.get("type"),
+                    "config": connection.get("config", {}),
+                }
         enriched_sources.append(source)
 
     # Get estimated size from dataset document (calculated at dataset creation time)
@@ -652,4 +671,3 @@ def run_quality_check(**context):
     finally:
         if client:
             client.close()
-

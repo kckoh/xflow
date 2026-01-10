@@ -516,5 +516,90 @@ async def _load_sample_data(
         
         return df
     
+    elif source_type == 'api':
+        import requests
+
+        api_config = source_dataset.get("api", {})
+        endpoint = api_config.get("endpoint")
+        if not endpoint:
+            raise HTTPException(status_code=400, detail="API endpoint is not configured")
+
+        base_url = config.get("base_url", "")
+        full_url = base_url.rstrip("/") + "/" + endpoint.lstrip("/")
+
+        headers = config.get("headers", {}).copy() if config.get("headers") else {}
+        auth_type = config.get("auth_type", "none")
+        auth_config = config.get("auth_config", {})
+
+        if auth_type == "api_key":
+            header_name = auth_config.get("header_name")
+            api_key = auth_config.get("api_key")
+            if header_name and api_key:
+                headers[header_name] = api_key
+        elif auth_type == "bearer":
+            token = auth_config.get("token")
+            if token:
+                headers["Authorization"] = f"Bearer {token}"
+
+        auth = None
+        if auth_type == "basic":
+            username = auth_config.get("username")
+            password = auth_config.get("password")
+            if username and password:
+                from requests.auth import HTTPBasicAuth
+                auth = HTTPBasicAuth(username, password)
+
+        params = api_config.get("query_params", {}).copy() if api_config.get("query_params") else {}
+        params["limit"] = limit
+
+        pagination = api_config.get("pagination", {})
+        pagination_type = pagination.get("type", "none")
+        pagination_config = pagination.get("config", {})
+
+        if pagination_type == "offset_limit":
+            offset_param = pagination_config.get("offset_param", "offset")
+            limit_param = pagination_config.get("limit_param", "limit")
+            params[offset_param] = 0
+            params[limit_param] = limit
+        elif pagination_type == "page":
+            page_param = pagination_config.get("page_param", "page")
+            per_page_param = pagination_config.get("per_page_param", "per_page")
+            params[page_param] = 1
+            params[per_page_param] = limit
+
+        try:
+            response = requests.get(full_url, headers=headers, auth=auth, params=params, timeout=30)
+            response.raise_for_status()
+        except requests.exceptions.RequestException as e:
+            raise HTTPException(status_code=500, detail=f"API request failed: {str(e)}")
+
+        try:
+            json_data = response.json()
+        except ValueError:
+            raise HTTPException(status_code=500, detail="API response is not valid JSON")
+
+        response_path = api_config.get("response_path", "")
+        if response_path:
+            keys = response_path.replace("$.", "").split(".")
+            current = json_data
+            for key in keys:
+                if isinstance(current, dict):
+                    current = current.get(key)
+                else:
+                    break
+            extracted_data = current
+        else:
+            extracted_data = json_data
+
+        if isinstance(extracted_data, dict):
+            extracted_data = [extracted_data]
+        elif not isinstance(extracted_data, list):
+            raise HTTPException(
+                status_code=500,
+                detail="Extracted data is not an array or object. Check your response_path setting.",
+            )
+
+        return pd.DataFrame(extracted_data[:limit])
+    
     else:
         raise ValueError(f"Unsupported source type: {source_type}")
