@@ -113,9 +113,30 @@ def convert_nodes_to_sources(nodes, edges, db):
                             # Get customRegex from node_data (set in Target Wizard)
                             source_config["customRegex"] = node_data.get("customRegex") or source_dataset.get("customRegex")
 
-                        # Add incremental load config from node_data
+                        # Add API-specific fields
+                        if source_type == "api" or mapped_type == "api":
+                            api_config = source_dataset.get("api", {})
+                            source_config["endpoint"] = api_config.get("endpoint", "")
+                            source_config["method"] = api_config.get("method", "GET")
+                            source_config["query_params"] = api_config.get("query_params", {})
+                            source_config["pagination"] = api_config.get("pagination", {"type": "none", "config": {}})
+                            source_config["response_path"] = api_config.get("response_path", "")
+
+                            # API incremental config (from source_dataset.api.incremental_config)
+                            api_incremental = api_config.get("incremental_config") or api_config.get("incremental") or {}
+                            if api_incremental.get("enabled"):
+                                source_config["incremental_config"] = {
+                                    "enabled": True,
+                                    "timestamp_param": api_incremental.get("timestamp_param", "since"),
+                                    "start_from": api_incremental.get("start_from", "")
+                                }
+                                print(f"   [API] Incremental load enabled: timestamp_param={api_incremental.get('timestamp_param')}, start_from={api_incremental.get('start_from', 'not set')}")
+
+                            print(f"   [API] Added API config: endpoint={source_config['endpoint']}, pagination={source_config['pagination'].get('type')}")
+
+                        # Add incremental load config from node_data (for RDB/S3/MongoDB)
                         incremental_config = node_data.get("incrementalConfig")
-                        if incremental_config and incremental_config.get("enabled"):
+                        if incremental_config and incremental_config.get("enabled") and source_type != "api":
                             source_config["incremental_config"] = incremental_config
                             print(f"   [Incremental Load] Enabled for {node_id}: timestamp_column={incremental_config.get('timestamp_column')}")
 
@@ -390,6 +411,15 @@ def fetch_dataset_config(as_base64=False, **context):
             )
             if connection:
                 source["connection"] = connection.get("config", {})
+        elif source.get("type") == "api" and source.get("connection_id"):
+            connection = db.connections.find_one(
+                {"_id": ObjectId(source["connection_id"])}
+            )
+            if connection:
+                source["connection"] = {
+                    "type": connection.get("type"),
+                    "config": connection.get("config", {}),
+                }
         enriched_sources.append(source)
 
     # Get estimated size from dataset document (calculated at dataset creation time)
@@ -416,7 +446,14 @@ def fetch_dataset_config(as_base64=False, **context):
             incremental_config["last_sync_timestamp"] = last_sync.isoformat()
 
         for source in config["sources"]:
-            source["incremental_config"] = incremental_config
+            if source.get("incremental_config"):
+                # Source already has its own incremental config (API, RDB, S3, etc.)
+                # Only inject last_sync_timestamp, don't overwrite the config
+                if last_sync:
+                    source["incremental_config"]["last_sync_timestamp"] = incremental_config["last_sync_timestamp"]
+            else:
+                # Source doesn't have incremental config, use dataset-level (backwards compatibility)
+                source["incremental_config"] = incremental_config
         config["destination"]["incremental_config"] = incremental_config
 
     # Add S3 config (different for local vs production)
@@ -904,4 +941,3 @@ def run_quality_check(**context):
     finally:
         if client:
             client.close()
-

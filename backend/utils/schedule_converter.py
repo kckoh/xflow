@@ -28,30 +28,36 @@ def generate_schedule(frequency: str, ui_params: Optional[Dict] = None) -> Optio
         # Format for our custom DAG parser: @interval:P<days>DT<hours>H<minutes>M
         return f"@interval:P{days}DT{hours}H{minutes}M"
 
-    # Handle Standard Frequencies based on Start Date
+    # Handle Standard Frequencies using Interval format (to avoid Airflow's "next interval" execution)
     if ui_params and ui_params.get('startDate'):
         try:
-            # Handle ISO string (e.g. "2023-01-01T14:30")
+            # Parse start date to extract time components (for monthly cron only)
             dt = datetime.fromisoformat(ui_params['startDate'].replace('Z', '+00:00'))
             minute = dt.minute
             hour = dt.hour
             day_of_month = dt.day
             day_of_week = dt.strftime('%w') # 0 = Sunday
-            
+
             if frequency == 'hourly':
-                # For hourly, we use the interval from uiParams if available, or default to 1
+                # Use interval format: P0DT{hours}H0M
                 interval = int(ui_params.get('hourInterval', 1))
-                return f"{minute} */{interval} * * *"
-                
+                return f"@interval:P0DT{interval}H0M"
+
             if frequency == 'daily':
-                return f"{minute} {hour} * * *"
-                
+                # Use interval format: P1DT0H0M (1 day)
+                return f"@interval:P1DT0H0M"
+
             if frequency == 'weekly':
-                return f"{minute} {hour} * * {day_of_week}"
-                
+                # Use interval format: P7DT0H0M (7 days)
+                return f"@interval:P7DT0H0M"
+
             if frequency == 'monthly':
-                return f"{minute} {hour} {day_of_month} * *"
-                
+                # Monthly cannot be expressed as interval (varying days per month)
+                # Use cron but adjust hour to compensate for Airflow's next-interval execution
+                # Subtract 1 hour so it runs at the intended time
+                adjusted_hour = (hour - 1) % 24
+                return f"{minute} {adjusted_hour} {day_of_month} * *"
+
         except ValueError:
             pass # Invalid date format fallback
             

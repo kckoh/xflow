@@ -22,6 +22,7 @@ import SchedulesPanel from "../../components/etl/SchedulesPanel";
 import SchemaTransformEditor from "../../components/etl/SchemaTransformEditor";
 import S3LogParsingConfig from "../../components/targets/S3LogParsingConfig";
 import S3LogProcessEditor from "../../components/targets/S3LogProcessEditor";
+import APIPreview from "../../components/targets/APIPreview";
 import { API_BASE_URL } from "../../config/api";
 
 const STEPS = [
@@ -287,6 +288,7 @@ export default function TargetWizard() {
             label: source.name,
             name: source.name,
             platform: source.source_type || "PostgreSQL",
+            sourceType: source.source_type || "rdb",
             columns: columns.map((col) => ({
               name: col.name,
               type: col.type,
@@ -1298,6 +1300,27 @@ export default function TargetWizard() {
                         ) : (
                           /* Non-S3 Source - Show Normal Schema Table */
                           <>
+                            {focusedDataset.source_type === "api" && (
+                              <div className="space-y-4 mb-4">
+                                <APIPreview
+                                  sourceDatasetId={focusedDataset.id}
+                                  onSchemaInferred={(inferredColumns) => {
+                                    setSourceDatasets((datasets) =>
+                                      datasets.map((ds) =>
+                                        ds.id === focusedDataset.id
+                                          ? { ...ds, columns: inferredColumns }
+                                          : ds
+                                      )
+                                    );
+                                    setFocusedDataset((prev) =>
+                                      prev?.id === focusedDataset.id
+                                        ? { ...prev, columns: inferredColumns }
+                                        : prev
+                                    );
+                                  }}
+                                />
+                              </div>
+                            )}
                             <div className="flex items-center justify-between mb-3">
                               <h4 className="text-xs font-semibold text-gray-500 uppercase">
                                 Columns
@@ -1396,8 +1419,73 @@ export default function TargetWizard() {
                     }}
                     onTestStatusChange={setIsTestPassed}
                   />
+                ) : /* ================= API Source ================= */
+                sourceNodes[0]?.data?.sourceType === "api" ? (
+                  sourceNodes[activeSourceTab]?.data?.columns?.length ? (
+                    <SchemaTransformEditor
+                      sourceSchema={sourceNodes[activeSourceTab].data?.columns || []}
+                      sourceName={
+                        sourceNodes[activeSourceTab].data?.name ||
+                        `Source ${activeSourceTab + 1}`
+                      }
+                      sourceId={sourceNodes[activeSourceTab].id}
+                      sourceDatasetId={
+                        sourceNodes[activeSourceTab].data?.sourceDatasetId ||
+                        sourceNodes[activeSourceTab].data?.catalogDatasetId
+                      }
+                      targetSchema={targetSchema}
+                      initialTargetSchema={initialTargetSchema}
+                      onSchemaChange={setTargetSchema}
+                      onTestStatusChange={setIsTestPassed}
+                      allSources={sourceNodes.map((node) => ({
+                        id: node.id,
+                        datasetId:
+                          node.data?.sourceDatasetId ||
+                          node.data?.catalogDatasetId,
+                        name: node.data?.name,
+                      }))}
+                      sourceTabs={
+                        sourceNodes.length > 1 ? (
+                          <div className="flex gap-1 flex-wrap">
+                            {sourceNodes.map((source, idx) => (
+                              <button
+                                key={source.id}
+                                onClick={() => setActiveSourceTab(idx)}
+                                className={`px-3 py-1.5 text-xs font-medium rounded-md transition-colors flex items-center gap-1.5 ${activeSourceTab === idx
+                                  ? "bg-blue-100 text-blue-700 border border-blue-300"
+                                  : "bg-slate-50 text-slate-600 border border-slate-200 hover:bg-slate-100"
+                                  }`}
+                              >
+                                <div
+                                  className="w-1.5 h-1.5 rounded-full"
+                                  style={{
+                                    backgroundColor: [
+                                      "#3b82f6",
+                                      "#10b981",
+                                      "#f59e0b",
+                                      "#8b5cf6",
+                                    ][idx % 4],
+                                  }}
+                                />
+                                Source {idx + 1}: {source.data?.name}
+                              </button>
+                            ))}
+                          </div>
+                        ) : null
+                      }
+                    />
+                  ) : (
+                    <div className="flex items-center justify-center h-full">
+                      <div className="max-w-md text-center text-gray-500">
+                        <p className="text-sm">
+                          API schema가 아직 없습니다. Step 2에서 Preview/Schema를 먼저
+                          가져와주세요.
+                        </p>
+                      </div>
+                    </div>
+                  )
                 ) : (
-                  /* ================= RDB / Mongo Source ================= */
+                  /* ================= RDB / Mongo / API (With Schema) Source ================= */
                   sourceNodes[activeSourceTab] && (
                     <SchemaTransformEditor
                       sourceSchema={
