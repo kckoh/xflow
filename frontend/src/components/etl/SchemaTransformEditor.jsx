@@ -772,7 +772,7 @@ export default function SchemaTransformEditor({
                             {/* Before */}
                             <div className="flex-1 flex flex-col min-w-0 w-0">
                                 {/* Header with inline tabs */}
-                                <div className="flex items-center gap-3 mb-1.5">
+                                <div className="flex items-center gap-3 mb-1.5 min-h-[28px]">
                                     <h5 className="text-[9px] font-bold text-slate-400 uppercase tracking-tight">Source Sample</h5>
                                     {/* Source sample tabs - inline with header */}
                                     {testResult.source_samples && testResult.source_samples.length > 1 && (
@@ -859,7 +859,10 @@ export default function SchemaTransformEditor({
 
                             {/* After */}
                             <div className="flex-1 flex flex-col min-w-0 w-0">
-                                <h5 className="text-[9px] font-bold text-indigo-500 uppercase mb-1.5 tracking-tight">Transformed Sample</h5>
+                                {/* Header with fixed height to match Source Sample */}
+                                <div className="flex items-center gap-3 mb-1.5 min-h-[28px]">
+                                    <h5 className="text-[9px] font-bold text-indigo-500 uppercase tracking-tight">Transformed Sample</h5>
+                                </div>
                                 <div className="flex-1 overflow-auto border border-indigo-100 rounded-xl bg-white shadow-sm ring-1 ring-slate-200 max-w-full">
                                     <table className="w-full text-xs box-border border-separate border-spacing-0">
                                         <thead className="bg-indigo-600 sticky top-0 z-10">
