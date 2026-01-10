@@ -743,7 +743,7 @@ export default function TargetWizard() {
   };
 
   return (
-    <div className="h-full bg-gray-50 flex flex-col -m-6">
+    <div className="min-h-screen bg-gray-50 flex flex-col -m-6">
       {/* Header + Progress Steps */}
       <div className="bg-white border-b border-gray-200">
         {/* Header */}
@@ -1371,9 +1371,9 @@ export default function TargetWizard() {
 
         {/* Step 3: Transform/Process */}
         {currentStep === 3 && (
-          <div className="flex-1 flex flex-col overflow-hidden px-4 py-4">
+          <div className="flex-1 flex flex-col px-4 py-4">
             <div className="max-w-[100%] mx-auto w-full h-full flex flex-col">
-              <div className="flex-1 min-h-0">
+              <div className="flex-1">
                 {/* ================= S3 Log Source ================= */}
                 {sourceNodes[0]?.data?.customRegex &&
                   (sourceNodes[0]?.data?.sourceType === "s3" ||

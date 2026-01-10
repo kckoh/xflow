@@ -391,7 +391,7 @@ export default function SchemaTransformEditor({
     };
 
     return (
-        <div className="flex flex-col h-full bg-gray-50 rounded-lg border border-gray-200">
+        <div className="flex flex-col bg-gray-50 rounded-lg border border-gray-200">
             {/* Tab Header */}
             <div className="flex border-b border-slate-200 bg-white rounded-t-lg">
                 <button
@@ -768,9 +768,9 @@ export default function SchemaTransformEditor({
 
                     {/* Results Container */}
                     {testResult && (
-                        <div className="flex gap-4 h-36">
+                        <div className="flex gap-4">
                             {/* Before */}
-                            <div className="flex-1 flex flex-col min-w-0 w-0">
+                            <div className="flex-1 flex flex-col min-w-0">
                                 {/* Header with inline tabs */}
                                 <div className="flex items-center gap-3 mb-1.5 min-h-[28px]">
                                     <h5 className="text-[9px] font-bold text-slate-400 uppercase tracking-tight">Source Sample</h5>
@@ -793,7 +793,7 @@ export default function SchemaTransformEditor({
                                     )}
                                 </div>
 
-                                <div className="flex-1 overflow-auto border border-slate-200 rounded-xl bg-slate-50/50 max-w-full">
+                                <div className="overflow-auto border border-slate-200 rounded-xl bg-slate-50/50">
                                     {testResult.source_samples && testResult.source_samples.length > 0 ? (
                                         (() => {
                                             const currentSample = testResult.source_samples[activeSourceSampleTab];
@@ -858,12 +858,12 @@ export default function SchemaTransformEditor({
                             </div>
 
                             {/* After */}
-                            <div className="flex-1 flex flex-col min-w-0 w-0">
+                            <div className="flex-1 flex flex-col min-w-0">
                                 {/* Header with fixed height to match Source Sample */}
                                 <div className="flex items-center gap-3 mb-1.5 min-h-[28px]">
                                     <h5 className="text-[9px] font-bold text-indigo-500 uppercase tracking-tight">Transformed Sample</h5>
                                 </div>
-                                <div className="flex-1 overflow-auto border border-indigo-100 rounded-xl bg-white shadow-sm ring-1 ring-slate-200 max-w-full">
+                                <div className="overflow-auto border border-indigo-100 rounded-xl bg-white shadow-sm ring-1 ring-slate-200">
                                     <table className="w-full text-xs box-border border-separate border-spacing-0">
                                         <thead className="bg-indigo-600 sticky top-0 z-10">
                                             <tr>
