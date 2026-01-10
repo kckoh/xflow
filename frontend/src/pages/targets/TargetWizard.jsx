@@ -674,6 +674,18 @@ export default function TargetWizard() {
       const firstSourceNode = sourceNodes[0];
       const incrementalConfig = firstSourceNode?.data?.incrementalConfig;
 
+      // Debug: Check streaming detection
+      console.log("🔍 Streaming Detection:", {
+        isStreaming,
+        sourceNodes: sourceNodes.map(n => ({
+          id: n.id,
+          sourceType: n.data?.sourceType,
+          platform: n.data?.platform
+        })),
+        jobType,
+        finalJobType: isStreaming ? "streaming" : jobType
+      });
+
       const payload = {
         name: config.name,
         description: config.description,

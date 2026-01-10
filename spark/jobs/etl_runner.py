@@ -132,14 +132,13 @@ def transform_sql(df: DataFrame, config: dict) -> DataFrame:
     User writes SQL like: SELECT id, UPPER(name) as name_upper FROM input
     "input" refers to the upstream DataFrame
     """
-    from pyspark.sql import SparkSession
-    
     sql_query = config.get("sql")
     if not sql_query:
         raise ValueError("SQL query is required in transform config")
     
-    # Get or create Spark session
-    spark = SparkSession.builder.getOrCreate()
+    # CRITICAL: Get Spark session from the DataFrame itself
+    # This ensures we use the SAME session in streaming mode
+    spark = df.sparkSession
     
     # Create temporary view named "input"
     df.createOrReplaceTempView("input")
@@ -772,6 +771,7 @@ def process_micro_batch(batch_df: DataFrame, batch_id: int, config: dict):
                  # Only support linear chain for now in simplified streaming
                  input_df = dataframes[input_node_ids[0]]
             
+            
             if transform_type in TRANSFORMS:
                 result_df = TRANSFORMS[transform_type](input_df, transform_config)
                 dataframes[node_id] = result_df
@@ -833,7 +833,7 @@ def run_streaming_etl(config: dict):
     # Use a reliable S3 path based on job ID or name
     import hashlib
     job_hash = hashlib.md5(json.dumps(config, sort_keys=True).encode()).hexdigest()[:8]
-    checkpoint_location = f"s3a://warehouse/checkpoints/{job_hash}"
+    checkpoint_location = f"s3a://xflows-output/checkpoints/{job_hash}"
     
     print(f"   Checkpoint Location: {checkpoint_location}")
     
@@ -1017,11 +1017,11 @@ def run_etl(config: dict):
                 if source_config.get("customRegex"):
                     # S3 log files with custom regex parsing
                     df = read_s3_logs_source(spark, source_config)
-            else:
+                else:
                     # S3 structured files (Parquet, CSV, JSON)
                     df = read_s3_file_source(spark, source_config)
             elif source_type == "kafka":
-                df = read_kafka_source(spark, source_config)
+                raise ValueError("Kafka sources must be processed in streaming mode. This should not happen - check main() logic.")
             else:
                 raise ValueError(f"Unsupported source type: {source_type}")
 
@@ -1140,11 +1140,11 @@ if __name__ == "__main__":
             # Assume raw JSON string
             config = json.loads(sys.argv[1])
             
-            # Check connectivity for Kafka Streaming
-            if any(s.get("type") == "kafka" for s in (config.get("sources") or ([config.get("source")] if config.get("source") else []))):
-                run_streaming_etl(config)
-            else:
-                run_etl(config)
+        # Check connectivity for Kafka Streaming (applies to all loading methods)
+        if any(s.get("type") == "kafka" for s in (config.get("sources") or ([config.get("source")] if config.get("source") else []))):
+            run_streaming_etl(config)
+        else:
+            run_etl(config)
     else:
         print("Usage: etl_runner.py <json_config> OR --base64 <b64_config> OR --config-file <path>")
         sys.exit(1)

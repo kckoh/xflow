@@ -113,6 +113,10 @@ def convert_nodes_to_sources(nodes, edges, db):
                             # Get customRegex from node_data (set in Target Wizard)
                             source_config["customRegex"] = node_data.get("customRegex") or source_dataset.get("customRegex")
 
+                        # Add Kafka-specific fields
+                        if source_type == "kafka":
+                            source_config["topic"] = source_dataset.get("topic")
+
                         # Add incremental load config from node_data
                         incremental_config = node_data.get("incrementalConfig")
                         if incremental_config and incremental_config.get("enabled"):
@@ -390,6 +394,16 @@ def fetch_dataset_config(as_base64=False, **context):
             )
             if connection:
                 source["connection"] = connection.get("config", {})
+        elif source.get("type") == "kafka" and source.get("connection_id"):
+            connection = db.connections.find_one(
+                {"_id": ObjectId(source["connection_id"])}
+            )
+            if connection:
+                config = connection.get("config", {})
+                source["connection"] = {
+                    "type": "kafka",
+                    "bootstrap_servers": config.get("bootstrap_servers", "kafka:9092"),
+                }
         enriched_sources.append(source)
 
     # Get estimated size from dataset document (calculated at dataset creation time)
