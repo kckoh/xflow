@@ -11,8 +11,7 @@ export default function MongoDBSourceConfig({
     connectionId,
     collection,
     columns,
-    onCollectionChange,
-    onColumnsUpdate,
+    onChange,
 }) {
     const [collections, setCollections] = useState([]);
     const [loadingCollections, setLoadingCollections] = useState(false);
@@ -45,8 +44,7 @@ export default function MongoDBSourceConfig({
 
     const handleCollectionSelect = async (collectionName) => {
         if (!collectionName) {
-            onCollectionChange("");
-            onColumnsUpdate([]);
+            onChange({ collection: "", columns: [] });
             return;
         }
 
@@ -66,15 +64,14 @@ export default function MongoDBSourceConfig({
                 description: "",
             }));
 
-            onCollectionChange(collectionName);
-            onColumnsUpdate(mappedColumns);
+            // Update both collection and columns together
+            onChange({ collection: collectionName, columns: mappedColumns });
 
             // Reset expanded state
             setExpandedColumns({});
         } catch (err) {
             console.error("Failed to fetch collection schema:", err);
-            onCollectionChange(collectionName);
-            onColumnsUpdate([]);
+            onChange({ collection: collectionName, columns: [] });
         }
     };
 
@@ -88,7 +85,7 @@ export default function MongoDBSourceConfig({
     const updateColumnMetadata = (columnIndex, field, value) => {
         const updatedColumns = [...columns];
         updatedColumns[columnIndex][field] = value;
-        onColumnsUpdate(updatedColumns);
+        onChange({ collection, columns: updatedColumns });
     };
 
     // Build tree structure from flat dot-notation fields
