@@ -1,0 +1,74 @@
+# Trino Helm Values
+# Deploy: helm install trino trino/trino -n trino -f values.yaml
+
+image:
+  tag: "479"
+
+server:
+  workers: 1 # 데모용 1개
+  coordinatorExtraConfig: |
+    http-server.process-forwarded=true
+  workerExtraConfig: ""
+
+# Coordinator 설정
+coordinator:
+  jvm:
+    maxHeapSize: "3G"
+  resources:
+    requests:
+      memory: "2Gi"
+      cpu: "500m"
+    limits:
+      memory: "4Gi"
+      cpu: "1"
+  # nodeSelector:
+  #   workload: trino
+
+# Worker 설정
+worker:
+  jvm:
+    maxHeapSize: "3G"
+  resources:
+    requests:
+      memory: "2Gi"
+      cpu: "500m"
+    limits:
+      memory: "4Gi"
+      cpu: "1"
+  # nodeSelector:
+  #   workload: trino
+
+# Service Account (IRSA용) - 이미 생성됨
+serviceAccount:
+  create: false
+  name: trino-sa
+
+# 카탈로그 설정
+catalogs:
+  # Delta Lake on S3
+  lakehouse: |-
+    connector.name=delta_lake
+    fs.native-s3.enabled=true
+    s3.region=ap-northeast-2
+    hive.metastore=glue
+    hive.metastore.glue.default-warehouse-dir=s3://xflow-delta-lake-134059028370/warehouse
+    s3.use-web-identity-token-credentials-provider=true
+
+  # rdbms: |-
+  #   connector.name=postgresql
+  #   connection-url=jdbc:postgresql://airflow-postgresql.airflow.svc:5432/postgres
+  #   connection-user=${ENV:POSTGRES_USER}
+  #   connection-password=${ENV:POSTGRES_PASSWORD}
+
+# Environment variables from secret
+envFrom:
+  - secretRef:
+      name: trino-rdbms-credentials
+
+# Ensure workers get the env vars too
+commonLabels: {}
+
+# 서비스 설정
+service:
+  type: ClusterIP
+  port: 8080

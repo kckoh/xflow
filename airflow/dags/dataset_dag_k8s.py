@@ -91,6 +91,11 @@ def generate_spark_application(**context):
                 "spark.memory.fraction": "0.6",
                 "spark.hadoop.fs.s3a.impl": "org.apache.hadoop.fs.s3a.S3AFileSystem",
                 "spark.hadoop.fs.s3a.aws.credentials.provider": "com.amazonaws.auth.WebIdentityTokenCredentialsProvider",
+                "spark.sql.extensions": "io.delta.sql.DeltaSparkSessionExtension",
+                "spark.sql.catalog.spark_catalog": "org.apache.spark.sql.delta.catalog.DeltaCatalog",
+            },
+            "deps": {
+                "packages": ["io.delta:delta-spark_2.12:3.2.0"],
             },
             "driver": {
                 "cores": 1,
