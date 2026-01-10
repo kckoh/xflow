@@ -34,7 +34,11 @@ export default function CatalogPage() {
       const response = await fetch(`${API_BASE_URL}/api/catalog`);
       if (response.ok) {
         const data = await response.json();
-        setCatalog(data);
+        // Sort by updated_at descending (newest first)
+        const sortedData = data.sort(
+          (a, b) => new Date(b.updated_at) - new Date(a.updated_at)
+        );
+        setCatalog(sortedData);
       } else {
         setCatalog([]);
       }
