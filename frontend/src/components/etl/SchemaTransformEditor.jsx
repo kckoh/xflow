@@ -416,7 +416,7 @@ export default function SchemaTransformEditor({
 
             {/* Column Selection Tab */}
             {activeTab === 'columns' && (
-                <div className="flex flex-1 p-4 gap-4 min-h-[150px]">
+                <div className="flex flex-1 p-4 gap-4 min-h-[500px]">
                     {/* Before Schema (Left) */}
                     <div className="flex-1 basis-0 flex flex-col bg-white rounded-xl border border-slate-200 shadow-sm transition-all overflow-hidden min-w-0">
                         <div className="px-4 py-3 border-b border-slate-200 bg-slate-50/50 flex items-center justify-between">
@@ -639,7 +639,7 @@ export default function SchemaTransformEditor({
 
             {/* SQL Transform Tab */}
             {activeTab === 'sql' && (
-                <div className="flex flex-1 p-4 gap-4 min-h-[150px]">
+                <div className="flex flex-1 p-4 gap-4 min-h-[500px]">
                     {/* Left: Source Panel (Read-only reference) */}
                     <div className="w-1/3 flex flex-col bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden">
                         <div className="px-4 py-3 border-b border-slate-200 bg-slate-50/50">
