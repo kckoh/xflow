@@ -12,6 +12,7 @@ import {
   RefreshCw,
 } from "lucide-react";
 import { API_BASE_URL } from "../../config/api";
+import { formatFileSize } from "../../utils/formatters";
 
 
 
@@ -29,8 +30,8 @@ export default function CatalogPage() {
   const fetchCatalog = async () => {
     setIsLoading(true);
     try {
-      // In real app, fetch from API with dataset_type=target filter
-      const response = await fetch(`${API_BASE_URL}/api/datasets?dataset_type=target`);
+      // Fetch from catalog API which includes size_bytes, row_count, format
+      const response = await fetch(`${API_BASE_URL}/api/catalog`);
       if (response.ok) {
         const data = await response.json();
         setCatalog(data);
@@ -101,8 +102,8 @@ export default function CatalogPage() {
           <button
             onClick={() => setSelectedTag(null)}
             className={`px-3 py-1 rounded-full text-sm font-medium transition-colors ${!selectedTag
-                ? "bg-blue-600 text-white"
-                : "bg-gray-100 text-gray-600 hover:bg-gray-200"
+              ? "bg-blue-600 text-white"
+              : "bg-gray-100 text-gray-600 hover:bg-gray-200"
               }`}
           >
             All
@@ -112,8 +113,8 @@ export default function CatalogPage() {
               key={tag}
               onClick={() => setSelectedTag(tag === selectedTag ? null : tag)}
               className={`px-3 py-1 rounded-full text-sm font-medium transition-colors ${selectedTag === tag
-                  ? "bg-blue-600 text-white"
-                  : "bg-gray-100 text-gray-600 hover:bg-gray-200"
+                ? "bg-blue-600 text-white"
+                : "bg-gray-100 text-gray-600 hover:bg-gray-200"
                 }`}
             >
               {tag}
@@ -211,7 +212,9 @@ export default function CatalogPage() {
                     <p className="text-xs text-gray-500">Rows</p>
                   </div>
                   <div className="text-center">
-                    <p className="text-sm font-semibold text-gray-900">{item.size_gb} GB</p>
+                    <p className="text-sm font-semibold text-gray-900">
+                      {formatFileSize(item.size_bytes)}
+                    </p>
                     <p className="text-xs text-gray-500">Size</p>
                   </div>
                   <div className="text-center">

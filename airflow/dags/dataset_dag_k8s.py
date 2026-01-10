@@ -48,11 +48,16 @@ def get_executor_count(size_gb: float) -> int:
 def generate_spark_application(**context):
     """Generate SparkApplication YAML from dataset config"""
     config_json = context["ti"].xcom_pull(task_ids="fetch_dataset_config")
-    dataset_id = context["dag_run"].conf.get("dataset_id", "unknown")
+    # Support both dataset_id (direct run) and job_id (scheduled run)
+    dataset_id = context["dag_run"].conf.get("dataset_id") or context["dag_run"].conf.get("job_id", "unknown")
 
     # Extract run_id from dag_run_id for unique naming
     dag_run_id = context["dag_run"].run_id
-    run_id = dag_run_id.split("_")[-1][:8] if "_" in dag_run_id else dag_run_id[:8]
+    # Remove all non-alphanumeric characters and take first 8 chars
+    import re
+    clean_run_id = re.sub(r'[^a-z0-9]', '', dag_run_id.lower())[:8]
+    if not clean_run_id:
+        clean_run_id = "00000000"
 
     # Parse config to get estimated size for auto-scaling
     config = json.loads(config_json)
@@ -63,7 +68,7 @@ def generate_spark_application(**context):
     # Encode config to base64 for safe passing
     encoded_config = base64.b64encode(config_json.encode("utf-8")).decode("utf-8")
 
-    spark_app_name = f"etl-{dataset_id[:8]}-{run_id}"
+    spark_app_name = f"etl-{dataset_id[:8]}-{clean_run_id}"
 
     spark_app = {
         "apiVersion": "sparkoperator.k8s.io/v1beta2",
