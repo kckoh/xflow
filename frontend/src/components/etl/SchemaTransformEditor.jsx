@@ -394,7 +394,7 @@ export default function SchemaTransformEditor({
     };
 
     return (
-        <div className="flex flex-col h-full bg-gray-50 rounded-lg border border-gray-200">
+        <div className="flex flex-col bg-gray-50 rounded-lg border border-gray-200">
             {/* Tab Header */}
             <div className="flex border-b border-slate-200 bg-white rounded-t-lg">
                 <button
@@ -419,7 +419,7 @@ export default function SchemaTransformEditor({
 
             {/* Column Selection Tab */}
             {activeTab === 'columns' && (
-                <div className="flex flex-1 p-4 gap-4 min-h-[150px]">
+                <div className="flex flex-1 p-4 gap-4 min-h-[500px]">
                     {/* Before Schema (Left) */}
                     <div className="flex-1 basis-0 flex flex-col bg-white rounded-xl border border-slate-200 shadow-sm transition-all overflow-hidden min-w-0">
                         <div className="px-4 py-3 border-b border-slate-200 bg-slate-50/50 flex items-center justify-between">
@@ -642,7 +642,7 @@ export default function SchemaTransformEditor({
 
             {/* SQL Transform Tab */}
             {activeTab === 'sql' && (
-                <div className="flex flex-1 p-4 gap-4 min-h-[150px]">
+                <div className="flex flex-1 p-4 gap-4 min-h-[500px]">
                     {/* Left: Source Panel (Read-only reference) */}
                     <div className="w-1/3 flex flex-col bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden">
                         <div className="px-4 py-3 border-b border-slate-200 bg-slate-50/50">
@@ -771,30 +771,32 @@ export default function SchemaTransformEditor({
 
                     {/* Results Container */}
                     {testResult && (
-                        <div className="flex gap-4 h-36">
+                        <div className="flex gap-4">
                             {/* Before */}
-                            <div className="flex-1 flex flex-col min-w-0 w-0">
-                                <h5 className="text-[9px] font-bold text-slate-400 uppercase mb-1.5 tracking-tight">Source Sample</h5>
+                            <div className="flex-1 flex flex-col min-w-0">
+                                {/* Header with inline tabs */}
+                                <div className="flex items-center gap-3 mb-1.5 min-h-[28px]">
+                                    <h5 className="text-[9px] font-bold text-slate-400 uppercase tracking-tight">Source Sample</h5>
+                                    {/* Source sample tabs - inline with header */}
+                                    {testResult.source_samples && testResult.source_samples.length > 1 && (
+                                        <div className="flex gap-1">
+                                            {testResult.source_samples.map((sample, idx) => (
+                                                <button
+                                                    key={idx}
+                                                    onClick={() => setActiveSourceSampleTab(idx)}
+                                                    className={`px-2 py-0.5 text-[10px] font-medium rounded transition-colors ${activeSourceSampleTab === idx
+                                                        ? 'bg-blue-100 text-blue-700 border border-blue-300'
+                                                        : 'bg-slate-100 text-slate-600 border border-slate-200 hover:bg-slate-200'
+                                                        }`}
+                                                >
+                                                    {sample.source_name}
+                                                </button>
+                                            ))}
+                                        </div>
+                                    )}
+                                </div>
 
-                                {/* Source sample tabs */}
-                                {testResult.source_samples && testResult.source_samples.length > 1 && (
-                                    <div className="flex gap-1 mb-2">
-                                        {testResult.source_samples.map((sample, idx) => (
-                                            <button
-                                                key={idx}
-                                                onClick={() => setActiveSourceSampleTab(idx)}
-                                                className={`px-2 py-1 text-[10px] font-medium rounded transition-colors ${activeSourceSampleTab === idx
-                                                    ? 'bg-blue-100 text-blue-700 border border-blue-300'
-                                                    : 'bg-slate-100 text-slate-600 border border-slate-200 hover:bg-slate-200'
-                                                    }`}
-                                            >
-                                                {sample.source_name}
-                                            </button>
-                                        ))}
-                                    </div>
-                                )}
-
-                                <div className="flex-1 overflow-auto border border-slate-200 rounded-xl bg-slate-50/50 max-w-full">
+                                <div className="overflow-auto border border-slate-200 rounded-xl bg-slate-50/50">
                                     {testResult.source_samples && testResult.source_samples.length > 0 ? (
                                         (() => {
                                             const currentSample = testResult.source_samples[activeSourceSampleTab];
@@ -859,9 +861,12 @@ export default function SchemaTransformEditor({
                             </div>
 
                             {/* After */}
-                            <div className="flex-1 flex flex-col min-w-0 w-0">
-                                <h5 className="text-[9px] font-bold text-indigo-500 uppercase mb-1.5 tracking-tight">Transformed Sample</h5>
-                                <div className="flex-1 overflow-auto border border-indigo-100 rounded-xl bg-white shadow-sm ring-1 ring-slate-200 max-w-full">
+                            <div className="flex-1 flex flex-col min-w-0">
+                                {/* Header with fixed height to match Source Sample */}
+                                <div className="flex items-center gap-3 mb-1.5 min-h-[28px]">
+                                    <h5 className="text-[9px] font-bold text-indigo-500 uppercase tracking-tight">Transformed Sample</h5>
+                                </div>
+                                <div className="overflow-auto border border-indigo-100 rounded-xl bg-white shadow-sm ring-1 ring-slate-200">
                                     <table className="w-full text-xs box-border border-separate border-spacing-0">
                                         <thead className="bg-indigo-600 sticky top-0 z-10">
                                             <tr>
