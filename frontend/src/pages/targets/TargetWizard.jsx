@@ -248,12 +248,17 @@ export default function TargetWizard() {
   }, [config.name, isEditMode, sourceDatasets]);
 
   const handleToggleJob = (jobId) => {
+    // Clear target selections when selecting from source
+    setSelectedTargetIds([]);
+
     setSelectedJobIds((prev) => {
+      // For Source tab: only allow single selection
+      // If clicked item is already selected, deselect it
       if (prev.includes(jobId)) {
-        return prev.filter((id) => id !== jobId);
-      } else {
-        return [...prev, jobId];
+        return [];
       }
+      // Otherwise, replace with new selection
+      return [jobId];
     });
   };
 
@@ -745,7 +750,7 @@ export default function TargetWizard() {
   };
 
   return (
-    <div className="h-full bg-gray-50 flex flex-col -m-6">
+    <div className="min-h-screen bg-gray-50 flex flex-col -m-6">
       {/* Header + Progress Steps */}
       <div className="bg-white border-b border-gray-200">
         {/* Header */}
@@ -1067,6 +1072,9 @@ export default function TargetWizard() {
                                 if (dataset.datasetType === "source") {
                                   handleToggleJob(dataset.id);
                                 } else {
+                                  // Clear source selections when selecting from target
+                                  setSelectedJobIds([]);
+
                                   setSelectedTargetIds((prev) =>
                                     prev.includes(dataset.id)
                                       ? prev.filter(
@@ -1394,9 +1402,9 @@ export default function TargetWizard() {
 
         {/* Step 3: Transform/Process */}
         {currentStep === 3 && (
-          <div className="flex-1 flex flex-col overflow-hidden px-4 py-4">
+          <div className="flex-1 flex flex-col px-4 py-4">
             <div className="max-w-[100%] mx-auto w-full h-full flex flex-col">
-              <div className="flex-1 min-h-0">
+              <div className="flex-1">
                 {/* ================= S3 Log Source ================= */}
                 {sourceNodes[0]?.data?.customRegex &&
                   (sourceNodes[0]?.data?.sourceType === "s3" ||

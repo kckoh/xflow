@@ -439,7 +439,7 @@ function LandingPage() {
                             />
                             <div className="absolute inset-0 bg-black/20 group-hover:bg-black/10 transition-colors duration-500" />
                             <div className="absolute inset-0 flex items-center justify-center">
-                                <h3 className="text-3xl md:text-4xl font-medium text-white drop-shadow-lg">Fullstack Developer</h3>
+                                <h3 className="text-3xl md:text-4xl font-medium text-white drop-shadow-lg">Full Stack overflow</h3>
                             </div>
                             <div className="absolute bottom-6 right-6 w-10 h-10 bg-white/30 backdrop-blur rounded-full flex items-center justify-center text-white">
                                 <ArrowRight size={16} />
@@ -480,7 +480,7 @@ function LandingPage() {
                 <div className="flex gap-8 text-sm text-[#5F6368]">
                     <button className="hover:text-[#202124]">Privacy</button>
                     <button className="hover:text-[#202124]">Terms</button>
-                    <button className="hover:text-[#202124]">Tel: 010-4736-8046</button>
+                    <button className="hover:text-[#202124]">Tel: 010-4819-4258</button>
                 </div>
                 <div className="text-sm text-[#9AA0A6]">
                     © 2026 XFlow
