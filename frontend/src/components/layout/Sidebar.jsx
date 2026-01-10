@@ -16,6 +16,7 @@ import { useAuth } from "../../context/AuthContext";
 import { useAICopilot } from "../../context/AICopilotContext";
 import clsx from "clsx";
 import { CatalogSearch } from "../opensearch";
+import logo from "../../assets/icon.png";
 
 export function Sidebar({ isCollapsed, onToggle }) {
   const navigate = useNavigate();
@@ -61,14 +62,16 @@ export function Sidebar({ isCollapsed, onToggle }) {
             isCollapsed && "justify-center w-full",
           )}
         >
-          <div className="w-8 h-8 bg-blue-600 rounded-lg flex items-center justify-center shadow-sm shrink-0">
-            <GitMerge className="text-white w-5 h-5" />
+          <div className={clsx("flex items-center justify-center", isCollapsed ? "w-full" : "")}>
+            <img
+              src={logo}
+              alt="XFlow"
+              className={clsx(
+                "transition-all duration-300 object-contain",
+                isCollapsed ? "h-8 w-auto" : "h-8 w-auto"
+              )}
+            />
           </div>
-          {!isCollapsed && (
-            <span className="ml-3 text-xl font-bold bg-clip-text text-transparent bg-gradient-to-r from-blue-600 to-indigo-600 truncate">
-              XFlow
-            </span>
-          )}
         </div>
         {!isCollapsed && (
           <button
