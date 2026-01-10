@@ -157,16 +157,23 @@ export default function SchemaTransformEditor({
             return;
         }
 
-        const enriched = newColumns.map(c => ({
-            ...c,
-            name: getUniqueColumnName(c.name),
-            notNull: false,
-            defaultValue: '',
-            transform: null,
-            transformDisplay: null,
-            sourceId: sourceId,
-            sourceName: sourceName,
-        }));
+        const enriched = newColumns.map(c => {
+            // Convert dot notation to underscore for MongoDB fields
+            const convertedName = c.name.replace(/\./g, '_');
+            const convertedOriginalName = c.originalName.replace(/\./g, '_');
+
+            return {
+                ...c,
+                name: getUniqueColumnName(convertedName),
+                originalName: convertedOriginalName,
+                notNull: false,
+                defaultValue: '',
+                transform: null,
+                transformDisplay: null,
+                sourceId: sourceId,
+                sourceName: sourceName,
+            };
+        });
 
         onSchemaChange([...targetSchema, ...enriched]);
         setSelectedBefore(new Set());
@@ -184,16 +191,23 @@ export default function SchemaTransformEditor({
             return;
         }
 
-        const enriched = newColumns.map(c => ({
-            ...c,
-            name: getUniqueColumnName(c.name),
-            notNull: false,
-            defaultValue: '',
-            transform: null,
-            transformDisplay: null,
-            sourceId: sourceId,
-            sourceName: sourceName,
-        }));
+        const enriched = newColumns.map(c => {
+            // Convert dot notation to underscore for MongoDB fields
+            const convertedName = c.name.replace(/\./g, '_');
+            const convertedOriginalName = c.originalName.replace(/\./g, '_');
+
+            return {
+                ...c,
+                name: getUniqueColumnName(convertedName),
+                originalName: convertedOriginalName,
+                notNull: false,
+                defaultValue: '',
+                transform: null,
+                transformDisplay: null,
+                sourceId: sourceId,
+                sourceName: sourceName,
+            };
+        });
 
         onSchemaChange([...targetSchema, ...enriched]);
         setSelectedBefore(new Set());
@@ -289,12 +303,21 @@ export default function SchemaTransformEditor({
         // For UNION ALL, use the original column names from input DataFrame
         // which already has all columns aligned
         const selectClauses = columnsToUse.map(col => {
+            // Get the source info to check if it's MongoDB
+            const source = allSources.find(s => s.id === col.sourceId);
+            const isMongoDB = source?.sourceType === 'mongodb';
+
             if (col.transform) {
                 return `${col.transform} AS ${col.name}`;
             }
+
             // Use originalName for SELECT since that's what exists in the source data
-            // The UNION ALL already aligned the columns by originalName
-            return col.originalName;
+            // For MongoDB, convert dot notation to underscore to match backend conversion
+            const columnName = isMongoDB
+                ? col.originalName.replace(/\./g, '_')
+                : col.originalName;
+
+            return columnName;
         });
 
         return `SELECT ${selectClauses.join(', ')} FROM input`;
@@ -332,18 +355,34 @@ export default function SchemaTransformEditor({
             if (activeTab === 'sql') {
                 // SQL Transform: include ALL columns from ALL sources
                 // This allows users to reference any column in their SQL query
-                sources = allSources.map(source => ({
-                    source_dataset_id: source.datasetId,
-                    columns: source.schema?.map(col => col.name) || []
-                })).filter(source => source.columns.length > 0);
+                sources = allSources.map(source => {
+                    const sourceColumns = source.schema?.map(col => col.name) || [];
+                    // Convert dot notation to underscore for MongoDB sources
+                    const convertedColumns = source.sourceType === 'mongodb'
+                        ? sourceColumns.map(col => col.replace(/\./g, '_'))
+                        : sourceColumns;
+
+                    return {
+                        source_dataset_id: source.datasetId,
+                        columns: convertedColumns
+                    };
+                }).filter(source => source.columns.length > 0);
             } else {
                 // Visual Transform: only include columns that are in targetSchema
-                sources = allSources.map(source => ({
-                    source_dataset_id: source.datasetId,
-                    columns: targetSchema
+                sources = allSources.map(source => {
+                    const sourceColumns = targetSchema
                         .filter(col => col.sourceId === source.id)
-                        .map(col => col.originalName)
-                })).filter(source => source.columns.length > 0);
+                        .map(col => col.originalName);
+                    // Convert dot notation to underscore for MongoDB sources
+                    const convertedColumns = source.sourceType === 'mongodb'
+                        ? sourceColumns.map(col => col.replace(/\./g, '_'))
+                        : sourceColumns;
+
+                    return {
+                        source_dataset_id: source.datasetId,
+                        columns: convertedColumns
+                    };
+                }).filter(source => source.columns.length > 0);
             }
 
             if (sources.length === 0) {
