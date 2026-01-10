@@ -722,7 +722,7 @@ def read_s3_file_source(spark: SparkSession, source_config: dict) -> DataFrame:
 # ============ Destination Writers ============
 
 def write_s3_destination(df: DataFrame, dest_config: dict, job_name: str = "output", has_nosql_source: bool = False):
-    """Write DataFrame to S3 as Parquet"""
+    """Write DataFrame to S3 as Delta Lake format"""
     path = dest_config.get("path")
     if not path:
         raise ValueError("Destination path is required")
@@ -767,23 +767,26 @@ def write_s3_destination(df: DataFrame, dest_config: dict, job_name: str = "outp
                 writer_df = writer_df.withColumn(field.name, writer_df[field.name].cast(StringType()))
 
     writer = writer_df.write \
+        .format("delta") \
         .mode(mode) \
         .option("compression", compression)
 
     if partition_by:
         writer = writer.partitionBy(*partition_by)
 
-    writer.parquet(path)
-    print(f"✅ Data written to {path}")
+    writer.save(path)
+    print(f"✅ Data written to {path} (Delta Lake format)")
 
 
 # ============ Main ETL Runner ============
 
 def create_spark_session(config: dict) -> SparkSession:
-    """Create SparkSession with S3 configuration"""
+    """Create SparkSession with S3 and Delta Lake configuration"""
     dest = config.get("destination", {})
 
-    builder = SparkSession.builder.appName(f"ETL: {config.get('name', 'Unknown')}")
+    builder = SparkSession.builder.appName(f"ETL: {config.get('name', 'Unknown')}") \
+        .config("spark.sql.extensions", "io.delta.sql.DeltaSparkSessionExtension") \
+        .config("spark.sql.catalog.spark_catalog", "org.apache.spark.sql.delta.catalog.DeltaCatalog")
 
     # S3 configuration
     if dest.get("type") == "s3":
