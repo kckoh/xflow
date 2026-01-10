@@ -421,6 +421,14 @@ def fetch_dataset_config(as_base64=False, **context):
 
     # Add S3 config (different for local vs production)
     if config["destination"].get("type") == "s3":
+        # Auto-generate glue_table_name if not provided
+        if not config["destination"].get("glue_table_name"):
+            # Use dataset name, sanitized for Glue (lowercase, underscores only)
+            import re
+            safe_name = re.sub(r'[^a-z0-9_]', '_', dataset.get("name", "unknown").lower())
+            config["destination"]["glue_table_name"] = f"tgt_{safe_name}"
+            print(f"   Auto-generated glue_table_name: {config['destination']['glue_table_name']}")
+
         env = Variable.get("ENVIRONMENT", default_var="local")
         if env == "production":
             # Production: Use IAM role, no explicit credentials needed

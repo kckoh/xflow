@@ -721,8 +721,98 @@ def read_s3_file_source(spark: SparkSession, source_config: dict) -> DataFrame:
 
 # ============ Destination Writers ============
 
+def register_glue_table(table_name: str, s3_location: str, schema, region: str = "ap-northeast-2"):
+    """Register Delta Lake table in AWS Glue Data Catalog"""
+    import boto3
+
+    glue_client = boto3.client('glue', region_name=region)
+    database_name = "default"
+
+    # Convert Spark schema to Glue columns
+    def spark_type_to_glue(spark_type):
+        type_str = str(spark_type).lower()
+        if "string" in type_str:
+            return "string"
+        elif "integer" in type_str or "int" in type_str:
+            return "int"
+        elif "long" in type_str or "bigint" in type_str:
+            return "bigint"
+        elif "double" in type_str:
+            return "double"
+        elif "float" in type_str:
+            return "float"
+        elif "boolean" in type_str:
+            return "boolean"
+        elif "timestamp" in type_str:
+            return "timestamp"
+        elif "date" in type_str:
+            return "date"
+        elif "decimal" in type_str:
+            return "decimal(38,10)"
+        elif "binary" in type_str:
+            return "binary"
+        elif "array" in type_str:
+            return "array<string>"
+        elif "map" in type_str:
+            return "map<string,string>"
+        elif "struct" in type_str:
+            return "string"  # Simplify struct to string
+        else:
+            return "string"
+
+    columns = [
+        {"Name": field.name, "Type": spark_type_to_glue(field.dataType)}
+        for field in schema.fields
+    ]
+
+    # Convert s3a:// to s3:// for Glue
+    if s3_location.startswith("s3a://"):
+        s3_location = s3_location.replace("s3a://", "s3://", 1)
+
+    # Ensure database exists
+    try:
+        glue_client.get_database(Name=database_name)
+    except glue_client.exceptions.EntityNotFoundException:
+        print(f"   Creating Glue database: {database_name}")
+        glue_client.create_database(
+            DatabaseInput={"Name": database_name, "Description": "XFlow default database"}
+        )
+
+    # Table input for Delta Lake
+    table_input = {
+        "Name": table_name,
+        "Description": f"Delta Lake table created by XFlow ETL",
+        "TableType": "EXTERNAL_TABLE",
+        "Parameters": {
+            "classification": "delta",
+            "delta.lastCommitTimestamp": str(int(__import__('time').time() * 1000)),
+        },
+        "StorageDescriptor": {
+            "Columns": columns,
+            "Location": s3_location,
+            "InputFormat": "org.apache.hadoop.hive.ql.io.SymlinkTextInputFormat",
+            "OutputFormat": "org.apache.hadoop.hive.ql.io.HiveIgnoreKeyTextOutputFormat",
+            "SerdeInfo": {
+                "SerializationLibrary": "org.apache.hadoop.hive.ql.io.parquet.serde.ParquetHiveSerDe",
+            },
+            "Parameters": {
+                "classification": "delta",
+            },
+        },
+    }
+
+    try:
+        # Try to update existing table
+        glue_client.update_table(DatabaseName=database_name, TableInput=table_input)
+        print(f"   ✅ Updated Glue table: {database_name}.{table_name}")
+    except glue_client.exceptions.EntityNotFoundException:
+        # Create new table
+        glue_client.create_table(DatabaseName=database_name, TableInput=table_input)
+        print(f"   ✅ Created Glue table: {database_name}.{table_name}")
+
+
 def write_s3_destination(df: DataFrame, dest_config: dict, job_name: str = "output", has_nosql_source: bool = False):
-    """Write DataFrame to S3 as Delta Lake format"""
+    """Write DataFrame to S3 as Delta Lake format and register in Glue Catalog"""
     path = dest_config.get("path")
     if not path:
         raise ValueError("Destination path is required")
@@ -734,12 +824,14 @@ def write_s3_destination(df: DataFrame, dest_config: dict, job_name: str = "outp
     # Ensure path ends with / before appending job name
     if not path.endswith("/"):
         path = path + "/"
-    
-    path = path + job_name
+
+    # Use glue_table_name if provided, otherwise use job_name
+    glue_table_name = dest_config.get("glue_table_name")
+    path = path + (glue_table_name or job_name)
 
     options = dest_config.get("options", {})
     compression = options.get("compression", "snappy")
-    
+
     # Determine write mode: Enforce 'append' if incremental load is enabled
     incremental_config = dest_config.get("incremental_config", {})
     if incremental_config.get("enabled"):
@@ -759,7 +851,7 @@ def write_s3_destination(df: DataFrame, dest_config: dict, job_name: str = "outp
     # Parquet doesn't support VOID type, convert to STRING
     if has_nosql_source:
         from pyspark.sql.types import StringType
-        
+
         for field in writer_df.schema.fields:
             dtype_str = str(field.dataType)
             if "VoidType" in dtype_str or "void" in dtype_str.lower():
@@ -776,6 +868,15 @@ def write_s3_destination(df: DataFrame, dest_config: dict, job_name: str = "outp
 
     writer.save(path)
     print(f"✅ Data written to {path} (Delta Lake format)")
+
+    # Register table in Glue Catalog if glue_table_name is provided
+    if glue_table_name:
+        print(f"📋 Registering table in Glue Catalog: {glue_table_name}")
+        try:
+            register_glue_table(glue_table_name, path, writer_df.schema)
+        except Exception as e:
+            print(f"⚠️ Failed to register Glue table: {str(e)}")
+            # Don't fail the job if Glue registration fails
 
 
 # ============ Main ETL Runner ============
