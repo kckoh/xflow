@@ -2,49 +2,21 @@
 SQL Test API - Test SQL queries with DuckDB before execution
 """
 from fastapi import APIRouter, HTTPException
-from pydantic import BaseModel
 from typing import List, Dict, Any, Optional, Tuple
 import duckdb
 import pandas as pd
 from bson import ObjectId
 
 import database
+from schemas.sql_test import (
+    SourceInfo,
+    SQLTestRequest,
+    ColumnSchema,
+    SourceSample,
+    SQLTestResponse
+)
 
 router = APIRouter()
-
-
-class SourceInfo(BaseModel):
-    """Information about a single source dataset"""
-    source_dataset_id: str
-    columns: List[str]  # Columns to select from this source
-
-
-class SQLTestRequest(BaseModel):
-    sources: List[SourceInfo]  # Support multiple sources for UNION ALL
-    sql: str
-    limit: Optional[int] = 5
-
-
-class ColumnSchema(BaseModel):
-    name: str
-    type: str
-    nullable: bool = True
-
-
-class SourceSample(BaseModel):
-    """Sample data from a single source"""
-    source_name: str
-    rows: List[Dict[str, Any]]
-
-
-class SQLTestResponse(BaseModel):
-    valid: bool
-    schema: Optional[List[ColumnSchema]] = None
-    sample_rows: Optional[List[Dict[str, Any]]] = None
-    before_rows: Optional[List[Dict[str, Any]]] = None
-    source_samples: Optional[List[SourceSample]] = None  # Per-source samples
-    error: Optional[str] = None
-    execution_time_ms: Optional[int] = None
 
 
 @router.post("/test", response_model=SQLTestResponse)
@@ -195,62 +167,11 @@ async def _load_and_union_sources(
     individual_sources = []  # Store individual source DataFrames for separate table registration
     
     for source in sources_info:
-        # Get source dataset
-        source_dataset = None
-        connection = None
-        
-        # Try source_datasets first
-        try:
-            source_dataset = await db.source_datasets.find_one({"_id": ObjectId(source.source_dataset_id)})
-            if source_dataset:
-                connection_id = source_dataset.get("connection_id")
-                if connection_id:
-                    connection = await db.connections.find_one({"_id": ObjectId(connection_id)})
-        except:
-            pass
-        
-        # Try catalog datasets if not found
-        if not source_dataset:
-            try:
-                catalog_dataset = await db.datasets.find_one({"_id": ObjectId(source.source_dataset_id)})
-                if catalog_dataset:
-                    destination = catalog_dataset.get("destination", {})
-                    base_path = destination.get("path", "")
-                    name = catalog_dataset.get("name", "")
-                    
-                    full_path = base_path
-                    if base_path and name and not base_path.endswith(name):
-                        if not base_path.endswith('/'):
-                            full_path += '/'
-                        full_path += name
-                    
-                    if not full_path and catalog_dataset.get("targets"):
-                        target = catalog_dataset.get("targets")[0]
-                        urn = target.get("urn", "")
-                        if urn.startswith("urn:s3:"):
-                            parts = urn.split(":")
-                            if len(parts) >= 4:
-                                bucket = parts[2]
-                                key = ":".join(parts[3:]) or name
-                                full_path = f"s3a://{bucket}/{key}"
-                    
-                    source_dataset = {
-                        "id": str(catalog_dataset.get("_id")),
-                        "name": catalog_dataset.get("name"),
-                        "source_type": destination.get("type", "s3"),
-                        "path": full_path,
-                        "format": destination.get("format", "parquet"),
-                        "is_catalog": True
-                    }
-                    connection = await db.connections.find_one({"type": "s3"})
-            except:
-                pass
-        
-        if not source_dataset:
-            raise HTTPException(
-                status_code=404,
-                detail=f"Dataset not found: {source.source_dataset_id}"
-            )
+        # Get source dataset and connection
+        source_dataset, connection = await _get_source_dataset_and_connection(
+            source.source_dataset_id,
+            db
+        )
         
         # Load sample data
         df = await _load_sample_data(source_dataset, connection, limit=limit)
@@ -533,3 +454,86 @@ async def _load_sample_data(
     
     else:
         raise ValueError(f"Unsupported source type: {source_type}")
+
+
+# ============================================================================
+# Helper Functions
+# ============================================================================
+
+async def _get_source_dataset_and_connection(
+    source_id: str,
+    db
+) -> Tuple[dict, Optional[dict]]:
+    """
+    Fetch source dataset and connection from MongoDB.
+    Tries source_datasets first, then catalog datasets.
+    
+    Args:
+        source_id: Source dataset ID (ObjectId as string)
+        db: MongoDB database instance
+        
+    Returns:
+        Tuple of (source_dataset dict, connection dict or None)
+        
+    Raises:
+        HTTPException (404) if dataset not found
+    """
+    source_dataset = None
+    connection = None
+    
+    # Try source_datasets first
+    try:
+        source_dataset = await db.source_datasets.find_one({"_id": ObjectId(source_id)})
+        if source_dataset:
+            connection_id = source_dataset.get("connection_id")
+            if connection_id:
+                connection = await db.connections.find_one({"_id": ObjectId(connection_id)})
+    except Exception:
+        pass
+    
+    # Try catalog datasets if not found
+    if not source_dataset:
+        try:
+            catalog_dataset = await db.datasets.find_one({"_id": ObjectId(source_id)})
+            if catalog_dataset:
+                destination = catalog_dataset.get("destination", {})
+                base_path = destination.get("path", "")
+                name = catalog_dataset.get("name", "")
+                
+                # Construct full path
+                full_path = base_path
+                if base_path and name and not base_path.endswith(name):
+                    if not base_path.endswith('/'):
+                        full_path += '/'
+                    full_path += name
+                
+                # Fallback: construct from URN if path is empty
+                if not full_path and catalog_dataset.get("targets"):
+                    target = catalog_dataset.get("targets")[0]
+                    urn = target.get("urn", "")
+                    if urn.startswith("urn:s3:"):
+                        parts = urn.split(":")
+                        if len(parts) >= 4:
+                            bucket = parts[2]
+                            key = ":".join(parts[3:]) or name
+                            full_path = f"s3a://{bucket}/{key}"
+                
+                source_dataset = {
+                    "id": str(catalog_dataset.get("_id")),
+                    "name": catalog_dataset.get("name"),
+                    "source_type": destination.get("type", "s3"),
+                    "path": full_path,
+                    "format": destination.get("format", "parquet"),
+                    "is_catalog": True
+                }
+                connection = await db.connections.find_one({"type": "s3"})
+        except Exception:
+            pass
+    
+    if not source_dataset:
+        raise HTTPException(
+            status_code=404,
+            detail=f"Dataset not found: {source_id}"
+        )
+    
+    return source_dataset, connection
