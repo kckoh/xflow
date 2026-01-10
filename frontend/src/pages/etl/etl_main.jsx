@@ -245,22 +245,20 @@ export default function ETLMain() {
                     </td>
                     <td className="px-3 py-3 text-sm">
                       <span
-                        className={`px-2 py-1 text-xs font-semibold rounded-full ${
-                          (job.dataset_type || "source") === "source"
+                        className={`px-2 py-1 text-xs font-semibold rounded-full ${(job.dataset_type || "source") === "source"
                             ? "bg-emerald-100 text-emerald-800"
                             : "bg-orange-100 text-orange-800"
-                        }`}
+                          }`}
                       >
                         {(job.dataset_type || "source") === "source" ? "Source" : "Target"}
                       </span>
                     </td>
                     <td className="px-3 py-3 text-sm">
                       <span
-                        className={`px-2 py-1 text-xs font-semibold rounded-full ${
-                          job.is_active
+                        className={`px-2 py-1 text-xs font-semibold rounded-full ${job.is_active
                             ? "bg-green-100 text-green-800"
                             : "bg-gray-100 text-gray-600"
-                        }`}
+                          }`}
                       >
                         {job.is_active ? "Active" : "Inactive"}
                       </span>

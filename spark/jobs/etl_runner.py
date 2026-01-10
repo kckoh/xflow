@@ -709,6 +709,145 @@ def read_s3_file_source(spark: SparkSession, source_config: dict) -> DataFrame:
     return df
 
 
+
+def process_micro_batch(batch_df: DataFrame, batch_id: int, config: dict):
+    """
+    Process micro-batch from Kafka stream using existing transform logic
+    """
+    if batch_df.isEmpty():
+        return
+
+    print(f"🔄 Processing Batch ID: {batch_id}")
+    
+    # Check if we need to parse JSON 
+    # (Similar logic to batch reader, but applied per batch)
+    try:
+        from pyspark.sql.functions import from_json, col
+        
+        # 1. Cast key/value to string
+        df = batch_df.selectExpr("CAST(key AS STRING)", "CAST(value AS STRING)")
+        
+        # 2. Try to expand JSON
+        # We sample the first row of EACH batch to infer schema? 
+        # Or better: use a fixed safe schema if provided, or string-only default.
+        # For robustness in generic runner, we'll try inference on the batch.
+        # Note: Inference per batch might be slow or inconsistent if schema changes.
+        # Ideally, schema should be provided in config.
+        
+        # Simple inference:
+        sample_json = df.select("value").limit(1).collect()
+        if sample_json:
+            json_schema = df.sparkSession.read.json(
+                df.sparkSession.createDataFrame(sample_json).rdd.map(lambda r: r.value)
+            ).schema
+            
+            df = df.withColumn("data", from_json(col("value"), json_schema)).select("data.*")
+            
+        # Apply transforms using existing function
+        # We need to construct a 'dataframes' dict similar to run_etl
+        # But here we only have one source input (the kafka stream batch)
+        # We assume the first source node maps to this df
+        
+        sources = config.get("sources", []) or ([config.get("source")] if config.get("source") else [])
+        source_node_id = sources[0].get("nodeId", "source_0") if sources else "source_0"
+        
+        dataframes = {source_node_id: df}
+        
+        # Apply transforms
+        transforms = config.get("transforms", [])
+        last_node_id = source_node_id
+        
+        from pyspark.sql.functions import col # re-import
+        
+        for transform in transforms:
+            node_id = transform.get("nodeId", f"transform_{len(dataframes)}")
+            transform_type = transform.get("type")
+            transform_config = transform.get("config", {})
+            input_node_ids = transform.get("inputNodeIds", [])
+            
+            # Simple handling: use last node if input not specified (linear chain)
+            if not input_node_ids:
+                 input_df = dataframes[last_node_id]
+            else:
+                 # Only support linear chain for now in simplified streaming
+                 input_df = dataframes[input_node_ids[0]]
+            
+            if transform_type in TRANSFORMS:
+                result_df = TRANSFORMS[transform_type](input_df, transform_config)
+                dataframes[node_id] = result_df
+                last_node_id = node_id
+            
+        # Write to destination
+        final_df = dataframes[last_node_id]
+        dest_config = config.get("destination", {})
+        
+        # Force append mode for streaming
+        if "options" not in dest_config:
+            dest_config["options"] = {}
+        dest_config["options"]["mode"] = "append"
+        
+        write_s3_destination(final_df, dest_config, config.get("name", "output"))
+        
+    except Exception as e:
+        print(f"❌ Batch {batch_id} Failed: {str(e)}")
+        # Don't raise to keep stream alive? Or raise to fail job?
+        # Creating a dead layer is better usually. For now, raise.
+        raise e
+
+
+def run_streaming_etl(config: dict):
+    """
+    Run ETL in Streaming Mode (for Kafka sources)
+    """
+    print("🌊 Starting Streaming ETL Pipeline")
+    
+    spark = create_spark_session(config)
+    
+    # Assume single Kafka source for now (or multiple merged? Generic runner usually splits complex DAGs)
+    # Let's take the first Kafka source found
+    sources = config.get("sources", []) or ([config.get("source")] if config.get("source") else [])
+    kafka_source = next((s for s in sources if s.get("type") == "kafka"), None)
+    
+    if not kafka_source:
+        raise ValueError("No Kafka source found for streaming mode")
+        
+    connection = kafka_source.get("connection", {})
+    topic = kafka_source.get("topic") or connection.get("topic")
+    
+    bootstrap_servers = connection.get("bootstrap_servers", "kafka:9092")
+    if 'localhost' in bootstrap_servers:
+        bootstrap_servers = bootstrap_servers.replace('localhost', 'kafka')
+        
+    print(f"   Subscribing to topic: {topic}")
+    
+    # Read Stream
+    df = spark.readStream \
+        .format("kafka") \
+        .option("kafka.bootstrap.servers", bootstrap_servers) \
+        .option("subscribe", topic) \
+        .option("startingOffsets", "earliest") \
+        .option("failOnDataLoss", "false") \
+        .load()
+        
+    # Checkpoint is CRITICAL for Structured Streaming
+    # Use a reliable S3 path based on job ID or name
+    import hashlib
+    job_hash = hashlib.md5(json.dumps(config, sort_keys=True).encode()).hexdigest()[:8]
+    checkpoint_location = f"s3a://warehouse/checkpoints/{job_hash}"
+    
+    print(f"   Checkpoint Location: {checkpoint_location}")
+    
+    # Write Stream using foreachBatch to reuse existing batch logic
+    query = df.writeStream \
+        .foreachBatch(lambda batch_df, batch_id: process_micro_batch(batch_df, batch_id, config)) \
+        .option("checkpointLocation", checkpoint_location) \
+        .trigger(processingTime="5 seconds") \
+        .start()
+        
+    print(f"   Streaming query started. Waiting for termination...")
+    query.awaitTermination()
+
+
 # ============ Destination Writers ============
 
 def write_s3_destination(df: DataFrame, dest_config: dict, job_name: str = "output", has_nosql_source: bool = False):
@@ -878,9 +1017,11 @@ def run_etl(config: dict):
                 if source_config.get("customRegex"):
                     # S3 log files with custom regex parsing
                     df = read_s3_logs_source(spark, source_config)
-                else:
+            else:
                     # S3 structured files (Parquet, CSV, JSON)
                     df = read_s3_file_source(spark, source_config)
+            elif source_type == "kafka":
+                df = read_kafka_source(spark, source_config)
             else:
                 raise ValueError(f"Unsupported source type: {source_type}")
 
@@ -999,7 +1140,11 @@ if __name__ == "__main__":
             # Assume raw JSON string
             config = json.loads(sys.argv[1])
             
-        run_etl(config)
+            # Check connectivity for Kafka Streaming
+            if any(s.get("type") == "kafka" for s in (config.get("sources") or ([config.get("source")] if config.get("source") else []))):
+                run_streaming_etl(config)
+            else:
+                run_etl(config)
     else:
         print("Usage: etl_runner.py <json_config> OR --base64 <b64_config> OR --config-file <path>")
         sys.exit(1)

@@ -516,5 +516,62 @@ async def _load_sample_data(
         
         return df
     
+    elif source_type == 'kafka':
+        # Kafka
+        from kafka import KafkaConsumer
+        import json
+
+        # Get connection details
+        bootstrap_servers = config.get("bootstrap_servers", "kafka:9092")
+        if 'localhost' in bootstrap_servers:
+            bootstrap_servers = bootstrap_servers.replace('localhost', 'kafka')
+        
+        topic = source_dataset.get("topic")
+        if not topic:
+            raise ValueError("Kafka dataset missing topic information")
+
+        try:
+            # Create consumer
+            consumer = KafkaConsumer(
+                topic,
+                bootstrap_servers=bootstrap_servers.split(','),
+                auto_offset_reset='earliest',
+                enable_auto_commit=False,
+                value_deserializer=lambda m: m.decode('utf-8'),
+                consumer_timeout_ms=5000  # 5 seconds timeout
+            )
+
+            # Consume messages
+            messages = []
+            count = 0
+            
+            # Poll for messages
+            # Note: This is a simple implementation. For production, might need more robust handling.
+            # We want to get the *latest* messages ideally, but 'earliest' is safer for preview if retention is short.
+            # To get latest, we'd need to seek to end - limit.
+            # For now, just reading from earliest (or whatever is available) up to limit.
+            
+            for message in consumer:
+                try:
+                    data = json.loads(message.value)
+                    messages.append(data)
+                    count += 1
+                    if count >= limit:
+                        break
+                except json.JSONDecodeError:
+                    continue # Skip non-JSON messages
+            
+            consumer.close()
+            
+            if not messages:
+                # Return empty DataFrame with columns if available, else empty
+                return pd.DataFrame()
+                
+            df = pd.DataFrame(messages)
+            return df
+
+        except Exception as e:
+            raise HTTPException(status_code=500, detail=f"Failed to read from Kafka: {str(e)}")
+
     else:
         raise ValueError(f"Unsupported source type: {source_type}")

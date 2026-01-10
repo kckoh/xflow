@@ -20,6 +20,8 @@ class ConnectionTester:
             return ConnectionTester._test_s3(config)
         elif conn_type == 'mongodb':
             return ConnectionTester._test_mongodb(config)
+        elif conn_type == 'kafka':
+            return ConnectionTester._test_kafka(config)
         else:
             return False, f"Unsupported connection type: {conn_type}"
 
@@ -99,3 +101,38 @@ class ConnectionTester:
             
         except Exception as e:
             return False, f"MongoDB connection test failed: {str(e)}"
+
+    @staticmethod
+    def _test_kafka(config: Dict[str, Any]) -> Tuple[bool, str]:
+        """Test Kafka connection."""
+        try:
+            # Import at the top of try block
+            from kafka import KafkaAdminClient
+            from kafka.errors import KafkaError
+            
+            bootstrap_servers = config.get('bootstrap_servers')
+            if not bootstrap_servers:
+                return False, "Bootstrap servers are required"
+            
+            # Parse bootstrap servers (can be comma-separated)
+            servers = [s.strip() for s in bootstrap_servers.split(',')]
+            
+            # Create admin client with timeout
+            admin_client = KafkaAdminClient(
+                bootstrap_servers=servers,
+                request_timeout_ms=5000,
+                api_version_auto_timeout_ms=5000
+            )
+            
+            # Try to list topics to verify connection
+            topics = admin_client.list_topics()
+            admin_client.close()
+            
+            return True, f"Successfully connected to Kafka cluster. Found {len(topics)} topics."
+            
+        except Exception as e:
+            # Catch all exceptions including KafkaError
+            error_msg = str(e)
+            if 'kafka' in error_msg.lower():
+                return False, f"Kafka connection failed: {error_msg}"
+            return False, f"Error: {error_msg}"

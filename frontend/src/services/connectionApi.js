@@ -121,5 +121,35 @@ export const connectionApi = {
             throw new Error('Failed to infer collection schema');
         }
         return response.json();
+    },
+
+    /**
+     * Get Kafka topics from a connection
+     * @param {string} connectionId 
+     * @returns {Promise<Object>} { topics: [...] }
+     */
+    async fetchKafkaTopics(connectionId) {
+        const response = await fetch(`${API_URL}/connections/${connectionId}/topics`);
+        if (!response.ok) {
+            throw new Error('Failed to fetch Kafka topics');
+        }
+        return response.json();
+    },
+
+    /**
+     * Infer schema from Kafka topic messages
+     * @param {string} connectionId 
+     * @param {string} topic 
+     * @returns {Promise<Object>} { schema: [...], sample: {...} }
+     */
+    async inferKafkaSchema(connectionId, topic) {
+        const response = await fetch(
+            `${API_URL}/connections/${connectionId}/topics/${topic}/schema`,
+            { method: 'POST' }
+        );
+        if (!response.ok) {
+            throw new Error('Failed to infer Kafka schema');
+        }
+        return response.json();
     }
 };

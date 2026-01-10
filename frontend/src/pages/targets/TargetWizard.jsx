@@ -76,6 +76,22 @@ export default function TargetWizard() {
   const [jobType, setJobType] = useState("batch");
   const [schedules, setSchedules] = useState([]);
 
+  // Detect Streaming Source (Kafka)
+  const isStreaming = sourceNodes.some(
+    (node) =>
+      node.data?.sourceType === "kafka" ||
+      node.data?.platform?.toLowerCase() === "kafka"
+  );
+
+  // Auto-set job type for streaming
+  useEffect(() => {
+    if (isStreaming) {
+      setJobType("streaming");
+    } else if (!isEditMode && jobType === "streaming") {
+      setJobType("batch");
+    }
+  }, [isStreaming, isEditMode, jobType]);
+
   // Load existing job data in edit mode
   useEffect(() => {
     const loadExistingJob = async () => {
@@ -663,12 +679,12 @@ export default function TargetWizard() {
         description: config.description,
         tags: config.tags,
         dataset_type: "target",
-        job_type: jobType,
+        job_type: isStreaming ? "streaming" : jobType,
         nodes: allNodes, // Save simplified DAG
         edges: edges,
         // Map first schedule to backend format (backend currently supports single schedule)
-        schedule_frequency: schedules.length > 0 ? schedules[0].frequency : "",
-        ui_params: schedules.length > 0 ? schedules[0].uiParams : null,
+        schedule_frequency: !isStreaming && schedules.length > 0 ? schedules[0].frequency : "",
+        ui_params: !isStreaming && schedules.length > 0 ? schedules[0].uiParams : null,
         // Add incremental load config for automatic sync timestamp tracking
         incremental_config: incrementalConfig || { enabled: false },
         destination: {
@@ -1456,14 +1472,33 @@ export default function TargetWizard() {
           <div className="flex-1 overflow-y-auto">
             <div className="max-w-4xl mx-auto px-6 py-8">
               <h2 className="text-lg font-semibold text-gray-900 mb-6">
-                Schedule Configuration
+                {isStreaming
+                  ? "Streaming Configuration"
+                  : "Schedule Configuration"}
               </h2>
 
               <div className="bg-white rounded-lg border border-gray-200 p-6">
-                <SchedulesPanel
-                  schedules={schedules}
-                  onUpdate={(newSchedules) => setSchedules(newSchedules)}
-                />
+                {isStreaming ? (
+                  <div className="text-center py-12">
+                    <div className="w-16 h-16 bg-blue-50 text-blue-500 rounded-full flex items-center justify-center mx-auto mb-4">
+                      <Zap className="w-8 h-8" />
+                    </div>
+                    <h3 className="text-lg font-medium text-gray-900 mb-2">
+                      Streaming Mode Enabled
+                    </h3>
+                    <p className="text-gray-500 max-w-md mx-auto">
+                      This pipeline involves a Kafka source and will run in{" "}
+                      <strong>Streaming Mode</strong>. Data will be processed
+                      continuously as it arrives, so no schedule configuration
+                      is needed.
+                    </p>
+                  </div>
+                ) : (
+                  <SchedulesPanel
+                    schedules={schedules}
+                    onUpdate={(newSchedules) => setSchedules(newSchedules)}
+                  />
+                )}
               </div>
             </div>
           </div>

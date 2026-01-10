@@ -10,6 +10,7 @@ const CONNECTION_TYPES = [
   { id: "mariadb", label: "MariaDB", category: "RDB" },
   { id: "mongodb", label: "MongoDB", category: "NoSQL" }, // Placeholder
   { id: "s3", label: "Amazon S3", category: "Storage" }, // Placeholder
+  { id: "kafka", label: "Apache Kafka", category: "Streaming" },
 ];
 
 const S3_REGIONS = [
@@ -56,6 +57,11 @@ export default function ConnectionForm({ onSuccess, onCancel, initialType }) {
         return {
           uri: "mongodb://mongo:mongo@mongodb:27017",
           database: "",
+        };
+      case "kafka":
+        return {
+          bootstrap_servers: "localhost:9092",
+          security_protocol: "PLAINTEXT",
         };
       default:
         return {};
@@ -308,6 +314,44 @@ export default function ConnectionForm({ onSuccess, onCancel, initialType }) {
           </div>
         </div>
       );
+    } else if (type === "kafka") {
+      return (
+        <div className="space-y-4">
+          <div>
+            <label className="block text-sm font-medium text-gray-700">
+              Bootstrap Servers
+            </label>
+            <input
+              type="text"
+              required
+              placeholder="localhost:9092"
+              className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:ring-blue-500 focus:border-blue-500 sm:text-sm font-mono"
+              value={config.bootstrap_servers || ""}
+              onChange={(e) => handleConfigChange("bootstrap_servers", e.target.value)}
+            />
+            <p className="mt-1 text-xs text-gray-500">
+              Comma-separated list of Kafka broker addresses (e.g., broker1:9092,broker2:9092)
+            </p>
+          </div>
+          <div>
+            <label className="block text-sm font-medium text-gray-700">
+              Security Protocol
+            </label>
+            <select
+              className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:ring-blue-500 focus:border-blue-500 sm:text-sm"
+              value={config.security_protocol || "PLAINTEXT"}
+              onChange={(e) => handleConfigChange("security_protocol", e.target.value)}
+            >
+              <option value="PLAINTEXT">PLAINTEXT</option>
+              <option value="SASL_SSL">SASL_SSL</option>
+              <option value="SSL">SSL</option>
+            </select>
+            <p className="mt-1 text-xs text-gray-500">
+              Security protocol for Kafka connection
+            </p>
+          </div>
+        </div>
+      );
     } else {
       return (
         <div className="text-gray-500 text-sm">
@@ -341,11 +385,10 @@ export default function ConnectionForm({ onSuccess, onCancel, initialType }) {
                   onClick={() => handleTypeChange(t.id)}
                   className={`
                                         flex flex-col items-center justify-center p-3 border rounded-lg transition-all
-                                        ${
-                                          type === t.id
-                                            ? "border-blue-500 bg-blue-50 ring-1 ring-blue-500 text-blue-700"
-                                            : "border-gray-200 hover:bg-gray-50 text-gray-600"
-                                        }
+                                        ${type === t.id
+                      ? "border-blue-500 bg-blue-50 ring-1 ring-blue-500 text-blue-700"
+                      : "border-gray-200 hover:bg-gray-50 text-gray-600"
+                    }
                                     `}
                 >
                   <span className="font-medium text-sm">{t.label}</span>
@@ -395,11 +438,10 @@ export default function ConnectionForm({ onSuccess, onCancel, initialType }) {
           {/* Test Result Message Inline */}
           {testMessage && (
             <span
-              className={`text-sm font-medium ${
-                testMessage.type === "success"
-                  ? "text-green-600"
-                  : "text-red-600"
-              }`}
+              className={`text-sm font-medium ${testMessage.type === "success"
+                ? "text-green-600"
+                : "text-red-600"
+                }`}
             >
               {testMessage.type === "success" ? "✅ " : "❌ "}
               {testMessage.text}

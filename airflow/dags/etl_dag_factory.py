@@ -100,6 +100,12 @@ try:
         for job in jobs:
             try:
                 job_id = job.get("id")
+                job_type = job.get("job_type", "batch")
+
+                # Skip streaming jobs (they run continuously, no schedule needed)
+                if job_type == "streaming":
+                    logger.info(f"Skipping scheduler DAG for streaming job: {job_id}")
+                    continue
 
                 # Filter: active status AND schedule exists
                 if job.get("status") == "active" and job.get("schedule"):

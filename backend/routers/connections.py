@@ -90,6 +90,123 @@ async def list_connections():
         for c in conns
     ]
 
+@router.get("/{connection_id}/topics")
+async def get_kafka_topics(connection_id: str):
+    """Get list of topics from Kafka cluster"""
+    conn = await Connection.get(PydanticObjectId(connection_id))
+    if not conn:
+        raise HTTPException(status_code=404, detail="Connection not found")
+    
+    if conn.type != 'kafka':
+        raise HTTPException(status_code=400, detail="Connection is not a Kafka connection")
+    
+    try:
+        from kafka import KafkaAdminClient
+        
+        bootstrap_servers = conn.config.get('bootstrap_servers')
+        if not bootstrap_servers:
+            raise HTTPException(status_code=400, detail="Bootstrap servers not configured")
+        
+        # Convert localhost to kafka for Docker network
+        if 'localhost' in bootstrap_servers:
+            bootstrap_servers = bootstrap_servers.replace('localhost', 'kafka')
+        
+        # Create admin client
+        admin_client = KafkaAdminClient(
+            bootstrap_servers=bootstrap_servers.split(','),
+            request_timeout_ms=5000,
+            api_version_auto_timeout_ms=5000
+        )
+        
+        # Get topics list
+        topics = admin_client.list_topics()
+        admin_client.close()
+        
+        # Filter out internal topics
+        topics = [t for t in topics if not t.startswith('__')]
+        
+        return {"topics": topics}
+        
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Failed to fetch topics: {str(e)}")
+
+@router.post("/{connection_id}/topics/{topic}/schema")
+async def infer_kafka_schema(connection_id: str, topic: str):
+    """Infer schema from Kafka topic messages"""
+    conn = await Connection.get(PydanticObjectId(connection_id))
+    if not conn:
+        raise HTTPException(status_code=404, detail="Connection not found")
+    
+    if conn.type != 'kafka':
+        raise HTTPException(status_code=400, detail="Connection is not a Kafka connection")
+    
+    try:
+        from kafka import KafkaConsumer
+        import json
+        
+        bootstrap_servers = conn.config.get('bootstrap_servers')
+        if not bootstrap_servers:
+            raise HTTPException(status_code=400, detail="Bootstrap servers not configured")
+        
+        # Convert localhost to kafka for Docker network
+        if 'localhost' in bootstrap_servers:
+            bootstrap_servers = bootstrap_servers.replace('localhost', 'kafka')
+        
+        # Create consumer to read first message
+        consumer = KafkaConsumer(
+            topic,
+            bootstrap_servers=bootstrap_servers.split(','),
+            auto_offset_reset='earliest',
+            max_poll_records=1,
+            consumer_timeout_ms=5000,
+            value_deserializer=lambda m: m.decode('utf-8')
+        )
+        
+        try:
+            # Read first message
+            for message in consumer:
+                data = json.loads(message.value)
+                
+                # Infer schema from JSON
+                schema = []
+                for key, value in data.items():
+                    field_type = infer_type(value)
+                    schema.append({
+                        "name": key,
+                        "type": field_type
+                    })
+                
+                consumer.close()
+                return {"schema": schema, "sample": data}
+            
+            # No messages found
+            raise HTTPException(status_code=400, detail="Topic is empty or no messages available")
+            
+        except json.JSONDecodeError:
+            raise HTTPException(status_code=400, detail="Message is not valid JSON")
+        finally:
+            consumer.close()
+        
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Failed to infer schema: {str(e)}")
+
+def infer_type(value):
+    """Infer data type from Python value"""
+    if isinstance(value, bool):
+        return "boolean"
+    elif isinstance(value, int):
+        return "integer"
+    elif isinstance(value, float):
+        return "double"
+    elif isinstance(value, str):
+        return "string"
+    elif isinstance(value, list):
+        return "array"
+    elif isinstance(value, dict):
+        return "object"
+    else:
+        return "string"
+
 @router.delete("/{connection_id}", status_code=status.HTTP_204_NO_CONTENT)
 async def delete_connection(connection_id: str):
     """Delete a connection"""
