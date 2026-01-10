@@ -91,6 +91,11 @@ async def create_source_dataset(dataset: SourceDatasetCreate):
     db = get_db()
     now = datetime.utcnow()
 
+    if dataset.source_type == "api" and not dataset.api:
+        raise HTTPException(status_code=400, detail="API source requires api config")
+    if dataset.source_type != "api" and dataset.api:
+        raise HTTPException(status_code=400, detail="api config is only allowed for api source_type")
+
     dataset_data = {
         **dataset.model_dump(),
         "created_at": now,
@@ -173,6 +178,12 @@ async def update_source_dataset(dataset_id: str, dataset: SourceDatasetUpdate):
     if not existing:
         raise HTTPException(status_code=404, detail="Source dataset not found")
 
+    new_source_type = dataset.source_type or existing.get("source_type")
+    if new_source_type == "api" and dataset.api is None and not existing.get("api"):
+        raise HTTPException(status_code=400, detail="API source requires api config")
+    if new_source_type != "api" and dataset.api:
+        raise HTTPException(status_code=400, detail="api config is only allowed for api source_type")
+
     update_data = {k: v for k, v in dataset.model_dump().items() if v is not None}
     update_data["updated_at"] = datetime.utcnow()
 
@@ -200,3 +211,138 @@ async def delete_source_dataset(dataset_id: str):
         raise HTTPException(status_code=404, detail="Source dataset not found")
 
     return {"message": "Source dataset deleted successfully"}
+
+
+@router.post("/{dataset_id}/preview")
+async def preview_api_source(dataset_id: str, request_body: dict):
+    """
+    Preview API source data by making a test request
+    Used to infer schema for API sources
+    """
+    db = database.mongodb_client[database.DATABASE_NAME]
+
+    try:
+        obj_id = ObjectId(dataset_id)
+    except:
+        raise HTTPException(status_code=400, detail="Invalid dataset ID format")
+
+    # Get source dataset
+    source_dataset = await db.source_datasets.find_one({"_id": obj_id})
+    if not source_dataset:
+        raise HTTPException(status_code=404, detail="Source dataset not found")
+
+    # Only for API sources
+    if source_dataset.get("source_type") != "api":
+        raise HTTPException(
+            status_code=400,
+            detail="Preview is only supported for API sources",
+        )
+
+    # Get connection
+    connection_id = source_dataset.get("connection_id")
+    if not connection_id:
+        raise HTTPException(status_code=400, detail="Connection ID is missing")
+
+    try:
+        conn_obj_id = ObjectId(connection_id)
+    except:
+        raise HTTPException(status_code=400, detail="Invalid connection ID format")
+
+    connection = await db.connections.find_one({"_id": conn_obj_id})
+    if not connection:
+        raise HTTPException(status_code=404, detail="Connection not found")
+
+    # Get API config
+    api_config = source_dataset.get("api", {})
+    endpoint = api_config.get("endpoint")
+    if not endpoint:
+        raise HTTPException(status_code=400, detail="API endpoint is not configured")
+
+    # Build request
+    import requests
+
+    base_url = connection["config"].get("base_url", "")
+    full_url = base_url.rstrip("/") + "/" + endpoint.lstrip("/")
+
+    # Auth headers
+    headers = connection["config"].get("headers", {}).copy() if connection["config"].get("headers") else {}
+    auth_type = connection["config"].get("auth_type", "none")
+    auth_config = connection["config"].get("auth_config", {})
+
+    if auth_type == "api_key":
+        header_name = auth_config.get("header_name")
+        api_key = auth_config.get("api_key")
+        if header_name and api_key:
+            headers[header_name] = api_key
+    elif auth_type == "bearer":
+        token = auth_config.get("token")
+        if token:
+            headers["Authorization"] = f"Bearer {token}"
+
+    auth = None
+    if auth_type == "basic":
+        username = auth_config.get("username")
+        password = auth_config.get("password")
+        if username and password:
+            from requests.auth import HTTPBasicAuth
+            auth = HTTPBasicAuth(username, password)
+
+    # Query params (limit for preview)
+    limit = request_body.get("limit", 10)
+    params = api_config.get("query_params", {}).copy() if api_config.get("query_params") else {}
+
+    # Add pagination for preview (limit to 10)
+    pagination = api_config.get("pagination", {})
+    pagination_type = pagination.get("type", "none")
+    pagination_config = pagination.get("config", {})
+
+    if pagination_type == "offset_limit":
+        offset_param = pagination_config.get("offset_param", "offset")
+        limit_param = pagination_config.get("limit_param", "limit")
+        params[offset_param] = 0
+        params[limit_param] = limit
+    elif pagination_type == "page":
+        page_param = pagination_config.get("page_param", "page")
+        per_page_param = pagination_config.get("per_page_param", "per_page")
+        params[page_param] = 1
+        params[per_page_param] = limit
+
+    # Make request
+    try:
+        response = requests.get(full_url, headers=headers, auth=auth, params=params, timeout=30)
+        response.raise_for_status()
+    except requests.exceptions.RequestException as e:
+        raise HTTPException(status_code=500, detail=f"API request failed: {str(e)}")
+
+    # Parse response
+    try:
+        json_data = response.json()
+    except ValueError:
+        raise HTTPException(status_code=500, detail="API response is not valid JSON")
+
+    # Extract data using response_path
+    response_path = api_config.get("response_path", "")
+    if response_path:
+        # Simple JSONPath extraction
+        keys = response_path.replace("$.", "").split(".")
+        current = json_data
+        for key in keys:
+            if isinstance(current, dict):
+                current = current.get(key)
+            else:
+                break
+        extracted_data = current
+    else:
+        extracted_data = json_data
+
+    # Ensure it's a list
+    if not isinstance(extracted_data, list):
+        if isinstance(extracted_data, dict):
+            extracted_data = [extracted_data]
+        else:
+            raise HTTPException(
+                status_code=500,
+                detail="Extracted data is not an array or object. Check your response_path setting.",
+            )
+
+    return {"data": extracted_data[:limit], "count": len(extracted_data[:limit])}

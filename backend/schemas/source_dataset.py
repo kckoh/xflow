@@ -2,6 +2,8 @@ from typing import Optional, List
 from pydantic import BaseModel
 from datetime import datetime
 
+from schemas.api_source import APISourceDatasetConfig
+
 
 class SourceDatasetCreate(BaseModel):
     name: str
@@ -23,6 +25,9 @@ class SourceDatasetCreate(BaseModel):
 
     # Schema information
     columns: Optional[List[dict]] = None
+
+    # API specific
+    api: Optional[APISourceDatasetConfig] = None
 
 
 class SourceDatasetUpdate(BaseModel):
@@ -46,6 +51,9 @@ class SourceDatasetUpdate(BaseModel):
     # Schema information
     columns: Optional[List[dict]] = None
 
+    # API specific
+    api: Optional[APISourceDatasetConfig] = None
+
 
 class SourceDatasetResponse(BaseModel):
     id: str
@@ -64,6 +72,9 @@ class SourceDatasetResponse(BaseModel):
 
     # Schema information
     columns: Optional[List[dict]] = None
+
+    # API specific
+    api: Optional[APISourceDatasetConfig] = None
 
     created_at: datetime
     updated_at: datetime

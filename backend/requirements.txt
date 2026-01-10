@@ -52,6 +52,7 @@ watchfiles==1.1.1
 websockets==15.0.1
 botocore==1.35.80
 duckdb==1.1.3
+trino
 pandas==2.2.3
 slowapi
 kubernetes

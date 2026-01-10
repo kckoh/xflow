@@ -5,11 +5,13 @@ import { useAuth } from "../../context/AuthContext";
 import {
   ArrowLeft,
   ArrowRight,
+  Archive,
   Calendar,
   Check,
   ChevronDown,
   ChevronUp,
   Database,
+  Globe,
   Settings,
   Trash2,
   Upload,
@@ -18,13 +20,13 @@ import {
   Zap,
 } from "lucide-react";
 import { SiPostgresql, SiMongodb, SiApachekafka } from "@icons-pack/react-simple-icons";
-import { Archive } from "lucide-react";
 import SchedulesPanel from "../../components/etl/SchedulesPanel";
 import { connectionApi } from "../../services/connectionApi";
 import ConnectionForm from "../../components/sources/ConnectionForm";
 import Combobox from "../../components/common/Combobox";
 import ConnectionCombobox from "../../components/sources/ConnectionCombobox";
 import MongoDBSourceConfig from "../../components/sources/MongoDBSourceConfig";
+import APISourceConfig from "../../components/sources/APISourceConfig";
 
 const STEPS = [
   { id: 1, name: "Select Source", icon: Database },
@@ -53,6 +55,13 @@ const SOURCE_OPTIONS = [
     description: "Import from S3 bucket",
     icon: Archive,
     color: "#FF9900",
+  },
+  {
+    id: "api",
+    name: "REST API",
+    description: "Connect to any RESTful API",
+    icon: Globe,
+    color: "#10B981",
   },
   {
     id: "kafka",
@@ -98,6 +107,19 @@ export default function SourceWizard() {
     collection: "",
     // Kafka-specific fields
     topic: "",
+    // API-specific fields
+    endpoint: "",
+    method: "GET",
+    queryParams: {},
+    pagination: {
+      type: "none",
+      config: {},
+    },
+    responsePath: "",
+    // API Incremental Load
+    incrementalEnabled: false,
+    timestampParam: "",
+    startFromDate: "",
   });
 
   // Load existing job data in edit mode
@@ -151,6 +173,16 @@ export default function SourceWizard() {
           path: job.path || "",
           columns: job.columns || [],
           topic: job.topic || "",
+          // API-specific fields
+          endpoint: job.api?.endpoint || "",
+          method: job.api?.method || "GET",
+          queryParams: job.api?.query_params || {},
+          pagination: job.api?.pagination || { type: "none", config: {} },
+          responsePath: job.api?.response_path || "",
+          // API Incremental Load
+          incrementalEnabled: job.api?.incremental_config?.enabled || false,
+          timestampParam: job.api?.incremental_config?.timestamp_param || "",
+          startFromDate: job.api?.incremental_config?.start_from || "",
         });
 
         // Skip to Review step in edit mode
@@ -424,6 +456,19 @@ export default function SourceWizard() {
         sourceData.format = "log"; // S3 source는 무조건 .log 파일
       } else if (selectedSource.id === "kafka") {
         sourceData.topic = config.topic;
+      } else if (selectedSource.id === "api") {
+        sourceData.api = {
+          endpoint: config.endpoint,
+          method: config.method,
+          query_params: config.queryParams,
+          pagination: config.pagination,
+          response_path: config.responsePath,
+          incremental_config: {
+            enabled: config.incrementalEnabled,
+            timestamp_param: config.timestampParam,
+            start_from: config.startFromDate,
+          },
+        };
       }
 
       // API call to create/update source dataset
@@ -466,7 +511,17 @@ export default function SourceWizard() {
       case 1:
         return selectedSource !== null;
       case 2:
-        return config.name.trim() !== "" && config.connectionId !== "";
+        // Base validation
+        if (config.name.trim() === "" || config.connectionId === "") {
+          return false;
+        }
+
+        // API-specific validation
+        if (selectedSource?.id === "api") {
+          return config.endpoint.trim() !== "";
+        }
+
+        return true;
       case 3:
         return true; // Review step
       default:
@@ -839,6 +894,45 @@ export default function SourceWizard() {
                   </div>
                 )}
 
+                {/* API - REST API Configuration */}
+                {selectedSource?.id === "api" && (
+                  <APISourceConfig
+                    connectionId={config.connectionId}
+                    endpoint={config.endpoint}
+                    method={config.method}
+                    queryParams={config.queryParams}
+                    paginationType={config.pagination?.type || "none"}
+                    paginationConfig={config.pagination?.config || {}}
+                    responsePath={config.responsePath}
+                    incrementalEnabled={config.incrementalEnabled}
+                    timestampParam={config.timestampParam}
+                    startFromDate={config.startFromDate}
+                    onEndpointChange={(endpoint) =>
+                      setConfig({ ...config, endpoint })
+                    }
+                    onMethodChange={(method) =>
+                      setConfig({ ...config, method })
+                    }
+                    onQueryParamsChange={(queryParams) =>
+                      setConfig({ ...config, queryParams })
+                    }
+                    onPaginationChange={(pagination) =>
+                      setConfig({ ...config, pagination })
+                    }
+                    onResponsePathChange={(responsePath) =>
+                      setConfig({ ...config, responsePath })
+                    }
+                    onIncrementalChange={({ enabled, timestampParam, startFromDate }) =>
+                      setConfig({
+                        ...config,
+                        incrementalEnabled: enabled,
+                        timestampParam: timestampParam,
+                        startFromDate: startFromDate
+                      })
+                    }
+                  />
+                )}
+
                 {/* Columns Section - Only for PostgreSQL (MongoDB has its own in MongoDBSourceConfig) */}
                 {config.columns.length > 0 && selectedSource?.id !== "mongodb" && (
                   <div>
@@ -1021,6 +1115,50 @@ export default function SourceWizard() {
                             {config.topic}
                           </p>
                         </div>
+                      )}
+                      {selectedSource?.id === "api" && (
+                        <>
+                          <div>
+                            <label className="text-xs font-medium text-gray-500">
+                              Endpoint
+                            </label>
+                            <p className="mt-1 text-gray-900 font-medium">
+                              {config.endpoint || "-"}
+                            </p>
+                          </div>
+                          <div>
+                            <label className="text-xs font-medium text-gray-500">
+                              Method
+                            </label>
+                            <p className="mt-1 text-gray-900">
+                              {config.method}
+                            </p>
+                          </div>
+                          <div>
+                            <label className="text-xs font-medium text-gray-500">
+                              Pagination
+                            </label>
+                            <p className="mt-1 text-gray-900">
+                              {config.pagination?.type === "none"
+                                ? "No Pagination"
+                                : config.pagination?.type === "offset_limit"
+                                ? "Offset/Limit"
+                                : config.pagination?.type === "page"
+                                ? "Page Number"
+                                : "Cursor-based"}
+                            </p>
+                          </div>
+                          {config.responsePath && (
+                            <div>
+                              <label className="text-xs font-medium text-gray-500">
+                                Response Path
+                              </label>
+                              <p className="mt-1 text-gray-900 font-mono text-sm">
+                                {config.responsePath}
+                              </p>
+                            </div>
+                          )}
+                        </>
                       )}
                     </div>
                     {config.description && (
