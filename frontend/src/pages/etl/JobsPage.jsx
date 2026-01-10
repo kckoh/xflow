@@ -210,9 +210,13 @@ export default function JobsPage() {
         const data = await response.json();
         // Filter only target datasets
         const targetJobs = data.filter(job => job.dataset_type === "target");
-        setJobs(targetJobs);
+        // Sort by updated_at descending (newest first)
+        const sortedJobs = targetJobs.sort(
+          (a, b) => new Date(b.updated_at) - new Date(a.updated_at)
+        );
+        setJobs(sortedJobs);
         // Fetch runs for each job
-        fetchAllJobRuns(targetJobs);
+        fetchAllJobRuns(sortedJobs);
       } else {
         setJobs([]);
       }
