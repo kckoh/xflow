@@ -314,14 +314,9 @@ def read_nosql_source(spark: SparkSession, source_config: dict) -> DataFrame:
             .option("spark.mongodb.read.collection", collection) \
             .load()
         
-        print(f"   Original schema before flattening:")
-        df.printSchema()
-        
         # Flatten nested structures to match pandas json_normalize behavior
         df = flatten_mongodb_schema(df)
         
-        print(f"   Flattened schema (matches Preview/DuckDB):")
-        df.printSchema()
     
     # Future NoSQL support
     # elif db_type == "dynamodb":
@@ -364,7 +359,18 @@ def flatten_mongodb_schema(df: DataFrame, sep: str = "_") -> DataFrame:
             col_type: StructType to flatten
             prefix: Prefix for flattened column names (with separator)
             path_prefix: Dot-notation path prefix for Spark column access
+        
+        Returns:
+            List of (full_path, flat_name, field_type) tuples
+        
+        Base cases:
+            1. Return empty list if StructType has no fields
+            2. Append to result and terminate if field is primitive type
         """
+        # Base case 1: Return empty list for empty struct
+        if not col_type.fields:
+            return []
+        
         flattened = []
         current_prefix = f"{prefix}{col_name}{sep}" if prefix else f"{col_name}{sep}"
         current_path = f"{path_prefix}{col_name}." if path_prefix else f"{col_name}."
@@ -374,11 +380,11 @@ def flatten_mongodb_schema(df: DataFrame, sep: str = "_") -> DataFrame:
             field_type = field.dataType
             
             if isinstance(field_type, StructType):
-                # Nested struct: recurse deeper with accumulated path
+                # Recursive case: Recurse into nested struct
                 nested_flattened = flatten_struct_recursive(field_name, field_type, current_prefix, current_path)
                 flattened.extend(nested_flattened)
             else:
-                # Leaf field: create column expression with full dot-notation path
+                # Base case 2: Leaf node (primitive type) - append to result
                 full_path = f"{current_path}{field_name}"
                 flat_name = f"{current_prefix}{field_name}"
                 flattened.append((full_path, flat_name, field_type))
