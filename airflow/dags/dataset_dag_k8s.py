@@ -53,11 +53,16 @@ def generate_spark_application(**context):
 
     # Extract run_id from dag_run_id for unique naming
     dag_run_id = context["dag_run"].run_id
-    # Remove all non-alphanumeric characters and take first 8 chars
+    # Use last segment after underscore for uniqueness (e.g., dataset_xxx_yyy -> yyy)
     import re
-    clean_run_id = re.sub(r'[^a-z0-9]', '', dag_run_id.lower())[:8]
+    parts = dag_run_id.split('_')
+    if len(parts) >= 2:
+        # Take last part (most unique) and extract alphanumeric chars
+        clean_run_id = re.sub(r'[^a-z0-9]', '', parts[-1].lower())[:8]
+    else:
+        clean_run_id = re.sub(r'[^a-z0-9]', '', dag_run_id.lower())[-8:]
     if not clean_run_id:
-        clean_run_id = "00000000"
+        clean_run_id = f"{int(datetime.now().timestamp()) % 100000000:08d}"
 
     # Parse config to get estimated size for auto-scaling
     config = json.loads(config_json)
@@ -94,9 +99,7 @@ def generate_spark_application(**context):
                 "spark.sql.extensions": "io.delta.sql.DeltaSparkSessionExtension",
                 "spark.sql.catalog.spark_catalog": "org.apache.spark.sql.delta.catalog.DeltaCatalog",
             },
-            "deps": {
-                "packages": ["io.delta:delta-spark_2.12:3.2.0"],
-            },
+            # Delta Lake JARs are pre-installed in the image, no need for packages
             "driver": {
                 "cores": 1,
                 "memory": "2g",

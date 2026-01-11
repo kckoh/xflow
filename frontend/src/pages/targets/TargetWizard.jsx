@@ -1,4 +1,5 @@
 import { useState, useEffect } from "react";
+import { nanoid } from "nanoid";
 import { useNavigate, useLocation } from "react-router-dom";
 import {
   ArrowLeft,
@@ -52,7 +53,7 @@ export default function TargetWizard() {
 
   // Step 2: Configuration
   const [config, setConfig] = useState({
-    id: `tgt-${Date.now()}`,
+    id: `tgt_${nanoid(10).toLowerCase()}`,
     name: "",
     description: "",
     tags: [],
@@ -686,7 +687,8 @@ export default function TargetWizard() {
         destination: {
           type: "s3",
           path: "s3a://xflows-output/",
-          format: "parquet",
+          format: "delta",
+          glue_table_name: config.id,  // Glue catalog table name (same as target ID)
           options: {},
           // s3_config is injected by Airflow DAG based on environment
         },
