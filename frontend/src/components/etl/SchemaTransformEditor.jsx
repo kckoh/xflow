@@ -421,6 +421,27 @@ export default function SchemaTransformEditor({
                         onSchemaChange(resultSchema); // Replaces targetSchema completely
                     }
                 }
+
+                // For Visual Transform: update beforeColumns with flattened schema from preview
+                // This ensures MongoDB nested structures are shown as flattened columns
+                if (activeTab === 'columns' && result.source_samples && result.source_samples.length > 0) {
+                    const currentSource = result.source_samples.find(s => s.source_id === sourceId);
+                    if (currentSource && currentSource.rows && currentSource.rows.length > 0) {
+                        // Extract column names from preview result (already flattened by backend)
+                        const flattenedColumns = Array.from(new Set(currentSource.rows.flatMap(Object.keys)));
+                        
+                        // Convert to column schema format
+                        const newBeforeColumns = flattenedColumns.map(colName => ({
+                            name: colName,
+                            type: 'unknown', // Type inference could be added here
+                            originalName: colName,
+                            sourceId: sourceId,
+                            inTarget: targetSchema.some(tc => tc.originalName === colName && tc.sourceId === sourceId)
+                        }));
+                        
+                        setBeforeColumns(newBeforeColumns);
+                    }
+                }
             } else {
                 setTestError(result.error || 'Invalid SQL');
             }

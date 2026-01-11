@@ -336,41 +336,67 @@ def read_nosql_source(spark: SparkSession, source_config: dict) -> DataFrame:
     return df
 
 
-def flatten_mongodb_schema(df: DataFrame, prefix: str = "", sep: str = "_") -> DataFrame:
+def flatten_mongodb_schema(df: DataFrame, sep: str = "_") -> DataFrame:
     """
     Recursively flatten MongoDB schema to match pandas json_normalize behavior.
     Converts nested structs and arrays to flat columns with underscore naming.
     
     Examples:
     - {"address": {"city": "Seoul"}} → address_city column
-    - {"projects": [{"name": "A"}, {"name": "B"}]} → projects_name: ["A", "B"], projects_budget: [100, 200]
+    - {"address": {"geo": {"lat": 37.5}}} → address_geo_lat column (fully recursive)
+    - {"projects": [{"name": "A"}]} → projects_name: ["A"] (array extraction)
     
     Args:
         df: Input DataFrame
-        prefix: Prefix for column names (used in recursion)
         sep: Separator for nested field names (default: "_")
     
     Returns:
         Flattened DataFrame
     """
     from pyspark.sql import functions as F
-    from pyspark.sql.types import StructType, ArrayType, StructField
+    from pyspark.sql.types import StructType, ArrayType
+    
+    def flatten_struct_recursive(col_name: str, col_type: StructType, prefix: str = "", path_prefix: str = "") -> list:
+        """Recursively flatten struct type fields
+        
+        Args:
+            col_name: Current column name
+            col_type: StructType to flatten
+            prefix: Prefix for flattened column names (with separator)
+            path_prefix: Dot-notation path prefix for Spark column access
+        """
+        flattened = []
+        current_prefix = f"{prefix}{col_name}{sep}" if prefix else f"{col_name}{sep}"
+        current_path = f"{path_prefix}{col_name}." if path_prefix else f"{col_name}."
+        
+        for field in col_type.fields:
+            field_name = field.name
+            field_type = field.dataType
+            
+            if isinstance(field_type, StructType):
+                # Nested struct: recurse deeper with accumulated path
+                nested_flattened = flatten_struct_recursive(field_name, field_type, current_prefix, current_path)
+                flattened.extend(nested_flattened)
+            else:
+                # Leaf field: create column expression with full dot-notation path
+                full_path = f"{current_path}{field_name}"
+                flat_name = f"{current_prefix}{field_name}"
+                flattened.append((full_path, flat_name, field_type))
+        
+        return flattened
     
     flattened_cols = []
     
     for field in df.schema.fields:
         col_name = field.name
         col_type = field.dataType
-        full_name = f"{prefix}{col_name}" if prefix else col_name
         
         if isinstance(col_type, StructType):
             # Struct field: flatten recursively
-            for sub_field in col_type.fields:
-                sub_col_name = sub_field.name
-                flattened_name = f"{full_name}{sep}{sub_col_name}"
-                flattened_cols.append(
-                    F.col(f"`{col_name}`.`{sub_col_name}`").alias(flattened_name)
-                )
+            struct_fields = flatten_struct_recursive(col_name, col_type)
+            for path, alias, _ in struct_fields:
+                # Build nested column access: col("address.geo.lat")
+                flattened_cols.append(F.col(path).alias(alias))
         
         elif isinstance(col_type, ArrayType):
             # Array field: check if it's array of structs or primitives
@@ -382,21 +408,21 @@ def flatten_mongodb_schema(df: DataFrame, prefix: str = "", sep: str = "_") -> D
                 # → projects_name: ["A"], projects_budget: [100]
                 for struct_field in element_type.fields:
                     field_name = struct_field.name
-                    flattened_name = f"{full_name}{sep}{field_name}"
+                    flattened_name = f"{col_name}{sep}{field_name}"
                     # Use transform to extract specific field from each array element
                     flattened_cols.append(
                         F.transform(
-                            F.col(f"`{col_name}`"),
+                            F.col(col_name),
                             lambda x: x[field_name]
                         ).alias(flattened_name)
                     )
             else:
                 # Array of primitives: keep as-is
-                flattened_cols.append(F.col(f"`{col_name}`").alias(full_name))
+                flattened_cols.append(F.col(col_name))
         
         else:
             # Primitive field: keep as-is
-            flattened_cols.append(F.col(f"`{col_name}`").alias(full_name))
+            flattened_cols.append(F.col(col_name))
     
     return df.select(*flattened_cols)
 
@@ -1109,7 +1135,7 @@ def write_s3_destination(df: DataFrame, dest_config: dict, job_name: str = "outp
 
     options = dest_config.get("options", {})
     compression = options.get("compression", "snappy")
-
+    
     # Determine write mode: Enforce 'append' if incremental load is enabled
     incremental_config = dest_config.get("incremental_config", {})
     if incremental_config.get("enabled"):
@@ -1129,7 +1155,7 @@ def write_s3_destination(df: DataFrame, dest_config: dict, job_name: str = "outp
     # Parquet doesn't support VOID type, convert to STRING
     if has_nosql_source:
         from pyspark.sql.types import StringType
-
+        
         for field in writer_df.schema.fields:
             dtype_str = str(field.dataType)
             if "VoidType" in dtype_str or "void" in dtype_str.lower():

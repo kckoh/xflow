@@ -318,10 +318,10 @@ async def _load_sample_data(
         # Get documents
         data = list(collection.find().limit(limit))
         
-        # Flatten nested documents using json_normalize
-        # This converts nested objects into flat columns
-        # Example: {"address": {"city": "Seoul"}} -> address_city column
-        df = pd.json_normalize(data, sep='_')
+        # Flatten nested documents using json_normalize with NO depth limit
+        # This converts ALL nested objects into flat columns recursively
+        # Example: {"address": {"geo": {"lat": 37.5}}} -> address_geo_lat column
+        df = pd.json_normalize(data, sep='_', max_level=None)
         
         # Remove MongoDB _id if present
         if '_id' in df.columns:
@@ -330,21 +330,33 @@ async def _load_sample_data(
         # Process array of objects columns: extract each field as a separate array column
         # Example: projects: [{"name": "A", "budget": 100}] 
         # → projects_name: ["A"], projects_budget: [100]
-        for col in df.columns:
+        columns_to_process = list(df.columns)  # Create a copy to avoid modification during iteration
+        for col in columns_to_process:
+            if col not in df.columns:  # Skip if already dropped
+                continue
             # Check if column contains array of dicts
             if df[col].dtype == 'object':
                 sample_val = df[col].dropna().iloc[0] if len(df[col].dropna()) > 0 else None
-                if sample_val is not None and isinstance(sample_val, list) and len(sample_val) > 0 and isinstance(sample_val[0], dict):
-                    # This is an array of objects - extract each field
-                    first_item = sample_val[0]
-                    for field_name in first_item.keys():
-                        new_col_name = f"{col}_{field_name}"
-                        # Extract the field from each dict in the array
-                        df[new_col_name] = df[col].apply(
-                            lambda x: [item.get(field_name) for item in x] if isinstance(x, list) else None
-                        )
-                    # Drop the original column
-                    df = df.drop(col, axis=1)
+                if sample_val is not None and isinstance(sample_val, list) and len(sample_val) > 0:
+                    if isinstance(sample_val[0], dict):
+                        # This is an array of objects - collect ALL unique fields from ALL rows
+                        # Not just the first item, because different items may have different fields
+                        all_fields = set()
+                        for row_value in df[col].dropna():
+                            if isinstance(row_value, list):
+                                for item in row_value:
+                                    if isinstance(item, dict):
+                                        all_fields.update(item.keys())
+                        
+                        # Extract each field as a separate array column
+                        for field_name in sorted(all_fields):  # Sort for consistent ordering
+                            new_col_name = f"{col}_{field_name}"
+                            # Extract the field from each dict in the array
+                            df[new_col_name] = df[col].apply(
+                                lambda x: [item.get(field_name) for item in x] if isinstance(x, list) else None
+                            )
+                        # Drop the original column
+                        df = df.drop(col, axis=1)
         
         client.close()
         
