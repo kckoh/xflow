@@ -914,8 +914,8 @@ def register_trino_table(**context):
     print(f"[Trino] Registering table: lakehouse.default.{glue_table_name}")
     print(f"[Trino] S3 location: {s3_location}")
 
-    # Connect to Trino
-    trino_host = Variable.get("TRINO_HOST", default_var="trino.trino.svc.cluster.local")
+    # Connect to Trino (service in default namespace)
+    trino_host = Variable.get("TRINO_HOST", default_var="trino-cluster-trino.default.svc.cluster.local")
     trino_port = int(Variable.get("TRINO_PORT", default_var="8080"))
 
     conn = trino.dbapi.connect(
@@ -929,14 +929,20 @@ def register_trino_table(**context):
     try:
         cursor = conn.cursor()
 
-        # First, try to drop existing table (ignore errors)
+        # First, try to unregister existing table (for tables created by boto3 or previous runs)
         try:
-            drop_sql = f"DROP TABLE IF EXISTS lakehouse.default.{glue_table_name}"
-            print(f"[Trino] Executing: {drop_sql}")
-            cursor.execute(drop_sql)
+            unregister_sql = f"""
+                CALL lakehouse.system.unregister_table(
+                    schema_name => 'default',
+                    table_name => '{glue_table_name}'
+                )
+            """
+            print(f"[Trino] Executing: unregister_table for {glue_table_name}")
+            cursor.execute(unregister_sql)
             cursor.fetchall()
+            print(f"[Trino] Unregistered existing table")
         except Exception as e:
-            print(f"[Trino] Drop table (ignore): {e}")
+            print(f"[Trino] Unregister table (ignore): {e}")
 
         # Register table using register_table procedure
         register_sql = f"""
