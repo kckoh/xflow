@@ -53,6 +53,7 @@ catalogs:
     hive.metastore=glue
     hive.metastore.glue.default-warehouse-dir=s3://xflow-delta-lake-134059028370/warehouse
     s3.use-web-identity-token-credentials-provider=true
+    delta.register-table-procedure.enabled=true
 
   # rdbms: |-
   #   connector.name=postgresql
