@@ -24,8 +24,8 @@ export function Sidebar({ isCollapsed, onToggle }) {
   const { logout, user } = useAuth();
 
   const allNavItems = [
-    { name: "Dataset", path: "/dataset", icon: Database },
-    { name: "ETL Jobs", path: "/etl", icon: List, requiresEtlAccess: true },
+    { name: "Dataset", path: "/dataset", icon: Database, requiresDatasetAccess: true },
+    { name: "ETL Jobs", path: "/etl", icon: List, requiresDatasetAccess: true },
     { name: "Catalog", path: "/catalog", icon: Activity },
     { name: "Query", path: "/query", icon: Search },
     { name: "Admin", path: "/admin", icon: Wrench, adminOnly: true },
@@ -36,9 +36,18 @@ export function Sidebar({ isCollapsed, onToggle }) {
     if (item.adminOnly) {
       return user?.is_admin === true;
     }
-    if (item.requiresEtlAccess) {
-      return user?.etl_access === true || user?.is_admin === true;
+
+    // Check for dataset access requirement
+    if (item.requiresDatasetAccess) {
+      // Show if user is admin, has management permission, has all_datasets, OR has specific dataset access
+      return (
+        user?.is_admin === true ||
+        user?.can_manage_datasets === true ||
+        user?.all_datasets === true ||
+        (user?.dataset_access && user?.dataset_access.length > 0)
+      );
     }
+
     return true;
   });
 

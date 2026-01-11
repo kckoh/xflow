@@ -18,9 +18,17 @@ function ProtectedRoute({ children, requireAdmin = false, requireEtlAccess = fal
     return <Navigate to="/" replace />;
   }
 
-  // Check etl_access requirement (for Data Catalog pages)
-  if (requireEtlAccess && !user?.etl_access && !user?.is_admin) {
-    return <Navigate to="/domain" replace />;
+  // Check dataset access requirement (formerly etl_access)
+  if (requireEtlAccess) {
+    const hasAccess =
+      user?.is_admin ||
+      user?.can_manage_datasets ||
+      user?.all_datasets ||
+      (user?.dataset_access && user?.dataset_access.length > 0);
+
+    if (!hasAccess) {
+      return <Navigate to="/query" replace />;
+    }
   }
 
   return children ? children : <Outlet />;
