@@ -133,7 +133,7 @@ export default function TableColumnSidebar({ selectedTable, onSelectTable, resul
     };
 
     return (
-        <div className="w-80 h-full bg-gray-50 border-r border-gray-200 flex flex-col">
+        <div className="w-80 h-full bg-gray-50 border-r border-gray-200 flex flex-col flex-shrink-0">
             {/* Header */}
             <div className="p-4 border-b border-gray-200 bg-white">
                 <div className="flex items-center justify-between mb-3">
