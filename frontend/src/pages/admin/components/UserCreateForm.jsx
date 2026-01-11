@@ -131,17 +131,21 @@ function DatasetPermissionSelector({ datasets, selectedDatasets, onChange }) {
         return map;
     }, [datasets, domains]);
 
-    // Filter datasets by search query only (domain filtering removed)
+    // Filter datasets:
+    // 1. Remove 'source' datasets (root data)
+    // 2. Filter by search query
     const filteredDatasets = useMemo(() => {
-        if (!searchQuery.trim()) {
-            return datasets;
-        }
+        // First filter out source datasets (Keep only Target/ETL datasets)
+        let result = datasets.filter(d => d.dataset_type === 'target');
 
-        const query = searchQuery.toLowerCase();
-        return datasets.filter((d) =>
-            d.name.toLowerCase().includes(query) ||
-            (d.description && d.description.toLowerCase().includes(query))
-        );
+        if (searchQuery.trim()) {
+            const query = searchQuery.toLowerCase();
+            result = result.filter((d) =>
+                d.name.toLowerCase().includes(query) ||
+                (d.description && d.description.toLowerCase().includes(query))
+            );
+        }
+        return result;
     }, [datasets, searchQuery]);
 
     // Reset to page 1 when search changes
@@ -423,6 +427,7 @@ function DatasetPermissionSelector({ datasets, selectedDatasets, onChange }) {
         </div>
     );
 }
+
 
 export default function UserCreateForm({ editingUser, onUserCreated, onCancel }) {
     const { sessionId } = useAuth();

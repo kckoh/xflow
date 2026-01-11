@@ -169,6 +169,7 @@ export const getDatasets = async () => {
             id: dataset.id,
             name: dataset.name,
             description: dataset.description || '',
+            dataset_type: dataset.dataset_type || (dataset.sources ? 'target' : 'source'), // Fallback if missing
             schema: schema,
             targetInfo: targetInfo
         };
