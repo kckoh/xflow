@@ -69,6 +69,8 @@ async def login(user: UserLogin):
         "domain_edit_access": db_user.domain_edit_access,
         "dataset_access": db_user.dataset_access,
         "all_datasets": db_user.all_datasets,
+        "can_manage_datasets": db_user.can_manage_datasets,
+        "can_run_query": db_user.can_run_query,
     }
     
     return {

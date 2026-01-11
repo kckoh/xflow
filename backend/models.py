@@ -15,12 +15,20 @@ class User(Document):
     password: Optional[str] = None
     name: Optional[str] = None
 
-    # Permission fields
+    # Admin role
     is_admin: bool = False
+
+    # Dataset access control
+    dataset_access: List[str] = Field(default_factory=list)  # Dataset IDs user can access
+    all_datasets: bool = False  # If true, user can access all datasets
+
+    # Feature-level permissions (applied to accessible datasets)
+    can_manage_datasets: bool = False    # Create/Edit/Delete datasets and ETL pipelines
+    can_run_query: bool = True           # Run queries (default: true)
+
+    # DEPRECATED - kept for backward compatibility, will be removed in future
     etl_access: bool = False
     domain_edit_access: bool = False
-    dataset_access: List[str] = Field(default_factory=list)  # dataset IDs
-    all_datasets: bool = False
 
     created_at: datetime = Field(default_factory=datetime.utcnow)
     updated_at: datetime = Field(default_factory=datetime.utcnow)

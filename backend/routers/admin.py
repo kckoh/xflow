@@ -44,10 +44,11 @@ async def get_users(session_id: str):
             email=user.email,
             name=user.name,
             is_admin=user.is_admin,
-            etl_access=user.etl_access,
-            domain_edit_access=user.domain_edit_access,
             dataset_access=user.dataset_access,
             all_datasets=user.all_datasets,
+            can_manage_datasets=user.can_manage_datasets,
+            can_run_query=user.can_run_query,
+
             created_at=user.created_at.isoformat() if user.created_at else None
         )
         for user in users
@@ -72,10 +73,10 @@ async def create_user(user_data: UserCreateAdmin, session_id: str):
         password=user_data.password,
         name=user_data.name or user_data.email.split("@")[0],
         is_admin=user_data.is_admin,
-        etl_access=user_data.etl_access,
-        domain_edit_access=user_data.domain_edit_access,
         dataset_access=user_data.dataset_access,
         all_datasets=user_data.all_datasets,
+        can_manage_datasets=user_data.can_manage_datasets,
+        can_run_query=user_data.can_run_query,
         created_at=datetime.utcnow(),
         updated_at=datetime.utcnow()
     )
@@ -87,10 +88,10 @@ async def create_user(user_data: UserCreateAdmin, session_id: str):
         email=new_user.email,
         name=new_user.name,
         is_admin=new_user.is_admin,
-        etl_access=new_user.etl_access,
-        domain_edit_access=new_user.domain_edit_access,
         dataset_access=new_user.dataset_access,
         all_datasets=new_user.all_datasets,
+        can_manage_datasets=new_user.can_manage_datasets,
+        can_run_query=new_user.can_run_query,
         created_at=new_user.created_at.isoformat() if new_user.created_at else None
     )
 
@@ -133,12 +134,13 @@ async def update_user(user_id: str, user_data: UserUpdateAdmin, session_id: str)
         email=user.email,
         name=user.name,
         is_admin=user.is_admin,
-        etl_access=user.etl_access,
-        domain_edit_access=user.domain_edit_access,
         dataset_access=user.dataset_access,
         all_datasets=user.all_datasets,
+        can_manage_datasets=user.can_manage_datasets,
+        can_run_query=user.can_run_query,
         created_at=user.created_at.isoformat() if user.created_at else None
     )
+
 
 
 @router.delete("/users/{user_id}", status_code=status.HTTP_204_NO_CONTENT)

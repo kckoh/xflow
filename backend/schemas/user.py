@@ -27,22 +27,34 @@ class UserCreateAdmin(BaseModel):
     password: str
     name: Optional[str] = None
     is_admin: bool = False
-    etl_access: bool = False
-    domain_edit_access: bool = False
+    
+    # Dataset access control
     dataset_access: List[str] = []
     all_datasets: bool = False
+    
+    # Feature-level permissions
+    can_manage_datasets: bool = False
+    can_view_catalog: bool = True
+    can_run_query: bool = True
+
 
 
 class UserUpdateAdmin(BaseModel):
     """Schema for admin updating a user"""
     email: Optional[str] = None
-    password: Optional[str] = None  # Optional - only update if provided
+    password: Optional[str] = None
     name: Optional[str] = None
     is_admin: Optional[bool] = None
-    etl_access: Optional[bool] = None
-    domain_edit_access: Optional[bool] = None
+    
+    # Dataset access control
     dataset_access: Optional[List[str]] = None
     all_datasets: Optional[bool] = None
+    
+    # Feature-level permissions
+    can_manage_datasets: Optional[bool] = None
+    can_view_catalog: Optional[bool] = None
+    can_run_query: Optional[bool] = None
+
 
 
 class UserResponseAdmin(BaseModel):
@@ -51,11 +63,18 @@ class UserResponseAdmin(BaseModel):
     email: str
     name: Optional[str] = None
     is_admin: bool = False
-    etl_access: bool = False
-    domain_edit_access: bool = False
+    
+    # Dataset access control
     dataset_access: List[str] = []
     all_datasets: bool = False
+    
+    # Feature-level permissions
+    can_manage_datasets: bool = False
+    can_view_catalog: bool = True
+    can_run_query: bool = True
+    
     created_at: Optional[str] = None
 
     class Config:
         from_attributes = True
+
