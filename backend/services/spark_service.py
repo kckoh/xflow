@@ -58,16 +58,17 @@ class SparkService:
                 "arguments": [config_json],
                 "sparkVersion": "3.5.0",
                 "sparkConf": {
-                    # Kafka 설정
-                    "spark.jars.packages": "org.apache.spark:spark-sql-kafka-0-10_2.12:3.5.0",
+                    # Kafka/AWS JARs are now pre-installed in /opt/spark/jars/
                     # S3 설정
                     "spark.hadoop.fs.s3a.impl": "org.apache.hadoop.fs.s3a.S3AFileSystem",
                     "spark.hadoop.fs.s3a.aws.credentials.provider": "com.amazonaws.auth.WebIdentityTokenCredentialsProvider",
                     "spark.sql.shuffle.partitions": "24",
                     # Spark 3.5.0 V2 Engine stability fix
                     "spark.sql.streaming.v2.enabled": "false",
-                    "spark.sql.sources.useV1SourceList": "kafka",
+                    "spark.sql.sources.useV1SourceList": "*",
                     "spark.sql.sources.write.v2.enabled": "false",
+                    "spark.serializer": "org.apache.spark.serializer.KryoSerializer",
+                    "spark.kryo.registrationRequired": "false",
                 },
                 "driver": {
                     "cores": 1,
@@ -183,7 +184,7 @@ class SparkService:
                 "spark.master": "spark://spark-master:7077",
                 "spark.app.name": app_name,
                 "spark.submit.deployMode": "cluster",
-                "spark.jars.packages": "org.apache.spark:spark-sql-kafka-0-10_2.12:3.5.0,org.apache.hadoop:hadoop-aws:3.3.4",
+                # Kafka/AWS JARs pre-installed in Docker image
                 # S3 Config for LocalStack
                 "spark.hadoop.fs.s3a.impl": "org.apache.hadoop.fs.s3a.S3AFileSystem",
                 "spark.hadoop.fs.s3a.endpoint": "http://localstack-main:4566",
@@ -193,8 +194,10 @@ class SparkService:
                 "spark.hadoop.fs.s3a.connection.ssl.enabled": "false",
                 # Spark 3.5.0 V2 Engine stability fix
                 "spark.sql.streaming.v2.enabled": "false",
-                "spark.sql.sources.useV1SourceList": "kafka",
-                "spark.sql.sources.write.v2.enabled": "false"
+                "spark.sql.sources.useV1SourceList": "*",
+                "spark.sql.sources.write.v2.enabled": "false",
+                "spark.serializer": "org.apache.spark.serializer.KryoSerializer",
+                "spark.kryo.registrationRequired": "false"
             }
         }
         

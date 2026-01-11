@@ -586,6 +586,7 @@ export default function TargetWizard() {
 
       let edges = [];
       let allNodes = [];
+      let transforms = [];
 
       if (isS3LogSource) {
         const nodeSuffix = Date.now();
@@ -644,6 +645,24 @@ export default function TargetWizard() {
         ];
 
         allNodes = [...sourceNodes, selectTransformNode, filterTransformNode];
+        transforms = [
+          {
+            nodeId: selectNodeId,
+            type: "s3-select-fields",
+            config: {
+              selected_fields: s3ProcessConfig.selected_fields || [],
+            },
+            inputNodeIds: sourceNodes.map((n) => n.id),
+          },
+          {
+            nodeId: filterNodeId,
+            type: "s3-filter",
+            config: {
+              filters: s3ProcessConfig.filters || {},
+            },
+            inputNodeIds: [selectNodeId],
+          },
+        ];
       } else {
         // Generate a single transform node with the combined schema
         const sql = generateSql(targetSchema);
@@ -675,6 +694,16 @@ export default function TargetWizard() {
 
         // Combine all nodes
         allNodes = [...sourceNodes, transformNode];
+        transforms = [
+          {
+            nodeId: transformNodeId,
+            type: "sql",
+            config: {
+              sql,
+            },
+            inputNodeIds: sourceNodes.map((n) => n.id),
+          },
+        ];
       }
 
       // Build sources array for backend execution logic
@@ -706,6 +735,7 @@ export default function TargetWizard() {
         dataset_type: "target",
         job_type: jobType,
         sources: sources, // Include constructed sources
+        transforms: transforms,
         nodes: allNodes, // Save simplified DAG
         edges: edges,
         // Map first schedule to backend format (backend currently supports single schedule)

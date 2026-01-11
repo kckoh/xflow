@@ -59,7 +59,9 @@ async def start_streaming_job(dataset_id: str):
         "sasl_username": conn.config.get("sasl_username"),
         "sasl_password": conn.config.get("sasl_password"),
         "destination": dataset.destination,
-        "target_path": dataset.destination.get("path")
+        "target_path": dataset.destination.get("path"),
+        "transforms": dataset.transforms,  # Pass filters!
+        "sources": dataset.sources,        # For better schema handling
     }
     
     app_name = f"flow-{str(dataset.id)}"
