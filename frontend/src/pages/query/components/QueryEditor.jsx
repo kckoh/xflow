@@ -1,11 +1,26 @@
 import { useState } from "react";
-import { Play, Loader2, CheckCircle, XCircle, Clock, Download } from "lucide-react";
+import { Play, Loader2, CheckCircle, XCircle, Clock, Download, Database } from "lucide-react";
 import { executeQuery as runDuckDBQuery } from "../../../services/apiDuckDB";
+import { executeQuery as runTrinoQuery } from "../../../services/apiTrino";
 import { useToast } from "../../../components/common/Toast";
 import QueryChart from "./QueryChart";
 
+const QUERY_ENGINES = {
+    duckdb: {
+        name: "DuckDB",
+        placeholder: "Enter your SQL query here...\nExample: SELECT * FROM read_parquet('s3://bucket/path/*.parquet') LIMIT 10",
+        icon: "🦆"
+    },
+    trino: {
+        name: "Trino",
+        placeholder: "Enter your SQL query here...\nExample: SELECT * FROM lakehouse.default.my_table LIMIT 10",
+        icon: "⚡"
+    }
+};
+
 export default function QueryEditor({ selectedTable, viewMode }) {
     const [query, setQuery] = useState("");
+    const [queryEngine, setQueryEngine] = useState("duckdb");
     const [executing, setExecuting] = useState(false);
     const [queryStatus, setQueryStatus] = useState(null);
     const [results, setResults] = useState(null);
@@ -29,7 +44,13 @@ export default function QueryEditor({ selectedTable, viewMode }) {
                 finalQuery = `${finalQuery.replace(/;$/, "")} LIMIT 30`;
             }
 
-            const response = await runDuckDBQuery(finalQuery);
+            let response;
+            if (queryEngine === "trino") {
+                response = await runTrinoQuery(finalQuery);
+            } else {
+                response = await runDuckDBQuery(finalQuery);
+            }
+
             const columns = response.data.length > 0 ? Object.keys(response.data[0]) : [];
             setResults({
                 data: response.data,
@@ -115,10 +136,34 @@ export default function QueryEditor({ selectedTable, viewMode }) {
 
             {/* Query Input */}
             <div className="p-4 border-b border-gray-200">
+                {/* Engine Selector */}
+                <div className="flex items-center gap-3 mb-3">
+                    <div className="flex items-center gap-2 text-sm text-gray-600">
+                        <Database className="w-4 h-4" />
+                        <span>Query Engine:</span>
+                    </div>
+                    <div className="flex items-center gap-1 bg-gray-100 rounded-lg p-1">
+                        {Object.entries(QUERY_ENGINES).map(([key, engine]) => (
+                            <button
+                                key={key}
+                                onClick={() => setQueryEngine(key)}
+                                className={`flex items-center gap-1.5 px-3 py-1.5 rounded-md text-sm font-medium transition-colors ${
+                                    queryEngine === key
+                                        ? 'bg-white text-gray-900 shadow-sm'
+                                        : 'text-gray-600 hover:text-gray-900'
+                                }`}
+                            >
+                                <span>{engine.icon}</span>
+                                {engine.name}
+                            </button>
+                        ))}
+                    </div>
+                </div>
+
                 <textarea
                     value={query}
                     onChange={(e) => setQuery(e.target.value)}
-                    placeholder="Enter your SQL query here...&#10;Example: SELECT * FROM products LIMIT 10"
+                    placeholder={QUERY_ENGINES[queryEngine].placeholder}
                     className="w-full h-32 px-4 py-3 border border-gray-300 rounded-lg font-mono text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none resize-none"
                 />
                 <div className="flex items-center justify-between mt-3">
