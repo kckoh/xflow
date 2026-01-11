@@ -38,6 +38,7 @@ from routers import (
     s3_logs_preview,
     source_datasets,
     sql_test,
+    streaming_jobs,
     users,
 )
 from routers.transforms import select_fields  # 추후 type 추가 예정 (예: join ...)
@@ -110,6 +111,7 @@ app.include_router(
 # Datasets and Job Runs
 app.include_router(datasets.router, prefix="/api/datasets", tags=["datasets"])
 app.include_router(job_runs.router, prefix="/api/job-runs", tags=["job-runs"])
+app.include_router(streaming_jobs.router, prefix="/api/streaming-jobs", tags=["streaming-jobs"])
 
 # Source Datasets
 app.include_router(source_datasets.router, tags=["source-datasets"])

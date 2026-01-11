@@ -298,6 +298,95 @@ async def _load_sample_data(
         
         return df
     
+    elif source_type == 'kafka':
+        # Kafka
+        from kafka import KafkaConsumer
+        import json
+        import time
+        
+        bootstrap_servers = config.get('bootstrap_servers')
+        if isinstance(bootstrap_servers, str):
+            bootstrap_servers = [s.strip() for s in bootstrap_servers.split(',')]
+            
+        topic = source_dataset.get('config', {}).get('topic') or source_dataset.get('topic')
+        if not topic:
+             # Try to find topic in any field
+             topic = source_dataset.get('config', {}).get('kafka_topic')
+             
+        if not topic:
+             # Fallback: check if it's stored directly
+             topic = source_dataset.get('topic')
+
+        if not topic:
+             raise ValueError("Kafka topic not specified in dataset config")
+             
+        # Consumer Config
+        consumer_config = {
+            'bootstrap_servers': bootstrap_servers,
+            'auto_offset_reset': 'earliest',
+            'enable_auto_commit': False,
+            'group_id': f'xflow-preview-{int(time.time())}',
+            'consumer_timeout_ms': 3000, # 3 seconds timeout
+            'value_deserializer': lambda x: json.loads(x.decode('utf-8')) if x else None
+        }
+        
+        # Security Config
+        security_protocol = config.get('security_protocol', 'PLAINTEXT')
+        if security_protocol != 'PLAINTEXT':
+            consumer_config['security_protocol'] = security_protocol
+            if 'SASL' in security_protocol:
+                consumer_config['sasl_mechanism'] = config.get('sasl_mechanism', 'PLAIN')
+                if config.get('sasl_username') and config.get('sasl_password'):
+                    consumer_config['sasl_plain_username'] = config.get('sasl_username')
+                    consumer_config['sasl_plain_password'] = config.get('sasl_password')
+        
+        try:
+            print(f"[DEBUG] Connecting to Kafka: bootstrap_servers={bootstrap_servers}, topic={topic}, group_id={consumer_config.get('group_id')}")
+            consumer = KafkaConsumer(topic, **consumer_config)
+            
+            messages = []
+            start_poll = time.time()
+            max_poll_seconds = 10  # Wait up to 10 seconds for data
+            
+            print(f"[DEBUG] Polling Kafka messages (timeout={max_poll_seconds}s)...")
+            
+            while time.time() - start_poll < max_poll_seconds:
+                # Poll for a short time
+                records = consumer.poll(timeout_ms=1000, max_records=limit)
+                
+                if records:
+                    for tp, msgs in records.items():
+                        print(f"[DEBUG] Partition {tp}: {len(msgs)} messages found")
+                        for msg in msgs:
+                            if msg.value:
+                                messages.append(msg.value)
+                
+                if len(messages) >= limit:
+                    break
+                    
+                # If we have some messages but not enough, maybe wait a bit more? 
+                # Or just break? Usually if we got some, we are good.
+                if messages:
+                    # Continue polling to try to fill limit, but don't wait forever
+                    if time.time() - start_poll > 3: # If we have data and passed 3 sec, break
+                        break
+
+            consumer.close()
+            print(f"[DEBUG] Total messages fetched: {len(messages)}")
+            
+            if not messages:
+                # If poll returned nothing, try simple iteration (slower safeguard)
+                 # consumer = KafkaConsumer(topic, **consumer_config) 
+                 # This might cause double connection. Just return empty for now.
+                 print("[DEBUG] No messages found in Kafka topic after polling.")
+                 return pd.DataFrame()
+                 
+            return pd.DataFrame(messages)
+            
+        except Exception as e:
+            print(f"Error fetching Kafka messages: {e}")
+            raise HTTPException(status_code=500, detail=f"Failed to fetch Kafka messages: {str(e)}")
+
     elif source_type == 's3':
         # S3 / Parquet (Catalog datasets or Source datasets)
         import duckdb

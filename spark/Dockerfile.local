@@ -16,6 +16,9 @@ RUN curl -o /opt/spark/jars/postgresql-42.7.1.jar \
     curl -o /opt/spark/jars/aws-java-sdk-bundle-1.12.262.jar \
     https://repo1.maven.org/maven2/com/amazonaws/aws-java-sdk-bundle/1.12.262/aws-java-sdk-bundle-1.12.262.jar
 
+# Fix Ivy Cache Permissions for Runtime Package Download
+RUN mkdir -p /home/spark/.ivy2 && chown -R spark:spark /home/spark
+
 USER spark
 
 WORKDIR /opt/spark

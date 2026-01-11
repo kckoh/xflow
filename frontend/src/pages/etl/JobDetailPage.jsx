@@ -17,7 +17,7 @@ export default function JobDetailPage() {
     const [statusFilter, setStatusFilter] = useState('all');
     const [copiedId, setCopiedId] = useState(false);
     const { showToast } = useToast();
-    
+
     // Quality state
     const [qualityResult, setQualityResult] = useState(null);
     const [qualityHistory, setQualityHistory] = useState([]);
@@ -54,7 +54,7 @@ export default function JobDetailPage() {
             showToast('No S3 path configured for this job', 'error');
             return;
         }
-        
+
         setRunningCheck(true);
         try {
             const s3Path = job.destination.s3_path || job.destination.path;
@@ -100,50 +100,39 @@ export default function JobDetailPage() {
     const handleToggle = async () => {
         if (!job) return;
 
-        const newActiveState = !job.is_active;
+        const isActive = job.is_active;
+        const newActiveState = !isActive;
 
         try {
-            // If job has a schedule or is CDC, use activate/deactivate API
-            if (job.job_type === "cdc" || job.schedule) {
-                const endpoint = newActiveState ? "activate" : "deactivate";
-                const response = await fetch(`${API_BASE_URL}/api/datasets/${jobId}/${endpoint}`, {
-                    method: "POST",
-                });
+            let endpoint;
+            let method = "POST";
 
-                if (response.ok) {
-                    setJob(prev => ({ ...prev, is_active: newActiveState }));
-                    showToast(`Job ${newActiveState ? 'activated' : 'deactivated'} successfully!`, "success");
-                } else {
-                    showToast(`Failed to ${newActiveState ? 'activate' : 'deactivate'} job`, "error");
-                }
+            if (job.job_type === "streaming") {
+                endpoint = isActive
+                    ? `/api/streaming-jobs/${jobId}/stop`
+                    : `/api/streaming-jobs/${jobId}/start`;
             } else {
-                // Manual job: update Dataset's is_active field
-                // First, find the dataset by job_id
-                const datasetsResponse = await fetch(`${API_BASE_URL}/api/catalog`);
-                if (datasetsResponse.ok) {
-                    const datasets = await datasetsResponse.json();
-                    const dataset = datasets.find(d => d.job_id === jobId);
+                endpoint = isActive
+                    ? `/api/datasets/${jobId}/deactivate`
+                    : `/api/datasets/${jobId}/activate`;
+            }
 
-                    if (dataset) {
-                        // Update dataset's is_active
-                        const updateResponse = await fetch(`${API_BASE_URL}/api/catalog/${dataset.id}`, {
-                            method: "PATCH",
-                            headers: { "Content-Type": "application/json" },
-                            body: JSON.stringify({ is_active: newActiveState }),
-                        });
+            const response = await fetch(`${API_BASE_URL}${endpoint}`, {
+                method: method,
+            });
 
-                        if (updateResponse.ok) {
-                            setJob(prev => ({ ...prev, is_active: newActiveState }));
-                            showToast(`Job ${newActiveState ? 'activated' : 'deactivated'} successfully!`, "success");
-                        } else {
-                            showToast(`Failed to ${newActiveState ? 'activate' : 'deactivate'} job`, "error");
-                        }
-                    } else {
-                        // Should ideally not happen if job exists
-                        setJob(prev => ({ ...prev, is_active: newActiveState }));
-                        showToast(`Job ${newActiveState ? 'activated' : 'deactivated'} (Local state only)`, "warning");
-                    }
-                }
+            if (response.ok) {
+                setJob((prev) => ({ ...prev, is_active: newActiveState }));
+                showToast(
+                    `Job ${newActiveState ? "activated" : "deactivated"} successfully!`,
+                    "success"
+                );
+            } else {
+                const err = await response.json();
+                showToast(
+                    `Failed to ${newActiveState ? "activate" : "deactivate"} job: ${err.detail || "Unknown error"}`,
+                    "error"
+                );
             }
         } catch (error) {
             console.error("Failed to toggle job:", error);
@@ -269,7 +258,8 @@ export default function JobDetailPage() {
     const tabs = [
         { id: 'info', label: 'Info', icon: Info },
         { id: 'runs', label: 'Logs', icon: Play },
-        { id: 'schedule', label: 'Schedule', icon: Calendar },
+        // Only show Schedule tab for batch jobs (not cdc/streaming)
+        ...(job?.job_type !== 'cdc' && job?.job_type !== 'streaming' ? [{ id: 'schedule', label: 'Schedule', icon: Calendar }] : []),
         { id: 'quality', label: 'Quality', icon: BarChart3 },
     ];
 
@@ -315,11 +305,32 @@ export default function JobDetailPage() {
                                 />
                             </button>
                             {/* Action Buttons */}
-                            {job?.job_type !== "cdc" && (
+                            {(job?.job_type === "cdc" || job?.job_type === "streaming") ? (
+                                <button
+                                    onClick={handleToggle}
+                                    className={`inline-flex items-center gap-1 px-4 py-2 text-sm font-medium text-white rounded-lg transition-colors ${job.is_active
+                                        ? "bg-red-600 hover:bg-red-700"
+                                        : "bg-green-600 hover:bg-green-700"
+                                        }`}
+                                    title={job.is_active ? "Stop Streaming" : "Start Streaming"}
+                                >
+                                    {job.is_active ? (
+                                        <>
+                                            <div className="w-3 h-3 bg-white rounded-sm" />
+                                            Stop
+                                        </>
+                                    ) : (
+                                        <>
+                                            <Play className="w-4 h-4" />
+                                            Start
+                                        </>
+                                    )}
+                                </button>
+                            ) : (
                                 <button
                                     onClick={handleRun}
                                     className="inline-flex items-center gap-1 px-4 py-2 text-sm font-medium text-white bg-green-600 hover:bg-green-700 rounded-lg transition-colors"
-                                    title="Run"
+                                    title="Run Once"
                                 >
                                     <Play className="w-4 h-4" />
                                     Run
@@ -401,6 +412,11 @@ export default function JobDetailPage() {
                                                 <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs font-medium bg-purple-100 text-purple-700">
                                                     <Zap className="w-3 h-3" />
                                                     CDC
+                                                </span>
+                                            ) : job?.job_type === 'streaming' ? (
+                                                <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs font-medium bg-indigo-100 text-indigo-700">
+                                                    <Zap className="w-3 h-3" />
+                                                    Streaming
                                                 </span>
                                             ) : (
                                                 <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs font-medium bg-blue-100 text-blue-700">

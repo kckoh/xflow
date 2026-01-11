@@ -562,6 +562,16 @@ export default function TargetWizard() {
     return `SELECT ${selectClauses.join(", ")} FROM input`;
   };
 
+  // Auto-detect job type based on sources
+  useEffect(() => {
+    if (sourceNodes.length > 0) {
+      const isStreaming = sourceNodes.some(
+        (node) => node.data?.sourceType === "kafka"
+      );
+      setJobType(isStreaming ? "streaming" : "batch");
+    }
+  }, [sourceNodes]);
+
   const handleCreate = async () => {
     if (sourceNodes.length === 0) {
       showToast("Error: No source nodes available", "error");
@@ -667,6 +677,24 @@ export default function TargetWizard() {
         allNodes = [...sourceNodes, transformNode];
       }
 
+      // Build sources array for backend execution logic
+      const sources = sourceNodes.map((node) => {
+        const dsId = node.data?.sourceDatasetId || node.data?.catalogDatasetId;
+        const originalDs = sourceDatasets.find((d) => d.id === dsId);
+
+        if (!originalDs) return null;
+
+        return {
+          connection_id: originalDs.connection_id,
+          type: originalDs.source_type || originalDs.sourceType || "unknown",
+          table_name: originalDs.table_name || "",
+          config: {
+            topic: originalDs.topic, // Critical for Kafka
+            columns: node.data?.columns,
+          },
+        };
+      }).filter(Boolean);
+
       // Extract incremental config from first source node
       const firstSourceNode = sourceNodes[0];
       const incrementalConfig = firstSourceNode?.data?.incrementalConfig;
@@ -677,6 +705,7 @@ export default function TargetWizard() {
         tags: config.tags,
         dataset_type: "target",
         job_type: jobType,
+        sources: sources, // Include constructed sources
         nodes: allNodes, // Save simplified DAG
         edges: edges,
         // Map first schedule to backend format (backend currently supports single schedule)
@@ -1430,132 +1459,132 @@ export default function TargetWizard() {
                     onTestStatusChange={setIsTestPassed}
                   />
                 ) : /* ================= API Source ================= */
-                sourceNodes[0]?.data?.sourceType === "api" ? (
-                  sourceNodes[activeSourceTab]?.data?.columns?.length ? (
-                    <SchemaTransformEditor
-                      sourceSchema={sourceNodes[activeSourceTab].data?.columns || []}
-                      sourceName={
-                        sourceNodes[activeSourceTab].data?.name ||
-                        `Source ${activeSourceTab + 1}`
-                      }
-                      sourceId={sourceNodes[activeSourceTab].id}
-                      sourceDatasetId={
-                        sourceNodes[activeSourceTab].data?.sourceDatasetId ||
-                        sourceNodes[activeSourceTab].data?.catalogDatasetId
-                      }
-                      targetSchema={targetSchema}
-                      initialTargetSchema={initialTargetSchema}
-                      onSchemaChange={setTargetSchema}
-                      onTestStatusChange={setIsTestPassed}
-                      allSources={sourceNodes.map((node) => ({
-                        id: node.id,
-                        datasetId:
-                          node.data?.sourceDatasetId ||
-                          node.data?.catalogDatasetId,
-                        name: node.data?.name,
-                      }))}
-                      sourceTabs={
-                        sourceNodes.length > 1 ? (
-                          <div className="flex gap-1 flex-wrap">
-                            {sourceNodes.map((source, idx) => (
-                              <button
-                                key={source.id}
-                                onClick={() => setActiveSourceTab(idx)}
-                                className={`px-3 py-1.5 text-xs font-medium rounded-md transition-colors flex items-center gap-1.5 ${activeSourceTab === idx
-                                  ? "bg-blue-100 text-blue-700 border border-blue-300"
-                                  : "bg-slate-50 text-slate-600 border border-slate-200 hover:bg-slate-100"
-                                  }`}
-                              >
-                                <div
-                                  className="w-1.5 h-1.5 rounded-full"
-                                  style={{
-                                    backgroundColor: [
-                                      "#3b82f6",
-                                      "#10b981",
-                                      "#f59e0b",
-                                      "#8b5cf6",
-                                    ][idx % 4],
-                                  }}
-                                />
-                                Source {idx + 1}: {source.data?.name}
-                              </button>
-                            ))}
-                          </div>
-                        ) : null
-                      }
-                    />
-                  ) : (
-                    <div className="flex items-center justify-center h-full">
-                      <div className="max-w-md text-center text-gray-500">
-                        <p className="text-sm">
-                          API schema가 아직 없습니다. Step 2에서 Preview/Schema를 먼저
-                          가져와주세요.
-                        </p>
+                  sourceNodes[0]?.data?.sourceType === "api" ? (
+                    sourceNodes[activeSourceTab]?.data?.columns?.length ? (
+                      <SchemaTransformEditor
+                        sourceSchema={sourceNodes[activeSourceTab].data?.columns || []}
+                        sourceName={
+                          sourceNodes[activeSourceTab].data?.name ||
+                          `Source ${activeSourceTab + 1}`
+                        }
+                        sourceId={sourceNodes[activeSourceTab].id}
+                        sourceDatasetId={
+                          sourceNodes[activeSourceTab].data?.sourceDatasetId ||
+                          sourceNodes[activeSourceTab].data?.catalogDatasetId
+                        }
+                        targetSchema={targetSchema}
+                        initialTargetSchema={initialTargetSchema}
+                        onSchemaChange={setTargetSchema}
+                        onTestStatusChange={setIsTestPassed}
+                        allSources={sourceNodes.map((node) => ({
+                          id: node.id,
+                          datasetId:
+                            node.data?.sourceDatasetId ||
+                            node.data?.catalogDatasetId,
+                          name: node.data?.name,
+                        }))}
+                        sourceTabs={
+                          sourceNodes.length > 1 ? (
+                            <div className="flex gap-1 flex-wrap">
+                              {sourceNodes.map((source, idx) => (
+                                <button
+                                  key={source.id}
+                                  onClick={() => setActiveSourceTab(idx)}
+                                  className={`px-3 py-1.5 text-xs font-medium rounded-md transition-colors flex items-center gap-1.5 ${activeSourceTab === idx
+                                    ? "bg-blue-100 text-blue-700 border border-blue-300"
+                                    : "bg-slate-50 text-slate-600 border border-slate-200 hover:bg-slate-100"
+                                    }`}
+                                >
+                                  <div
+                                    className="w-1.5 h-1.5 rounded-full"
+                                    style={{
+                                      backgroundColor: [
+                                        "#3b82f6",
+                                        "#10b981",
+                                        "#f59e0b",
+                                        "#8b5cf6",
+                                      ][idx % 4],
+                                    }}
+                                  />
+                                  Source {idx + 1}: {source.data?.name}
+                                </button>
+                              ))}
+                            </div>
+                          ) : null
+                        }
+                      />
+                    ) : (
+                      <div className="flex items-center justify-center h-full">
+                        <div className="max-w-md text-center text-gray-500">
+                          <p className="text-sm">
+                            API schema가 아직 없습니다. Step 2에서 Preview/Schema를 먼저
+                            가져와주세요.
+                          </p>
+                        </div>
                       </div>
-                    </div>
-                  )
-                ) : (
-                  /* ================= RDB / Mongo / API (With Schema) Source ================= */
-                  sourceNodes[activeSourceTab] && (
-                    <SchemaTransformEditor
-                      sourceSchema={
-                        sourceNodes[activeSourceTab].data?.columns || []
-                      }
-                      sourceName={
-                        sourceNodes[activeSourceTab].data?.name ||
-                        `Source ${activeSourceTab + 1}`
-                      }
-                      sourceId={sourceNodes[activeSourceTab].id}
-                      sourceDatasetId={
-                        sourceNodes[activeSourceTab].data?.sourceDatasetId ||
-                        sourceNodes[activeSourceTab].data?.catalogDatasetId
-                      }
-                      targetSchema={targetSchema}
-                      initialTargetSchema={initialTargetSchema}
-                      initialCustomSql={customSql}
-                      onSchemaChange={setTargetSchema}
-                      onTestStatusChange={setIsTestPassed}
-                      onSqlChange={setCustomSql}
-                      allSources={sourceNodes.map((node) => ({
-                        id: node.id,
-                        datasetId:
-                          node.data?.sourceDatasetId ||
-                          node.data?.catalogDatasetId,
-                        name: node.data?.name,
-                        schema: node.data?.columns || [], // Add schema/columns
-                      }))}
-                      sourceTabs={
-                        sourceNodes.length > 1 ? (
-                          <div className="flex gap-1 flex-wrap">
-                            {sourceNodes.map((source, idx) => (
-                              <button
-                                key={source.id}
-                                onClick={() => setActiveSourceTab(idx)}
-                                className={`px-3 py-1.5 text-xs font-medium rounded-md transition-colors flex items-center gap-1.5 ${activeSourceTab === idx
-                                  ? "bg-blue-100 text-blue-700 border border-blue-300"
-                                  : "bg-slate-50 text-slate-600 border border-slate-200 hover:bg-slate-100"
-                                  }`}
-                              >
-                                <div
-                                  className="w-1.5 h-1.5 rounded-full"
-                                  style={{
-                                    backgroundColor: [
-                                      "#3b82f6",
-                                      "#10b981",
-                                      "#f59e0b",
-                                      "#8b5cf6",
-                                    ][idx % 4],
-                                  }}
-                                />
-                                Source {idx + 1}: {source.data?.name}
-                              </button>
-                            ))}
-                          </div>
-                        ) : null
-                      }
-                    />
-                  )
-                )}
+                    )
+                  ) : (
+                    /* ================= RDB / Mongo / API (With Schema) Source ================= */
+                    sourceNodes[activeSourceTab] && (
+                      <SchemaTransformEditor
+                        sourceSchema={
+                          sourceNodes[activeSourceTab].data?.columns || []
+                        }
+                        sourceName={
+                          sourceNodes[activeSourceTab].data?.name ||
+                          `Source ${activeSourceTab + 1}`
+                        }
+                        sourceId={sourceNodes[activeSourceTab].id}
+                        sourceDatasetId={
+                          sourceNodes[activeSourceTab].data?.sourceDatasetId ||
+                          sourceNodes[activeSourceTab].data?.catalogDatasetId
+                        }
+                        targetSchema={targetSchema}
+                        initialTargetSchema={initialTargetSchema}
+                        initialCustomSql={customSql}
+                        onSchemaChange={setTargetSchema}
+                        onTestStatusChange={setIsTestPassed}
+                        onSqlChange={setCustomSql}
+                        allSources={sourceNodes.map((node) => ({
+                          id: node.id,
+                          datasetId:
+                            node.data?.sourceDatasetId ||
+                            node.data?.catalogDatasetId,
+                          name: node.data?.name,
+                          schema: node.data?.columns || [], // Add schema/columns
+                        }))}
+                        sourceTabs={
+                          sourceNodes.length > 1 ? (
+                            <div className="flex gap-1 flex-wrap">
+                              {sourceNodes.map((source, idx) => (
+                                <button
+                                  key={source.id}
+                                  onClick={() => setActiveSourceTab(idx)}
+                                  className={`px-3 py-1.5 text-xs font-medium rounded-md transition-colors flex items-center gap-1.5 ${activeSourceTab === idx
+                                    ? "bg-blue-100 text-blue-700 border border-blue-300"
+                                    : "bg-slate-50 text-slate-600 border border-slate-200 hover:bg-slate-100"
+                                    }`}
+                                >
+                                  <div
+                                    className="w-1.5 h-1.5 rounded-full"
+                                    style={{
+                                      backgroundColor: [
+                                        "#3b82f6",
+                                        "#10b981",
+                                        "#f59e0b",
+                                        "#8b5cf6",
+                                      ][idx % 4],
+                                    }}
+                                  />
+                                  Source {idx + 1}: {source.data?.name}
+                                </button>
+                              ))}
+                            </div>
+                          ) : null
+                        }
+                      />
+                    )
+                  )}
               </div>
             </div>
           </div>
@@ -1570,10 +1599,25 @@ export default function TargetWizard() {
               </h2>
 
               <div className="bg-white rounded-lg border border-gray-200 p-6">
-                <SchedulesPanel
-                  schedules={schedules}
-                  onUpdate={(newSchedules) => setSchedules(newSchedules)}
-                />
+                {jobType === "streaming" ? (
+                  <div className="flex flex-col items-center justify-center py-12 text-center">
+                    <div className="w-16 h-16 bg-blue-100 rounded-full flex items-center justify-center mb-4">
+                      <Zap className="w-8 h-8 text-blue-600" />
+                    </div>
+                    <h3 className="text-lg font-medium text-gray-900 mb-2">
+                      Streaming Job Detected
+                    </h3>
+                    <p className="text-gray-500 max-w-sm">
+                      This job is configured as a streaming process (Kafka source).
+                      It runs continuously and does not require a schedule.
+                    </p>
+                  </div>
+                ) : (
+                  <SchedulesPanel
+                    schedules={schedules}
+                    onUpdate={(newSchedules) => setSchedules(newSchedules)}
+                  />
+                )}
               </div>
             </div>
           </div>

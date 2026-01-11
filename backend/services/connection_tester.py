@@ -23,6 +23,8 @@ class ConnectionTester:
             return ConnectionTester._test_mongodb(config)
         elif conn_type == 'api':
             return ConnectionTester._test_api(config)
+        elif conn_type == 'kafka':
+            return ConnectionTester._test_kafka(config)
         else:
             return False, f"Unsupported connection type: {conn_type}"
 
@@ -158,5 +160,54 @@ class ConnectionTester:
             return False, f"Connection timeout: {config.get('base_url')} did not respond in time"
         except requests.exceptions.RequestException as e:
             return False, f"Request failed: {str(e)}"
-        except Exception as e:
             return False, f"API connection test failed: {str(e)}"
+
+    @staticmethod
+    def _test_kafka(config: Dict[str, Any]) -> Tuple[bool, str]:
+        """Test Kafka connection using KafkaAdminClient."""
+        try:
+            from kafka import KafkaAdminClient
+            from kafka.errors import KafkaError
+
+            bootstrap_servers = config.get('bootstrap_servers')
+            if not bootstrap_servers:
+                return False, "Bootstrap servers are required"
+
+            # Parse bootstrap servers if string
+            if isinstance(bootstrap_servers, str):
+                bootstrap_servers = [s.strip() for s in bootstrap_servers.split(',')]
+
+            # Security config
+            security_protocol = config.get('security_protocol', 'PLAINTEXT')
+            sasl_mechanism = config.get('sasl_mechanism', 'PLAIN')
+            sasl_plain_username = config.get('sasl_username')
+            sasl_plain_password = config.get('sasl_password')
+
+            # Build client config
+            client_config = {
+                'bootstrap_servers': bootstrap_servers,
+                'request_timeout_ms': 5000,  # 5 seconds timeout
+            }
+
+            if security_protocol != 'PLAINTEXT':
+                client_config['security_protocol'] = security_protocol
+                
+                if 'SASL' in security_protocol:
+                    client_config['sasl_mechanism'] = sasl_mechanism
+                    if sasl_plain_username and sasl_plain_password:
+                        client_config['sasl_plain_username'] = sasl_plain_username
+                        client_config['sasl_plain_password'] = sasl_plain_password
+
+            # Try to connect and list topics
+            client = KafkaAdminClient(**client_config)
+            client.list_topics()
+            client.close()
+
+            return True, "Successfully connected to Kafka brokers."
+
+        except ImportError:
+            return False, "kafka-python library is not installed on the server."
+        except KafkaError as e:
+             return False, f"Kafka connection failed: {str(e)}"
+        except Exception as e:
+            return False, f"Error: {str(e)}"
