@@ -24,6 +24,7 @@ import SchemaTransformEditor from "../../components/etl/SchemaTransformEditor";
 import S3LogParsingConfig from "../../components/targets/S3LogParsingConfig";
 import S3LogProcessEditor from "../../components/targets/S3LogProcessEditor";
 import APIPreview from "../../components/targets/APIPreview";
+import TimestampColumnWarning from "../../components/targets/TimestampColumnWarning";
 import { API_BASE_URL } from "../../config/api";
 
 const STEPS = [
@@ -311,17 +312,23 @@ export default function TargetWizard() {
           }
 
           // 자동으로 timestamp 컬럼 감지하여 증분 로드 설정
-          const timestampColumnNames = ['updated_at', 'created_at', 'timestamp', 'modified_at', 'last_modified', 'date_modified'];
-          const timestampColumn = columns.find(col =>
-            timestampColumnNames.includes(col.name.toLowerCase())
-          );
+          // 우선순위: updated_at > modified_at > last_modified > created_at > timestamp
+          const timestampColumnNames = ['updated_at', 'modified_at', 'last_modified', 'date_modified', 'created_at', 'timestamp'];
+          let timestampColumn = null;
+          for (const preferredName of timestampColumnNames) {
+            timestampColumn = columns.find(col => (col.name || col.field || '').toLowerCase() === preferredName);
+            if (timestampColumn) {
+              console.log(`[Incremental Load] Selected timestamp column by priority: ${timestampColumn.name || timestampColumn.field}`);
+              break;
+            }
+          }
 
           if (timestampColumn) {
             nodeData.incrementalConfig = {
               enabled: true,
-              timestamp_column: timestampColumn.name
+              timestamp_column: timestampColumn.name || timestampColumn.field
             };
-            console.log(`[Incremental Load] Auto-detected timestamp column: ${timestampColumn.name} for source ${source.name}`);
+            console.log(`[Incremental Load] Auto-detected timestamp column: ${timestampColumn.name || timestampColumn.field} for source ${source.name}`);
           } else {
             // timestamp 컬럼이 없으면 증분 로드 비활성화
             nodeData.incrementalConfig = {
@@ -434,10 +441,13 @@ export default function TargetWizard() {
             }
 
             // 자동으로 timestamp 컬럼 감지하여 증분 로드 설정
-            const timestampColumnNames = ['updated_at', 'created_at', 'timestamp', 'modified_at', 'last_modified', 'date_modified'];
-            const timestampColumn = schema.find(col =>
-              timestampColumnNames.includes((col.name || col.field || '').toLowerCase())
-            );
+            // 우선순위: updated_at > modified_at > last_modified > created_at > timestamp
+            const timestampColumnNames = ['updated_at', 'modified_at', 'last_modified', 'date_modified', 'created_at', 'timestamp'];
+            let timestampColumn = null;
+            for (const preferredName of timestampColumnNames) {
+              timestampColumn = schema.find(col => (col.name || col.field || '').toLowerCase() === preferredName);
+              if (timestampColumn) break;
+            }
 
             const incrementalConfig = timestampColumn ? {
               enabled: true,
@@ -1568,6 +1578,12 @@ export default function TargetWizard() {
               <h2 className="text-lg font-semibold text-gray-900 mb-6">
                 Schedule Configuration
               </h2>
+
+              <TimestampColumnWarning
+                sourceDatasets={sourceDatasets}
+                schedules={schedules}
+                s3ProcessConfig={s3ProcessConfig}
+              />
 
               <div className="bg-white rounded-lg border border-gray-200 p-6">
                 <SchedulesPanel

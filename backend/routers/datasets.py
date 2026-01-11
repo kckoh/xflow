@@ -140,6 +140,37 @@ async def create_dataset(dataset: DatasetCreate):
                     detail=f"Invalid source connection ID: {source_item.get('connection_id')}"
                 )
 
+    # Validate incremental config if schedule is set
+    if dataset.schedule_frequency and dataset.schedule_frequency != "None":
+        # Check if incremental config exists and is enabled
+        if not dataset.incremental_config or not dataset.incremental_config.get("enabled"):
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Scheduled datasets require incremental load to be enabled. Please ensure your source has a timestamp column (updated_at, created_at, etc.)"
+            )
+
+        # Validate timestamp column for RDB/MongoDB sources
+        for source_item in sources_data:
+            source_type = source_item.get("type") or source_item.get("source_type")
+            source_name = source_item.get("name", "Unknown")
+
+            if source_type in ["rdb", "mongodb"]:
+                # Check source-level incremental_config first, then dataset-level
+                inc_cfg = source_item.get("incremental_config") or dataset.incremental_config
+                if not inc_cfg or not inc_cfg.get("timestamp_column"):
+                    raise HTTPException(
+                        status_code=status.HTTP_400_BAD_REQUEST,
+                        detail=f"Source '{source_name}' requires a timestamp column for incremental load. No suitable column (updated_at, created_at, etc.) was found."
+                    )
+            elif source_type == "api":
+                # API sources need timestamp_param in incremental_config
+                api_inc_cfg = source_item.get("api", {}).get("incremental_config")
+                if api_inc_cfg and api_inc_cfg.get("enabled") and not api_inc_cfg.get("timestamp_param"):
+                    raise HTTPException(
+                        status_code=status.HTTP_400_BAD_REQUEST,
+                        detail=f"API source '{source_name}' requires a timestamp parameter (e.g., 'since', 'updated_at') for incremental load."
+                    )
+
     # Create new Dataset with estimated size for Spark auto-scaling
     schedule = None
     if dataset.schedule_frequency:
@@ -341,6 +372,37 @@ async def update_dataset(dataset_id: str, dataset_update: DatasetUpdate):
         dataset.dataset_type = dataset_update.dataset_type
     if dataset_update.job_type is not None:
         dataset.job_type = dataset_update.job_type
+
+    # Validate incremental config if schedule is set
+    if dataset.schedule_frequency and dataset.schedule_frequency != "None":
+        # Check if incremental config exists and is enabled
+        if not dataset.incremental_config or not dataset.incremental_config.get("enabled"):
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Scheduled datasets require incremental load to be enabled. Please ensure your source has a timestamp column (updated_at, created_at, etc.)"
+            )
+
+        # Validate timestamp column for RDB/MongoDB sources
+        for source_item in dataset.sources:
+            source_type = source_item.get("type") or source_item.get("source_type")
+            source_name = source_item.get("name", "Unknown")
+
+            if source_type in ["rdb", "mongodb"]:
+                # Check source-level incremental_config first, then dataset-level
+                inc_cfg = source_item.get("incremental_config") or dataset.incremental_config
+                if not inc_cfg or not inc_cfg.get("timestamp_column"):
+                    raise HTTPException(
+                        status_code=status.HTTP_400_BAD_REQUEST,
+                        detail=f"Source '{source_name}' requires a timestamp column for incremental load. No suitable column (updated_at, created_at, etc.) was found."
+                    )
+            elif source_type == "api":
+                # API sources need timestamp_param in incremental_config
+                api_inc_cfg = source_item.get("api", {}).get("incremental_config")
+                if api_inc_cfg and api_inc_cfg.get("enabled") and not api_inc_cfg.get("timestamp_param"):
+                    raise HTTPException(
+                        status_code=status.HTTP_400_BAD_REQUEST,
+                        detail=f"API source '{source_name}' requires a timestamp parameter (e.g., 'since', 'updated_at') for incremental load."
+                    )
 
     dataset.updated_at = datetime.utcnow()
     await dataset.save()
