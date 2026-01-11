@@ -3,6 +3,8 @@ import { useNavigate } from 'react-router-dom';
 import { Search, RefreshCw, Database, Workflow, Loader2, Edit, GitBranch, Info } from 'lucide-react';
 import { useSearch, useTriggerIndexing } from '../../hooks/useOpenSearch';
 
+import { useAuth } from '../../context/AuthContext';
+
 /**
  * 통합 검색 컴포넌트
  * - Domain/ETL Job 검색 (디바운스 적용)
@@ -11,12 +13,13 @@ import { useSearch, useTriggerIndexing } from '../../hooks/useOpenSearch';
  */
 export default function CatalogSearch() {
   const navigate = useNavigate();
+  const { sessionId } = useAuth();
   const [query, setQuery] = useState('');
   const [isOpen, setIsOpen] = useState(false);
   const searchRef = useRef(null);
 
-  // 검색 API 호출 (디바운스 적용)
-  const { results, loading, error } = useSearch(query);
+  // 검색 API 호출 (디바운스 적용) - sessionId 전달
+  const { results, loading, error } = useSearch(query, { sessionId });
 
   // 인덱싱 트리거
   const { trigger: triggerIndexing, loading: indexing } = useTriggerIndexing();

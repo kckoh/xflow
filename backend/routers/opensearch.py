@@ -123,13 +123,42 @@ async def search(
     doc_type: Optional[Literal['dataset']] = Query(None, description="문서 타입 필터"),
     tags: Optional[List[str]] = Query(None, description="태그 필터"),
     limit: int = Query(20, ge=1, le=100, description="결과 개수 제한"),
-    offset: int = Query(0, ge=0, description="페이지네이션 오프셋")
+    offset: int = Query(0, ge=0, description="페이지네이션 오프셋"),
+    session_id: Optional[str] = Query(None, description="세션 ID (권한 필터링용)")
 ):
     """
     Dataset 검색
     이름, 설명으로 검색
     """
     try:
+        from dependencies import sessions
+        
+        # 1. Get user permissions from session
+        # Default restricted if no session (public search might be disabled or restricted)
+        # For now, let's assume if no session, we return nothing or public only?
+        # Safe default: if no session, treat as unauthorized/empty or restrict heavily.
+        # But existing logic didn't check session. 
+        # 1. Get user permissions from session
+        user_session = sessions.get(session_id) if session_id else None
+        
+        accessible_ids = []
+        is_full_access = False
+        
+        if user_session:
+            is_admin = user_session.get("is_admin", False)
+            all_datasets = user_session.get("all_datasets", False)
+            # managers also get full access? consistent with CatalogPage logic: NO. Only admin/all_datasets.
+            # But wait, in CatalogPage I removed can_manage_datasets. 
+            # So here: Admin or All Datasets -> Full Access.
+            
+            if is_admin or all_datasets:
+                is_full_access = True
+            else:
+                accessible_ids = user_session.get("dataset_access", [])
+        
+        # If not full access, and no accessible ids, return empty (unless public?)
+        # For security, strict default: if not full access, filter by ID.
+        
         opensearch = get_opensearch_client()
 
         query = {
@@ -165,6 +194,15 @@ async def search(
                 "filter": []
             }
         }
+
+        # Apply Permission Filter
+        if not is_full_access:
+            if not accessible_ids:
+                # No access to any dataset -> return empty result
+                return DomainSearchResult(total=0, results=[])
+            
+            # Filter by doc_id (which corresponds to dataset id)
+            query["bool"]["filter"].append({"terms": {"doc_id": accessible_ids}})
 
         if doc_type:
             query["bool"]["filter"].append({"term": {"doc_type": doc_type}})
