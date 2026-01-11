@@ -277,8 +277,12 @@ def read_nosql_source(spark: SparkSession, source_config: dict) -> DataFrame:
     Read data from NoSQL databases using appropriate Spark connectors.
     Currently supports: MongoDB
     
-    Preserves nested document structure (structs, arrays).
+    Nested struct fields are flattened with underscore naming (address.city → address_city)
+    to match the Preview behavior and Visual Transform expectations.
     """
+    from pyspark.sql import functions as F
+    from pyspark.sql.types import StructType, ArrayType
+    
     connection = source_config.get("connection", {})
     collection = source_config.get("collection")
     
@@ -309,6 +313,15 @@ def read_nosql_source(spark: SparkSession, source_config: dict) -> DataFrame:
             .option("spark.mongodb.read.database", database) \
             .option("spark.mongodb.read.collection", collection) \
             .load()
+        
+        print(f"   Original schema before flattening:")
+        df.printSchema()
+        
+        # Flatten nested structures to match pandas json_normalize behavior
+        df = flatten_mongodb_schema(df)
+        
+        print(f"   Flattened schema (matches Preview/DuckDB):")
+        df.printSchema()
     
     # Future NoSQL support
     # elif db_type == "dynamodb":
@@ -321,6 +334,71 @@ def read_nosql_source(spark: SparkSession, source_config: dict) -> DataFrame:
         raise ValueError(f"Unsupported NoSQL database type: {db_type}")
 
     return df
+
+
+def flatten_mongodb_schema(df: DataFrame, prefix: str = "", sep: str = "_") -> DataFrame:
+    """
+    Recursively flatten MongoDB schema to match pandas json_normalize behavior.
+    Converts nested structs and arrays to flat columns with underscore naming.
+    
+    Examples:
+    - {"address": {"city": "Seoul"}} → address_city column
+    - {"projects": [{"name": "A"}, {"name": "B"}]} → projects_name: ["A", "B"], projects_budget: [100, 200]
+    
+    Args:
+        df: Input DataFrame
+        prefix: Prefix for column names (used in recursion)
+        sep: Separator for nested field names (default: "_")
+    
+    Returns:
+        Flattened DataFrame
+    """
+    from pyspark.sql import functions as F
+    from pyspark.sql.types import StructType, ArrayType, StructField
+    
+    flattened_cols = []
+    
+    for field in df.schema.fields:
+        col_name = field.name
+        col_type = field.dataType
+        full_name = f"{prefix}{col_name}" if prefix else col_name
+        
+        if isinstance(col_type, StructType):
+            # Struct field: flatten recursively
+            for sub_field in col_type.fields:
+                sub_col_name = sub_field.name
+                flattened_name = f"{full_name}{sep}{sub_col_name}"
+                flattened_cols.append(
+                    F.col(f"`{col_name}`.`{sub_col_name}`").alias(flattened_name)
+                )
+        
+        elif isinstance(col_type, ArrayType):
+            # Array field: check if it's array of structs or primitives
+            element_type = col_type.elementType
+            
+            if isinstance(element_type, StructType):
+                # Array of structs: extract each field as a separate array column
+                # Example: projects: [{"name": "A", "budget": 100}] 
+                # → projects_name: ["A"], projects_budget: [100]
+                for struct_field in element_type.fields:
+                    field_name = struct_field.name
+                    flattened_name = f"{full_name}{sep}{field_name}"
+                    # Use transform to extract specific field from each array element
+                    flattened_cols.append(
+                        F.transform(
+                            F.col(f"`{col_name}`"),
+                            lambda x: x[field_name]
+                        ).alias(flattened_name)
+                    )
+            else:
+                # Array of primitives: keep as-is
+                flattened_cols.append(F.col(f"`{col_name}`").alias(full_name))
+        
+        else:
+            # Primitive field: keep as-is
+            flattened_cols.append(F.col(f"`{col_name}`").alias(full_name))
+    
+    return df.select(*flattened_cols)
 
 
 def parse_log_files_with_regex(spark: SparkSession, s3_path: str, custom_regex: str) -> DataFrame:

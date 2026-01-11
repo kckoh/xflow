@@ -94,19 +94,39 @@ async def test_sql_query(request: SQLTestRequest):
         # Convert any non-serializable types for sample_rows
         for row in sample_rows:
             for key, value in row.items():
-                if pd.isna(value):
+                # Handle nested structures (MongoDB arrays/objects) and numpy arrays
+                if isinstance(value, (list, dict)) or (hasattr(value, '__iter__') and not isinstance(value, (str, bytes))):
+                    row[key] = str(value)  # Convert to string for JSON serialization
+                elif value is None:
                     row[key] = None
-                elif isinstance(value, (pd.Timestamp, pd.DatetimeTZDtype)):
-                    row[key] = str(value)
+                elif not isinstance(value, (list, dict, type(None))):
+                    try:
+                        if pd.isna(value):
+                            row[key] = None
+                        elif isinstance(value, (pd.Timestamp, pd.DatetimeTZDtype)):
+                            row[key] = str(value)
+                    except (ValueError, TypeError):
+                        # If pd.isna fails, just convert to string
+                        row[key] = str(value)
 
         # Get before rows (combined source sample) - limit to same number as requested
         before_rows = sample_df.head(limit).to_dict('records')
         for row in before_rows:
             for key, value in row.items():
-                if pd.isna(value):
-                    row[key] = None
-                elif isinstance(value, (pd.Timestamp, pd.DatetimeTZDtype)):
-                    row[key] = str(value)
+                # Handle nested structures (MongoDB arrays/objects) and numpy arrays
+                if isinstance(value, (list, dict)) or (hasattr(value, '__iter__') and not isinstance(value, (str, bytes))):
+                    row[key] = str(value)  # Convert to string for JSON serialization
+                elif value is None:
+                   row[key] = None
+                elif not isinstance(value, (list, dict, type(None))):
+                    try:
+                        if pd.isna(value):
+                            row[key] = None
+                        elif isinstance(value, (pd.Timestamp, pd.DatetimeTZDtype)):
+                            row[key] = str(value)
+                    except (ValueError, TypeError):
+                        # If pd.isna fails, just convert to string
+                        row[key] = str(value)
         
         execution_time = int((time.time() - start_time) * 1000)
         
@@ -191,10 +211,20 @@ async def _load_and_union_sources(
         source_sample_rows = df_original.head(5).to_dict('records')
         for row in source_sample_rows:
             for key, value in row.items():
-                if pd.isna(value):
+                # Handle nested structures (MongoDB arrays/objects) and numpy arrays
+                if isinstance(value, (list, dict)) or (hasattr(value, '__iter__') and not isinstance(value, (str, bytes))):
+                    row[key] = str(value)  # Convert to string for JSON serialization
+                elif value is None:
                     row[key] = None
-                elif isinstance(value, (pd.Timestamp, pd.DatetimeTZDtype)):
-                    row[key] = str(value)
+                elif not isinstance(value, (list, dict, type(None))):
+                    try:
+                        if pd.isna(value):
+                            row[key] = None
+                        elif isinstance(value, (pd.Timestamp, pd.DatetimeTZDtype)):
+                            row[key] = str(value)
+                    except (ValueError, TypeError):
+                        # If pd.isna fails, just convert to string
+                        row[key] = str(value)
         
         source_samples.append({
             "source_name": source_dataset.get("name", "Unknown Source"),
@@ -279,6 +309,7 @@ async def _load_sample_data(
     elif source_type == 'mongodb':
         # MongoDB
         from pymongo import MongoClient
+        import json
         
         client = MongoClient(config.get('uri'))
         db = client[config.get('database')]
@@ -287,12 +318,33 @@ async def _load_sample_data(
         # Get documents
         data = list(collection.find().limit(limit))
         
-        # Convert to DataFrame
-        df = pd.DataFrame(data)
+        # Flatten nested documents using json_normalize
+        # This converts nested objects into flat columns
+        # Example: {"address": {"city": "Seoul"}} -> address_city column
+        df = pd.json_normalize(data, sep='_')
         
         # Remove MongoDB _id if present
         if '_id' in df.columns:
             df = df.drop('_id', axis=1)
+        
+        # Process array of objects columns: extract each field as a separate array column
+        # Example: projects: [{"name": "A", "budget": 100}] 
+        # → projects_name: ["A"], projects_budget: [100]
+        for col in df.columns:
+            # Check if column contains array of dicts
+            if df[col].dtype == 'object':
+                sample_val = df[col].dropna().iloc[0] if len(df[col].dropna()) > 0 else None
+                if sample_val is not None and isinstance(sample_val, list) and len(sample_val) > 0 and isinstance(sample_val[0], dict):
+                    # This is an array of objects - extract each field
+                    first_item = sample_val[0]
+                    for field_name in first_item.keys():
+                        new_col_name = f"{col}_{field_name}"
+                        # Extract the field from each dict in the array
+                        df[new_col_name] = df[col].apply(
+                            lambda x: [item.get(field_name) for item in x] if isinstance(x, list) else None
+                        )
+                    # Drop the original column
+                    df = df.drop(col, axis=1)
         
         client.close()
         
