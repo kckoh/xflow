@@ -19,6 +19,39 @@ from schemas.sql_test import (
 router = APIRouter()
 
 
+# ============================================================================
+# Helper Functions for JSON Serialization
+# ============================================================================
+
+def _is_complex_iterable(value) -> bool:
+    """Check if value is a complex iterable (list, dict, numpy array) but not string/bytes"""
+    return isinstance(value, (list, dict)) or (
+        hasattr(value, '__iter__') and not isinstance(value, (str, bytes))
+    )
+
+
+def _serialize_rows_for_json(rows: List[dict]) -> List[dict]:
+    """
+    Serialize row dicts for JSON response.
+    Converts complex iterables to string, handles None, NaN, and Timestamps.
+    """
+    for row in rows:
+        for key, value in row.items():
+            if _is_complex_iterable(value):
+                row[key] = str(value)
+            elif value is None:
+                row[key] = None
+            elif not isinstance(value, (list, dict, type(None))):
+                try:
+                    if pd.isna(value):
+                        row[key] = None
+                    elif isinstance(value, (pd.Timestamp, pd.DatetimeTZDtype)):
+                        row[key] = str(value)
+                except (ValueError, TypeError):
+                    row[key] = str(value)
+    return rows
+
+
 @router.post("/test", response_model=SQLTestResponse)
 async def test_sql_query(request: SQLTestRequest):
     """
@@ -88,45 +121,13 @@ async def test_sql_query(request: SQLTestRequest):
                 nullable=result_df[col].isnull().any()
             ))
         
-        # Get sample rows
+        # Get sample rows and serialize for JSON
         sample_rows = result_df.to_dict('records')
-        
-        # Convert any non-serializable types for sample_rows
-        for row in sample_rows:
-            for key, value in row.items():
-                # Handle nested structures (MongoDB arrays/objects) and numpy arrays
-                if isinstance(value, (list, dict)) or (hasattr(value, '__iter__') and not isinstance(value, (str, bytes))):
-                    row[key] = str(value)  # Convert to string for JSON serialization
-                elif value is None:
-                    row[key] = None
-                elif not isinstance(value, (list, dict, type(None))):
-                    try:
-                        if pd.isna(value):
-                            row[key] = None
-                        elif isinstance(value, (pd.Timestamp, pd.DatetimeTZDtype)):
-                            row[key] = str(value)
-                    except (ValueError, TypeError):
-                        # If pd.isna fails, just convert to string
-                        row[key] = str(value)
+        _serialize_rows_for_json(sample_rows)
 
         # Get before rows (combined source sample) - limit to same number as requested
         before_rows = sample_df.head(limit).to_dict('records')
-        for row in before_rows:
-            for key, value in row.items():
-                # Handle nested structures (MongoDB arrays/objects) and numpy arrays
-                if isinstance(value, (list, dict)) or (hasattr(value, '__iter__') and not isinstance(value, (str, bytes))):
-                    row[key] = str(value)  # Convert to string for JSON serialization
-                elif value is None:
-                   row[key] = None
-                elif not isinstance(value, (list, dict, type(None))):
-                    try:
-                        if pd.isna(value):
-                            row[key] = None
-                        elif isinstance(value, (pd.Timestamp, pd.DatetimeTZDtype)):
-                            row[key] = str(value)
-                    except (ValueError, TypeError):
-                        # If pd.isna fails, just convert to string
-                        row[key] = str(value)
+        _serialize_rows_for_json(before_rows)
         
         execution_time = int((time.time() - start_time) * 1000)
         
@@ -209,22 +210,7 @@ async def _load_and_union_sources(
         
         # Store individual source sample (before adding NULL columns)
         source_sample_rows = df_original.head(5).to_dict('records')
-        for row in source_sample_rows:
-            for key, value in row.items():
-                # Handle nested structures (MongoDB arrays/objects) and numpy arrays
-                if isinstance(value, (list, dict)) or (hasattr(value, '__iter__') and not isinstance(value, (str, bytes))):
-                    row[key] = str(value)  # Convert to string for JSON serialization
-                elif value is None:
-                    row[key] = None
-                elif not isinstance(value, (list, dict, type(None))):
-                    try:
-                        if pd.isna(value):
-                            row[key] = None
-                        elif isinstance(value, (pd.Timestamp, pd.DatetimeTZDtype)):
-                            row[key] = str(value)
-                    except (ValueError, TypeError):
-                        # If pd.isna fails, just convert to string
-                        row[key] = str(value)
+        _serialize_rows_for_json(source_sample_rows)
         
         source_samples.append({
             "source_name": source_dataset.get("name", "Unknown Source"),
