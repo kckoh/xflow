@@ -516,6 +516,11 @@ export default function SourceWizard() {
           return false;
         }
 
+        // MongoDB-specific validation
+        if (selectedSource?.id === "mongodb") {
+          return config.collection.trim() !== "";
+        }
+
         // API-specific validation
         if (selectedSource?.id === "api") {
           return config.endpoint.trim() !== "";
@@ -837,17 +842,13 @@ export default function SourceWizard() {
                   </div>
                 )}
 
-                {/* MongoDB - Collection selection */}
                 {selectedSource?.id === "mongodb" && (
                   <MongoDBSourceConfig
                     connectionId={config.connectionId}
                     collection={config.collection}
                     columns={config.columns}
-                    onCollectionChange={(collectionName) => {
-                      setConfig({ ...config, collection: collectionName });
-                    }}
-                    onColumnsUpdate={(columns) => {
-                      setConfig({ ...config, columns });
+                    onChange={(updates) => {
+                      setConfig((prev) => ({ ...prev, ...updates }));
                     }}
                   />
                 )}
@@ -1142,10 +1143,10 @@ export default function SourceWizard() {
                               {config.pagination?.type === "none"
                                 ? "No Pagination"
                                 : config.pagination?.type === "offset_limit"
-                                ? "Offset/Limit"
-                                : config.pagination?.type === "page"
-                                ? "Page Number"
-                                : "Cursor-based"}
+                                  ? "Offset/Limit"
+                                  : config.pagination?.type === "page"
+                                    ? "Page Number"
+                                    : "Cursor-based"}
                             </p>
                           </div>
                           {config.responsePath && (
