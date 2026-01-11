@@ -432,6 +432,7 @@ export default function UserCreateForm({ editingUser, onUserCreated, onCancel })
         confirmPassword: "",
         name: "",
         etlAccess: false,
+        domainEditAccess: false,
         datasetAccess: [], // array of dataset IDs
         allDatasets: false,
     });
@@ -467,6 +468,7 @@ export default function UserCreateForm({ editingUser, onUserCreated, onCancel })
                 confirmPassword: "",
                 name: editingUser.name || "",
                 etlAccess: editingUser.etl_access || editingUser.etlAccess || false,
+                domainEditAccess: editingUser.domain_edit_access || editingUser.domainEditAccess || false,
                 datasetAccess: editingUser.dataset_access || editingUser.datasetAccess || [],
                 allDatasets: editingUser.all_datasets || editingUser.allDatasets || false,
             });
@@ -479,6 +481,7 @@ export default function UserCreateForm({ editingUser, onUserCreated, onCancel })
                 confirmPassword: "",
                 name: "",
                 etlAccess: false,
+                domainEditAccess: false,
                 datasetAccess: [],
                 allDatasets: false,
             });
@@ -526,6 +529,7 @@ export default function UserCreateForm({ editingUser, onUserCreated, onCancel })
                 name: formData.name,
                 is_admin: false,
                 etl_access: formData.etlAccess,
+                domain_edit_access: formData.domainEditAccess,
                 dataset_access: formData.allDatasets ? [] : formData.datasetAccess,
                 all_datasets: formData.allDatasets,
             };
@@ -554,6 +558,7 @@ export default function UserCreateForm({ editingUser, onUserCreated, onCancel })
                     confirmPassword: "",
                     name: "",
                     etlAccess: false,
+                    domainEditAccess: false,
                     datasetAccess: [],
                     allDatasets: false,
                 });
@@ -713,6 +718,16 @@ export default function UserCreateForm({ editingUser, onUserCreated, onCancel })
                                 }
                                 label="ETL Management"
                                 description="Access to create, edit, and manage ETL pipelines"
+                            />
+
+                            {/* Domain Edit Access Toggle */}
+                            <Toggle
+                                checked={formData.domainEditAccess}
+                                onChange={(value) =>
+                                    setFormData((prev) => ({ ...prev, domainEditAccess: value }))
+                                }
+                                label="Domain Edit"
+                                description="Access to edit domain metadata and descriptions"
                             />
 
                             {/* Dataset Access */}

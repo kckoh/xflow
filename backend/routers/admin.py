@@ -5,7 +5,7 @@ All endpoints require admin authentication
 from datetime import datetime
 from typing import List
 
-from fastapi import APIRouter, HTTPException, status, Depends
+from fastapi import APIRouter, HTTPException, status
 from models import User
 from schemas.user import UserCreateAdmin, UserUpdateAdmin, UserResponseAdmin
 from dependencies import sessions
@@ -13,8 +13,8 @@ from dependencies import sessions
 router = APIRouter()
 
 
-# Dependency to require admin access
-async def require_admin(session_id: str):
+# Helper function to check admin access
+def check_admin(session_id: str):
     """Check if the current user is an admin"""
     if session_id not in sessions:
         raise HTTPException(
@@ -33,8 +33,9 @@ async def require_admin(session_id: str):
 
 
 @router.get("/users", response_model=List[UserResponseAdmin])
-async def get_users(admin: dict = Depends(require_admin)):
+async def get_users(session_id: str):
     """Get all users (admin only)"""
+    check_admin(session_id)
     users = await User.find_all().to_list()
     
     return [
@@ -54,8 +55,9 @@ async def get_users(admin: dict = Depends(require_admin)):
 
 
 @router.post("/users", response_model=UserResponseAdmin, status_code=status.HTTP_201_CREATED)
-async def create_user(user_data: UserCreateAdmin, admin: dict = Depends(require_admin)):
+async def create_user(user_data: UserCreateAdmin, session_id: str):
     """Create a new user (admin only)"""
+    check_admin(session_id)
     # Check if email already exists
     existing = await User.find_one(User.email == user_data.email)
     if existing:
@@ -94,8 +96,9 @@ async def create_user(user_data: UserCreateAdmin, admin: dict = Depends(require_
 
 
 @router.put("/users/{user_id}", response_model=UserResponseAdmin)
-async def update_user(user_id: str, user_data: UserUpdateAdmin, admin: dict = Depends(require_admin)):
+async def update_user(user_id: str, user_data: UserUpdateAdmin, session_id: str):
     """Update a user (admin only)"""
+    check_admin(session_id)
     from bson import ObjectId
     
     # Find user
@@ -139,8 +142,9 @@ async def update_user(user_id: str, user_data: UserUpdateAdmin, admin: dict = De
 
 
 @router.delete("/users/{user_id}", status_code=status.HTTP_204_NO_CONTENT)
-async def delete_user(user_id: str, admin: dict = Depends(require_admin)):
+async def delete_user(user_id: str, session_id: str):
     """Delete a user (admin only)"""
+    admin = check_admin(session_id)
     from bson import ObjectId
     
     # Find user

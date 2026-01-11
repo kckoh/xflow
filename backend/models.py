@@ -12,7 +12,7 @@ class User(Document):
     """
 
     email: str = Field(..., unique=True, index=True)
-    password: str
+    password: Optional[str] = None
     name: Optional[str] = None
 
     # Permission fields
