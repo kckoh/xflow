@@ -11,6 +11,11 @@ const QUERY_STORAGE_KEY = 'sqllab_current_query';
 const RESULTS_STORAGE_KEY = 'sqllab_last_results';
 const ENGINE_STORAGE_KEY = 'sqllab_query_engine';
 
+const ENGINE_PLACEHOLDERS = {
+    duckdb: "Enter your SQL query here...\nExample: SELECT * FROM read_parquet('s3://bucket/path/*.parquet') LIMIT 10",
+    trino: "Enter your SQL query here...\nExample: SELECT * FROM lakehouse.default.my_table LIMIT 10"
+};
+
 export default function SqlLabPage() {
     const navigate = useNavigate();
     const location = useLocation();
@@ -165,6 +170,7 @@ export default function SqlLabPage() {
                 results={results}
                 viewMode={viewMode}
                 setViewMode={setViewMode}
+                engine={engine}
             />
 
             {/* Main SQL Lab Area */}
@@ -201,7 +207,7 @@ export default function SqlLabPage() {
                         <textarea
                             value={query}
                             onChange={(e) => setQuery(e.target.value)}
-                            placeholder="Enter your SQL query here...&#10;Example: SELECT * FROM orders"
+                            placeholder={ENGINE_PLACEHOLDERS[engine]}
                             className="w-full h-32 px-4 py-3 pb-12 border border-gray-300 rounded-lg font-mono text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none resize-none"
                         />
 
