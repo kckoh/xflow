@@ -2,6 +2,7 @@ import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { Search, RefreshCw, GitBranch, Calendar, X, Clock, Zap, Play, Copy, Check } from "lucide-react";
 import { API_BASE_URL } from "../../config/api";
+import { useAuth } from "../../context/AuthContext";
 import SchedulesPanel from "../../components/etl/SchedulesPanel";
 import { useToast } from "../../components/common/Toast/ToastContext";
 
@@ -194,8 +195,19 @@ export default function JobsPage() {
   const [scheduleModal, setScheduleModal] = useState({ isOpen: false, job: null });
   const [copiedId, setCopiedId] = useState(null);
   const { showToast } = useToast();
-  const navigate = useNavigate();
 
+  const navigate = useNavigate();
+  const { user } = useAuth(); // Get user context for permissions
+
+  // Permission helpers
+  const canManageDatasets = user?.can_manage_datasets || user?.is_admin || false;
+  const canAccessAllDatasets = user?.all_datasets || user?.is_admin || false;
+  const accessibleDatasetIds = user?.dataset_access || [];
+
+  const canRunETL = (jobId) => {
+    if (canManageDatasets || canAccessAllDatasets) return true;
+    return accessibleDatasetIds.includes(jobId);
+  };
   useEffect(() => {
     fetchJobs();
   }, []);
@@ -209,7 +221,13 @@ export default function JobsPage() {
       if (response.ok) {
         const data = await response.json();
         // Filter only target datasets
-        const targetJobs = data.filter(job => job.dataset_type === "target");
+        let targetJobs = data.filter(job => job.dataset_type === "target");
+
+        // Filter based on user permissions
+        if (!canAccessAllDatasets) {
+          targetJobs = targetJobs.filter(job => accessibleDatasetIds.includes(job.id));
+        }
+
         // Sort by updated_at descending (newest first)
         const sortedJobs = targetJobs.sort(
           (a, b) => new Date(b.updated_at) - new Date(a.updated_at)
@@ -526,9 +544,14 @@ export default function JobsPage() {
                       <button
                         onClick={(e) => {
                           e.stopPropagation();
-                          handleToggle(job.id);
+                          if (canRunETL(job.id)) {
+                            handleToggle(job.id);
+                          } else {
+                            showToast("Permission denied", "error");
+                          }
                         }}
-                        className={`relative inline-flex h-5 w-9 flex-shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none ${job.is_active ? "bg-green-500" : "bg-gray-300"}`}
+                        className={`relative inline-flex h-5 w-9 flex-shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none ${!canRunETL(job.id) ? "opacity-50 cursor-not-allowed bg-gray-300" : job.is_active ? "bg-green-500" : "bg-gray-300"}`}
+                        disabled={!canRunETL(job.id)}
                       >
                         <span
                           className={`pointer-events-none inline-block h-4 w-4 transform rounded-full bg-white shadow ring-0 transition duration-200 ease-in-out ${job.is_active ? "translate-x-4" : "translate-x-0"}`}

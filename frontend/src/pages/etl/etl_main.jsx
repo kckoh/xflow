@@ -10,6 +10,7 @@ import ConfirmationModal from "../../components/common/ConfirmationModal";
 import CreateDatasetModal from "../../components/etl/CreateDatasetModal";
 import TargetImportModal from "../../components/etl/TargetImportModal";
 import { useToast } from "../../components/common/Toast";
+import { useAuth } from "../../context/AuthContext";
 import { API_BASE_URL } from "../../config/api";
 const ITEMS_PER_PAGE = 10;
 
@@ -29,9 +30,45 @@ export default function ETLMain() {
   const location = useLocation();
   const [searchParams, setSearchParams] = useSearchParams();
   const { showToast } = useToast();
+  const { user } = useAuth();
 
-  // Filter jobs by search query
-  const filteredJobs = jobs.filter(
+  // Check if user has permission to manage datasets
+  const canManageDatasets = user?.can_manage_datasets || user?.is_admin || false;
+  const canAccessAllDatasets = user?.all_datasets || user?.is_admin || false;
+  const accessibleDatasetIds = user?.dataset_access || [];
+
+  // Filter jobs by user's dataset access permissions
+  const accessibleJobs = jobs.filter((job) => {
+    // Admin or users with all_datasets can see everything
+    if (canAccessAllDatasets) return true;
+    // Users with dataset access can only see their permitted datasets
+    return accessibleDatasetIds.includes(job.id);
+  });
+
+
+
+
+  // Check if user can edit a specific dataset
+  const canEditDataset = (datasetId) => {
+    // Admin or all_datasets can edit everything
+    if (canManageDatasets || canAccessAllDatasets) return true;
+    // Users can edit datasets in their access list
+    return accessibleDatasetIds.includes(datasetId);
+  };
+
+  // Check if user can delete a specific dataset
+  const canDeleteDataset = (datasetId) => {
+    // Admin or can_manage_datasets can delete everything
+    if (canManageDatasets) return true;
+    // Users can delete datasets they have access to
+    return accessibleDatasetIds.includes(datasetId);
+  };
+
+  // Check if Action column should be shown (if user can delete at least one dataset)
+  const showActionColumn = canManageDatasets || accessibleDatasetIds.length > 0;
+
+  // Filter jobs by search query (from accessible jobs)
+  const filteredJobs = accessibleJobs.filter(
     (job) =>
       job.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
       (job.description &&
@@ -145,13 +182,15 @@ export default function ETLMain() {
       {/* Header with Create Button */}
       <div className="flex items-center justify-between mb-6">
         <h1 className="text-2xl font-bold text-gray-900">Dataset</h1>
-        <button
-          onClick={() => setShowCreateModal(true)}
-          className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
-        >
-          <Plus className="w-4 h-4" />
-          Create Dataset
-        </button>
+        {canManageDatasets && (
+          <button
+            onClick={() => setShowCreateModal(true)}
+            className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
+          >
+            <Plus className="w-4 h-4" />
+            Create Dataset
+          </button>
+        )}
       </div>
 
       {/* Datasets Table */}
@@ -219,17 +258,26 @@ export default function ETLMain() {
                   <th className="w-[16%] px-3 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                     Last modified
                   </th>
-                  <th className="w-[6%] px-3 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                    Action
-                  </th>
+                  {showActionColumn && (
+                    <th className="w-[6%] px-3 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                      Action
+                    </th>
+                  )}
                 </tr>
               </thead>
               <tbody className="bg-white divide-y divide-gray-200">
                 {currentJobs.map((job) => (
                   <tr key={job.id} className="hover:bg-gray-50">
                     <td
-                      className="px-3 py-3 text-sm font-medium text-blue-600 hover:underline cursor-pointer truncate"
+                      className={`px-3 py-3 text-sm font-medium truncate ${canEditDataset(job.id)
+                        ? "text-blue-600 hover:underline cursor-pointer"
+                        : "text-gray-500 cursor-not-allowed"
+                        }`}
                       onClick={() => {
+                        if (!canEditDataset(job.id)) {
+                          showToast("You don't have permission to edit this dataset", "error");
+                          return;
+                        }
                         const datasetType = job.dataset_type || "source";
                         if (datasetType === "target") {
                           navigate(`/target`, { state: { jobId: job.id, editMode: true } });
@@ -237,6 +285,7 @@ export default function ETLMain() {
                           navigate(`/source`, { state: { jobId: job.id, editMode: true } });
                         }
                       }}
+                      title={canEditDataset(job.id) ? "Click to edit" : "No edit permission"}
                     >
                       {job.name}
                     </td>
@@ -245,22 +294,20 @@ export default function ETLMain() {
                     </td>
                     <td className="px-3 py-3 text-sm">
                       <span
-                        className={`px-2 py-1 text-xs font-semibold rounded-full ${
-                          (job.dataset_type || "source") === "source"
-                            ? "bg-emerald-100 text-emerald-800"
-                            : "bg-orange-100 text-orange-800"
-                        }`}
+                        className={`px-2 py-1 text-xs font-semibold rounded-full ${(job.dataset_type || "source") === "source"
+                          ? "bg-emerald-100 text-emerald-800"
+                          : "bg-orange-100 text-orange-800"
+                          }`}
                       >
                         {(job.dataset_type || "source") === "source" ? "Source" : "Target"}
                       </span>
                     </td>
                     <td className="px-3 py-3 text-sm">
                       <span
-                        className={`px-2 py-1 text-xs font-semibold rounded-full ${
-                          job.is_active
-                            ? "bg-green-100 text-green-800"
-                            : "bg-gray-100 text-gray-600"
-                        }`}
+                        className={`px-2 py-1 text-xs font-semibold rounded-full ${job.is_active
+                          ? "bg-green-100 text-green-800"
+                          : "bg-gray-100 text-gray-600"
+                          }`}
                       >
                         {job.is_active ? "Active" : "Inactive"}
                       </span>
@@ -287,18 +334,22 @@ export default function ETLMain() {
                     <td className="px-3 py-3 text-sm text-gray-500 truncate">
                       {new Date(job.updated_at).toLocaleString()}
                     </td>
-                    <td className="px-3 py-3 text-sm text-gray-900">
-                      <button
-                        className="text-red-600 hover:text-red-800 transition-colors"
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          openDeleteModal(job.id, job.name, job.dataset_type);
-                        }}
-                        title="Delete"
-                      >
-                        <Trash2 className="w-4 h-4" />
-                      </button>
-                    </td>
+                    {showActionColumn && (
+                      <td className="px-3 py-3 text-sm text-gray-900">
+                        {canDeleteDataset(job.id) && (
+                          <button
+                            className="text-red-600 hover:text-red-800 transition-colors"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              openDeleteModal(job.id, job.name, job.dataset_type);
+                            }}
+                            title="Delete"
+                          >
+                            <Trash2 className="w-4 h-4" />
+                          </button>
+                        )}
+                      </td>
+                    )}
                   </tr>
                 ))}
               </tbody>

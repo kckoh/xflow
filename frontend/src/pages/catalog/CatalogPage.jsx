@@ -13,11 +13,13 @@ import {
 } from "lucide-react";
 import { API_BASE_URL } from "../../config/api";
 import { formatFileSize } from "../../utils/formatters";
+import { useAuth } from "../../context/AuthContext";
 
 
 
 export default function CatalogPage() {
   const navigate = useNavigate();
+  const { user } = useAuth();
   const [catalog, setCatalog] = useState([]);
   const [searchQuery, setSearchQuery] = useState("");
   const [isLoading, setIsLoading] = useState(true);
@@ -62,7 +64,15 @@ export default function CatalogPage() {
 
     const matchesTag = !selectedTag || item.tags?.includes(selectedTag);
 
-    return matchesSearch && matchesTag;
+    // Permission Check:
+    // 1. Admin, All Datasets -> Access everything
+    // 2. Others -> Only access items in their dataset_access list
+    const hasPermission =
+      user?.is_admin ||
+      user?.all_datasets ||
+      (user?.dataset_access || []).includes(item.id);
+
+    return matchesSearch && matchesTag && hasPermission;
   });
 
   const formatNumber = (num) => {
