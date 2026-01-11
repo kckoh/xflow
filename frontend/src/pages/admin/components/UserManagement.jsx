@@ -17,17 +17,35 @@ function AccessBadge({ hasAccess }) {
     );
 }
 
-function DatasetBadge({ datasetAccess, allDatasets }) {
-    if (allDatasets) {
-        return (
-            <span className="text-sm text-blue-600 font-medium">All Datasets</span>
-        );
+function PermissionBadges({ user }) {
+    const permissions = [];
+
+    if (user.can_manage_datasets) permissions.push({ label: 'Datasets & ETL', color: 'purple' });
+
+    if (user.can_run_query) permissions.push({ label: 'Query', color: 'cyan' });
+
+    if (permissions.length === 0) {
+        return <span className="text-sm text-gray-400">No permissions</span>;
     }
-    if (!datasetAccess || datasetAccess.length === 0) {
-        return <span className="text-sm text-gray-400">None</span>;
-    }
+
+    const colorClasses = {
+        purple: 'bg-purple-100 text-purple-700',
+        green: 'bg-green-100 text-green-700',
+        cyan: 'bg-cyan-100 text-cyan-700',
+        pink: 'bg-pink-100 text-pink-700',
+    };
+
     return (
-        <span className="text-sm text-gray-600">{datasetAccess.length} dataset(s)</span>
+        <div className="flex flex-wrap gap-1">
+            {permissions.map((perm) => (
+                <span
+                    key={perm.label}
+                    className={`inline-flex items-center px-2 py-0.5 text-xs font-medium rounded-full ${colorClasses[perm.color]}`}
+                >
+                    {perm.label}
+                </span>
+            ))}
+        </div>
     );
 }
 
@@ -124,13 +142,10 @@ export default function UserManagement({ onEditUser }) {
                                 User
                             </th>
                             <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                                ETL
-                            </th>
-                            <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                                Domain Edit
-                            </th>
-                            <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                                 Datasets
+                            </th>
+                            <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                                Permissions
                             </th>
                             <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                                 Created
@@ -157,16 +172,16 @@ export default function UserManagement({ onEditUser }) {
                                     </div>
                                 </td>
                                 <td className="px-4 py-3">
-                                    <AccessBadge hasAccess={user.etl_access} />
+                                    {user.all_datasets ? (
+                                        <span className="text-sm text-blue-600 font-medium">All Datasets</span>
+                                    ) : user.dataset_access?.length > 0 ? (
+                                        <span className="text-sm text-gray-600">{user.dataset_access.length} dataset(s)</span>
+                                    ) : (
+                                        <span className="text-sm text-gray-400">None</span>
+                                    )}
                                 </td>
                                 <td className="px-4 py-3">
-                                    <AccessBadge hasAccess={user.domain_edit_access} />
-                                </td>
-                                <td className="px-4 py-3">
-                                    <DatasetBadge
-                                        datasetAccess={user.dataset_access}
-                                        allDatasets={user.all_datasets}
-                                    />
+                                    <PermissionBadges user={user} />
                                 </td>
                                 <td className="px-4 py-3">
                                     <span className="text-sm text-gray-500">

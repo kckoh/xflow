@@ -431,10 +431,10 @@ export default function UserCreateForm({ editingUser, onUserCreated, onCancel })
         password: "",
         confirmPassword: "",
         name: "",
-        etlAccess: false,
-        domainEditAccess: false,
-        datasetAccess: [], // array of dataset IDs
+        datasetAccess: [],
         allDatasets: false,
+        canManageDatasets: false,
+        canRunQuery: true,
     });
     const [errors, setErrors] = useState({});
     const [successMessage, setSuccessMessage] = useState("");
@@ -467,10 +467,10 @@ export default function UserCreateForm({ editingUser, onUserCreated, onCancel })
                 password: "",
                 confirmPassword: "",
                 name: editingUser.name || "",
-                etlAccess: editingUser.etl_access || editingUser.etlAccess || false,
-                domainEditAccess: editingUser.domain_edit_access || editingUser.domainEditAccess || false,
                 datasetAccess: editingUser.dataset_access || editingUser.datasetAccess || [],
                 allDatasets: editingUser.all_datasets || editingUser.allDatasets || false,
+                canManageDatasets: editingUser.can_manage_datasets || editingUser.canManageDatasets || false,
+                canRunQuery: editingUser.can_run_query ?? editingUser.canRunQuery ?? true,
             });
             setErrors({});
             setSuccessMessage("");
@@ -480,10 +480,10 @@ export default function UserCreateForm({ editingUser, onUserCreated, onCancel })
                 password: "",
                 confirmPassword: "",
                 name: "",
-                etlAccess: false,
-                domainEditAccess: false,
                 datasetAccess: [],
                 allDatasets: false,
+                canManageDatasets: false,
+                canRunQuery: true,
             });
             setErrors({});
             setSuccessMessage("");
@@ -528,10 +528,10 @@ export default function UserCreateForm({ editingUser, onUserCreated, onCancel })
                 email: formData.email,
                 name: formData.name,
                 is_admin: false,
-                etl_access: formData.etlAccess,
-                domain_edit_access: formData.domainEditAccess,
                 dataset_access: formData.allDatasets ? [] : formData.datasetAccess,
                 all_datasets: formData.allDatasets,
+                can_manage_datasets: formData.canManageDatasets,
+                can_run_query: formData.canRunQuery,
             };
 
             // Only include password if provided
@@ -557,10 +557,10 @@ export default function UserCreateForm({ editingUser, onUserCreated, onCancel })
                     password: "",
                     confirmPassword: "",
                     name: "",
-                    etlAccess: false,
-                    domainEditAccess: false,
                     datasetAccess: [],
                     allDatasets: false,
+                    canManageDatasets: false,
+                    canRunQuery: true,
                 });
                 setSuccessMessage("User created successfully!");
                 setTimeout(() => setSuccessMessage(""), 3000);
@@ -700,82 +700,101 @@ export default function UserCreateForm({ editingUser, onUserCreated, onCancel })
                     {/* Divider */}
                     <hr className="border-gray-200" />
 
-                    {/* Catalog Management */}
+                    {/* Dataset Access */}
                     <div>
                         <h3 className="text-sm font-semibold text-gray-900 mb-1">
-                            Catalog Management
+                            Dataset Access
                         </h3>
                         <p className="text-xs text-gray-500 mb-4">
-                            Configure access to catalog features
+                            Select which datasets this user can access
                         </p>
 
-                        <div className="space-y-4">
-                            {/* ETL Access Toggle */}
-                            <Toggle
-                                checked={formData.etlAccess}
-                                onChange={(value) =>
-                                    setFormData((prev) => ({ ...prev, etlAccess: value }))
-                                }
-                                label="ETL Management"
-                                description="Access to create, edit, and manage ETL pipelines"
-                            />
-
-                            {/* Domain Edit Access Toggle */}
-                            <Toggle
-                                checked={formData.domainEditAccess}
-                                onChange={(value) =>
-                                    setFormData((prev) => ({ ...prev, domainEditAccess: value }))
-                                }
-                                label="Domain Edit"
-                                description="Access to edit domain metadata and descriptions"
-                            />
-
-                            {/* Dataset Access */}
-                            <div className="p-4 border border-gray-200 rounded-lg">
-                                <div className="flex items-center justify-between mb-3">
-                                    <div>
-                                        <h4 className="text-sm font-medium text-gray-900">
-                                            Dataset Access
-                                        </h4>
-                                        <p className="text-xs text-gray-500">
-                                            Select which datasets this user can access
-                                        </p>
-                                    </div>
-                                    <label className="flex items-center gap-2 cursor-pointer">
-                                        <input
-                                            type="checkbox"
-                                            checked={formData.allDatasets}
-                                            onChange={(e) =>
-                                                setFormData((prev) => ({
-                                                    ...prev,
-                                                    allDatasets: e.target.checked,
-                                                    datasetAccess: [],
-                                                }))
-                                            }
-                                            className="w-4 h-4 text-blue-600 rounded border-gray-300 focus:ring-blue-500"
-                                        />
-                                        <span className="text-sm text-gray-700">All datasets</span>
-                                    </label>
-                                </div>
-
-                                {!formData.allDatasets && (
-                                    <DatasetPermissionSelector
-                                        datasets={datasets}
-                                        selectedDatasets={formData.datasetAccess}
-                                        onChange={(selected) =>
+                        <div className="p-4 border border-gray-200 rounded-lg">
+                            <div className="flex items-center justify-between mb-3">
+                                <label className="flex items-center gap-2 cursor-pointer">
+                                    <input
+                                        type="checkbox"
+                                        checked={formData.allDatasets}
+                                        onChange={(e) =>
                                             setFormData((prev) => ({
                                                 ...prev,
-                                                datasetAccess: selected,
+                                                allDatasets: e.target.checked,
+                                                datasetAccess: [],
                                             }))
                                         }
+                                        className="w-4 h-4 text-blue-600 rounded border-gray-300 focus:ring-blue-500"
                                     />
-                                )}
+                                    <span className="text-sm font-medium text-gray-700">All datasets</span>
+                                </label>
+                            </div>
 
-                                {formData.allDatasets && (
-                                    <div className="py-4 text-center text-sm text-blue-600 bg-blue-50 rounded-lg border border-blue-100">
-                                        ✓ User has access to all datasets
-                                    </div>
-                                )}
+                            {!formData.allDatasets && (
+                                <DatasetPermissionSelector
+                                    datasets={datasets}
+                                    selectedDatasets={formData.datasetAccess}
+                                    onChange={(selected) =>
+                                        setFormData((prev) => ({
+                                            ...prev,
+                                            datasetAccess: selected,
+                                        }))
+                                    }
+                                />
+                            )}
+
+                            {formData.allDatasets && (
+                                <div className="py-4 text-center text-sm text-blue-600 bg-blue-50 rounded-lg border border-blue-100">
+                                    ✓ User has access to all datasets
+                                </div>
+                            )}
+                        </div>
+                    </div>
+
+                    {/* Divider */}
+                    <hr className="border-gray-200" />
+
+                    {/* Feature Permissions */}
+                    <div>
+                        <h3 className="text-sm font-semibold text-gray-900 mb-1">
+                            Feature Permissions
+                        </h3>
+                        <p className="text-xs text-gray-500 mb-4">
+                            Control what features this user can use on their accessible datasets
+                        </p>
+
+                        <div className="space-y-6">
+                            {/* Management Permissions */}
+                            <div>
+                                <h4 className="text-xs font-semibold text-gray-600 uppercase tracking-wider mb-3">
+                                    Management
+                                </h4>
+                                <div className="space-y-3">
+                                    <Toggle
+                                        checked={formData.canManageDatasets}
+                                        onChange={(value) =>
+                                            setFormData((prev) => ({ ...prev, canManageDatasets: value }))
+                                        }
+                                        label="Manage Datasets & ETL"
+                                        description="Create, edit, delete datasets and manage ETL pipelines"
+                                    />
+                                </div>
+                            </div>
+
+                            {/* Data Access Permissions */}
+                            <div>
+                                <h4 className="text-xs font-semibold text-gray-600 uppercase tracking-wider mb-3">
+                                    Data Access
+                                </h4>
+                                <div className="space-y-3">
+                                    <Toggle
+                                        checked={formData.canRunQuery}
+                                        onChange={(value) =>
+                                            setFormData((prev) => ({ ...prev, canRunQuery: value }))
+                                        }
+                                        label="Run Queries"
+                                        description="Execute SQL queries on datasets"
+                                    />
+
+                                </div>
                             </div>
                         </div>
                     </div>
