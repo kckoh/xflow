@@ -884,6 +884,90 @@ def on_failure_callback(context):
     update_job_run_status("failed", error_message=full_error[:50000], **context)
 
 
+def register_trino_table(**context):
+    """
+    Register Delta Lake table in Trino using register_table procedure.
+
+    Trino's register_table reads the _delta_log and creates proper metadata
+    in Glue catalog that Trino can query.
+    """
+    import trino
+
+    # Get config from previous task
+    config_json = context["ti"].xcom_pull(task_ids="fetch_dataset_config")
+    config = json.loads(config_json)
+
+    destination = config.get("destination", {})
+    glue_table_name = destination.get("glue_table_name")
+    s3_path = destination.get("path")
+
+    if not glue_table_name or not s3_path:
+        print("[Trino] No glue_table_name or s3_path, skipping Trino registration")
+        return
+
+    # Build S3 location (Trino expects s3:// not s3a://)
+    s3_location = s3_path.replace("s3a://", "s3://")
+    # Ensure path ends with table name
+    if not s3_location.endswith(glue_table_name):
+        s3_location = s3_location.rstrip("/") + "/" + glue_table_name
+
+    print(f"[Trino] Registering table: lakehouse.default.{glue_table_name}")
+    print(f"[Trino] S3 location: {s3_location}")
+
+    # Connect to Trino
+    trino_host = Variable.get("TRINO_HOST", default_var="trino.trino.svc.cluster.local")
+    trino_port = int(Variable.get("TRINO_PORT", default_var="8080"))
+
+    conn = trino.dbapi.connect(
+        host=trino_host,
+        port=trino_port,
+        user="airflow",
+        catalog="lakehouse",
+        schema="default",
+    )
+
+    try:
+        cursor = conn.cursor()
+
+        # First, try to drop existing table (ignore errors)
+        try:
+            drop_sql = f"DROP TABLE IF EXISTS lakehouse.default.{glue_table_name}"
+            print(f"[Trino] Executing: {drop_sql}")
+            cursor.execute(drop_sql)
+            cursor.fetchall()
+        except Exception as e:
+            print(f"[Trino] Drop table (ignore): {e}")
+
+        # Register table using register_table procedure
+        register_sql = f"""
+            CALL lakehouse.system.register_table(
+                schema_name => 'default',
+                table_name => '{glue_table_name}',
+                table_location => '{s3_location}'
+            )
+        """
+        print(f"[Trino] Executing: {register_sql.strip()}")
+        cursor.execute(register_sql)
+        result = cursor.fetchall()
+        print(f"[Trino] Result: {result}")
+
+        # Verify table exists
+        verify_sql = f"SHOW TABLES LIKE '{glue_table_name}'"
+        cursor.execute(verify_sql)
+        tables = cursor.fetchall()
+
+        if tables:
+            print(f"[Trino] ✅ Table registered successfully: lakehouse.default.{glue_table_name}")
+        else:
+            print(f"[Trino] ⚠️ Table registration may have failed - table not found")
+
+    except Exception as e:
+        print(f"[Trino] ❌ Error registering table: {e}")
+        raise
+    finally:
+        conn.close()
+
+
 def run_quality_check(**context):
     """
     Run quality check on the Dataset output data.

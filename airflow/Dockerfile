@@ -27,7 +27,8 @@ RUN pip install --no-cache-dir \
     apache-airflow-providers-cncf-kubernetes \
     pymongo \
     boto3 \
-    requests
+    requests \
+    trino
 
 # Copy DAGs into image
 COPY --chown=airflow:root dags/ /opt/airflow/dags/

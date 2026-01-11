@@ -26,6 +26,7 @@ from etl_common import (
     fetch_dataset_config,
     finalize_import,
     run_quality_check,
+    register_trino_table,
     on_success_callback,
     on_failure_callback,
 )
@@ -190,17 +191,23 @@ with DAG(
         timeout=3600,  # 1 hour timeout
     )
 
-    # Task 5: Run Quality Check
+    # Task 5: Register Delta Lake table in Trino
+    register_table = PythonOperator(
+        task_id="register_trino_table",
+        python_callable=register_trino_table,
+    )
+
+    # Task 6: Run Quality Check
     quality_check = PythonOperator(
         task_id="run_quality_check",
         python_callable=run_quality_check,
     )
 
-    # Task 6: Finalize import
+    # Task 7: Finalize import
     finalize = PythonOperator(
         task_id="finalize_import",
         python_callable=finalize_import,
     )
 
-    fetch_config >> generate_spark_spec >> submit_spark_job >> wait_for_spark >> quality_check >> finalize
+    fetch_config >> generate_spark_spec >> submit_spark_job >> wait_for_spark >> register_table >> quality_check >> finalize
 
