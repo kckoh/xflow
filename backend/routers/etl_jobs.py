@@ -490,54 +490,18 @@ async def activate_etl_job(job_id: str):
     if not job:
         raise HTTPException(status_code=404, detail="Job not found")
 
-    # Streaming Job Logic
-    # Streaming logic is now handled by dedicated router (streaming_jobs.py)
-    # But for legacy ETLJob API support (if re-enabled), valid check remains:
+    # Streaming jobs are handled by the dedicated router (streaming_jobs.py).
+    # Keep a fallback check for legacy/mismatched records.
     is_streaming = job.job_type == "streaming"
     if not is_streaming and job.sources:
         if job.sources[0].get("type") == "kafka":
             is_streaming = True
 
     if is_streaming:
-        # Redirect or error, as this endpoint shouldn't be used for streaming
-        # Or keep minimal logic if needed. 
-        # For now, we assume this endpoint is NOT hitting for streaming jobs.
-        pass
-
-    # Batch Job Logic (Airflow)
-        
-        # Determine Runner Type
-        runner_type = "kafka"
-        if source.get("type") == "cdc" or conn.type in ["postgres", "mysql"]: 
-             runner_type = "cdc" # Fallback logic if needed, but here we focus on Kafka Source
-        
-        config = {
-            "job_id": str(job.id),
-            "connection_id": str(conn.id),
-            "topic": source.get("config", {}).get("topic"),
-            "columns": source.get("config", {}).get("columns"),
-            "bootstrap_servers": conn.config.get("bootstrap_servers"),
-            "security_protocol": conn.config.get("security_protocol"),
-            "sasl_mechanism": conn.config.get("sasl_mechanism"),
-            "sasl_username": conn.config.get("sasl_username"),
-            "sasl_password": conn.config.get("sasl_password"),
-            "destination": job.destination,
-            # Flatten other needed configs
-            "target_path": job.destination.get("path")
-        }
-        
-        app_name = f"flow-{str(job.id)}"
-        
-        try:
-            SparkService.submit_job(config, app_name, runner_type=runner_type)
-        except Exception as e:
-            raise HTTPException(status_code=500, detail=f"Failed to start Spark Streaming job: {str(e)}")
-
-        job.status = "active"
-        job.updated_at = datetime.utcnow()
-        await job.save()
-        
-        return {"message": "Streaming job started", "status": "active"}
+        raise HTTPException(
+            status_code=400,
+            detail="Streaming jobs must be started via /api/streaming-jobs/{dataset_id}/start",
+        )
 
     # Batch Job Logic (Airflow)
     if not job.schedule:
@@ -588,9 +552,6 @@ async def deactivate_etl_job(job_id: str):
 
     # Streaming Job Logic
     is_streaming = job.job_type == "streaming"
-    if not is_streaming and job.sources:
-         if job.sources[0].get("type") == "kafka":
-            is_streaming = True
             
     if is_streaming:
         from services.spark_service import SparkService

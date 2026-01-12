@@ -18,6 +18,10 @@ export default function JobDetailPage() {
     const [copiedId, setCopiedId] = useState(false);
     const { showToast } = useToast();
     const [streamingStartEnabled, setStreamingStartEnabled] = useState(true);
+    const kafkaGroupId =
+        job?.job_type === "streaming"
+            ? job?.ui_params?.kafka_group_id || `xflow-${job?.id || jobId}`
+            : null;
 
     // Quality state
     const [qualityResult, setQualityResult] = useState(null);
@@ -504,6 +508,12 @@ export default function JobDetailPage() {
                                             )}
                                         </dd>
                                     </div>
+                                    {kafkaGroupId && (
+                                        <div>
+                                            <dt className="text-sm font-medium text-gray-500">Kafka Group ID</dt>
+                                            <dd className="mt-1 text-sm text-gray-900">{kafkaGroupId}</dd>
+                                        </div>
+                                    )}
                                     <div>
                                         <dt className="text-sm font-medium text-gray-500">Description</dt>
                                         <dd className="mt-1 text-sm text-gray-900">{job?.description || '-'}</dd>

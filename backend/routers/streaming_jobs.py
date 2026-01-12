@@ -47,6 +47,7 @@ async def start_streaming_job(dataset_id: str):
     # Determine Runner Type
     # For now, if type is kafka, use kafka runner.
     runner_type = "kafka"
+    kafka_group_id = f"xflow-{str(dataset.id)}"
     
     config = {
         "job_id": str(dataset.id),
@@ -54,6 +55,7 @@ async def start_streaming_job(dataset_id: str):
         "topic": source.get("config", {}).get("topic"),
         "columns": source.get("config", {}).get("columns"),
         "bootstrap_servers": conn.config.get("bootstrap_servers"),
+        "kafka_group_id": kafka_group_id,
         "security_protocol": conn.config.get("security_protocol"),
         "sasl_mechanism": conn.config.get("sasl_mechanism"),
         "sasl_username": conn.config.get("sasl_username"),
@@ -73,6 +75,7 @@ async def start_streaming_job(dataset_id: str):
         if not dataset.ui_params:
             dataset.ui_params = {}
         dataset.ui_params["spark_submission_id"] = submission_id
+        dataset.ui_params["kafka_group_id"] = kafka_group_id
         
     except Exception as e:
         logger.error(f"Failed to submit Spark job: {e}")

@@ -143,6 +143,7 @@ def run_pipeline(config: dict):
     
     topic = kafka_source.get("topic") or config.get("topic")
     job_id = config.get("job_id", "manual_run")
+    kafka_group_id = config.get("kafka_group_id") or f"xflow-{job_id}"
     
     # Check for filters in diverse locations
     transforms = config.get("transforms", [])
@@ -178,7 +179,7 @@ def run_pipeline(config: dict):
     CHECKPOINT_PATH = f"s3a://xflows-output/checkpoints/{job_id}/"
     
     logger.info(
-        f"=== [Streaming ETL] Bootstrap: {KAFKA_BOOTSTRAP_SERVERS} | Topic: {topic} | Target: {TARGET_S3_PATH} ==="
+        f"=== [Streaming ETL] Bootstrap: {KAFKA_BOOTSTRAP_SERVERS} | Group: {kafka_group_id} | Topic: {topic} | Target: {TARGET_S3_PATH} ==="
     )
     
     spark = SparkSession.builder \
@@ -194,6 +195,7 @@ def run_pipeline(config: dict):
             spark.readStream
             .format("kafka")
             .option("kafka.bootstrap.servers", KAFKA_BOOTSTRAP_SERVERS)
+            .option("kafka.group.id", kafka_group_id)
             .option("subscribe", topic)
             .option("startingOffsets", "earliest")
         )

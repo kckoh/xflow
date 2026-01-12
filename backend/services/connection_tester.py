@@ -160,6 +160,7 @@ class ConnectionTester:
             return False, f"Connection timeout: {config.get('base_url')} did not respond in time"
         except requests.exceptions.RequestException as e:
             return False, f"Request failed: {str(e)}"
+        except Exception as e:
             return False, f"API connection test failed: {str(e)}"
 
     @staticmethod
