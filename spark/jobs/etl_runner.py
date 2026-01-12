@@ -11,6 +11,9 @@ import sys
 import json
 from pyspark.sql import SparkSession, DataFrame
 
+# Import SCD Type 2 writer
+from scd2_writer import write_scd2_merge, detect_primary_keys
+
 
 # ============ Transform Registry ============
 
@@ -1011,8 +1014,17 @@ def read_api_source(spark: SparkSession, source_config: dict) -> DataFrame:
 
 # ============ Destination Writers ============
 
-def write_s3_destination(df: DataFrame, dest_config: dict, job_name: str = "output", has_nosql_source: bool = False):
-    """Write DataFrame to S3 as Delta Lake format and register in Glue Catalog"""
+def write_s3_destination(df: DataFrame, dest_config: dict, job_name: str = "output", has_nosql_source: bool = False, source_types: list = None):
+    """
+    Write DataFrame to S3 as Delta Lake format
+
+    Args:
+        df: DataFrame to write
+        dest_config: Destination configuration
+        job_name: Job name for table naming
+        has_nosql_source: Whether source includes NoSQL (for VOID type handling)
+        source_types: List of source types (e.g., ['rdb', 's3', 'mongodb'])
+    """
     path = dest_config.get("path")
     if not path:
         raise ValueError("Destination path is required")
@@ -1032,12 +1044,8 @@ def write_s3_destination(df: DataFrame, dest_config: dict, job_name: str = "outp
     options = dest_config.get("options", {})
     compression = options.get("compression", "snappy")
 
-    # Determine write mode: Enforce 'append' if incremental load is enabled
+    # Determine write mode
     incremental_config = dest_config.get("incremental_config", {})
-    if incremental_config.get("enabled"):
-        mode = "append"
-    else:
-        mode = options.get("mode", "overwrite")
     partition_by = options.get("partitionBy", [])
     coalesce_num = options.get("coalesce")  # None means use default partitions
 
@@ -1058,16 +1066,39 @@ def write_s3_destination(df: DataFrame, dest_config: dict, job_name: str = "outp
                 print(f"   Converting VOID column to STRING: {field.name}")
                 writer_df = writer_df.withColumn(field.name, writer_df[field.name].cast(StringType()))
 
-    writer = writer_df.write \
-        .format("delta") \
-        .mode(mode) \
-        .option("compression", compression)
+    # Use SCD Type 2 for incremental loads to track full history
+    # (S3 logs will use simple append inside write_scd2_merge)
+    if incremental_config.get("enabled"):
+        print(f"📊 Writing with incremental load (SCD Type 2 for RDB, append for S3)")
 
-    if partition_by:
-        writer = writer.partitionBy(*partition_by)
+        # Get timestamp column for audit trail
+        timestamp_col = incremental_config.get("timestamp_column")
 
-    writer.save(path)
-    print(f"✅ Data written to {path} (Delta Lake format)")
+        # Use SCD2 MERGE (auto-detects primary keys, handles S3 vs RDB)
+        spark = writer_df.sparkSession
+        write_scd2_merge(
+            spark=spark,
+            df=writer_df,
+            path=path,
+            primary_keys=None,  # Auto-detect
+            timestamp_col=timestamp_col,
+            source_types=source_types  # Pass source types for S3 detection
+        )
+    else:
+        # Full load: overwrite mode
+        print(f"📊 Writing with overwrite mode (full load)")
+        mode = options.get("mode", "overwrite")
+
+        writer = writer_df.write \
+            .format("delta") \
+            .mode(mode) \
+            .option("compression", compression)
+
+        if partition_by:
+            writer = writer.partitionBy(*partition_by)
+
+        writer.save(path)
+        print(f"✅ Data written to {path} (Delta Lake format)")
 
     # Note: Glue table registration is handled by Trino register_table() in Airflow DAG
     # This ensures proper Delta Lake metadata format for Trino compatibility
@@ -1301,9 +1332,12 @@ def run_etl(config: dict):
         dest_config = config.get("destination", {})
         dest_type = dest_config.get("type", "s3")
 
+        # Extract source types for SCD Type 2 logic
+        source_types = [s.get("type") or s.get("source_type") for s in config.get("sources", [])]
+
         print(f"💾 Writing to destination: {dest_type}")
         if dest_type == "s3":
-            write_s3_destination(final_df, dest_config, config.get("name", "output"), has_nosql_source)
+            write_s3_destination(final_df, dest_config, config.get("name", "output"), has_nosql_source, source_types)
         else:
             raise ValueError(f"Unsupported destination type: {dest_type}")
 
