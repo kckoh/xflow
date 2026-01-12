@@ -81,6 +81,7 @@ class DatasetResponse(DatasetCreate):
     id: str
     name: str
     description: Optional[str] = None
+    owner: Optional[str] = None  # Creator's name or email
     # Multiple sources support (new)
     sources: Optional[List[dict]] = None
     # Legacy single source (backward compatibility)

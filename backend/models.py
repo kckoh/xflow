@@ -90,6 +90,7 @@ class Dataset(Document):
 
     name: str
     description: Optional[str] = None
+    owner: Optional[str] = None  # Creator's name or email
     dataset_type: str = "source"  # "source" or "target"
     job_type: str = "batch"  # "batch" or "cdc"
 

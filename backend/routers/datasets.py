@@ -167,6 +167,10 @@ async def create_dataset(dataset: DatasetCreate, session_id: str = None):
         nodes=dataset.nodes or [],
         edges=dataset.edges or [],
         estimated_size_gb=total_size_gb if total_size_gb > 0 else 1.0,
+        
+        # Owner field - get from session
+        owner=sessions[session_id].get("name") or sessions[session_id].get("email") or "" if session_id and session_id in sessions else None,
+        
         created_at=datetime.utcnow(),
         updated_at=datetime.utcnow(),
     )
