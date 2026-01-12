@@ -10,6 +10,8 @@ from datetime import datetime
 
 from airflow.models import Variable
 
+# S3 Region for DuckDB configuration
+S3_REGION = "ap-northeast-2"
 
 
 
@@ -760,6 +762,85 @@ def finalize_import(**context):
             except Exception as e:
                 print(f"⚠️ Error calculating S3 size: {e}")
                 # Continue even if size calculation fails
+
+        # Calculate row count using DuckDB (after S3 size calculation)
+        if s3_path:
+            print(f"📊 Calculating row count for dataset {dataset_name}...")
+            try:
+                import duckdb
+                
+                # Parse S3 path and build parquet path
+                path = re.sub(r'^s3a?://', '', s3_path)
+                parts = path.split('/', 1)
+                bucket = parts[0]
+                prefix = parts[1] if len(parts) > 1 else ''
+                prefix = prefix.rstrip('/')
+                
+                # Build full S3 path for parquet files
+                glue_table_name = destination.get("glue_table_name")
+                if glue_table_name:
+                    s3_parquet_path = f"s3://{bucket}/{prefix}/{glue_table_name}/*.parquet"
+                else:
+                    s3_parquet_path = f"s3://{bucket}/{prefix}/{dataset_name}/*.parquet"
+                
+                # Create DuckDB connection
+                conn = duckdb.connect(":memory:")
+                
+                # Configure S3 for DuckDB
+                conn.execute("INSTALL httpfs; LOAD httpfs;")
+                conn.execute("INSTALL aws; LOAD aws;")
+                
+                # Environment-based S3 configuration
+                env = os.getenv("ENVIRONMENT", "local")
+                
+                if env == "production":
+                    # Production (AWS): Get credentials from boto3 (supports IRSA)
+                    import boto3
+                    session = boto3.Session()
+                    credentials = session.get_credentials()
+                    
+                    # Pass credentials to DuckDB explicitly
+                    conn.execute(f"""
+                        SET s3_region='{S3_REGION}';
+                        SET s3_endpoint='s3.{S3_REGION}.amazonaws.com';
+                        SET s3_access_key_id='{credentials.access_key}';
+                        SET s3_secret_access_key='{credentials.secret_key}';
+                        SET s3_session_token='{credentials.token}';
+                        SET s3_use_ssl=true;
+                        SET s3_url_style='path';
+                    """)
+                else:
+                    # Local (LocalStack): Explicit endpoint and credentials
+                    duckdb_endpoint = os.getenv("AWS_ENDPOINT", "http://localstack-main:4566").replace("http://", "").replace("https://", "")
+                    aws_access_key_id = os.getenv("AWS_ACCESS_KEY_ID", "test")
+                    aws_secret_access_key = os.getenv("AWS_SECRET_ACCESS_KEY", "test")
+                    
+                    conn.execute(f"""
+                        SET s3_endpoint='{duckdb_endpoint}';
+                        SET s3_use_ssl=false;
+                        SET s3_url_style='path';
+                        SET s3_region='ap-northeast-2';
+                        SET s3_access_key_id='{aws_access_key_id}';
+                        SET s3_secret_access_key='{aws_secret_access_key}';
+                    """)
+                
+                # Count rows
+                count_query = f"SELECT COUNT(*) as row_count FROM read_parquet('{s3_parquet_path}', union_by_name=true)"
+                row_count_result = conn.execute(count_query).fetchone()
+                row_count = row_count_result[0] if row_count_result else 0
+                
+                # Update dataset with row count
+                update_fields["row_count"] = row_count
+                print(f"✅ Calculated row count: {row_count:,} rows")
+                
+                conn.close()
+                
+            except Exception as e:
+                print(f"⚠️ Error calculating row count: {e}")
+                import traceback
+                traceback.print_exc()
+                # Continue even if row count fails
+
 
         # Update current dataset with all fields
         result = db.datasets.update_one(
