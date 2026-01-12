@@ -143,27 +143,26 @@ export default function TableColumnSidebar({
     }
   };
 
-  return (
-    <div className="w-80 h-full bg-gray-50 border-r border-gray-200 flex flex-col">
-      {/* Header */}
-      <div className="p-4 border-b border-gray-200 bg-white">
-        <div className="flex items-center justify-between mb-3">
-          <div className="flex items-center gap-2">
-            <Database className="w-5 h-5 text-blue-600" />
-            <h2 className="font-semibold text-gray-900">S3 Browser</h2>
-          </div>
-          <button
-            onClick={fetchBuckets}
-            disabled={loading}
-            className={`flex items-center gap-1.5 px-2 py-1 text-xs font-medium rounded-md transition-colors ${
-              loading
-                ? "bg-gray-100 text-gray-400 cursor-not-allowed"
-                : "bg-gray-200 text-gray-600 hover:bg-gray-300"
-            }`}
-          >
-            <RefreshCw className={`w-3 h-3 ${loading ? "animate-spin" : ""}`} />
-          </button>
-        </div>
+    return (
+        <div className="w-80 h-full bg-gray-50 border-r border-gray-200 flex flex-col flex-shrink-0">
+            {/* Header */}
+            <div className="p-4 border-b border-gray-200 bg-white">
+                <div className="flex items-center justify-between mb-3">
+                    <div className="flex items-center gap-2">
+                        <Database className="w-5 h-5 text-blue-600" />
+                        <h2 className="font-semibold text-gray-900">S3 Browser</h2>
+                    </div>
+                    <button
+                        onClick={fetchBuckets}
+                        disabled={loading}
+                        className={`flex items-center gap-1.5 px-2 py-1 text-xs font-medium rounded-md transition-colors ${loading
+                            ? "bg-gray-100 text-gray-400 cursor-not-allowed"
+                            : "bg-gray-200 text-gray-600 hover:bg-gray-300"
+                            }`}
+                    >
+                        <RefreshCw className={`w-3 h-3 ${loading ? "animate-spin" : ""}`} />
+                    </button>
+                </div>
 
         {/* View Mode Toggle - Tabs Style */}
         {results && viewMode && setViewMode && (

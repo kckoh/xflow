@@ -157,16 +157,23 @@ export default function SchemaTransformEditor({
             return;
         }
 
-        const enriched = newColumns.map(c => ({
-            ...c,
-            name: getUniqueColumnName(c.name),
-            notNull: false,
-            defaultValue: '',
-            transform: null,
-            transformDisplay: null,
-            sourceId: sourceId,
-            sourceName: sourceName,
-        }));
+        const enriched = newColumns.map(c => {
+            // Convert dot notation to underscore for MongoDB fields
+            const convertedName = c.name.replace(/\./g, '_');
+            const convertedOriginalName = c.originalName.replace(/\./g, '_');
+
+            return {
+                ...c,
+                name: getUniqueColumnName(convertedName),
+                originalName: convertedOriginalName,
+                notNull: false,
+                defaultValue: '',
+                transform: null,
+                transformDisplay: null,
+                sourceId: sourceId,
+                sourceName: sourceName,
+            };
+        });
 
         onSchemaChange([...targetSchema, ...enriched]);
         setSelectedBefore(new Set());
@@ -184,16 +191,23 @@ export default function SchemaTransformEditor({
             return;
         }
 
-        const enriched = newColumns.map(c => ({
-            ...c,
-            name: getUniqueColumnName(c.name),
-            notNull: false,
-            defaultValue: '',
-            transform: null,
-            transformDisplay: null,
-            sourceId: sourceId,
-            sourceName: sourceName,
-        }));
+        const enriched = newColumns.map(c => {
+            // Convert dot notation to underscore for MongoDB fields
+            const convertedName = c.name.replace(/\./g, '_');
+            const convertedOriginalName = c.originalName.replace(/\./g, '_');
+
+            return {
+                ...c,
+                name: getUniqueColumnName(convertedName),
+                originalName: convertedOriginalName,
+                notNull: false,
+                defaultValue: '',
+                transform: null,
+                transformDisplay: null,
+                sourceId: sourceId,
+                sourceName: sourceName,
+            };
+        });
 
         onSchemaChange([...targetSchema, ...enriched]);
         setSelectedBefore(new Set());
@@ -289,12 +303,21 @@ export default function SchemaTransformEditor({
         // For UNION ALL, use the original column names from input DataFrame
         // which already has all columns aligned
         const selectClauses = columnsToUse.map(col => {
+            // Get the source info to check if it's MongoDB
+            const source = allSources.find(s => s.id === col.sourceId);
+            const isMongoDB = source?.sourceType === 'mongodb';
+
             if (col.transform) {
                 return `${col.transform} AS ${col.name}`;
             }
+
             // Use originalName for SELECT since that's what exists in the source data
-            // The UNION ALL already aligned the columns by originalName
-            return col.originalName;
+            // For MongoDB, convert dot notation to underscore to match backend conversion
+            const columnName = isMongoDB
+                ? col.originalName.replace(/\./g, '_')
+                : col.originalName;
+
+            return columnName;
         });
 
         return `SELECT ${selectClauses.join(', ')} FROM input`;
@@ -332,18 +355,34 @@ export default function SchemaTransformEditor({
             if (activeTab === 'sql') {
                 // SQL Transform: include ALL columns from ALL sources
                 // This allows users to reference any column in their SQL query
-                sources = allSources.map(source => ({
-                    source_dataset_id: source.datasetId,
-                    columns: source.schema?.map(col => col.name) || []
-                })).filter(source => source.columns.length > 0);
+                sources = allSources.map(source => {
+                    const sourceColumns = source.schema?.map(col => col.name) || [];
+                    // Convert dot notation to underscore for MongoDB sources
+                    const convertedColumns = source.sourceType === 'mongodb'
+                        ? sourceColumns.map(col => col.replace(/\./g, '_'))
+                        : sourceColumns;
+
+                    return {
+                        source_dataset_id: source.datasetId,
+                        columns: convertedColumns
+                    };
+                }).filter(source => source.columns.length > 0);
             } else {
                 // Visual Transform: only include columns that are in targetSchema
-                sources = allSources.map(source => ({
-                    source_dataset_id: source.datasetId,
-                    columns: targetSchema
+                sources = allSources.map(source => {
+                    const sourceColumns = targetSchema
                         .filter(col => col.sourceId === source.id)
-                        .map(col => col.originalName)
-                })).filter(source => source.columns.length > 0);
+                        .map(col => col.originalName);
+                    // Convert dot notation to underscore for MongoDB sources
+                    const convertedColumns = source.sourceType === 'mongodb'
+                        ? sourceColumns.map(col => col.replace(/\./g, '_'))
+                        : sourceColumns;
+
+                    return {
+                        source_dataset_id: source.datasetId,
+                        columns: convertedColumns
+                    };
+                }).filter(source => source.columns.length > 0);
             }
 
             if (sources.length === 0) {
@@ -380,6 +419,27 @@ export default function SchemaTransformEditor({
                     }));
                     if (onSchemaChange) {
                         onSchemaChange(resultSchema); // Replaces targetSchema completely
+                    }
+                }
+
+                // For Visual Transform: update beforeColumns with flattened schema from preview
+                // This ensures MongoDB nested structures are shown as flattened columns
+                if (activeTab === 'columns' && result.source_samples && result.source_samples.length > 0) {
+                    const currentSource = result.source_samples.find(s => s.source_id === sourceId);
+                    if (currentSource && currentSource.rows && currentSource.rows.length > 0) {
+                        // Extract column names from preview result (already flattened by backend)
+                        const flattenedColumns = Array.from(new Set(currentSource.rows.flatMap(Object.keys)));
+                        
+                        // Convert to column schema format
+                        const newBeforeColumns = flattenedColumns.map(colName => ({
+                            name: colName,
+                            type: 'unknown', // Type inference could be added here
+                            originalName: colName,
+                            sourceId: sourceId,
+                            inTarget: targetSchema.some(tc => tc.originalName === colName && tc.sourceId === sourceId)
+                        }));
+                        
+                        setBeforeColumns(newBeforeColumns);
                     }
                 }
             } else {
@@ -748,7 +808,7 @@ export default function SchemaTransformEditor({
 
             {/* Test Results (Collapsible) */}
             <div className={`transition-all duration-500 ease-in-out border-t border-slate-100 bg-slate-50/30 overflow-hidden ${isTestOpen ? 'max-h-[800px] opacity-100' : 'max-h-0 opacity-0'}`}>
-                <div className="p-6 space-y-4">
+                <div className="p-6 space-y-4 max-w-full overflow-hidden">
                     {/* Error */}
                     {testError && (
                         <div className="p-3 bg-red-50 border border-red-200 rounded-lg text-red-700 text-sm mb-3">
@@ -771,9 +831,9 @@ export default function SchemaTransformEditor({
 
                     {/* Results Container */}
                     {testResult && (
-                        <div className="flex gap-4">
+                        <div className="grid grid-cols-2 gap-4">
                             {/* Before */}
-                            <div className="flex-1 flex flex-col min-w-0">
+                            <div className="flex flex-col min-w-0">
                                 {/* Header with inline tabs */}
                                 <div className="flex items-center gap-3 mb-1.5 min-h-[28px]">
                                     <h5 className="text-[9px] font-bold text-slate-400 uppercase tracking-tight">Source Sample</h5>
@@ -796,7 +856,7 @@ export default function SchemaTransformEditor({
                                     )}
                                 </div>
 
-                                <div className="overflow-auto border border-slate-200 rounded-xl bg-slate-50/50">
+                                <div className="overflow-x-auto border border-slate-200 rounded-xl bg-slate-50/50">
                                     {testResult.source_samples && testResult.source_samples.length > 0 ? (
                                         (() => {
                                             const currentSample = testResult.source_samples[activeSourceSampleTab];
@@ -861,12 +921,12 @@ export default function SchemaTransformEditor({
                             </div>
 
                             {/* After */}
-                            <div className="flex-1 flex flex-col min-w-0">
+                            <div className="flex flex-col min-w-0">
                                 {/* Header with fixed height to match Source Sample */}
                                 <div className="flex items-center gap-3 mb-1.5 min-h-[28px]">
                                     <h5 className="text-[9px] font-bold text-indigo-500 uppercase tracking-tight">Transformed Sample</h5>
                                 </div>
-                                <div className="overflow-auto border border-indigo-100 rounded-xl bg-white shadow-sm ring-1 ring-slate-200">
+                                <div className="overflow-x-auto border border-indigo-100 rounded-xl bg-white shadow-sm ring-1 ring-slate-200">
                                     <table className="w-full text-xs box-border border-separate border-spacing-0">
                                         <thead className="bg-indigo-600 sticky top-0 z-10">
                                             <tr>
