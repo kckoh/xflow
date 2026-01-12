@@ -11,6 +11,7 @@ from utils.trino_client import (
 )
 from dependencies import get_user_session
 import math
+import re
 
 router = APIRouter()
 
@@ -35,15 +36,53 @@ async def run_query(
     request: QueryRequest,
     user_session: Optional[Dict[str, Any]] = Depends(get_user_session)
 ):
-    """Trino SQL 쿼리 실행"""
+    """Trino SQL 쿼리 실행 (total count는 MongoDB row_count 사용)"""
     try:
+        sql = request.sql.strip()
+        original_limit = None
+        total_count = None
+
+        # Extract LIMIT from query
+        limit_match = re.search(r'\bLIMIT\s+(\d+)\b', sql, re.IGNORECASE)
+        if limit_match:
+            original_limit = int(limit_match.group(1))
+
+            # Try to get total_count from MongoDB if querying lakehouse tables
+            # Extract table name from query (e.g., "FROM lakehouse.default.my_table")
+            import re
+            table_match = re.search(r'\bFROM\s+lakehouse\.default\.(\w+)', sql, re.IGNORECASE)
+            if table_match:
+                table_name = table_match.group(1)
+                try:
+                    from models import Dataset
+                    from beanie import PydanticObjectId
+                    
+                    # Find dataset by glue_table_name
+                    dataset = await Dataset.find_one({
+                        "destination.glue_table_name": table_name
+                    })
+                    
+                    if dataset and hasattr(dataset, 'row_count') and dataset.row_count:
+                        total_count = dataset.row_count
+                        print(f"Using MongoDB row_count for {table_name}: {total_count}")
+                except Exception as e:
+                    print(f"Failed to get row_count from MongoDB: {e}")
+                    # Continue without total_count
+
+        # Execute main query with original LIMIT
         data = execute_query(
-            request.sql,
+            sql,
             catalog=request.catalog,
             schema=request.schema_name
         )
         data = clean_data(data)
-        return {"data": data, "row_count": len(data)}
+
+        return {
+            "data": data,
+            "row_count": len(data),
+            "total_count": total_count,
+            "has_more": total_count is not None and len(data) < total_count if total_count else False
+        }
     except Exception as e:
         raise HTTPException(status_code=400, detail=str(e))
 

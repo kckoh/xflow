@@ -27,6 +27,7 @@ from etl_common import (
     finalize_import,
     run_quality_check,
     register_trino_table,
+    update_rows,
     on_success_callback,
     on_failure_callback,
 )
@@ -58,11 +59,12 @@ def generate_spark_application(**context):
     import re
     parts = dag_run_id.split('_')
     if len(parts) >= 2:
-        # Take last part (most unique) and extract alphanumeric chars
-        clean_run_id = re.sub(r'[^a-z0-9]', '', parts[-1].lower())[:8]
+        # Include more characters to ensure uniqueness within the same day.
+        clean_run_id = re.sub(r'[^a-z0-9]', '', parts[-1].lower())[:16]
     else:
-        clean_run_id = re.sub(r'[^a-z0-9]', '', dag_run_id.lower())[-8:]
-    if not clean_run_id:
+        clean_run_id = re.sub(r'[^a-z0-9]', '', dag_run_id.lower())[-16:]
+    if not clean_run_id or len(clean_run_id) < 8:
+        # Fallback: use timestamp for uniqueness.
         clean_run_id = f"{int(datetime.now().timestamp()) % 100000000:08d}"
 
     # Parse config to get estimated size for auto-scaling
@@ -197,17 +199,23 @@ with DAG(
         python_callable=register_trino_table,
     )
 
-    # Task 6: Run Quality Check
+    # Task 6: Update row count from Trino
+    update_rows_task = PythonOperator(
+        task_id="update_rows",
+        python_callable=update_rows,
+    )
+
+    # Task 7: Run Quality Check
     quality_check = PythonOperator(
         task_id="run_quality_check",
         python_callable=run_quality_check,
     )
 
-    # Task 7: Finalize import
+    # Task 8: Finalize import
     finalize = PythonOperator(
         task_id="finalize_import",
         python_callable=finalize_import,
     )
 
-    fetch_config >> generate_spark_spec >> submit_spark_job >> wait_for_spark >> register_table >> quality_check >> finalize
+    fetch_config >> generate_spark_spec >> submit_spark_job >> wait_for_spark >> register_table >> update_rows_task >> quality_check >> finalize
 

@@ -17,7 +17,12 @@ export default function JobDetailPage() {
     const [statusFilter, setStatusFilter] = useState('all');
     const [copiedId, setCopiedId] = useState(false);
     const { showToast } = useToast();
-    
+    const [streamingStartEnabled, setStreamingStartEnabled] = useState(true);
+    const kafkaGroupId =
+        job?.job_type === "streaming"
+            ? job?.ui_params?.kafka_group_id || `xflow-${job?.id || jobId}`
+            : null;
+
     // Quality state
     const [qualityResult, setQualityResult] = useState(null);
     const [qualityHistory, setQualityHistory] = useState([]);
@@ -32,6 +37,29 @@ export default function JobDetailPage() {
             fetchQualityData();
         }
     }, [jobId]);
+
+    useEffect(() => {
+        if (!jobId) return;
+        try {
+            const raw = localStorage.getItem("streamingStartEnabledByDatasetId");
+            const map = raw ? JSON.parse(raw) : {};
+            setStreamingStartEnabled(map?.[jobId] !== false);
+        } catch {
+            setStreamingStartEnabled(true);
+        }
+    }, [jobId]);
+
+    const setStreamingStartEnabledFor = (datasetId, enabled) => {
+        setStreamingStartEnabled(enabled);
+        try {
+            const raw = localStorage.getItem("streamingStartEnabledByDatasetId");
+            const map = raw ? JSON.parse(raw) : {};
+            const next = { ...map, [datasetId]: enabled };
+            localStorage.setItem("streamingStartEnabledByDatasetId", JSON.stringify(next));
+        } catch {
+            // ignore storage errors
+        }
+    };
 
     const fetchQualityData = async () => {
         setQualityLoading(true);
@@ -54,7 +82,7 @@ export default function JobDetailPage() {
             showToast('No S3 path configured for this job', 'error');
             return;
         }
-        
+
         setRunningCheck(true);
         try {
             const s3Path = job.destination.s3_path || job.destination.path;
@@ -100,54 +128,72 @@ export default function JobDetailPage() {
     const handleToggle = async () => {
         if (!job) return;
 
-        const newActiveState = !job.is_active;
+        if (job.job_type === "streaming") {
+            setStreamingStartEnabledFor(jobId, !streamingStartEnabled);
+            return;
+        }
+
+        const isActive = job.is_active;
+        const newActiveState = !isActive;
 
         try {
-            // If job has a schedule or is CDC, use activate/deactivate API
-            if (job.job_type === "cdc" || job.schedule) {
-                const endpoint = newActiveState ? "activate" : "deactivate";
-                const response = await fetch(`${API_BASE_URL}/api/datasets/${jobId}/${endpoint}`, {
-                    method: "POST",
-                });
+            let endpoint;
+            let method = "POST";
 
-                if (response.ok) {
-                    setJob(prev => ({ ...prev, is_active: newActiveState }));
-                    showToast(`Job ${newActiveState ? 'activated' : 'deactivated'} successfully!`, "success");
-                } else {
-                    showToast(`Failed to ${newActiveState ? 'activate' : 'deactivate'} job`, "error");
-                }
+            endpoint = isActive
+                ? `/api/datasets/${jobId}/deactivate`
+                : `/api/datasets/${jobId}/activate`;
+
+            const response = await fetch(`${API_BASE_URL}${endpoint}`, { method });
+
+            if (response.ok) {
+                setJob((prev) => ({ ...prev, is_active: newActiveState }));
+                showToast(
+                    `Job ${newActiveState ? "activated" : "deactivated"} successfully!`,
+                    "success"
+                );
             } else {
-                // Manual job: update Dataset's is_active field
-                // First, find the dataset by job_id
-                const datasetsResponse = await fetch(`${API_BASE_URL}/api/catalog`);
-                if (datasetsResponse.ok) {
-                    const datasets = await datasetsResponse.json();
-                    const dataset = datasets.find(d => d.job_id === jobId);
-
-                    if (dataset) {
-                        // Update dataset's is_active
-                        const updateResponse = await fetch(`${API_BASE_URL}/api/catalog/${dataset.id}`, {
-                            method: "PATCH",
-                            headers: { "Content-Type": "application/json" },
-                            body: JSON.stringify({ is_active: newActiveState }),
-                        });
-
-                        if (updateResponse.ok) {
-                            setJob(prev => ({ ...prev, is_active: newActiveState }));
-                            showToast(`Job ${newActiveState ? 'activated' : 'deactivated'} successfully!`, "success");
-                        } else {
-                            showToast(`Failed to ${newActiveState ? 'activate' : 'deactivate'} job`, "error");
-                        }
-                    } else {
-                        // Should ideally not happen if job exists
-                        setJob(prev => ({ ...prev, is_active: newActiveState }));
-                        showToast(`Job ${newActiveState ? 'activated' : 'deactivated'} (Local state only)`, "warning");
-                    }
-                }
+                const err = await response.json();
+                showToast(
+                    `Failed to ${newActiveState ? "activate" : "deactivate"} job: ${err.detail || "Unknown error"}`,
+                    "error"
+                );
             }
         } catch (error) {
             console.error("Failed to toggle job:", error);
             showToast("Network error: Failed to toggle job", "error");
+        }
+    };
+
+    const handleStreamingStart = async () => {
+        try {
+            const response = await fetch(`${API_BASE_URL}/api/streaming-jobs/${jobId}/start`, { method: "POST" });
+            if (response.ok) {
+                setJob((prev) => ({ ...prev, is_active: true }));
+                showToast("Streaming started successfully!", "success");
+            } else {
+                const err = await response.json().catch(() => ({}));
+                showToast(err.detail || "Failed to start streaming", "error");
+            }
+        } catch (error) {
+            console.error("Failed to start streaming:", error);
+            showToast("Network error: Failed to start streaming", "error");
+        }
+    };
+
+    const handleStreamingStop = async () => {
+        try {
+            const response = await fetch(`${API_BASE_URL}/api/streaming-jobs/${jobId}/stop`, { method: "POST" });
+            if (response.ok) {
+                setJob((prev) => ({ ...prev, is_active: false }));
+                showToast("Streaming stopped successfully!", "success");
+            } else {
+                const err = await response.json().catch(() => ({}));
+                showToast(err.detail || "Failed to stop streaming", "error");
+            }
+        } catch (error) {
+            console.error("Failed to stop streaming:", error);
+            showToast("Network error: Failed to stop streaming", "error");
         }
     };
 
@@ -246,13 +292,16 @@ export default function JobDetailPage() {
 
     const formatDate = (dateString) => {
         if (!dateString) return '-';
-        return new Date(dateString).toLocaleString('ko-KR', {
+        // Backend sends UTC time, explicitly interpret as UTC and convert to KST
+        const date = new Date(dateString + (dateString.endsWith('Z') ? '' : 'Z'));
+        return date.toLocaleString('ko-KR', {
             year: 'numeric',
             month: '2-digit',
             day: '2-digit',
             hour: '2-digit',
             minute: '2-digit',
             second: '2-digit',
+            timeZone: 'Asia/Seoul',
         });
     };
 
@@ -269,7 +318,8 @@ export default function JobDetailPage() {
     const tabs = [
         { id: 'info', label: 'Info', icon: Info },
         { id: 'runs', label: 'Logs', icon: Play },
-        { id: 'schedule', label: 'Schedule', icon: Calendar },
+        // Only show Schedule tab for batch jobs (not cdc/streaming)
+        ...(job?.job_type !== 'cdc' && job?.job_type !== 'streaming' ? [{ id: 'schedule', label: 'Schedule', icon: Calendar }] : []),
         { id: 'quality', label: 'Quality', icon: BarChart3 },
     ];
 
@@ -302,24 +352,70 @@ export default function JobDetailPage() {
 
                             <button
                                 onClick={handleToggle}
-                                className={`relative inline-flex h-6 w-11 flex-shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none ${job?.is_active
+                                title={job?.job_type === "streaming" ? "Enable/Disable Start button" : undefined}
+                                className={`relative inline-flex h-6 w-11 flex-shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none ${(job?.job_type === "streaming" ? streamingStartEnabled : job?.is_active)
                                     ? "bg-green-500"
                                     : "bg-gray-300"
                                     }`}
                             >
                                 <span
-                                    className={`pointer-events-none inline-block h-5 w-5 transform rounded-full bg-white shadow ring-0 transition duration-200 ease-in-out ${job?.is_active
+                                    className={`pointer-events-none inline-block h-5 w-5 transform rounded-full bg-white shadow ring-0 transition duration-200 ease-in-out ${(job?.job_type === "streaming" ? streamingStartEnabled : job?.is_active)
                                         ? "translate-x-5"
                                         : "translate-x-0"
                                         }`}
                                 />
                             </button>
                             {/* Action Buttons */}
-                            {job?.job_type !== "cdc" && (
+                            {job?.job_type === "streaming" ? (
+                                <button
+                                    onClick={job.is_active ? handleStreamingStop : handleStreamingStart}
+                                    disabled={!job.is_active && !streamingStartEnabled}
+                                    className={`inline-flex items-center gap-1 px-4 py-2 text-sm font-medium text-white rounded-lg transition-colors ${job.is_active
+                                        ? "bg-red-600 hover:bg-red-700"
+                                        : !streamingStartEnabled
+                                            ? "bg-gray-300 cursor-not-allowed"
+                                            : "bg-green-600 hover:bg-green-700"
+                                        }`}
+                                    title={job.is_active ? "Stop Streaming" : "Start Streaming"}
+                                >
+                                    {job.is_active ? (
+                                        <>
+                                            <div className="w-3 h-3 bg-white rounded-sm" />
+                                            Stop
+                                        </>
+                                    ) : (
+                                        <>
+                                            <Play className="w-4 h-4" />
+                                            Start
+                                        </>
+                                    )}
+                                </button>
+                            ) : job?.job_type === "cdc" ? (
+                                <button
+                                    onClick={handleToggle}
+                                    className={`inline-flex items-center gap-1 px-4 py-2 text-sm font-medium text-white rounded-lg transition-colors ${job.is_active
+                                        ? "bg-red-600 hover:bg-red-700"
+                                        : "bg-green-600 hover:bg-green-700"
+                                        }`}
+                                    title={job.is_active ? "Deactivate" : "Activate"}
+                                >
+                                    {job.is_active ? (
+                                        <>
+                                            <div className="w-3 h-3 bg-white rounded-sm" />
+                                            Stop
+                                        </>
+                                    ) : (
+                                        <>
+                                            <Play className="w-4 h-4" />
+                                            Start
+                                        </>
+                                    )}
+                                </button>
+                            ) : (
                                 <button
                                     onClick={handleRun}
                                     className="inline-flex items-center gap-1 px-4 py-2 text-sm font-medium text-white bg-green-600 hover:bg-green-700 rounded-lg transition-colors"
-                                    title="Run"
+                                    title="Run Once"
                                 >
                                     <Play className="w-4 h-4" />
                                     Run
@@ -402,6 +498,11 @@ export default function JobDetailPage() {
                                                     <Zap className="w-3 h-3" />
                                                     CDC
                                                 </span>
+                                            ) : job?.job_type === 'streaming' ? (
+                                                <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs font-medium bg-indigo-100 text-indigo-700">
+                                                    <Zap className="w-3 h-3" />
+                                                    Streaming
+                                                </span>
                                             ) : (
                                                 <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs font-medium bg-blue-100 text-blue-700">
                                                     <Clock className="w-3 h-3" />
@@ -410,6 +511,12 @@ export default function JobDetailPage() {
                                             )}
                                         </dd>
                                     </div>
+                                    {kafkaGroupId && (
+                                        <div>
+                                            <dt className="text-sm font-medium text-gray-500">Kafka Group ID</dt>
+                                            <dd className="mt-1 text-sm text-gray-900">{kafkaGroupId}</dd>
+                                        </div>
+                                    )}
                                     <div>
                                         <dt className="text-sm font-medium text-gray-500">Description</dt>
                                         <dd className="mt-1 text-sm text-gray-900">{job?.description || '-'}</dd>

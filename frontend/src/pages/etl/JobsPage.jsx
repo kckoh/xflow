@@ -153,6 +153,15 @@ function ScheduleBadge({ job }) {
     );
   }
 
+  if (job.job_type === "streaming") {
+    return (
+      <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md text-xs font-medium bg-green-100 text-green-700">
+        <GitBranch className="w-3 h-3" />
+        Streaming
+      </span>
+    );
+  }
+
   if (!job.schedule) {
     return (
       <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md text-xs font-medium bg-gray-100 text-gray-600">
@@ -194,6 +203,7 @@ export default function JobsPage() {
   const [searchQuery, setSearchQuery] = useState("");
   const [scheduleModal, setScheduleModal] = useState({ isOpen: false, job: null });
   const [copiedId, setCopiedId] = useState(null);
+  const [streamingStartEnabled, setStreamingStartEnabled] = useState({});
   const { showToast } = useToast();
 
   const navigate = useNavigate();
@@ -211,6 +221,30 @@ export default function JobsPage() {
   useEffect(() => {
     fetchJobs();
   }, []);
+
+  useEffect(() => {
+    try {
+      const raw = localStorage.getItem("streamingStartEnabledByDatasetId");
+      setStreamingStartEnabled(raw ? JSON.parse(raw) : {});
+    } catch {
+      setStreamingStartEnabled({});
+    }
+  }, []);
+
+  const setStreamingStartEnabledFor = (datasetId, enabled) => {
+    setStreamingStartEnabled((prev) => {
+      const next = { ...prev, [datasetId]: enabled };
+      try {
+        localStorage.setItem("streamingStartEnabledByDatasetId", JSON.stringify(next));
+      } catch {
+        // ignore storage errors
+      }
+      return next;
+    });
+  };
+
+  const isStreamingStartEnabled = (datasetId) =>
+    streamingStartEnabled?.[datasetId] !== false;
 
   const fetchJobs = async () => {
     setIsLoading(true);
@@ -278,6 +312,11 @@ export default function JobsPage() {
   const handleToggle = async (jobId) => {
     const job = jobs.find(j => j.id === jobId);
     if (!job) return;
+
+    if (job.job_type === "streaming") {
+      setStreamingStartEnabledFor(jobId, !isStreamingStartEnabled(jobId));
+      return;
+    }
 
     const newActiveState = !job.is_active;
 
@@ -363,6 +402,40 @@ export default function JobsPage() {
     }
   };
 
+  const handleStreamingStart = async (jobId) => {
+    try {
+      const response = await fetch(`${API_BASE_URL}/api/streaming-jobs/${jobId}/start`, { method: "POST" });
+      if (response.ok) {
+        showToast("Streaming started successfully!", "success");
+        fetchJobs();
+        return;
+      }
+
+      const errorData = await response.json().catch(() => ({}));
+      showToast(errorData.detail || "Failed to start streaming", "error");
+    } catch (error) {
+      console.error("Failed to start streaming:", error);
+      showToast("Network error: Failed to start streaming", "error");
+    }
+  };
+
+  const handleStreamingStop = async (jobId) => {
+    try {
+      const response = await fetch(`${API_BASE_URL}/api/streaming-jobs/${jobId}/stop`, { method: "POST" });
+      if (response.ok) {
+        showToast("Streaming stopped successfully!", "success");
+        fetchJobs();
+        return;
+      }
+
+      const errorData = await response.json().catch(() => ({}));
+      showToast(errorData.detail || "Failed to stop streaming", "error");
+    } catch (error) {
+      console.error("Failed to stop streaming:", error);
+      showToast("Network error: Failed to stop streaming", "error");
+    }
+  };
+
   const handleCopyId = async (id, e) => {
     e.stopPropagation();
     try {
@@ -383,6 +456,10 @@ export default function JobsPage() {
   const getJobStatus = (job, runs) => {
     // CDC job: running if active, otherwise -
     if (job.job_type === "cdc") {
+      return job.is_active ? { label: "Running", color: "green" } : { label: "-", color: "gray" };
+    }
+
+    if (job.job_type === "streaming") {
       return job.is_active ? { label: "Running", color: "green" } : { label: "-", color: "gray" };
     }
 
@@ -508,13 +585,18 @@ export default function JobsPage() {
                     {jobRuns[job.id]?.[0] ? (
                       <div className="text-sm">
                         <div className="text-gray-900">
-                          {new Date(jobRuns[job.id][0].started_at).toLocaleString('ko-KR', {
-                            year: 'numeric',
-                            month: '2-digit',
-                            day: '2-digit',
-                            hour: '2-digit',
-                            minute: '2-digit',
-                          })}
+                          {(() => {
+                            const dateStr = jobRuns[job.id][0].started_at;
+                            const date = new Date(dateStr + (dateStr.endsWith('Z') ? '' : 'Z'));
+                            return date.toLocaleString('ko-KR', {
+                              year: 'numeric',
+                              month: '2-digit',
+                              day: '2-digit',
+                              hour: '2-digit',
+                              minute: '2-digit',
+                              timeZone: 'Asia/Seoul',
+                            });
+                          })()}
                         </div>
                         <div className="text-xs text-gray-500">
                           {jobRuns[job.id][0].status === 'success' ? 'Succeeded' :
@@ -527,7 +609,38 @@ export default function JobsPage() {
                   </td>
                   <td className="px-6 py-4 text-right">
                     <div className="flex items-center justify-end gap-3">
-                      {job.job_type !== "cdc" && (
+                      {job.job_type === "streaming" ? (
+                        <button
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            if (job.is_active) {
+                              handleStreamingStop(job.id);
+                            } else {
+                              handleStreamingStart(job.id);
+                            }
+                          }}
+                          disabled={!job.is_active && !isStreamingStartEnabled(job.id)}
+                          className={`inline-flex items-center gap-1 px-3 py-1.5 text-sm font-medium text-white rounded-lg transition-colors ${job.is_active
+                            ? "bg-red-600 hover:bg-red-700"
+                            : !isStreamingStartEnabled(job.id)
+                              ? "bg-gray-300 cursor-not-allowed"
+                              : "bg-green-600 hover:bg-green-700"
+                            }`}
+                          title={job.is_active ? "Stop Streaming" : "Start Streaming"}
+                        >
+                          {job.is_active ? (
+                            <>
+                              <div className="w-3 h-3 bg-white rounded-sm" />
+                              Stop
+                            </>
+                          ) : (
+                            <>
+                              <Play className="w-4 h-4" />
+                              Start
+                            </>
+                          )}
+                        </button>
+                      ) : job.job_type !== "cdc" && (
                         <button
                           onClick={(e) => {
                             e.stopPropagation();
@@ -550,11 +663,20 @@ export default function JobsPage() {
                             showToast("Permission denied", "error");
                           }
                         }}
-                        className={`relative inline-flex h-5 w-9 flex-shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none ${!canRunETL(job.id) ? "opacity-50 cursor-not-allowed bg-gray-300" : job.is_active ? "bg-green-500" : "bg-gray-300"}`}
+                        title={job.job_type === "streaming" ? "Enable/Disable Start button" : undefined}
+                        className={`relative inline-flex h-5 w-9 flex-shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none ${!canRunETL(job.id)
+                            ? "opacity-50 cursor-not-allowed bg-gray-300"
+                            : job.job_type === "streaming"
+                              ? (isStreamingStartEnabled(job.id) ? "bg-green-500" : "bg-gray-300")
+                              : (job.is_active ? "bg-green-500" : "bg-gray-300")
+                          }`}
                         disabled={!canRunETL(job.id)}
                       >
                         <span
-                          className={`pointer-events-none inline-block h-4 w-4 transform rounded-full bg-white shadow ring-0 transition duration-200 ease-in-out ${job.is_active ? "translate-x-4" : "translate-x-0"}`}
+                          className={`pointer-events-none inline-block h-4 w-4 transform rounded-full bg-white shadow ring-0 transition duration-200 ease-in-out ${job.job_type === "streaming"
+                            ? (isStreamingStartEnabled(job.id) ? "translate-x-4" : "translate-x-0")
+                            : (job.is_active ? "translate-x-4" : "translate-x-0")
+                            }`}
                         />
                       </button>
                     </div>

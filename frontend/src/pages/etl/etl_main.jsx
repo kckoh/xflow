@@ -322,6 +322,15 @@ export default function ETLMain() {
                         >
                           {job.is_active ? "CDC Active" : "CDC Stopped"}
                         </span>
+                      ) : job.job_type === "streaming" ? (
+                        <span
+                          className={`px-2 py-1 text-xs font-semibold rounded-full ${job.is_active
+                            ? "bg-indigo-100 text-indigo-800"
+                            : "bg-gray-100 text-gray-800"
+                            }`}
+                        >
+                          Streaming
+                        </span>
                       ) : (
                         <span className="px-2 py-1 text-xs font-semibold rounded-full bg-blue-100 text-blue-800">
                           Batch

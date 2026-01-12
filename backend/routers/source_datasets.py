@@ -106,6 +106,11 @@ async def create_source_dataset(
         "created_at": now,
         "updated_at": now,
     }
+
+    # Force streaming job type for Kafka
+    if dataset.source_type == "kafka":
+        dataset_data["job_type"] = "streaming"
+
     
     # Add owner field if session exists (use name/email, not user_id)
     if session_id and session_id in sessions:

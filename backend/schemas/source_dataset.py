@@ -23,6 +23,9 @@ class SourceDatasetCreate(BaseModel):
     path: Optional[str] = None
     format: Optional[str] = None  # "log", "parquet", "csv", "json"
 
+    # Kafka specific
+    topic: Optional[str] = None
+
     # Schema information
     columns: Optional[List[dict]] = None
 
@@ -48,6 +51,9 @@ class SourceDatasetUpdate(BaseModel):
     path: Optional[str] = None
     format: Optional[str] = None  # "log", "parquet", "csv", "json"
 
+    # Kafka specific
+    topic: Optional[str] = None
+
     # Schema information
     columns: Optional[List[dict]] = None
 
@@ -62,6 +68,10 @@ class SourceDatasetResponse(BaseModel):
     owner: Optional[str] = None
     source_type: str
     connection_id: str
+    
+    # Status & Type
+    job_type: Optional[str] = None
+    is_active: Optional[bool] = False
 
     # Type-specific fields
     table: Optional[str] = None
@@ -69,6 +79,7 @@ class SourceDatasetResponse(BaseModel):
     bucket: Optional[str] = None
     path: Optional[str] = None
     format: Optional[str] = None  # "log", "parquet", "csv", "json"
+    topic: Optional[str] = None
 
     # Schema information
     columns: Optional[List[dict]] = None
