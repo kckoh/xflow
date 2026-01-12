@@ -1623,12 +1623,12 @@ export default function TargetWizard() {
           <div className="flex-1 overflow-y-auto">
             <div className="max-w-4xl mx-auto px-6 py-8">
               <h2 className="text-lg font-semibold text-gray-900 mb-6">
-                Share with Users
+                Permissions
               </h2>
 
               <div className="bg-white rounded-lg border border-gray-200 p-6">
                 <p className="text-sm text-gray-600 mb-4">
-                  Select users to grant access to this dataset. You will automatically have access.
+                  Select to grant access to this dataset.
                 </p>
 
                 {usersLoading ? (
@@ -1661,7 +1661,7 @@ export default function TargetWizard() {
                         />
                         <div className="flex-1">
                           <div className="text-sm font-medium text-gray-900">{user.name}</div>
-                          <div className="text-xs text-gray-500">{user.email}</div>
+                          {/* <div className="text-xs text-gray-500">{user.email}</div> */}
                         </div>
                       </label>
                     ))}
@@ -1674,7 +1674,7 @@ export default function TargetWizard() {
                       📌 {sharedUserIds.length} user(s) selected
                     </p>
                     <p className="text-xs text-blue-600 mt-1">
-                      Selected users will gain access after you create the dataset.
+                      Selected users will gain access after you create the target.
                     </p>
                   </div>
                 )}
