@@ -27,6 +27,7 @@ from etl_common import (
     finalize_import,
     run_quality_check,
     register_trino_table,
+    update_trino_table_metrics,
     on_success_callback,
     on_failure_callback,
 )
@@ -197,17 +198,23 @@ with DAG(
         python_callable=register_trino_table,
     )
 
-    # Task 6: Run Quality Check
+    # Task 6: Update Trino table metrics (file size + row count)
+    update_metrics = PythonOperator(
+        task_id="update_trino_table_metrics",
+        python_callable=update_trino_table_metrics,
+    )
+
+    # Task 7: Run Quality Check
     quality_check = PythonOperator(
         task_id="run_quality_check",
         python_callable=run_quality_check,
     )
 
-    # Task 7: Finalize import
+    # Task 8: Finalize import
     finalize = PythonOperator(
         task_id="finalize_import",
         python_callable=finalize_import,
     )
 
-    fetch_config >> generate_spark_spec >> submit_spark_job >> wait_for_spark >> register_table >> quality_check >> finalize
+    fetch_config >> generate_spark_spec >> submit_spark_job >> wait_for_spark >> register_table >> update_metrics >> quality_check >> finalize
 

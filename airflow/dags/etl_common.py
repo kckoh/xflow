@@ -637,11 +637,17 @@ def calculate_and_update_dataset_size(db, dataset_id, s3_client):
         print(f"   ⚠️ Error calculating S3 size for dataset {dataset_id}: {e}")
 
 
-def finalize_import(**context):
-    """Final task: Set import_ready flag to True and update last_sync_timestamp for incremental loads
-    Also updates actual_size_bytes for current dataset and all source datasets (recursive)"""
+def update_trino_table_metrics(**context):
+    """Calculate and update S3 file size and row count for the dataset
+
+    This task runs after register_trino_table and before quality checks.
+    Updates:
+    - actual_size_bytes: Total size of all S3 files at destination path
+    - row_count: Number of rows in the Trino table (via COUNT query)
+    """
     import pymongo
     from bson import ObjectId
+    from airflow.models import Variable
 
     # Support both dataset_id (direct run) and job_id (scheduled run)
     dataset_id = context["dag_run"].conf.get("dataset_id") or context["dag_run"].conf.get("job_id")
@@ -655,20 +661,13 @@ def finalize_import(**context):
     db = client[mongo_db]
 
     try:
-        # Fetch dataset to check if incremental is enabled
+        # Fetch dataset
         dataset = db.datasets.find_one({"_id": ObjectId(dataset_id)})
         if not dataset:
             print(f"Dataset {dataset_id} not found")
             return
 
-        update_fields = {"import_ready": True}
-
-        # Update last_sync_timestamp if incremental is enabled
-        incremental_config = dataset.get("incremental_config") or {}
-        if incremental_config.get("enabled"):
-            current_time = datetime.utcnow()
-            update_fields["last_sync_timestamp"] = current_time
-            print(f"[Incremental] Updated last_sync_timestamp: {current_time.isoformat()}")
+        update_fields = {}
 
         # Get S3 client (supports both LocalStack and AWS)
         import boto3
@@ -690,7 +689,7 @@ def finalize_import(**context):
                 region_name=Variable.get("AWS_REGION", default_var="ap-northeast-2")
             )
 
-        # Calculate S3 file size for current dataset
+        # Calculate S3 file size
         destination = dataset.get("destination", {})
         s3_path = destination.get("path")
 
@@ -706,7 +705,7 @@ def finalize_import(**context):
                 parts = path.split('/', 1)
                 bucket = parts[0]
                 prefix = parts[1] if len(parts) > 1 else ''
-                # Remove trailing slash for consistency (matches Backend approach)
+                # Remove trailing slash for consistency
                 prefix = prefix.rstrip('/')
 
                 # Calculate total size with pagination and retry logic
@@ -760,20 +759,19 @@ def finalize_import(**context):
                 print(f"⚠️ Error calculating S3 size: {e}")
                 # Continue even if size calculation fails
 
-        # Calculate row count using Trino (after S3 size calculation)
-        # Get glue_table_name from dataset.destination (already loaded above)
+        # Calculate row count using Trino
         glue_table_name = destination.get("glue_table_name") if destination else None
-        
+
         if glue_table_name:
             print(f"📊 Calculating row count for table {glue_table_name}...")
-            
+
             try:
                 import trino
-                
-                # Connect to Trino (same as register_trino_table)
+
+                # Connect to Trino
                 trino_host = Variable.get("TRINO_HOST", default_var="trino")
                 trino_port = int(Variable.get("TRINO_PORT", default_var="8080"))
-                
+
                 conn = trino.dbapi.connect(
                     host=trino_host,
                     port=trino_port,
@@ -781,23 +779,23 @@ def finalize_import(**context):
                     catalog="lakehouse",
                     schema="default",
                 )
-                
+
                 cursor = conn.cursor()
-                
+
                 # Count rows from Trino table
                 count_query = f"SELECT COUNT(*) as row_count FROM lakehouse.default.{glue_table_name}"
                 print(f"[Trino] Executing: {count_query}")
                 cursor.execute(count_query)
                 row_count_result = cursor.fetchone()
                 row_count = row_count_result[0] if row_count_result else 0
-                
+
                 # Update dataset with row count
                 update_fields["row_count"] = row_count
                 print(f"✅ Calculated row count: {row_count:,} rows")
-                
+
                 cursor.close()
                 conn.close()
-                
+
             except Exception as e:
                 print(f"⚠️ Error calculating row count: {e}")
                 import traceback
@@ -807,8 +805,81 @@ def finalize_import(**context):
             # Skip silently in local environment (no Glue catalog)
             pass
 
+        # Update dataset with metrics
+        if update_fields:
+            result = db.datasets.update_one(
+                {"_id": ObjectId(dataset_id)},
+                {"$set": update_fields}
+            )
 
-        # Update current dataset with all fields
+            if result.modified_count > 0:
+                print(f"✅ Updated dataset {dataset_id} with metrics: {update_fields}")
+            else:
+                print(f"⚠️ Dataset {dataset_id} not updated (no changes or not found)")
+
+    except Exception as e:
+        print(f"Failed to update Trino table metrics: {e}")
+        raise
+    finally:
+        client.close()
+
+
+def finalize_import(**context):
+    """Final task: Set import_ready flag to True and update last_sync_timestamp for incremental loads
+    Also updates actual_size_bytes for all source datasets (recursive)
+
+    Note: File size and row count for the current dataset are now calculated in update_trino_table_metrics task"""
+    import pymongo
+    from bson import ObjectId
+
+    # Support both dataset_id (direct run) and job_id (scheduled run)
+    dataset_id = context["dag_run"].conf.get("dataset_id") or context["dag_run"].conf.get("job_id")
+
+    mongo_url = Variable.get(
+        "MONGODB_URL", default_var="mongodb://mongo:mongo@mongodb:27017"
+    )
+    mongo_db = Variable.get("MONGODB_DATABASE", default_var="mydb")
+
+    client = pymongo.MongoClient(mongo_url)
+    db = client[mongo_db]
+
+    try:
+        # Fetch dataset to check if incremental is enabled
+        dataset = db.datasets.find_one({"_id": ObjectId(dataset_id)})
+        if not dataset:
+            print(f"Dataset {dataset_id} not found")
+            return
+
+        update_fields = {"import_ready": True}
+
+        # Update last_sync_timestamp if incremental is enabled
+        incremental_config = dataset.get("incremental_config") or {}
+        if incremental_config.get("enabled"):
+            current_time = datetime.utcnow()
+            update_fields["last_sync_timestamp"] = current_time
+            print(f"[Incremental] Updated last_sync_timestamp: {current_time.isoformat()}")
+
+        # Get S3 client (needed for source dataset updates)
+        import boto3
+        aws_endpoint = Variable.get("AWS_ENDPOINT", default_var=None) or Variable.get("AWS_ENDPOINT_URL", default_var=None)
+
+        if aws_endpoint:
+            # LocalStack configuration
+            s3_client = boto3.client(
+                's3',
+                endpoint_url=aws_endpoint,
+                aws_access_key_id=Variable.get("AWS_ACCESS_KEY_ID", default_var="test"),
+                aws_secret_access_key=Variable.get("AWS_SECRET_ACCESS_KEY", default_var="test"),
+                region_name=Variable.get("AWS_REGION", default_var="ap-northeast-2")
+            )
+        else:
+            # AWS configuration (IRSA)
+            s3_client = boto3.client(
+                's3',
+                region_name=Variable.get("AWS_REGION", default_var="ap-northeast-2")
+            )
+
+        # Update current dataset with import_ready and last_sync_timestamp
         result = db.datasets.update_one(
             {"_id": ObjectId(dataset_id)},
             {"$set": update_fields}
