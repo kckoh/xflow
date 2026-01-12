@@ -246,13 +246,16 @@ export default function JobDetailPage() {
 
     const formatDate = (dateString) => {
         if (!dateString) return '-';
-        return new Date(dateString).toLocaleString('ko-KR', {
+        // Backend sends UTC time, explicitly interpret as UTC and convert to KST
+        const date = new Date(dateString + (dateString.endsWith('Z') ? '' : 'Z'));
+        return date.toLocaleString('ko-KR', {
             year: 'numeric',
             month: '2-digit',
             day: '2-digit',
             hour: '2-digit',
             minute: '2-digit',
             second: '2-digit',
+            timeZone: 'Asia/Seoul',
         });
     };
 

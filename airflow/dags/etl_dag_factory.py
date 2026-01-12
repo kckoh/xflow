@@ -6,7 +6,7 @@ from datetime import datetime, timedelta
 
 import dateutil.parser
 import requests
-from airflow.operators.trigger_dagrun import TriggerDagRunOperator
+from airflow.operators.python import PythonOperator
 
 from airflow import DAG
 
@@ -16,6 +16,7 @@ logger = logging.getLogger(__name__)
 # Config
 # Use the backend service name in Docker Compose usually, or host.docker.internal
 BACKEND_URL = os.getenv("BACKEND_URL", "http://backend:8000/api/datasets")
+BACKEND_API_BASE_URL = os.getenv("BACKEND_API_BASE_URL", "http://backend:8000/api")
 GENERIC_DAG_ID = os.getenv("AIRFLOW_DAG_ID", "dataset_dag_k8s")
 
 
@@ -75,12 +76,18 @@ def create_scheduler_dag(job_id, job_name, schedule_str, schedule_interval, star
     )
 
     with dag:
-        trigger = TriggerDagRunOperator(
+        def trigger_via_backend(job_id: str):
+            url = f"{BACKEND_API_BASE_URL}/datasets/{job_id}/run"
+            response = requests.post(url, timeout=10)
+            if response.status_code not in (200, 201):
+                raise RuntimeError(
+                    f"Failed to trigger job via backend: {response.status_code} {response.text}"
+                )
+
+        trigger = PythonOperator(
             task_id="trigger_etl_job",
-            trigger_dag_id=GENERIC_DAG_ID,
-            conf={"job_id": job_id},
-            wait_for_completion=False,
-            poke_interval=10,
+            python_callable=trigger_via_backend,
+            op_kwargs={"job_id": job_id},
         )
 
     return dag

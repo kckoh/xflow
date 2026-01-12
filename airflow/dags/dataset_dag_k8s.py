@@ -58,11 +58,12 @@ def generate_spark_application(**context):
     import re
     parts = dag_run_id.split('_')
     if len(parts) >= 2:
-        # Take last part (most unique) and extract alphanumeric chars
-        clean_run_id = re.sub(r'[^a-z0-9]', '', parts[-1].lower())[:8]
+        # Include more characters to ensure uniqueness within the same day.
+        clean_run_id = re.sub(r'[^a-z0-9]', '', parts[-1].lower())[:16]
     else:
-        clean_run_id = re.sub(r'[^a-z0-9]', '', dag_run_id.lower())[-8:]
-    if not clean_run_id:
+        clean_run_id = re.sub(r'[^a-z0-9]', '', dag_run_id.lower())[-16:]
+    if not clean_run_id or len(clean_run_id) < 8:
+        # Fallback: use timestamp for uniqueness.
         clean_run_id = f"{int(datetime.now().timestamp()) % 100000000:08d}"
 
     # Parse config to get estimated size for auto-scaling
@@ -210,4 +211,3 @@ with DAG(
     )
 
     fetch_config >> generate_spark_spec >> submit_spark_job >> wait_for_spark >> register_table >> quality_check >> finalize
-
