@@ -167,7 +167,7 @@ function App() {
           <Route
             path="/query"
             element={
-              <ProtectedRoute>
+              <ProtectedRoute requireDatasetAccess>
                 <MainLayout fullWidth={true}>
                   <SqlLabPage />
                 </MainLayout>

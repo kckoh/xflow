@@ -24,10 +24,10 @@ export function Sidebar({ isCollapsed, onToggle }) {
   const { logout, user } = useAuth();
 
   const allNavItems = [
-    { name: "Dataset", path: "/dataset", icon: Database, requiresDatasetAccess: true },
-    { name: "ETL Jobs", path: "/etl", icon: List, requiresDatasetAccess: true },
+    { name: "Dataset", path: "/dataset", icon: Database, requiresDatasetManagement: true },
+    { name: "ETL Jobs", path: "/etl", icon: List, requiresDatasetManagement: true },
     { name: "Catalog", path: "/catalog", icon: Activity },
-    { name: "Query", path: "/query", icon: Search },
+    { name: "Query", path: "/query", icon: Search, requiresDatasetAccess: true },
     { name: "Admin", path: "/admin", icon: Wrench, adminOnly: true },
   ];
 
@@ -37,12 +37,19 @@ export function Sidebar({ isCollapsed, onToggle }) {
       return user?.is_admin === true;
     }
 
-    // Check for dataset access requirement
-    if (item.requiresDatasetAccess) {
-      // Show ONLY if user is admin OR has dataset management permission
+    // Check for dataset management requirement (Dataset, ETL)
+    if (item.requiresDatasetManagement) {
       return (
         user?.is_admin === true ||
         user?.can_manage_datasets === true
+      );
+    }
+
+    // Check for dataset access requirement (Query)
+    if (item.requiresDatasetAccess) {
+      return (
+        user?.is_admin === true ||
+        user?.can_run_query === true
       );
     }
 
@@ -191,19 +198,21 @@ export function Topbar({ isCollapsed }) {
 
       {/* Right Actions */}
       <div className="flex items-center space-x-4">
-        {/* AI Assistant Button */}
-        <button
-          onClick={togglePanel}
-          className={clsx(
-            "flex items-center gap-2 px-3 py-1.5 rounded-lg text-sm font-medium transition-all",
-            isOpen
-              ? "bg-indigo-100 text-indigo-700"
-              : "bg-gradient-to-r from-indigo-50 to-purple-50 text-indigo-600 hover:from-indigo-100 hover:to-purple-100"
-          )}
-        >
-          <Sparkles size={16} />
-          <span className="hidden sm:inline">AI</span>
-        </button>
+        {/* AI Assistant Button - Only show if user has query permission */}
+        {(user?.is_admin || user?.can_run_query) && (
+          <button
+            onClick={togglePanel}
+            className={clsx(
+              "flex items-center gap-2 px-3 py-1.5 rounded-lg text-sm font-medium transition-all",
+              isOpen
+                ? "bg-indigo-100 text-indigo-700"
+                : "bg-gradient-to-r from-indigo-50 to-purple-50 text-indigo-600 hover:from-indigo-100 hover:to-purple-100"
+            )}
+          >
+            <Sparkles size={16} />
+            <span className="hidden sm:inline">AI</span>
+          </button>
+        )}
 
         <div className="flex items-center space-x-3 pl-4 border-l border-gray-200">
           <div className="h-8 w-8 rounded-full bg-gradient-to-tr from-blue-500 to-purple-500 flex items-center justify-center text-white font-medium text-xs">
