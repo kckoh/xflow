@@ -638,12 +638,13 @@ def calculate_and_update_dataset_size(db, dataset_id, s3_client):
 
 
 def update_trino_table_metrics(**context):
-    """Calculate and update S3 file size and row count for the dataset
+    """Calculate and update row count for the dataset using Trino
 
     This task runs after register_trino_table and before quality checks.
     Updates:
-    - actual_size_bytes: Total size of all S3 files at destination path
     - row_count: Number of rows in the Trino table (via COUNT query)
+
+    Note: S3 file size (actual_size_bytes) is now calculated in finalize_import task
     """
     import pymongo
     from bson import ObjectId
@@ -667,97 +668,7 @@ def update_trino_table_metrics(**context):
             print(f"Dataset {dataset_id} not found")
             return
 
-        update_fields = {}
-
-        # Get S3 client (supports both LocalStack and AWS)
-        import boto3
-        aws_endpoint = Variable.get("AWS_ENDPOINT", default_var=None) or Variable.get("AWS_ENDPOINT_URL", default_var=None)
-
-        if aws_endpoint:
-            # LocalStack configuration
-            s3_client = boto3.client(
-                's3',
-                endpoint_url=aws_endpoint,
-                aws_access_key_id=Variable.get("AWS_ACCESS_KEY_ID", default_var="test"),
-                aws_secret_access_key=Variable.get("AWS_SECRET_ACCESS_KEY", default_var="test"),
-                region_name=Variable.get("AWS_REGION", default_var="ap-northeast-2")
-            )
-        else:
-            # AWS configuration (IRSA)
-            s3_client = boto3.client(
-                's3',
-                region_name=Variable.get("AWS_REGION", default_var="ap-northeast-2")
-            )
-
-        # Calculate S3 file size
         destination = dataset.get("destination", {})
-        s3_path = destination.get("path")
-
-        if s3_path:
-            dataset_name = dataset.get("name", "")
-
-            print(f"📊 Calculating S3 file size for dataset {dataset_name}...")
-            try:
-                import re
-
-                # Parse S3 path (s3://bucket/path or s3a://bucket/path)
-                path = re.sub(r'^s3a?://', '', s3_path)
-                parts = path.split('/', 1)
-                bucket = parts[0]
-                prefix = parts[1] if len(parts) > 1 else ''
-                # Remove trailing slash for consistency
-                prefix = prefix.rstrip('/')
-
-                # Calculate total size with pagination and retry logic
-                total_size = 0
-                file_count = 0
-
-                # Retry logic for eventual consistency issues
-                max_retries = 3
-                retry_delay = 2  # seconds
-
-                for attempt in range(max_retries):
-                    if attempt > 0:
-                        import time
-                        time.sleep(retry_delay)
-
-                    continuation_token = None
-                    temp_total_size = 0
-                    temp_file_count = 0
-
-                    while True:
-                        list_params = {'Bucket': bucket, 'Prefix': prefix}
-                        if continuation_token:
-                            list_params['ContinuationToken'] = continuation_token
-
-                        try:
-                            response = s3_client.list_objects_v2(**list_params)
-                        except Exception as list_err:
-                            print(f"⚠️ Error listing S3 objects: {list_err}")
-                            raise
-
-                        if 'Contents' in response:
-                            for obj in response['Contents']:
-                                temp_total_size += obj['Size']
-                                temp_file_count += 1
-
-                        if response.get('IsTruncated'):
-                            continuation_token = response.get('NextContinuationToken')
-                        else:
-                            break
-
-                    # If we found files, use them and break
-                    if temp_file_count > 0:
-                        total_size = temp_total_size
-                        file_count = temp_file_count
-                        break
-
-                # Update dataset with calculated size
-                update_fields["actual_size_bytes"] = total_size
-                print(f"✅ Calculated size: {file_count} files, {total_size} bytes ({total_size / (1024**3):.2f} GB)")
-            except Exception as e:
-                print(f"⚠️ Error calculating S3 size: {e}")
-                # Continue even if size calculation fails
 
         # Calculate row count using Trino
         glue_table_name = destination.get("glue_table_name") if destination else None
@@ -790,8 +701,15 @@ def update_trino_table_metrics(**context):
                 row_count = row_count_result[0] if row_count_result else 0
 
                 # Update dataset with row count
-                update_fields["row_count"] = row_count
-                print(f"✅ Calculated row count: {row_count:,} rows")
+                result = db.datasets.update_one(
+                    {"_id": ObjectId(dataset_id)},
+                    {"$set": {"row_count": row_count}}
+                )
+
+                if result.modified_count > 0:
+                    print(f"✅ Updated dataset {dataset_id} with row count: {row_count:,} rows")
+                else:
+                    print(f"⚠️ Dataset {dataset_id} not updated (no changes or not found)")
 
                 cursor.close()
                 conn.close()
@@ -802,20 +720,7 @@ def update_trino_table_metrics(**context):
                 traceback.print_exc()
                 # Continue even if row count fails
         else:
-            # Skip silently in local environment (no Glue catalog)
-            pass
-
-        # Update dataset with metrics
-        if update_fields:
-            result = db.datasets.update_one(
-                {"_id": ObjectId(dataset_id)},
-                {"$set": update_fields}
-            )
-
-            if result.modified_count > 0:
-                print(f"✅ Updated dataset {dataset_id} with metrics: {update_fields}")
-            else:
-                print(f"⚠️ Dataset {dataset_id} not updated (no changes or not found)")
+            print("ℹ️ No Glue table name found, skipping row count calculation")
 
     except Exception as e:
         print(f"Failed to update Trino table metrics: {e}")
@@ -826,9 +731,9 @@ def update_trino_table_metrics(**context):
 
 def finalize_import(**context):
     """Final task: Set import_ready flag to True and update last_sync_timestamp for incremental loads
-    Also updates actual_size_bytes for all source datasets (recursive)
+    Also updates actual_size_bytes for the current dataset and all source datasets (recursive)
 
-    Note: File size and row count for the current dataset are now calculated in update_trino_table_metrics task"""
+    Note: Row count for the current dataset is calculated in update_trino_table_metrics task"""
     import pymongo
     from bson import ObjectId
 
@@ -890,20 +795,30 @@ def finalize_import(**context):
         else:
             print(f"Dataset {dataset_id} not found or already marked")
 
-        # Update sizes for all source datasets recursively
-        print("\n📊 Updating sizes for source datasets...")
-        processed_ids = set()  # Track processed datasets to avoid infinite loops
+        # Update size for current dataset first
+        print("\n📊 Updating size for current dataset...")
+        calculate_and_update_dataset_size(db, dataset_id, s3_client)
 
-        def update_source_datasets(current_dataset_id):
-            """Recursively update sizes for source datasets"""
+        # Update sizes for all source datasets iteratively (BFS)
+        print("\n📊 Updating sizes for source datasets...")
+        from collections import deque
+
+        queue = deque([dataset_id])
+        processed_ids = set()  # Track processed datasets to avoid infinite loops and duplicates
+
+        while queue:
+            current_dataset_id = queue.popleft()
+
+            # Skip if already processed (handles circular dependencies)
             if current_dataset_id in processed_ids:
-                return
+                continue
             processed_ids.add(current_dataset_id)
 
             try:
                 current_dataset = db.datasets.find_one({"_id": ObjectId(current_dataset_id)})
                 if not current_dataset:
-                    return
+                    print(f"   ⚠️ Dataset {current_dataset_id} not found, skipping")
+                    continue
 
                 # Get sources from the dataset
                 sources = current_dataset.get("sources", [])
@@ -915,16 +830,16 @@ def finalize_import(**context):
                     source_job_id = source.get("sourceJobId")
 
                     # Check sourceDatasetId first (direct dataset reference)
-                    if source_dataset_id:
+                    if source_dataset_id and source_dataset_id not in processed_ids:
                         print(f"   Found source dataset: {source_dataset_id}")
                         calculate_and_update_dataset_size(db, source_dataset_id, s3_client)
-                        update_source_datasets(source_dataset_id)  # Recursive call
+                        queue.append(source_dataset_id)  # Add to queue for processing
 
                     # Check sourceJobId (reference to another job/dataset)
-                    elif source_job_id:
+                    elif source_job_id and source_job_id not in processed_ids:
                         print(f"   Found source job: {source_job_id}")
                         calculate_and_update_dataset_size(db, source_job_id, s3_client)
-                        update_source_datasets(source_job_id)  # Recursive call
+                        queue.append(source_job_id)  # Add to queue for processing
 
                 # Extract source IDs from nodes (for Target Wizard datasets)
                 for node in nodes:
@@ -935,22 +850,21 @@ def finalize_import(**context):
                         source_dataset_id = node_data.get("sourceDatasetId")
                         source_job_id = node_data.get("sourceJobId")
 
-                        if source_dataset_id:
+                        if source_dataset_id and source_dataset_id not in processed_ids:
                             print(f"   Found source dataset in node: {source_dataset_id}")
                             calculate_and_update_dataset_size(db, source_dataset_id, s3_client)
-                            update_source_datasets(source_dataset_id)  # Recursive call
+                            queue.append(source_dataset_id)  # Add to queue for processing
 
-                        elif source_job_id:
+                        elif source_job_id and source_job_id not in processed_ids:
                             print(f"   Found source job in node: {source_job_id}")
                             calculate_and_update_dataset_size(db, source_job_id, s3_client)
-                            update_source_datasets(source_job_id)  # Recursive call
+                            queue.append(source_job_id)  # Add to queue for processing
 
             except Exception as e:
                 print(f"   ⚠️ Error processing source datasets for {current_dataset_id}: {e}")
+                # Continue processing other datasets even if one fails
 
-        # Start recursive update from current dataset
-        update_source_datasets(dataset_id)
-        print("✅ Finished updating all source dataset sizes")
+        print(f"✅ Finished updating all source dataset sizes (processed {len(processed_ids)} datasets)")
 
     except Exception as e:
         print(f"Failed to finalize import: {e}")
