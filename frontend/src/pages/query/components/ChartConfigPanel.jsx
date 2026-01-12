@@ -135,11 +135,13 @@ export default function ChartConfigPanel({
                         </div>
                     )}
 
-                    {chartType === 'bar' && (
+                    {(chartType === 'bar' || chartType === 'line' || chartType === 'area') && (
                         <>
                             <div>
                                 <label className="block text-xs font-medium text-gray-700 mb-1.5">
-                                    Breakdown By (Color) - For Stacked Bar
+                                    {chartType === 'bar' && 'Breakdown By (Color)'}
+                                    {chartType === 'line' && 'Breakdown By (Multiple Lines)'}
+                                    {chartType === 'area' && 'Breakdown By (Stacked Areas)'}
                                 </label>
                                 <Combobox
                                     options={['', ...columns]}
@@ -150,17 +152,18 @@ export default function ChartConfigPanel({
                                     placeholder="None"
                                 />
                             </div>
-                            {!breakdownBy && yAxes.length > 1 && (
+                            {/* Stack toggle for Bar and Area (only when no breakdown and multiple metrics) */}
+                            {(chartType === 'bar' || chartType === 'area') && !breakdownBy && yAxes.length > 1 && (
                                 <div className="flex items-center gap-2 p-2 bg-blue-50 rounded-lg">
                                     <input
                                         type="checkbox"
-                                        id="stack-bars"
+                                        id="stack-toggle"
                                         checked={isStacked}
                                         onChange={(e) => setIsStacked(e.target.checked)}
                                         className="w-4 h-4 text-blue-600 border-gray-300 rounded focus:ring-blue-500"
                                     />
-                                    <label htmlFor="stack-bars" className="text-xs font-medium text-gray-700 cursor-pointer">
-                                        Stack Bars (쌓기)
+                                    <label htmlFor="stack-toggle" className="text-xs font-medium text-gray-700 cursor-pointer">
+                                        {chartType === 'bar' ? 'Stack Bars' : 'Stack Areas'}
                                     </label>
                                 </div>
                             )}

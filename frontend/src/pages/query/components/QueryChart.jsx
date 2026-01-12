@@ -407,32 +407,58 @@ export default function QueryChart({
                                 height={60}
                                 wrapperStyle={{ paddingTop: '20px', fontSize: '11px' }}
                             />
-                            {yAxes.map((metric, index) => {
-                                const metricKey = `${metric.aggregation}(${metric.column})`;
-                                return (
-                                    <Line
-                                        key={metricKey}
-                                        type="monotone"
-                                        dataKey={metricKey}
-                                        stroke={CHART_COLORS[index % CHART_COLORS.length]}
-                                        strokeWidth={2}
-                                        dot={{ fill: CHART_COLORS[index % CHART_COLORS.length], r: 4 }}
-                                        name={metricKey}
-                                    />
-                                );
-                            })}
-                            {/* Add calculated metrics */}
-                            {calculatedMetrics && calculatedMetrics.map((calc, index) => (
-                                <Line
-                                    key={calc.label}
-                                    type="monotone"
-                                    dataKey={calc.label}
-                                    stroke={CHART_COLORS[(yAxes.length + index) % CHART_COLORS.length]}
-                                    strokeWidth={2}
-                                    dot={{ fill: CHART_COLORS[(yAxes.length + index) % CHART_COLORS.length], r: 4 }}
-                                    name={calc.label}
-                                />
-                            ))}
+                            {breakdownBy ? (
+                                // Multiple lines by breakdown
+                                (() => {
+                                    const breakdownValues = [...new Set(chartData.map(row => row[breakdownBy]))];
+                                    return breakdownValues.flatMap((breakdownValue, bIndex) =>
+                                        yAxes.map((metric, mIndex) => {
+                                            const metricKey = `${metric.aggregation}(${metric.column})`;
+                                            const stackKey = `${breakdownValue}_${metricKey}`;
+                                            return (
+                                                <Line
+                                                    key={stackKey}
+                                                    type="monotone"
+                                                    dataKey={stackKey}
+                                                    stroke={CHART_COLORS[(bIndex * yAxes.length + mIndex) % CHART_COLORS.length]}
+                                                    strokeWidth={2}
+                                                    dot={{ fill: CHART_COLORS[(bIndex * yAxes.length + mIndex) % CHART_COLORS.length], r: 4 }}
+                                                    name={`${breakdownValue} - ${metricKey}`}
+                                                />
+                                            );
+                                        })
+                                    );
+                                })()
+                            ) : (
+                                <>
+                                    {yAxes.map((metric, index) => {
+                                        const metricKey = `${metric.aggregation}(${metric.column})`;
+                                        return (
+                                            <Line
+                                                key={metricKey}
+                                                type="monotone"
+                                                dataKey={metricKey}
+                                                stroke={CHART_COLORS[index % CHART_COLORS.length]}
+                                                strokeWidth={2}
+                                                dot={{ fill: CHART_COLORS[index % CHART_COLORS.length], r: 4 }}
+                                                name={metricKey}
+                                            />
+                                        );
+                                    })}
+                                    {/* Add calculated metrics */}
+                                    {calculatedMetrics && calculatedMetrics.map((calc, index) => (
+                                        <Line
+                                            key={calc.label}
+                                            type="monotone"
+                                            dataKey={calc.label}
+                                            stroke={CHART_COLORS[(yAxes.length + index) % CHART_COLORS.length]}
+                                            strokeWidth={2}
+                                            dot={{ fill: CHART_COLORS[(yAxes.length + index) % CHART_COLORS.length], r: 4 }}
+                                            name={calc.label}
+                                        />
+                                    ))}
+                                </>
+                            )}
                         </LineChart>
                     </ResponsiveContainer>
                 );
@@ -454,32 +480,61 @@ export default function QueryChart({
                                 height={60}
                                 wrapperStyle={{ paddingTop: '20px', fontSize: '11px' }}
                             />
-                            {yAxes.map((metric, index) => {
-                                const metricKey = `${metric.aggregation}(${metric.column})`;
-                                return (
-                                    <Area
-                                        key={metricKey}
-                                        type="monotone"
-                                        dataKey={metricKey}
-                                        fill={CHART_COLORS[index % CHART_COLORS.length]}
-                                        stroke={CHART_COLORS[index % CHART_COLORS.length]}
-                                        fillOpacity={0.6}
-                                        name={metricKey}
-                                    />
-                                );
-                            })}
-                            {/* Add calculated metrics */}
-                            {calculatedMetrics && calculatedMetrics.map((calc, index) => (
-                                <Area
-                                    key={calc.label}
-                                    type="monotone"
-                                    dataKey={calc.label}
-                                    fill={CHART_COLORS[(yAxes.length + index) % CHART_COLORS.length]}
-                                    stroke={CHART_COLORS[(yAxes.length + index) % CHART_COLORS.length]}
-                                    fillOpacity={0.6}
-                                    name={calc.label}
-                                />
-                            ))}
+                            {breakdownBy ? (
+                                // Stacked areas by breakdown
+                                (() => {
+                                    const breakdownValues = [...new Set(chartData.map(row => row[breakdownBy]))];
+                                    return breakdownValues.flatMap((breakdownValue, bIndex) =>
+                                        yAxes.map((metric, mIndex) => {
+                                            const metricKey = `${metric.aggregation}(${metric.column})`;
+                                            const stackKey = `${breakdownValue}_${metricKey}`;
+                                            return (
+                                                <Area
+                                                    key={stackKey}
+                                                    type="monotone"
+                                                    dataKey={stackKey}
+                                                    stackId={metricKey}
+                                                    fill={CHART_COLORS[(bIndex * yAxes.length + mIndex) % CHART_COLORS.length]}
+                                                    stroke={CHART_COLORS[(bIndex * yAxes.length + mIndex) % CHART_COLORS.length]}
+                                                    fillOpacity={0.6}
+                                                    name={`${breakdownValue} - ${metricKey}`}
+                                                />
+                                            );
+                                        })
+                                    );
+                                })()
+                            ) : (
+                                <>
+                                    {yAxes.map((metric, index) => {
+                                        const metricKey = `${metric.aggregation}(${metric.column})`;
+                                        return (
+                                            <Area
+                                                key={metricKey}
+                                                type="monotone"
+                                                dataKey={metricKey}
+                                                stackId={isStacked ? "metrics" : undefined}
+                                                fill={CHART_COLORS[index % CHART_COLORS.length]}
+                                                stroke={CHART_COLORS[index % CHART_COLORS.length]}
+                                                fillOpacity={0.6}
+                                                name={metricKey}
+                                            />
+                                        );
+                                    })}
+                                    {/* Add calculated metrics */}
+                                    {calculatedMetrics && calculatedMetrics.map((calc, index) => (
+                                        <Area
+                                            key={calc.label}
+                                            type="monotone"
+                                            dataKey={calc.label}
+                                            stackId={isStacked ? "metrics" : undefined}
+                                            fill={CHART_COLORS[(yAxes.length + index) % CHART_COLORS.length]}
+                                            stroke={CHART_COLORS[(yAxes.length + index) % CHART_COLORS.length]}
+                                            fillOpacity={0.6}
+                                            name={calc.label}
+                                        />
+                                    ))}
+                                </>
+                            )}
                         </AreaChart>
                     </ResponsiveContainer>
                 );

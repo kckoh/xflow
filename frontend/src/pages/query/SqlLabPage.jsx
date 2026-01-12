@@ -31,6 +31,19 @@ export default function SqlLabPage() {
         return sessionStorage.getItem(ENGINE_STORAGE_KEY) || 'duckdb';
     }); // 'duckdb' | 'trino'
 
+    // Chart configuration state
+    const [chartType, setChartType] = useState('bar');
+    const [xAxis, setXAxis] = useState('');
+    const [yAxes, setYAxes] = useState([]);
+    const [calculatedMetrics, setCalculatedMetrics] = useState([]);
+    const [breakdownBy, setBreakdownBy] = useState('');
+    const [isStacked, setIsStacked] = useState(false);
+    const [aggregation, setAggregation] = useState('SUM');
+    const [timeGrain, setTimeGrain] = useState('');
+    const [limit, setLimit] = useState(20);
+    const [sortBy, setSortBy] = useState('');
+    const [sortOrder, setSortOrder] = useState('desc');
+
     // Load query and results from multiple sources (priority order)
     useEffect(() => {
         // 1. From navigation state (Edit Query button)
@@ -171,6 +184,28 @@ export default function SqlLabPage() {
                 viewMode={viewMode}
                 setViewMode={setViewMode}
                 engine={engine}
+                chartType={chartType}
+                setChartType={setChartType}
+                xAxis={xAxis}
+                setXAxis={setXAxis}
+                yAxes={yAxes}
+                setYAxes={setYAxes}
+                calculatedMetrics={calculatedMetrics}
+                setCalculatedMetrics={setCalculatedMetrics}
+                breakdownBy={breakdownBy}
+                setBreakdownBy={setBreakdownBy}
+                isStacked={isStacked}
+                setIsStacked={setIsStacked}
+                aggregation={aggregation}
+                setAggregation={setAggregation}
+                timeGrain={timeGrain}
+                setTimeGrain={setTimeGrain}
+                limit={limit}
+                setLimit={setLimit}
+                sortBy={sortBy}
+                setSortBy={setSortBy}
+                sortOrder={sortOrder}
+                setSortOrder={setSortOrder}
             />
 
             {/* Main SQL Lab Area */}
@@ -256,7 +291,21 @@ export default function SqlLabPage() {
                 <div className="flex-1 overflow-hidden min-w-0">
                     {results ? (
                         viewMode === 'chart' ? (
-                            <QueryExplorer results={results} query={query} />
+                            <QueryExplorer
+                                results={results}
+                                query={query}
+                                chartType={chartType}
+                                xAxis={xAxis}
+                                yAxes={yAxes}
+                                calculatedMetrics={calculatedMetrics}
+                                breakdownBy={breakdownBy}
+                                isStacked={isStacked}
+                                aggregation={aggregation}
+                                timeGrain={timeGrain}
+                                limit={limit}
+                                sortBy={sortBy}
+                                sortOrder={sortOrder}
+                            />
                         ) : (
                             <div className="p-4 h-full flex flex-col overflow-hidden">
                                 {/* Results Header */}
