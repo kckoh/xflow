@@ -1153,13 +1153,8 @@ def write_s3_destination(df: DataFrame, dest_config: dict, job_name: str = "outp
 
     options = dest_config.get("options", {})
     compression = options.get("compression", "snappy")
-<<<<<<< HEAD
 
     # Determine write mode
-=======
-    
-    # Determine write mode: Enforce 'append' if incremental load is enabled
->>>>>>> d218364a8038c0e692efdb2a2f249b68847b8e0f
     incremental_config = dest_config.get("incremental_config", {})
     partition_by = options.get("partitionBy", [])
     coalesce_num = options.get("coalesce")  # None means use default partitions
