@@ -220,7 +220,7 @@ export default function JobsPage() {
       });
       if (response.ok) {
         const data = await response.json();
-        // Filter only target datasets
+        // Filter only target datasets (ETL Jobs)
         let targetJobs = data.filter(job => job.dataset_type === "target");
 
         // Filter based on user permissions

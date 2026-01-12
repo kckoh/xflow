@@ -58,6 +58,7 @@ function DatasetPermissionSelector({ datasets, selectedDatasets, onChange }) {
     const [selectedDomain, setSelectedDomain] = useState("ALL"); // Domain filter state
     const [domains, setDomains] = useState([]);
     const [domainsLoading, setDomainsLoading] = useState(true);
+    const [datasetTypeTab, setDatasetTypeTab] = useState("target"); // 'source' or 'target'
 
     // Fetch domains on mount
     useEffect(() => {
@@ -132,11 +133,11 @@ function DatasetPermissionSelector({ datasets, selectedDatasets, onChange }) {
     }, [datasets, domains]);
 
     // Filter datasets:
-    // 1. Remove 'source' datasets (root data)
+    // 1. Filter by selected tab (source or target)
     // 2. Filter by search query
     const filteredDatasets = useMemo(() => {
-        // First filter out source datasets (Keep only Target/ETL datasets)
-        let result = datasets.filter(d => d.dataset_type === 'target');
+        // Filter by dataset type based on active tab
+        let result = datasets.filter(d => d.dataset_type === datasetTypeTab);
 
         if (searchQuery.trim()) {
             const query = searchQuery.toLowerCase();
@@ -146,7 +147,7 @@ function DatasetPermissionSelector({ datasets, selectedDatasets, onChange }) {
             );
         }
         return result;
-    }, [datasets, searchQuery]);
+    }, [datasets, searchQuery, datasetTypeTab]);
 
     // Reset to page 1 when search changes
     useEffect(() => {
@@ -190,6 +191,33 @@ function DatasetPermissionSelector({ datasets, selectedDatasets, onChange }) {
 
     return (
         <div className="space-y-3">
+            {/* Dataset Type Tabs */}
+            <div className="flex gap-2 border-b border-gray-200">
+                <button
+                    onClick={() => {
+                        setDatasetTypeTab("source");
+                        setCurrentPage(1);
+                    }}
+                    className={`px-4 py-2 text-sm font-medium transition-colors border-b-2 ${datasetTypeTab === "source"
+                            ? "border-blue-500 text-blue-600"
+                            : "border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300"
+                        }`}
+                >
+                    Source Datasets ({datasets.filter(d => d.dataset_type === 'source').length})
+                </button>
+                <button
+                    onClick={() => {
+                        setDatasetTypeTab("target");
+                        setCurrentPage(1);
+                    }}
+                    className={`px-4 py-2 text-sm font-medium transition-colors border-b-2 ${datasetTypeTab === "target"
+                            ? "border-blue-500 text-blue-600"
+                            : "border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300"
+                        }`}
+                >
+                    Target Datasets ({datasets.filter(d => d.dataset_type === 'target').length})
+                </button>
+            </div>
             {/* Selected Datasets - Chips */}
             {selectedDatasetObjs.length > 0 && (
                 <div className="flex flex-wrap gap-1.5">

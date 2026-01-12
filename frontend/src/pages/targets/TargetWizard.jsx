@@ -241,7 +241,19 @@ export default function TargetWizard() {
             }),
         ];
 
-        setSourceDatasets(combinedDatasets);
+        // Filter by user permissions
+        // Only show datasets user has access to (unless all_datasets is true)
+        const { dataset_access, all_datasets } = JSON.parse(sessionStorage.getItem('user') || '{}');
+
+        const filteredDatasets = combinedDatasets.filter(ds => {
+          // Admin or all_datasets: show all
+          if (all_datasets) return true;
+
+          // Check if user has permission for this dataset
+          return dataset_access && dataset_access.includes(ds.id);
+        });
+
+        setSourceDatasets(filteredDatasets);
       } catch (err) {
         console.error("Failed to load datasets:", err);
         setSourceDatasets([]);
