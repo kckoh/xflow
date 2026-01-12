@@ -1591,9 +1591,22 @@ def run_etl(config: dict):
         dest_type = dest_config.get("type", "s3")
 
         # Extract source types for SCD Type 2 logic
-        source_types = [s.get("type") or s.get("source_type") for s in config.get("sources", [])]
+        # Filter out None values to prevent issues in SCD2 logic
+        source_types = [
+            s.get("type") or s.get("source_type")
+            for s in config.get("sources", [])
+            if s.get("type") or s.get("source_type")
+        ]
+
+        # Fallback: if sources list is empty, try legacy single source
+        if not source_types and config.get("source"):
+            legacy_source_type = config["source"].get("type") or config["source"].get("source_type")
+            if legacy_source_type:
+                source_types = [legacy_source_type]
 
         print(f"💾 Writing to destination: {dest_type}")
+        print(f"   Source types detected: {source_types}")
+
         if dest_type == "s3":
             write_s3_destination(final_df, dest_config, config.get("name", "output"), has_nosql_source, source_types)
         else:
