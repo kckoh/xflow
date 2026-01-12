@@ -68,7 +68,7 @@ function App() {
           <Route
             path="/dataset"
             element={
-              <ProtectedRoute>
+              <ProtectedRoute requireDatasetManagement>
                 <MainLayout>
                   <ETLPage />
                 </MainLayout>
@@ -101,7 +101,7 @@ function App() {
           <Route
             path="/source"
             element={
-              <ProtectedRoute>
+              <ProtectedRoute requireDatasetManagement>
                 <MainLayout>
                   <SourceWizard />
                 </MainLayout>
@@ -112,7 +112,7 @@ function App() {
           <Route
             path="/target"
             element={
-              <ProtectedRoute>
+              <ProtectedRoute requireDatasetManagement>
                 <MainLayout>
                   <TargetWizard />
                 </MainLayout>
@@ -211,7 +211,7 @@ function App() {
           <Route
             path="/etl"
             element={
-              <ProtectedRoute requireEtlAccess>
+              <ProtectedRoute requireDatasetManagement>
                 <MainLayout>
                   <JobsPage />
                 </MainLayout>
@@ -222,7 +222,7 @@ function App() {
           <Route
             path="/etl/visual"
             element={
-              <ProtectedRoute>
+              <ProtectedRoute requireDatasetManagement>
                 <MainLayout fullWidth={true}>
                   <ETLJobPage />
                 </MainLayout>
@@ -233,7 +233,7 @@ function App() {
           <Route
             path="/etl/job/:jobId"
             element={
-              <ProtectedRoute>
+              <ProtectedRoute requireDatasetManagement>
                 <MainLayout fullWidth={true}>
                   <ETLJobPage />
                 </MainLayout>
@@ -244,7 +244,7 @@ function App() {
           <Route
             path="/etl/job/:jobId/runs"
             element={
-              <ProtectedRoute>
+              <ProtectedRoute requireDatasetManagement>
                 <MainLayout fullWidth={true}>
                   <JobDetailPage />
                 </MainLayout>

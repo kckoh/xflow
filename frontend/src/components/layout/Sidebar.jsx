@@ -39,12 +39,10 @@ export function Sidebar({ isCollapsed, onToggle }) {
 
     // Check for dataset access requirement
     if (item.requiresDatasetAccess) {
-      // Show if user is admin, has management permission, has all_datasets, OR has specific dataset access
+      // Show ONLY if user is admin OR has dataset management permission
       return (
         user?.is_admin === true ||
-        user?.can_manage_datasets === true ||
-        user?.all_datasets === true ||
-        (user?.dataset_access && user?.dataset_access.length > 0)
+        user?.can_manage_datasets === true
       );
     }
 

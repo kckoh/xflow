@@ -1,7 +1,7 @@
 import { Navigate, Outlet } from "react-router-dom";
 import { useAuth } from "../context/AuthContext";
 
-function ProtectedRoute({ children, requireAdmin = false, requireEtlAccess = false }) {
+function ProtectedRoute({ children, requireAdmin = false, requireDatasetManagement = false }) {
   const { sessionId, user, isAuthReady } = useAuth();
 
   // Wait for auth to be restored from sessionStorage before checking
@@ -18,16 +18,14 @@ function ProtectedRoute({ children, requireAdmin = false, requireEtlAccess = fal
     return <Navigate to="/" replace />;
   }
 
-  // Check dataset access requirement (formerly etl_access)
-  if (requireEtlAccess) {
+  // Check dataset management requirement
+  if (requireDatasetManagement) {
     const hasAccess =
       user?.is_admin ||
-      user?.can_manage_datasets ||
-      user?.all_datasets ||
-      (user?.dataset_access && user?.dataset_access.length > 0);
+      user?.can_manage_datasets;
 
     if (!hasAccess) {
-      return <Navigate to="/query" replace />;
+      return <Navigate to="/catalog" replace />;
     }
   }
 

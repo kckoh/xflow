@@ -29,15 +29,20 @@ import sk from "../assets/person/sk.jpg";
 
 function LandingPage() {
     const navigate = useNavigate();
-    const { sessionId } = useAuth();
+    const { sessionId, user } = useAuth();
     const [activeStickySection, setActiveStickySection] = useState(0);
 
     // Redirect if already logged in
     useEffect(() => {
-        if (sessionId) {
-            navigate("/dataset");
+        if (sessionId && user) {
+            // Redirect based on user permissions
+            if (user?.is_admin || user?.can_manage_datasets) {
+                navigate("/dataset");
+            } else {
+                navigate("/catalog");
+            }
         }
-    }, [sessionId, navigate]);
+    }, [sessionId, user, navigate]);
 
     // Scroll spy for sticky sections
     useEffect(() => {
