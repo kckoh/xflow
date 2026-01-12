@@ -17,6 +17,7 @@ export default function JobDetailPage() {
     const [statusFilter, setStatusFilter] = useState('all');
     const [copiedId, setCopiedId] = useState(false);
     const { showToast } = useToast();
+    const [streamingStartEnabled, setStreamingStartEnabled] = useState(true);
 
     // Quality state
     const [qualityResult, setQualityResult] = useState(null);
@@ -32,6 +33,29 @@ export default function JobDetailPage() {
             fetchQualityData();
         }
     }, [jobId]);
+
+    useEffect(() => {
+        if (!jobId) return;
+        try {
+            const raw = localStorage.getItem("streamingStartEnabledByDatasetId");
+            const map = raw ? JSON.parse(raw) : {};
+            setStreamingStartEnabled(map?.[jobId] !== false);
+        } catch {
+            setStreamingStartEnabled(true);
+        }
+    }, [jobId]);
+
+    const setStreamingStartEnabledFor = (datasetId, enabled) => {
+        setStreamingStartEnabled(enabled);
+        try {
+            const raw = localStorage.getItem("streamingStartEnabledByDatasetId");
+            const map = raw ? JSON.parse(raw) : {};
+            const next = { ...map, [datasetId]: enabled };
+            localStorage.setItem("streamingStartEnabledByDatasetId", JSON.stringify(next));
+        } catch {
+            // ignore storage errors
+        }
+    };
 
     const fetchQualityData = async () => {
         setQualityLoading(true);
@@ -100,6 +124,11 @@ export default function JobDetailPage() {
     const handleToggle = async () => {
         if (!job) return;
 
+        if (job.job_type === "streaming") {
+            setStreamingStartEnabledFor(jobId, !streamingStartEnabled);
+            return;
+        }
+
         const isActive = job.is_active;
         const newActiveState = !isActive;
 
@@ -107,19 +136,11 @@ export default function JobDetailPage() {
             let endpoint;
             let method = "POST";
 
-            if (job.job_type === "streaming") {
-                endpoint = isActive
-                    ? `/api/streaming-jobs/${jobId}/stop`
-                    : `/api/streaming-jobs/${jobId}/start`;
-            } else {
-                endpoint = isActive
-                    ? `/api/datasets/${jobId}/deactivate`
-                    : `/api/datasets/${jobId}/activate`;
-            }
+            endpoint = isActive
+                ? `/api/datasets/${jobId}/deactivate`
+                : `/api/datasets/${jobId}/activate`;
 
-            const response = await fetch(`${API_BASE_URL}${endpoint}`, {
-                method: method,
-            });
+            const response = await fetch(`${API_BASE_URL}${endpoint}`, { method });
 
             if (response.ok) {
                 setJob((prev) => ({ ...prev, is_active: newActiveState }));
@@ -137,6 +158,38 @@ export default function JobDetailPage() {
         } catch (error) {
             console.error("Failed to toggle job:", error);
             showToast("Network error: Failed to toggle job", "error");
+        }
+    };
+
+    const handleStreamingStart = async () => {
+        try {
+            const response = await fetch(`${API_BASE_URL}/api/streaming-jobs/${jobId}/start`, { method: "POST" });
+            if (response.ok) {
+                setJob((prev) => ({ ...prev, is_active: true }));
+                showToast("Streaming started successfully!", "success");
+            } else {
+                const err = await response.json().catch(() => ({}));
+                showToast(err.detail || "Failed to start streaming", "error");
+            }
+        } catch (error) {
+            console.error("Failed to start streaming:", error);
+            showToast("Network error: Failed to start streaming", "error");
+        }
+    };
+
+    const handleStreamingStop = async () => {
+        try {
+            const response = await fetch(`${API_BASE_URL}/api/streaming-jobs/${jobId}/stop`, { method: "POST" });
+            if (response.ok) {
+                setJob((prev) => ({ ...prev, is_active: false }));
+                showToast("Streaming stopped successfully!", "success");
+            } else {
+                const err = await response.json().catch(() => ({}));
+                showToast(err.detail || "Failed to stop streaming", "error");
+            }
+        } catch (error) {
+            console.error("Failed to stop streaming:", error);
+            showToast("Network error: Failed to stop streaming", "error");
         }
     };
 
@@ -292,27 +345,52 @@ export default function JobDetailPage() {
 
                             <button
                                 onClick={handleToggle}
-                                className={`relative inline-flex h-6 w-11 flex-shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none ${job?.is_active
+                                title={job?.job_type === "streaming" ? "Enable/Disable Start button" : undefined}
+                                className={`relative inline-flex h-6 w-11 flex-shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none ${(job?.job_type === "streaming" ? streamingStartEnabled : job?.is_active)
                                     ? "bg-green-500"
                                     : "bg-gray-300"
                                     }`}
                             >
                                 <span
-                                    className={`pointer-events-none inline-block h-5 w-5 transform rounded-full bg-white shadow ring-0 transition duration-200 ease-in-out ${job?.is_active
+                                    className={`pointer-events-none inline-block h-5 w-5 transform rounded-full bg-white shadow ring-0 transition duration-200 ease-in-out ${(job?.job_type === "streaming" ? streamingStartEnabled : job?.is_active)
                                         ? "translate-x-5"
                                         : "translate-x-0"
                                         }`}
                                 />
                             </button>
                             {/* Action Buttons */}
-                            {(job?.job_type === "cdc" || job?.job_type === "streaming") ? (
+                            {job?.job_type === "streaming" ? (
+                                <button
+                                    onClick={job.is_active ? handleStreamingStop : handleStreamingStart}
+                                    disabled={!job.is_active && !streamingStartEnabled}
+                                    className={`inline-flex items-center gap-1 px-4 py-2 text-sm font-medium text-white rounded-lg transition-colors ${job.is_active
+                                        ? "bg-red-600 hover:bg-red-700"
+                                        : !streamingStartEnabled
+                                            ? "bg-gray-300 cursor-not-allowed"
+                                            : "bg-green-600 hover:bg-green-700"
+                                        }`}
+                                    title={job.is_active ? "Stop Streaming" : "Start Streaming"}
+                                >
+                                    {job.is_active ? (
+                                        <>
+                                            <div className="w-3 h-3 bg-white rounded-sm" />
+                                            Stop
+                                        </>
+                                    ) : (
+                                        <>
+                                            <Play className="w-4 h-4" />
+                                            Start
+                                        </>
+                                    )}
+                                </button>
+                            ) : job?.job_type === "cdc" ? (
                                 <button
                                     onClick={handleToggle}
                                     className={`inline-flex items-center gap-1 px-4 py-2 text-sm font-medium text-white rounded-lg transition-colors ${job.is_active
                                         ? "bg-red-600 hover:bg-red-700"
                                         : "bg-green-600 hover:bg-green-700"
                                         }`}
-                                    title={job.is_active ? "Stop Streaming" : "Start Streaming"}
+                                    title={job.is_active ? "Deactivate" : "Activate"}
                                 >
                                     {job.is_active ? (
                                         <>

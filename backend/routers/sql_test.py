@@ -377,7 +377,6 @@ async def _load_sample_data(
             'enable_auto_commit': False,
             'group_id': f'xflow-preview-{int(time.time())}',
             'consumer_timeout_ms': 3000, # 3 seconds timeout
-            'value_deserializer': lambda x: json.loads(x.decode('utf-8')) if x else None
         }
         
         # Security Config
@@ -408,8 +407,18 @@ async def _load_sample_data(
                     for tp, msgs in records.items():
                         print(f"[DEBUG] Partition {tp}: {len(msgs)} messages found")
                         for msg in msgs:
-                            if msg.value:
-                                messages.append(msg.value)
+                            if not msg.value:
+                                continue
+                            try:
+                                raw_value = msg.value
+                                if isinstance(raw_value, (bytes, bytearray)):
+                                    raw_value = raw_value.decode('utf-8')
+                                parsed = json.loads(raw_value)
+                                if isinstance(parsed, dict):
+                                    messages.append(parsed)
+                            except Exception:
+                                # Skip non-JSON or malformed messages
+                                continue
                 
                 if len(messages) >= limit:
                     break

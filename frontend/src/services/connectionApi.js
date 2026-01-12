@@ -148,5 +148,22 @@ export const connectionApi = {
             throw new Error('Failed to infer Kafka topic schema');
         }
         return response.json();
+    },
+
+    /**
+     * Preview Kafka topic messages
+     * @param {string} connectionId
+     * @param {string} topic
+     * @param {number} limit
+     * @returns {Promise<Array>} List of messages (parsed JSON or {_raw: string})
+     */
+    async fetchKafkaTopicPreview(connectionId, topic, limit = 10) {
+        const response = await fetch(
+            `${API_URL}/metadata/${connectionId}/topics/${topic}/preview?limit=${limit}`
+        );
+        if (!response.ok) {
+            throw new Error('Failed to preview Kafka topic');
+        }
+        return response.json();
     }
 };

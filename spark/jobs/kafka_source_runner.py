@@ -166,11 +166,20 @@ def run_pipeline(config: dict):
         except Exception as e:
             logger.warning(f"Failed to parse schema JSON: {e}")
 
-    KAFKA_BOOTSTRAP_SERVERS = os.getenv("KAFKA_BOOTSTRAP_SERVERS", "kafka:9092")
+    KAFKA_BOOTSTRAP_SERVERS = (
+        config.get("bootstrap_servers")
+        or os.getenv("KAFKA_BOOTSTRAP_SERVERS", "kafka:9092")
+    )
+    security_protocol = (config.get("security_protocol") or "PLAINTEXT").upper()
+    sasl_mechanism = config.get("sasl_mechanism")
+    sasl_username = config.get("sasl_username")
+    sasl_password = config.get("sasl_password")
     TARGET_S3_PATH = f"s3a://xflows-output/datasets/{job_id}/"
     CHECKPOINT_PATH = f"s3a://xflows-output/checkpoints/{job_id}/"
     
-    logger.info(f"=== [Streaming ETL] Topic: {topic} | Target: {TARGET_S3_PATH} ===")
+    logger.info(
+        f"=== [Streaming ETL] Bootstrap: {KAFKA_BOOTSTRAP_SERVERS} | Topic: {topic} | Target: {TARGET_S3_PATH} ==="
+    )
     
     spark = SparkSession.builder \
         .appName(f"Kafka-ETL-{topic}") \
@@ -181,12 +190,26 @@ def run_pipeline(config: dict):
 
     try:
         # Read Stream
-        raw_stream = spark.readStream \
-            .format("kafka") \
-            .option("kafka.bootstrap.servers", KAFKA_BOOTSTRAP_SERVERS) \
-            .option("subscribe", topic) \
-            .option("startingOffsets", "earliest") \
-            .load()
+        reader = (
+            spark.readStream
+            .format("kafka")
+            .option("kafka.bootstrap.servers", KAFKA_BOOTSTRAP_SERVERS)
+            .option("subscribe", topic)
+            .option("startingOffsets", "earliest")
+        )
+
+        if security_protocol and security_protocol != "PLAINTEXT":
+            reader = reader.option("kafka.security.protocol", security_protocol)
+            if sasl_mechanism:
+                reader = reader.option("kafka.sasl.mechanism", sasl_mechanism)
+            if sasl_username and sasl_password:
+                jaas = (
+                    'org.apache.kafka.common.security.plain.PlainLoginModule required '
+                    f'username="{sasl_username}" password="{sasl_password}";'
+                )
+                reader = reader.option("kafka.sasl.jaas.config", jaas)
+
+        raw_stream = reader.load()
 
         # Batch processing with transforms
         query = raw_stream.writeStream \

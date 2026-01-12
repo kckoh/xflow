@@ -19,6 +19,7 @@ import {
 } from "lucide-react";
 import { useToast } from "../../components/common/Toast";
 import { getSourceDataset } from "../domain/api/domainApi";
+import { connectionApi } from "../../services/connectionApi";
 import SchedulesPanel from "../../components/etl/SchedulesPanel";
 import SchemaTransformEditor from "../../components/etl/SchemaTransformEditor";
 import S3LogParsingConfig from "../../components/targets/S3LogParsingConfig";
@@ -74,6 +75,9 @@ export default function TargetWizard() {
     selected_fields: [],
     filters: {},
   });
+  const [kafkaPreviewMessages, setKafkaPreviewMessages] = useState([]);
+  const [kafkaPreviewError, setKafkaPreviewError] = useState("");
+  const [kafkaPreviewLoading, setKafkaPreviewLoading] = useState(false);
 
   // Step 4: Schedule
   const [jobType, setJobType] = useState("batch");
@@ -571,6 +575,44 @@ export default function TargetWizard() {
       setJobType(isStreaming ? "streaming" : "batch");
     }
   }, [sourceNodes]);
+
+  useEffect(() => {
+    setKafkaPreviewMessages([]);
+    setKafkaPreviewError("");
+  }, [activeSourceTab, sourceNodes]);
+
+  const handleKafkaPreview = async () => {
+    const sourceNode = sourceNodes[activeSourceTab];
+    const sourceDatasetId = sourceNode?.data?.sourceDatasetId;
+    if (!sourceDatasetId) {
+      setKafkaPreviewError("No source dataset selected.");
+      return;
+    }
+
+    try {
+      setKafkaPreviewLoading(true);
+      setKafkaPreviewError("");
+      const sourceDataset = await getSourceDataset(sourceDatasetId);
+      if (!sourceDataset?.connection_id || !sourceDataset?.topic) {
+        setKafkaPreviewError("Missing connection or topic for preview.");
+        setKafkaPreviewMessages([]);
+        return;
+      }
+
+      const messages = await connectionApi.fetchKafkaTopicPreview(
+        sourceDataset.connection_id,
+        sourceDataset.topic,
+        10
+      );
+      setKafkaPreviewMessages(messages || []);
+    } catch (err) {
+      console.error("Failed to preview Kafka topic:", err);
+      setKafkaPreviewMessages([]);
+      setKafkaPreviewError("Failed to preview Kafka messages.");
+    } finally {
+      setKafkaPreviewLoading(false);
+    }
+  };
 
   const handleCreate = async () => {
     if (sourceNodes.length === 0) {
@@ -1556,63 +1598,104 @@ export default function TargetWizard() {
                   ) : (
                     /* ================= RDB / Mongo / API (With Schema) Source ================= */
                     sourceNodes[activeSourceTab] && (
-                      <SchemaTransformEditor
-                        sourceSchema={
-                          sourceNodes[activeSourceTab].data?.columns || []
-                        }
-                        sourceName={
-                          sourceNodes[activeSourceTab].data?.name ||
-                          `Source ${activeSourceTab + 1}`
-                        }
-                        sourceId={sourceNodes[activeSourceTab].id}
-                        sourceDatasetId={
-                          sourceNodes[activeSourceTab].data?.sourceDatasetId ||
-                          sourceNodes[activeSourceTab].data?.catalogDatasetId
-                        }
-                        targetSchema={targetSchema}
-                        initialTargetSchema={initialTargetSchema}
-                        initialCustomSql={customSql}
-                        onSchemaChange={setTargetSchema}
-                        onTestStatusChange={setIsTestPassed}
-                        onSqlChange={setCustomSql}
-                        allSources={sourceNodes.map((node) => ({
-                          id: node.id,
-                          datasetId:
-                            node.data?.sourceDatasetId ||
-                            node.data?.catalogDatasetId,
-                          name: node.data?.name,
-                          schema: node.data?.columns || [], // Add schema/columns
-                        }))}
-                        sourceTabs={
-                          sourceNodes.length > 1 ? (
-                            <div className="flex gap-1 flex-wrap">
-                              {sourceNodes.map((source, idx) => (
-                                <button
-                                  key={source.id}
-                                  onClick={() => setActiveSourceTab(idx)}
-                                  className={`px-3 py-1.5 text-xs font-medium rounded-md transition-colors flex items-center gap-1.5 ${activeSourceTab === idx
-                                    ? "bg-blue-100 text-blue-700 border border-blue-300"
-                                    : "bg-slate-50 text-slate-600 border border-slate-200 hover:bg-slate-100"
-                                    }`}
-                                >
-                                  <div
-                                    className="w-1.5 h-1.5 rounded-full"
-                                    style={{
-                                      backgroundColor: [
-                                        "#3b82f6",
-                                        "#10b981",
-                                        "#f59e0b",
-                                        "#8b5cf6",
-                                      ][idx % 4],
-                                    }}
-                                  />
-                                  Source {idx + 1}: {source.data?.name}
-                                </button>
-                              ))}
+                      <>
+                        {sourceNodes[activeSourceTab].data?.sourceType === "kafka" && (
+                          <div className="mb-4 rounded-lg border border-gray-200 bg-white p-4">
+                            <div className="flex items-center justify-between">
+                              <div>
+                                <h3 className="text-sm font-semibold text-gray-900">
+                                  Kafka Preview
+                                </h3>
+                                <p className="text-xs text-gray-500">
+                                  Samples recent messages without committing offsets.
+                                </p>
+                              </div>
+                              <button
+                                type="button"
+                                onClick={handleKafkaPreview}
+                                disabled={kafkaPreviewLoading}
+                                className="px-3 py-2 text-xs font-semibold rounded-lg border border-blue-200 bg-white text-blue-700 hover:bg-blue-50 disabled:opacity-60"
+                              >
+                                {kafkaPreviewLoading ? "Loading..." : "Preview Messages"}
+                              </button>
                             </div>
-                          ) : null
-                        }
-                      />
+                            {kafkaPreviewError && (
+                              <p className="mt-2 text-xs text-red-600">{kafkaPreviewError}</p>
+                            )}
+                            {kafkaPreviewMessages.length > 0 && (
+                              <pre className="mt-2 max-h-48 overflow-auto rounded-lg border border-gray-200 bg-gray-50 p-3 text-xs text-gray-700">
+                                {kafkaPreviewMessages
+                                  .map((msg) => JSON.stringify(msg))
+                                  .join("\n")}
+                              </pre>
+                            )}
+                            {kafkaPreviewMessages.length === 0 &&
+                              !kafkaPreviewLoading &&
+                              !kafkaPreviewError && (
+                                <p className="mt-2 text-xs text-gray-500">
+                                  No preview messages yet.
+                                </p>
+                              )}
+                          </div>
+                        )}
+                        <SchemaTransformEditor
+                          sourceSchema={
+                            sourceNodes[activeSourceTab].data?.columns || []
+                          }
+                          sourceName={
+                            sourceNodes[activeSourceTab].data?.name ||
+                            `Source ${activeSourceTab + 1}`
+                          }
+                          sourceId={sourceNodes[activeSourceTab].id}
+                          sourceDatasetId={
+                            sourceNodes[activeSourceTab].data?.sourceDatasetId ||
+                            sourceNodes[activeSourceTab].data?.catalogDatasetId
+                          }
+                          targetSchema={targetSchema}
+                          initialTargetSchema={initialTargetSchema}
+                          initialCustomSql={customSql}
+                          onSchemaChange={setTargetSchema}
+                          onTestStatusChange={setIsTestPassed}
+                          onSqlChange={setCustomSql}
+                          allSources={sourceNodes.map((node) => ({
+                            id: node.id,
+                            datasetId:
+                              node.data?.sourceDatasetId ||
+                              node.data?.catalogDatasetId,
+                            name: node.data?.name,
+                            schema: node.data?.columns || [], // Add schema/columns
+                          }))}
+                          sourceTabs={
+                            sourceNodes.length > 1 ? (
+                              <div className="flex gap-1 flex-wrap">
+                                {sourceNodes.map((source, idx) => (
+                                  <button
+                                    key={source.id}
+                                    onClick={() => setActiveSourceTab(idx)}
+                                    className={`px-3 py-1.5 text-xs font-medium rounded-md transition-colors flex items-center gap-1.5 ${activeSourceTab === idx
+                                      ? "bg-blue-100 text-blue-700 border border-blue-300"
+                                      : "bg-slate-50 text-slate-600 border border-slate-200 hover:bg-slate-100"
+                                      }`}
+                                  >
+                                    <div
+                                      className="w-1.5 h-1.5 rounded-full"
+                                      style={{
+                                        backgroundColor: [
+                                          "#3b82f6",
+                                          "#10b981",
+                                          "#f59e0b",
+                                          "#8b5cf6",
+                                        ][idx % 4],
+                                      }}
+                                    />
+                                    Source {idx + 1}: {source.data?.name}
+                                  </button>
+                                ))}
+                              </div>
+                            ) : null
+                          }
+                        />
+                      </>
                     )
                   )}
               </div>

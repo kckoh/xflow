@@ -7,6 +7,7 @@ from typing import List, Optional, Any, Dict
 from fastapi import APIRouter, HTTPException, status
 from beanie import PydanticObjectId
 import json
+import uuid
 
 from models import Connection
 from services.database_connector import DatabaseConnector
@@ -258,61 +259,142 @@ async def get_kafka_topic_schema(connection_id: str, topic: str):
                 consumer_config['sasl_plain_password'] = config.get('sasl_plain_password')
 
             consumer = KafkaConsumer(**consumer_config)
-            
-            # Manually assign partition 0 to read latest message
-            tp = TopicPartition(topic, 0)
-            consumer.assign([tp])
-            
-            # Seek to end
-            consumer.seek_to_end(tp)
-            end_offset = consumer.position(tp)
-            
-            if end_offset == 0:
-                 return [] # Empty topic
-            
-            # Seek to last message (or few messages back)
-            start_offset = max(0, end_offset - 5) # Sample last 5 messages
-            consumer.seek(tp, start_offset)
-            
-            messages = consumer.poll(timeout_ms=5000)
-            
+
+            partitions = consumer.partitions_for_topic(topic) or set()
+            if not partitions:
+                consumer.close()
+                return []
+
+            tps = [TopicPartition(topic, p) for p in partitions]
+            consumer.assign(tps)
+
+            # Seek near the end for each partition to sample recent messages
+            for tp in tps:
+                consumer.seek_to_end(tp)
+                end_offset = consumer.position(tp)
+                if end_offset > 0:
+                    start_offset = max(0, end_offset - 5)
+                    consumer.seek(tp, start_offset)
+
+            messages = consumer.poll(timeout_ms=5000, max_records=50)
             consumer.close()
-            
+
             if not messages:
                 return []
 
-            # Infer schema from the last valid JSON message
+            # Infer schema from the last valid JSON message across partitions
             schema = []
-            
-            for record in reversed(messages.get(tp, [])):
-                try:
-                    if record.value:
-                        data = json.loads(record.value.decode('utf-8'))
+
+            for records in messages.values():
+                for record in reversed(records):
+                    try:
+                        if not record.value:
+                            continue
+                        raw_value = record.value
+                        if isinstance(raw_value, (bytes, bytearray)):
+                            raw_value = raw_value.decode('utf-8')
+                        data = json.loads(raw_value)
                         for key, value in data.items():
-                             schema_type = "string"
-                             if isinstance(value, int):
-                                 schema_type = "integer"
-                             elif isinstance(value, float):
-                                 schema_type = "double"
-                             elif isinstance(value, bool):
-                                 schema_type = "boolean"
-                             elif isinstance(value, dict):
-                                 schema_type = "struct"
-                             elif isinstance(value, list):
-                                 schema_type = "array"
-                                 
-                             schema.append({
-                                 "name": key,
-                                 "type": schema_type,
-                                 "nullable": True
-                             })
-                        break # Found a valid JSON, stop
-                except Exception:
-                    continue # Not JSON, try next message
-            
-            return schema
+                            schema_type = "string"
+                            if isinstance(value, int):
+                                schema_type = "integer"
+                            elif isinstance(value, float):
+                                schema_type = "double"
+                            elif isinstance(value, bool):
+                                schema_type = "boolean"
+                            elif isinstance(value, dict):
+                                schema_type = "struct"
+                            elif isinstance(value, list):
+                                schema_type = "array"
+
+                            schema.append({
+                                "name": key,
+                                "type": schema_type,
+                                "nullable": True
+                            })
+                        return schema
+                    except Exception:
+                        continue
+
+            return []
 
         except Exception as e:
             raise HTTPException(status_code=500, detail=f"Failed to infer Kafka schema: {str(e)}")
     else:
         raise HTTPException(status_code=400, detail=f"Not a Kafka connection (type: {conn.type})")
+
+
+@router.get("/{connection_id}/topics/{topic}/preview")
+async def preview_kafka_topic(connection_id: str, topic: str, limit: int = 10):
+    """
+    Preview Kafka topic messages by sampling recent records.
+    Returns up to `limit` messages without committing offsets.
+    """
+    try:
+        conn = await Connection.get(PydanticObjectId(connection_id))
+    except Exception:
+        raise HTTPException(status_code=404, detail="Connection not found")
+
+    if conn.type != "kafka":
+        raise HTTPException(status_code=400, detail=f"Not a Kafka connection (type: {conn.type})")
+
+    try:
+        from kafka import KafkaConsumer, TopicPartition
+
+        config = _get_kafka_config(conn)
+        consumer_config = {
+            "bootstrap_servers": config["bootstrap_servers"],
+            "auto_offset_reset": "latest",
+            "enable_auto_commit": False,
+            "consumer_timeout_ms": 5000,
+            "client_id": f"preview-{uuid.uuid4()}",
+        }
+        if "security_protocol" in config:
+            consumer_config["security_protocol"] = config["security_protocol"]
+            consumer_config["sasl_mechanism"] = config.get("sasl_mechanism")
+            consumer_config["sasl_plain_username"] = config.get("sasl_plain_username")
+            consumer_config["sasl_plain_password"] = config.get("sasl_plain_password")
+
+        consumer = KafkaConsumer(**consumer_config)
+
+        partitions = consumer.partitions_for_topic(topic) or set()
+        if not partitions:
+            consumer.close()
+            return []
+
+        tps = [TopicPartition(topic, p) for p in partitions]
+        consumer.assign(tps)
+
+        # Seek near the end of each partition for recent samples
+        for tp in tps:
+            consumer.seek_to_end(tp)
+            end_offset = consumer.position(tp)
+            if end_offset > 0:
+                start_offset = max(0, end_offset - max(limit, 5))
+                consumer.seek(tp, start_offset)
+
+        messages = consumer.poll(timeout_ms=5000, max_records=limit)
+        consumer.close()
+
+        if not messages:
+            return []
+
+        previews = []
+        for records in messages.values():
+            for record in records:
+                if record.value is None:
+                    continue
+                raw_value = record.value
+                if isinstance(raw_value, (bytes, bytearray)):
+                    raw_value = raw_value.decode("utf-8")
+                try:
+                    previews.append(json.loads(raw_value))
+                except Exception:
+                    previews.append({"_raw": raw_value})
+
+                if len(previews) >= limit:
+                    return previews
+
+        return previews
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Failed to preview Kafka topic: {str(e)}")
