@@ -1,5 +1,5 @@
-from fastapi import APIRouter, HTTPException
-from typing import List
+from fastapi import APIRouter, HTTPException, Depends, Query
+from typing import List, Optional, Dict, Any
 from datetime import datetime
 from bson import ObjectId
 import os
@@ -10,6 +10,8 @@ from schemas.source_dataset import (
     SourceDatasetUpdate,
     SourceDatasetResponse,
 )
+from dependencies import sessions, get_user_session
+from models import User
 
 
 async def get_s3_schema(bucket: str, path: str) -> List[dict]:
@@ -86,8 +88,11 @@ def get_db():
 
 
 @router.post("", response_model=SourceDatasetResponse)
-async def create_source_dataset(dataset: SourceDatasetCreate):
-    """Create a new source dataset"""
+async def create_source_dataset(
+    dataset: SourceDatasetCreate,
+    session_id: Optional[str] = Query(None)
+):
+    """Create a new source dataset with auto-permission grant"""
     db = get_db()
     now = datetime.utcnow()
 
@@ -101,6 +106,11 @@ async def create_source_dataset(dataset: SourceDatasetCreate):
         "created_at": now,
         "updated_at": now,
     }
+    
+    # Add owner field if session exists (use name/email, not user_id)
+    if session_id and session_id in sessions:
+        user_session = sessions[session_id]
+        dataset_data["owner"] = user_session.get("name") or user_session.get("email") or ""
     
     # Extract schema from S3 when creating S3 source dataset (one-time operation)
     if dataset.source_type == "s3" and not dataset_data.get("columns"):
@@ -117,7 +127,40 @@ async def create_source_dataset(dataset: SourceDatasetCreate):
                 # Continue without schema - user can add manually later
 
     result = await db.source_datasets.insert_one(dataset_data)
-    dataset_data["id"] = str(result.inserted_id)
+    dataset_id = str(result.inserted_id)
+    dataset_data["id"] = dataset_id
+
+    # Auto-grant permissions to creator
+    print(f"[Permission Debug] session_id: {session_id}")
+    print(f"[Permission Debug] session_id in sessions: {session_id in sessions if session_id else False}")
+    
+    if session_id and session_id in sessions:
+        user_id = sessions[session_id].get("user_id")
+        print(f"[Permission Debug] user_id from session: {user_id}")
+        
+        if user_id:
+            try:
+                creator = await User.get(ObjectId(user_id))
+                print(f"[Permission Debug] creator found: {creator.email if creator else None}")
+                print(f"[Permission Debug] dataset_id: {dataset_id}")
+                print(f"[Permission Debug] current dataset_access: {creator.dataset_access if creator else []}")
+                
+                if creator and dataset_id not in creator.dataset_access:
+                    creator.dataset_access.append(dataset_id)
+                    await creator.save()
+                    
+                    # Update session immediately for instant access
+                    sessions[session_id]["dataset_access"] = creator.dataset_access
+                    
+                    print(f"SUCCESS: Auto-granted source dataset access to creator: {creator.email} -> {dataset.name}")
+                elif creator:
+                    print(f"INFO: Dataset already in creator's access list")
+            except Exception as e:
+                print(f"WARNING: Failed to grant creator access: {e}")
+                import traceback
+                traceback.print_exc()
+    else:
+        print(f"WARNING: No valid session_id provided or session not found")
 
     return dataset_data
 
