@@ -79,6 +79,10 @@ export default function TargetWizard() {
   const [jobType, setJobType] = useState("batch");
   const [schedules, setSchedules] = useState([]);
 
+  // Destination settings
+  const [partitionColumns, setPartitionColumns] = useState([]);
+  const [destinationSubPath, setDestinationSubPath] = useState(""); // Path after bucket, e.g., "nyc-taxi/yellow"
+
   // Load existing job data in edit mode
   useEffect(() => {
     const loadExistingJob = async () => {
@@ -97,8 +101,9 @@ export default function TargetWizard() {
         const job = await jobResponse.json();
 
         // Set config
+        // Use existing glue_table_name if available, otherwise generate new tgt_xxx ID
         setConfig({
-          id: job.id,
+          id: job.destination?.glue_table_name || `tgt_${nanoid(10).toLowerCase()}`,
           name: job.name || "",
           description: job.description || "",
           tags: job.tags || [],
@@ -686,10 +691,14 @@ export default function TargetWizard() {
         incremental_config: incrementalConfig || { enabled: false },
         destination: {
           type: "s3",
-          path: "s3a://xflows-output/",
+          path: destinationSubPath
+            ? `s3a://xflows-output/${destinationSubPath.replace(/^\/+|\/+$/g, '')}/`
+            : "s3a://xflows-output/",
           format: "delta",
           glue_table_name: config.id,  // Glue catalog table name (same as target ID)
-          options: {},
+          options: {
+            partitionBy: partitionColumns.length > 0 ? partitionColumns : undefined,
+          },
           // s3_config is injected by Airflow DAG based on environment
         },
       };
@@ -1683,6 +1692,135 @@ export default function TargetWizard() {
                         </div>
                       ))}
                     </div>
+                  </div>
+                </div>
+
+                {/* Destination Settings */}
+                <div className="bg-white rounded-lg border border-gray-200 overflow-hidden">
+                  <div className="p-6 border-b border-gray-100 bg-gray-50/30">
+                    <h3 className="text-sm font-semibold text-gray-900 flex items-center gap-2">
+                      <Database className="w-4 h-4 text-green-500" />
+                      Destination Settings
+                    </h3>
+                  </div>
+                  <div className="p-6 space-y-4">
+                    <div>
+                      <label className="text-xs font-medium text-gray-700 block mb-2">
+                        Output Path (S3)
+                      </label>
+                      <div className="flex items-center">
+                        <span className="px-3 py-2 bg-gray-100 border border-r-0 border-gray-300 rounded-l-lg text-sm font-mono text-gray-600">
+                          s3a://xflows-output/
+                        </span>
+                        <input
+                          type="text"
+                          value={destinationSubPath}
+                          onChange={(e) => setDestinationSubPath(e.target.value)}
+                          placeholder="path/to/data"
+                          className="flex-1 px-4 py-2 border border-gray-300 rounded-r-lg focus:outline-none focus:ring-2 focus:ring-green-500 font-mono text-sm"
+                        />
+                      </div>
+                      <p className="text-xs text-gray-500 mt-1">
+                        Optional sub-path. Dataset name will be appended automatically.
+                      </p>
+                    </div>
+                    <div className="grid grid-cols-2 gap-4">
+                      <div>
+                        <label className="text-xs font-medium text-gray-700 block mb-2">
+                          Format
+                        </label>
+                        <div className="px-4 py-2 bg-gray-50 border border-gray-200 rounded-lg text-sm text-gray-600">
+                          Delta Lake
+                        </div>
+                      </div>
+                      <div>
+                        <label className="text-xs font-medium text-gray-700 block mb-2">
+                          Glue Table Name
+                        </label>
+                        <div className="px-4 py-2 bg-gray-50 border border-gray-200 rounded-lg text-sm font-mono text-gray-600">
+                          {config.id}
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Partition Settings */}
+                <div className="bg-white rounded-lg border border-gray-200 overflow-hidden">
+                  <div className="p-6 border-b border-gray-100 bg-gray-50/30">
+                    <h3 className="text-sm font-semibold text-gray-900 flex items-center gap-2">
+                      <Cog className="w-4 h-4 text-purple-500" />
+                      Partition Settings
+                    </h3>
+                    <p className="text-xs text-gray-500 mt-1">
+                      Select columns to partition the output data. Partitioning improves query performance for large datasets.
+                    </p>
+                  </div>
+                  <div className="p-6">
+                    {targetSchema.length > 0 ? (
+                      <div className="space-y-2">
+                        <label className="text-xs font-medium text-gray-700 block mb-3">
+                          Select partition columns (optional)
+                        </label>
+                        <div className="grid grid-cols-2 gap-2 max-h-48 overflow-y-auto">
+                          {targetSchema.map((col) => (
+                            <label
+                              key={col.name}
+                              className={`flex items-center gap-2 px-3 py-2 rounded-lg border cursor-pointer transition-colors ${
+                                partitionColumns.includes(col.name)
+                                  ? "bg-purple-50 border-purple-300"
+                                  : "bg-gray-50 border-gray-200 hover:border-gray-300"
+                              }`}
+                            >
+                              <input
+                                type="checkbox"
+                                checked={partitionColumns.includes(col.name)}
+                                onChange={(e) => {
+                                  if (e.target.checked) {
+                                    setPartitionColumns([...partitionColumns, col.name]);
+                                  } else {
+                                    setPartitionColumns(partitionColumns.filter(c => c !== col.name));
+                                  }
+                                }}
+                                className="w-4 h-4 text-purple-600 rounded border-gray-300 focus:ring-purple-500"
+                              />
+                              <span className="text-sm text-gray-700 truncate">{col.name}</span>
+                              <span className="text-[10px] font-mono text-gray-400 ml-auto">
+                                {col.type || "string"}
+                              </span>
+                            </label>
+                          ))}
+                        </div>
+                        {partitionColumns.length > 0 && (
+                          <div className="mt-4 p-3 bg-purple-50 rounded-lg border border-purple-100">
+                            <p className="text-xs text-purple-700 font-medium mb-1">
+                              Selected partition columns:
+                            </p>
+                            <div className="flex flex-wrap gap-1">
+                              {partitionColumns.map((col, idx) => (
+                                <span
+                                  key={col}
+                                  className="inline-flex items-center gap-1 px-2 py-0.5 bg-purple-100 text-purple-700 rounded-full text-xs"
+                                >
+                                  <span className="text-purple-400 text-[10px]">{idx + 1}.</span>
+                                  {col}
+                                  <button
+                                    onClick={() => setPartitionColumns(partitionColumns.filter(c => c !== col))}
+                                    className="hover:text-purple-900 ml-1"
+                                  >
+                                    <X className="w-3 h-3" />
+                                  </button>
+                                </span>
+                              ))}
+                            </div>
+                          </div>
+                        )}
+                      </div>
+                    ) : (
+                      <p className="text-sm text-gray-500">
+                        No columns available. Please define the output schema in the Process step.
+                      </p>
+                    )}
                   </div>
                 </div>
               </div>
