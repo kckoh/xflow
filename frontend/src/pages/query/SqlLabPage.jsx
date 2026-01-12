@@ -137,6 +137,8 @@ export default function SqlLabPage() {
                 data: response.data,
                 columns,
                 row_count: response.row_count,
+                total_count: response.total_count || null, // Trino provides exact total
+                has_more: response.has_more || false,
                 query: finalQuery,
                 appliedLimit: appliedLimit, // Store applied limit for display
             });
@@ -345,14 +347,22 @@ export default function SqlLabPage() {
                                         <span className="text-gray-700">
                                             {(() => {
                                                 const rowCount = results.row_count;
+                                                const totalCount = results.total_count;
+                                                const hasMore = results.has_more;
                                                 const appliedLimit = results.appliedLimit;
 
                                                 if (appliedLimit === 'All' || !appliedLimit) {
-                                                    return `All ${rowCount} rows`;
-                                                } else if (rowCount >= appliedLimit) {
-                                                    return `Showing first ${rowCount} of ${appliedLimit}+ rows (limited)`;
+                                                    // No LIMIT applied
+                                                    return `${rowCount} rows`;
+                                                } else if (totalCount !== null && totalCount !== undefined) {
+                                                    // Exact total available - always show "X of Y"
+                                                    return `${rowCount} of ${totalCount} rows`;
+                                                } else if (hasMore) {
+                                                    // Fallback: Has more data available
+                                                    return `${rowCount} of ${rowCount}+ rows`;
                                                 } else {
-                                                    return `Showing all ${rowCount} rows`;
+                                                    // Fallback: Got all available data
+                                                    return `${rowCount} rows`;
                                                 }
                                             })()}
                                         </span>
