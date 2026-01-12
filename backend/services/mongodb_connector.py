@@ -149,6 +149,7 @@ class MongoDBConnector:
     def _flatten_document(self, doc: Dict, parent_key: str = '') -> List[Tuple[str, Any]]:
         """
         Flatten nested document using dot notation.
+        Also extracts fields from array of objects into separate array columns.
         
         Args:
             doc: Document dictionary
@@ -170,8 +171,34 @@ class MongoDBConnector:
             # Recursively flatten nested objects
             if isinstance(value, dict) and value:  # Non-empty dict
                 items.extend(self._flatten_document(value, new_key))
+            # Handle array of objects: extract each field as a separate array column
+            elif isinstance(value, list):
+                # Check if it's array of objects or array of primitives
+                if len(value) > 0 and isinstance(value[0], dict):
+                    # This is an array of objects - collect ALL unique fields from ALL items
+                    # Not just the first item, because different items may have different fields
+                    # Example: projects: [{name, budget}, {name, budget, team}]
+                    all_fields = set()
+                    for item in value:
+                        if isinstance(item, dict):
+                            all_fields.update(item.keys())
+                    
+                    # Extract each field as a separate array column
+                    for field_name in sorted(all_fields):  # Sort for consistent ordering
+                        field_path = f"{new_key}.{field_name}"
+                        # Extract this field from all array elements
+                        field_values = [item.get(field_name) for item in value if isinstance(item, dict)]
+                        items.append((field_path, field_values))
+                    # Do NOT add the original array column
+                elif len(value) == 0:
+                    # Empty array - skip it (don't add to schema)
+                    # This prevents empty arrays from appearing as separate columns
+                    pass
+                else:
+                    # Array of primitives (strings, numbers, etc.) - keep as-is
+                    items.append((new_key, value))
             else:
-                # Leaf node - add to items
+                # Leaf node (primitive value)
                 items.append((new_key, value))
         
         return items

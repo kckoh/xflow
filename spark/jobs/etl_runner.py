@@ -280,8 +280,12 @@ def read_nosql_source(spark: SparkSession, source_config: dict) -> DataFrame:
     Read data from NoSQL databases using appropriate Spark connectors.
     Currently supports: MongoDB
     
-    Preserves nested document structure (structs, arrays).
+    Nested struct fields are flattened with underscore naming (address.city → address_city)
+    to match the Preview behavior and Visual Transform expectations.
     """
+    from pyspark.sql import functions as F
+    from pyspark.sql.types import StructType, ArrayType
+    
     connection = source_config.get("connection", {})
     collection = source_config.get("collection")
     
@@ -312,6 +316,10 @@ def read_nosql_source(spark: SparkSession, source_config: dict) -> DataFrame:
             .option("spark.mongodb.read.database", database) \
             .option("spark.mongodb.read.collection", collection) \
             .load()
+        
+        # Flatten nested structures to match pandas json_normalize behavior
+        df = flatten_mongodb_schema(df)
+        
     
     # Future NoSQL support
     # elif db_type == "dynamodb":
@@ -324,6 +332,108 @@ def read_nosql_source(spark: SparkSession, source_config: dict) -> DataFrame:
         raise ValueError(f"Unsupported NoSQL database type: {db_type}")
 
     return df
+
+
+def flatten_mongodb_schema(df: DataFrame, sep: str = "_") -> DataFrame:
+    """
+    Recursively flatten MongoDB schema to match pandas json_normalize behavior.
+    Converts nested structs and arrays to flat columns with underscore naming.
+    
+    Examples:
+    - {"address": {"city": "Seoul"}} → address_city column
+    - {"address": {"geo": {"lat": 37.5}}} → address_geo_lat column (fully recursive)
+    - {"projects": [{"name": "A"}]} → projects_name: ["A"] (array extraction)
+    
+    Args:
+        df: Input DataFrame
+        sep: Separator for nested field names (default: "_")
+    
+    Returns:
+        Flattened DataFrame
+    """
+    from pyspark.sql import functions as F
+    from pyspark.sql.types import StructType, ArrayType
+    
+    def flatten_struct_recursive(col_name: str, col_type: StructType, prefix: str = "", path_prefix: str = "") -> list:
+        """Recursively flatten struct type fields
+        
+        Args:
+            col_name: Current column name
+            col_type: StructType to flatten
+            prefix: Prefix for flattened column names (with separator)
+            path_prefix: Dot-notation path prefix for Spark column access
+        
+        Returns:
+            List of (full_path, flat_name, field_type) tuples
+        
+        Base cases:
+            1. Return empty list if StructType has no fields
+            2. Append to result and terminate if field is primitive type
+        """
+        # Base case 1: Return empty list for empty struct
+        if not col_type.fields:
+            return []
+        
+        flattened = []
+        current_prefix = f"{prefix}{col_name}{sep}" if prefix else f"{col_name}{sep}"
+        current_path = f"{path_prefix}{col_name}." if path_prefix else f"{col_name}."
+        
+        for field in col_type.fields:
+            field_name = field.name
+            field_type = field.dataType
+            
+            if isinstance(field_type, StructType):
+                # Recursive case: Recurse into nested struct
+                nested_flattened = flatten_struct_recursive(field_name, field_type, current_prefix, current_path)
+                flattened.extend(nested_flattened)
+            else:
+                # Base case 2: Leaf node (primitive type) - append to result
+                full_path = f"{current_path}{field_name}"
+                flat_name = f"{current_prefix}{field_name}"
+                flattened.append((full_path, flat_name, field_type))
+        
+        return flattened
+    
+    flattened_cols = []
+    
+    for field in df.schema.fields:
+        col_name = field.name
+        col_type = field.dataType
+        
+        if isinstance(col_type, StructType):
+            # Struct field: flatten recursively
+            struct_fields = flatten_struct_recursive(col_name, col_type)
+            for path, alias, _ in struct_fields:
+                # Build nested column access: col("address.geo.lat")
+                flattened_cols.append(F.col(path).alias(alias))
+        
+        elif isinstance(col_type, ArrayType):
+            # Array field: check if it's array of structs or primitives
+            element_type = col_type.elementType
+            
+            if isinstance(element_type, StructType):
+                # Array of structs: extract each field as a separate array column
+                # Example: projects: [{"name": "A", "budget": 100}] 
+                # → projects_name: ["A"], projects_budget: [100]
+                for struct_field in element_type.fields:
+                    field_name = struct_field.name
+                    flattened_name = f"{col_name}{sep}{field_name}"
+                    # Use transform to extract specific field from each array element
+                    flattened_cols.append(
+                        F.transform(
+                            F.col(col_name),
+                            lambda x: x[field_name]
+                        ).alias(flattened_name)
+                    )
+            else:
+                # Array of primitives: keep as-is
+                flattened_cols.append(F.col(col_name))
+        
+        else:
+            # Primitive field: keep as-is
+            flattened_cols.append(F.col(col_name))
+    
+    return df.select(*flattened_cols)
 
 
 def parse_log_files_with_regex(spark: SparkSession, s3_path: str, custom_regex: str) -> DataFrame:
@@ -1043,8 +1153,13 @@ def write_s3_destination(df: DataFrame, dest_config: dict, job_name: str = "outp
 
     options = dest_config.get("options", {})
     compression = options.get("compression", "snappy")
+<<<<<<< HEAD
 
     # Determine write mode
+=======
+    
+    # Determine write mode: Enforce 'append' if incremental load is enabled
+>>>>>>> d218364a8038c0e692efdb2a2f249b68847b8e0f
     incremental_config = dest_config.get("incremental_config", {})
     partition_by = options.get("partitionBy", [])
     coalesce_num = options.get("coalesce")  # None means use default partitions
@@ -1059,7 +1174,7 @@ def write_s3_destination(df: DataFrame, dest_config: dict, job_name: str = "outp
     # Parquet doesn't support VOID type, convert to STRING
     if has_nosql_source:
         from pyspark.sql.types import StringType
-
+        
         for field in writer_df.schema.fields:
             dtype_str = str(field.dataType)
             if "VoidType" in dtype_str or "void" in dtype_str.lower():

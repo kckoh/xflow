@@ -11,6 +11,11 @@ const QUERY_STORAGE_KEY = 'sqllab_current_query';
 const RESULTS_STORAGE_KEY = 'sqllab_last_results';
 const ENGINE_STORAGE_KEY = 'sqllab_query_engine';
 
+const ENGINE_PLACEHOLDERS = {
+    duckdb: "Enter your SQL query here...\nExample: SELECT * FROM read_parquet('s3://bucket/path/*.parquet') LIMIT 10",
+    trino: "Enter your SQL query here...\nExample: SELECT * FROM lakehouse.default.my_table LIMIT 10"
+};
+
 export default function SqlLabPage() {
     const navigate = useNavigate();
     const location = useLocation();
@@ -157,7 +162,7 @@ export default function SqlLabPage() {
 
 
     return (
-        <div className="flex h-full overflow-hidden bg-gray-50">
+        <div className="flex h-full overflow-hidden bg-gray-50 min-w-0 max-w-full">
             {/* Schema Browser - Left */}
             <TableColumnSidebar
                 selectedTable={selectedTable}
@@ -165,13 +170,14 @@ export default function SqlLabPage() {
                 results={results}
                 viewMode={viewMode}
                 setViewMode={setViewMode}
+                engine={engine}
             />
 
             {/* Main SQL Lab Area */}
-            <div className="flex-1 flex flex-col bg-white">
+            <div className="flex-1 flex flex-col bg-white min-w-0">
                 {/* Header */}
-                <div className="p-4 border-b border-gray-200">
-                    <div className="flex items-center justify-between">
+                <div className="p-4 border-b border-gray-200 min-w-0">
+                    <div className="flex items-center justify-between min-w-0">
                         <div>
                             <h2 className="font-semibold text-gray-900">SQL Lab</h2>
                             {selectedTable && (
@@ -196,12 +202,12 @@ export default function SqlLabPage() {
                 </div>
 
                 {/* Query Editor */}
-                <div className="p-4 border-b border-gray-200">
-                    <div className="relative">
+                <div className="p-4 border-b border-gray-200 min-w-0">
+                    <div className="relative min-w-0">
                         <textarea
                             value={query}
                             onChange={(e) => setQuery(e.target.value)}
-                            placeholder="Enter your SQL query here...&#10;Example: SELECT * FROM orders"
+                            placeholder={ENGINE_PLACEHOLDERS[engine]}
                             className="w-full h-32 px-4 py-3 pb-12 border border-gray-300 rounded-lg font-mono text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none resize-none"
                         />
 
@@ -235,7 +241,7 @@ export default function SqlLabPage() {
 
                 {/* Error Message */}
                 {error && (
-                    <div className="mx-4 mt-4 p-4 bg-red-50 border border-red-200 rounded-lg">
+                    <div className="mx-4 mt-4 p-4 bg-red-50 border border-red-200 rounded-lg min-w-0">
                         <div className="flex items-start gap-2">
                             <XCircle className="w-5 h-5 text-red-600 flex-shrink-0 mt-0.5" />
                             <div>
@@ -247,12 +253,12 @@ export default function SqlLabPage() {
                 )}
 
                 {/* Results */}
-                <div className="flex-1 overflow-auto">
+                <div className="flex-1 overflow-hidden min-w-0">
                     {results ? (
                         viewMode === 'chart' ? (
                             <QueryExplorer results={results} query={query} />
                         ) : (
-                            <div className="p-4 h-full flex flex-col">
+                            <div className="p-4 h-full flex flex-col overflow-hidden">
                                 {/* Results Header */}
                                 <div className="mb-4 flex items-center justify-between shrink-0">
                                     <span className="text-sm font-medium text-gray-900">
@@ -267,15 +273,15 @@ export default function SqlLabPage() {
                                     </button>
                                 </div>
 
-                                {/* Results Table - Full Height */}
-                                <div className="flex-1 overflow-auto border border-gray-200 rounded-lg">
-                                    <table className="w-full text-sm relative">
+                                {/* Results Table - Full Height with Horizontal Scroll */}
+                                <div className="flex-1 overflow-auto border border-gray-200 rounded-lg" style={{width: 0, minWidth: '100%'}}>
+                                    <table className="w-full text-sm border-separate border-spacing-0">
                                         <thead className="bg-gray-50 border-b border-gray-200 sticky top-0 z-10">
                                             <tr>
                                                 {results.columns.map((column) => (
                                                     <th
                                                         key={column}
-                                                        className="px-4 py-3 text-left font-medium text-gray-700 bg-gray-50"
+                                                        className="px-4 py-3 text-left font-medium text-gray-700 bg-gray-50 whitespace-nowrap"
                                                     >
                                                         {column}
                                                     </th>
