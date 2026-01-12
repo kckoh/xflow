@@ -61,10 +61,10 @@ catalogs:
   #   connection-user=${ENV:POSTGRES_USER}
   #   connection-password=${ENV:POSTGRES_PASSWORD}
 
-# Environment variables from secret
-envFrom:
-  - secretRef:
-      name: trino-rdbms-credentials
+# Environment variables from secret (disabled - secret not found)
+# envFrom:
+#   - secretRef:
+#       name: trino-rdbms-credentials
 
 # Ensure workers get the env vars too
 commonLabels: {}
