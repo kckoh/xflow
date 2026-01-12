@@ -18,6 +18,8 @@ import {
   getSchema,
 } from "../../../services/apiDuckDB";
 import Combobox from "../../../components/common/Combobox";
+import { useToast } from "../../../components/common/Toast";
+import ChartConfigPanel from "./ChartConfigPanel";
 
 export default function TableColumnSidebar({
   selectedTable,
@@ -26,7 +28,31 @@ export default function TableColumnSidebar({
   viewMode,
   setViewMode,
   engine = 'duckdb',
+  // Chart config props
+  chartType,
+  setChartType,
+  xAxis,
+  setXAxis,
+  yAxes,
+  setYAxes,
+  calculatedMetrics,
+  setCalculatedMetrics,
+  breakdownBy,
+  setBreakdownBy,
+  isStacked,
+  setIsStacked,
+  aggregation,
+  setAggregation,
+  timeGrain,
+  setTimeGrain,
+  limit,
+  setLimit,
+  sortBy,
+  setSortBy,
+  sortOrder,
+  setSortOrder,
 }) {
+  const { showToast } = useToast();
   const [buckets, setBuckets] = useState([]);
   const [selectedBucket, setSelectedBucket] = useState(null);
   const [folders, setFolders] = useState([]);
@@ -165,7 +191,7 @@ export default function TableColumnSidebar({
                 </div>
 
         {/* View Mode Toggle - Tabs Style */}
-        {results && viewMode && setViewMode && (
+        {viewMode && setViewMode && (
           <div className="mb-3 p-1 bg-gray-100 rounded-lg flex gap-1">
             <button
               onClick={() => setViewMode("table")}
@@ -179,7 +205,13 @@ export default function TableColumnSidebar({
               Table
             </button>
             <button
-              onClick={() => setViewMode("chart")}
+              onClick={() => {
+                if (!results || !results.data || results.data.length === 0) {
+                  showToast("Please run a query first to view the chart", "error");
+                  return;
+                }
+                setViewMode("chart");
+              }}
               className={`flex-1 flex items-center justify-center gap-1.5 py-1.5 text-xs font-medium rounded-md transition-all ${
                 viewMode === "chart"
                   ? "bg-white text-blue-600 shadow-sm ring-1 ring-black/5"
@@ -191,22 +223,26 @@ export default function TableColumnSidebar({
             </button>
           </div>
         )}
-
-        {/* Bucket Selector */}
-        <Combobox
-          options={buckets}
-          value={selectedBucket}
-          onChange={(bucket) => setSelectedBucket(bucket)}
-          getKey={(bucket) => bucket}
-          getLabel={(bucket) => bucket}
-          placeholder="Select a bucket"
-          isLoading={loading}
-          emptyMessage="No buckets found"
-        />
       </div>
 
-      {/* Folders List */}
-      <div className="flex-1 overflow-y-auto">
+      {viewMode === 'table' ? (
+        <>
+          {/* Bucket Selector */}
+          <div className="px-4 pb-4 bg-white border-b border-gray-200">
+            <Combobox
+              options={buckets}
+              value={selectedBucket}
+              onChange={(bucket) => setSelectedBucket(bucket)}
+              getKey={(bucket) => bucket}
+              getLabel={(bucket) => bucket}
+              placeholder="Select a bucket"
+              isLoading={loading}
+              emptyMessage="No buckets found"
+            />
+          </div>
+
+          {/* Folders List */}
+          <div className="flex-1 overflow-y-auto">
         {(loading || loadingFolders) && (
           <div className="p-4 text-sm text-gray-500 text-center">
             Loading...
@@ -300,42 +336,79 @@ export default function TableColumnSidebar({
               )}
             </div>
           ))}
-      </div>
-
-      {/* Query Hint */}
-      {selectedTable && (
-        <div className="p-3 bg-blue-50 border-t border-blue-100">
-          <div className="flex items-start justify-between gap-2">
-            <div className="flex-1">
-              <p className="text-xs text-blue-700 mb-1">
-                <span className="font-medium">Query:</span>
-              </p>
-              <code className="text-xs text-blue-800 break-all">
-                {engine === 'trino'
-                  ? `SELECT * FROM lakehouse.default.${selectedTable.name}`
-                  : `SELECT * FROM "${selectedTable.path}"`
-                }
-              </code>
-            </div>
-            <button
-              onClick={() => {
-                const query = engine === 'trino'
-                  ? `SELECT * FROM lakehouse.default.${selectedTable.name}`
-                  : `SELECT * FROM "${selectedTable.path}"`;
-                navigator.clipboard.writeText(query);
-                setCopied(true);
-                setTimeout(() => setCopied(false), 2000);
-              }}
-              className="flex-shrink-0 p-1.5 rounded hover:bg-blue-100 transition-colors"
-              title="Copy to clipboard"
-            >
-              {copied ? (
-                <Check className="w-4 h-4 text-green-600" />
-              ) : (
-                <Copy className="w-4 h-4 text-blue-600" />
-              )}
-            </button>
           </div>
+
+          {/* Query Hint */}
+          {selectedTable && (
+            <div className="p-3 bg-blue-50 border-t border-blue-100">
+              <div className="flex items-start justify-between gap-2">
+                <div className="flex-1">
+                  <p className="text-xs text-blue-700 mb-1">
+                    <span className="font-medium">Query:</span>
+                  </p>
+                  <code className="text-xs text-blue-800 break-all">
+                    {engine === 'trino'
+                      ? `SELECT * FROM lakehouse.default.${selectedTable.name}`
+                      : `SELECT * FROM "${selectedTable.path}"`
+                    }
+                  </code>
+                </div>
+                <button
+                  onClick={() => {
+                    const query = engine === 'trino'
+                      ? `SELECT * FROM lakehouse.default.${selectedTable.name}`
+                      : `SELECT * FROM "${selectedTable.path}"`;
+                    navigator.clipboard.writeText(query);
+                    setCopied(true);
+                    setTimeout(() => setCopied(false), 2000);
+                  }}
+                  className="flex-shrink-0 p-1.5 rounded hover:bg-blue-100 transition-colors"
+                  title="Copy to clipboard"
+                >
+                  {copied ? (
+                    <Check className="w-4 h-4 text-green-600" />
+                  ) : (
+                    <Copy className="w-4 h-4 text-blue-600" />
+                  )}
+                </button>
+              </div>
+            </div>
+          )}
+        </>
+      ) : (
+        /* Chart Config Panel */
+        <div className="flex-1 overflow-y-auto">
+          {results && results.columns ? (
+            <ChartConfigPanel
+              columns={results.columns}
+              chartType={chartType}
+              setChartType={setChartType}
+              xAxis={xAxis}
+              setXAxis={setXAxis}
+              yAxes={yAxes}
+              setYAxes={setYAxes}
+              calculatedMetrics={calculatedMetrics}
+              setCalculatedMetrics={setCalculatedMetrics}
+              breakdownBy={breakdownBy}
+              setBreakdownBy={setBreakdownBy}
+              isStacked={isStacked}
+              setIsStacked={setIsStacked}
+              aggregation={aggregation}
+              setAggregation={setAggregation}
+              timeGrain={timeGrain}
+              setTimeGrain={setTimeGrain}
+              limit={limit}
+              setLimit={setLimit}
+              sortBy={sortBy}
+              setSortBy={setSortBy}
+              sortOrder={sortOrder}
+              setSortOrder={setSortOrder}
+            />
+          ) : (
+            <div className="p-4 text-center text-gray-500 text-sm">
+              Run a query to configure chart settings
+            </div>
+          )}
         </div>
       )}
     </div>

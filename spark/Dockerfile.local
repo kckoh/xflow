@@ -3,7 +3,7 @@ FROM apache/spark:3.5.0-python3
 USER root
 
 # Install Python dependencies
-RUN pip install --no-cache-dir boto3 pymongo requests
+RUN pip install --no-cache-dir boto3 pymongo requests delta-spark==3.2.0
 
 # Download ALL necessary JARs directly to prevent runtime resolution issues
 # Kafka + Spark Integration
