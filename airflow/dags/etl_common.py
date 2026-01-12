@@ -637,14 +637,14 @@ def calculate_and_update_dataset_size(db, dataset_id, s3_client):
         print(f"   ⚠️ Error calculating S3 size for dataset {dataset_id}: {e}")
 
 
-def update_trino_table_metrics(**context):
+def update_rows(**context):
     """Calculate and update row count for the dataset using Trino
 
     This task runs after register_trino_table and before quality checks.
     Updates:
     - row_count: Number of rows in the Trino table (via COUNT query)
 
-    Note: S3 file size (actual_size_bytes) is now calculated in finalize_import task
+    Note: S3 file size (actual_size_bytes) is calculated in finalize_import task
     """
     import pymongo
     from bson import ObjectId
