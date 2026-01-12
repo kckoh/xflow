@@ -567,13 +567,18 @@ export default function JobsPage() {
                     {jobRuns[job.id]?.[0] ? (
                       <div className="text-sm">
                         <div className="text-gray-900">
-                          {new Date(jobRuns[job.id][0].started_at).toLocaleString('ko-KR', {
-                            year: 'numeric',
-                            month: '2-digit',
-                            day: '2-digit',
-                            hour: '2-digit',
-                            minute: '2-digit',
-                          })}
+                          {(() => {
+                            const dateStr = jobRuns[job.id][0].started_at;
+                            const date = new Date(dateStr + (dateStr.endsWith('Z') ? '' : 'Z'));
+                            return date.toLocaleString('ko-KR', {
+                              year: 'numeric',
+                              month: '2-digit',
+                              day: '2-digit',
+                              hour: '2-digit',
+                              minute: '2-digit',
+                              timeZone: 'Asia/Seoul',
+                            });
+                          })()}
                         </div>
                         <div className="text-xs text-gray-500">
                           {jobRuns[job.id][0].status === 'success' ? 'Succeeded' :
