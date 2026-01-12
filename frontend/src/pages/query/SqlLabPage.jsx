@@ -30,6 +30,20 @@ export default function SqlLabPage() {
     const [engine, setEngine] = useState(() => {
         return sessionStorage.getItem(ENGINE_STORAGE_KEY) || 'duckdb';
     }); // 'duckdb' | 'trino'
+    const [queryLimit, setQueryLimit] = useState(30); // Default LIMIT
+
+    // Chart configuration state
+    const [chartType, setChartType] = useState('bar');
+    const [xAxis, setXAxis] = useState('');
+    const [yAxes, setYAxes] = useState([]);
+    const [calculatedMetrics, setCalculatedMetrics] = useState([]);
+    const [breakdownBy, setBreakdownBy] = useState('');
+    const [isStacked, setIsStacked] = useState(false);
+    const [aggregation, setAggregation] = useState('SUM');
+    const [timeGrain, setTimeGrain] = useState('');
+    const [limit, setLimit] = useState(20);
+    const [sortBy, setSortBy] = useState('');
+    const [sortOrder, setSortOrder] = useState('desc');
 
     // Load query and results from multiple sources (priority order)
     useEffect(() => {
@@ -98,10 +112,20 @@ export default function SqlLabPage() {
 
         try {
             let finalQuery = query.trim();
+            let appliedLimit = queryLimit;
 
-            // Default to LIMIT 30 if not specified
-            if (!/\bLIMIT\b/i.test(finalQuery)) {
-                finalQuery = `${finalQuery.replace(/;$/, "")} LIMIT 30`;
+            // Check if query already has LIMIT
+            const limitMatch = finalQuery.match(/\bLIMIT\s+(\d+|ALL)\b/i);
+            if (limitMatch) {
+                // Use the LIMIT from the query
+                appliedLimit = limitMatch[1].toUpperCase() === 'ALL' ? 'All' : parseInt(limitMatch[1]);
+            } else {
+                // Apply selected LIMIT
+                if (queryLimit === 'All') {
+                    // No LIMIT
+                } else {
+                    finalQuery = `${finalQuery.replace(/;$/, "")} LIMIT ${queryLimit}`;
+                }
             }
 
             // Execute query based on selected engine
@@ -113,7 +137,10 @@ export default function SqlLabPage() {
                 data: response.data,
                 columns,
                 row_count: response.row_count,
+                total_count: response.total_count || null, // Trino provides exact total
+                has_more: response.has_more || false,
                 query: finalQuery,
+                appliedLimit: appliedLimit, // Store applied limit for display
             });
         } catch (err) {
             setError(err.message);
@@ -171,6 +198,28 @@ export default function SqlLabPage() {
                 viewMode={viewMode}
                 setViewMode={setViewMode}
                 engine={engine}
+                chartType={chartType}
+                setChartType={setChartType}
+                xAxis={xAxis}
+                setXAxis={setXAxis}
+                yAxes={yAxes}
+                setYAxes={setYAxes}
+                calculatedMetrics={calculatedMetrics}
+                setCalculatedMetrics={setCalculatedMetrics}
+                breakdownBy={breakdownBy}
+                setBreakdownBy={setBreakdownBy}
+                isStacked={isStacked}
+                setIsStacked={setIsStacked}
+                aggregation={aggregation}
+                setAggregation={setAggregation}
+                timeGrain={timeGrain}
+                setTimeGrain={setTimeGrain}
+                limit={limit}
+                setLimit={setLimit}
+                sortBy={sortBy}
+                setSortBy={setSortBy}
+                sortOrder={sortOrder}
+                setSortOrder={setSortOrder}
             />
 
             {/* Main SQL Lab Area */}
@@ -220,6 +269,24 @@ export default function SqlLabPage() {
                                 </div>
                             )}
 
+                            {/* LIMIT Selector */}
+                            <div className="flex items-center gap-2 bg-white/80 px-2 py-1 rounded">
+                                <label className="text-xs font-medium text-gray-600">LIMIT:</label>
+                                <select
+                                    value={queryLimit}
+                                    onChange={(e) => setQueryLimit(e.target.value === 'All' ? 'All' : parseInt(e.target.value))}
+                                    className="px-2 py-0.5 text-xs border border-gray-300 rounded bg-white focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none"
+                                >
+                                    <option value={10}>10</option>
+                                    <option value={30}>30</option>
+                                    <option value={50}>50</option>
+                                    <option value={100}>100</option>
+                                    <option value={500}>500</option>
+                                    <option value={1000}>1000</option>
+                                    <option value="All">All</option>
+                                </select>
+                            </div>
+
                             <button
                                 onClick={executeQuery}
                                 disabled={executing || !query.trim()}
@@ -256,14 +323,50 @@ export default function SqlLabPage() {
                 <div className="flex-1 overflow-hidden min-w-0">
                     {results ? (
                         viewMode === 'chart' ? (
-                            <QueryExplorer results={results} query={query} />
+                            <QueryExplorer
+                                results={results}
+                                query={query}
+                                chartType={chartType}
+                                xAxis={xAxis}
+                                yAxes={yAxes}
+                                calculatedMetrics={calculatedMetrics}
+                                breakdownBy={breakdownBy}
+                                isStacked={isStacked}
+                                aggregation={aggregation}
+                                timeGrain={timeGrain}
+                                limit={limit}
+                                sortBy={sortBy}
+                                sortOrder={sortOrder}
+                            />
                         ) : (
                             <div className="p-4 h-full flex flex-col overflow-hidden">
                                 {/* Results Header */}
                                 <div className="mb-4 flex items-center justify-between shrink-0">
-                                    <span className="text-sm font-medium text-gray-900">
-                                        Results ({results.row_count} rows)
-                                    </span>
+                                    <div className="text-sm">
+                                        <span className="font-medium text-gray-900">Results: </span>
+                                        <span className="text-gray-700">
+                                            {(() => {
+                                                const rowCount = results.row_count;
+                                                const totalCount = results.total_count;
+                                                const hasMore = results.has_more;
+                                                const appliedLimit = results.appliedLimit;
+
+                                                if (appliedLimit === 'All' || !appliedLimit) {
+                                                    // No LIMIT applied
+                                                    return `${rowCount} rows`;
+                                                } else if (totalCount !== null && totalCount !== undefined) {
+                                                    // Exact total available - always show "X of Y"
+                                                    return `${rowCount} of ${totalCount} rows`;
+                                                } else if (hasMore) {
+                                                    // Fallback: Has more data available
+                                                    return `${rowCount} of ${rowCount}+ rows`;
+                                                } else {
+                                                    // Fallback: Got all available data
+                                                    return `${rowCount} rows`;
+                                                }
+                                            })()}
+                                        </span>
+                                    </div>
                                     <button
                                         onClick={downloadCSV}
                                         className="flex items-center gap-1 px-3 py-1.5 text-sm font-medium text-gray-600 bg-white border border-gray-200 rounded-lg hover:bg-gray-50 transition-colors"

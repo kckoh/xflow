@@ -729,8 +729,7 @@ def read_s3_logs_source(spark: SparkSession, source_config: dict) -> DataFrame:
             first_field = named_groups[0]
             parsed_df = parsed_df.filter(F.col(first_field) != '')
 
-    record_count = parsed_df.count()
-    print(f"   ✅ Parsed {record_count} log records")
+    print(f"   ✅ Parsed log records (count will be calculated after write)")
     print(f"   Schema:")
     parsed_df.printSchema()
 
@@ -821,8 +820,7 @@ def read_s3_file_source(spark: SparkSession, source_config: dict) -> DataFrame:
     else:
         raise ValueError(f"Unsupported file format: {file_format}")
     
-    record_count = df.count()
-    print(f"   ✅ Read {record_count} records from {file_format.upper()} files")
+    print(f"   ✅ Read {file_format.upper()} files (count will be calculated after write)")
     print(f"   Schema:")
     df.printSchema()
     

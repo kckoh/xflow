@@ -69,8 +69,6 @@ const SOURCE_OPTIONS = [
     description: "Stream data from Apache Kafka",
     icon: SiApachekafka,
     color: "#231F20",
-    disabled: true,
-    comingSoon: true,
   },
 ];
 
@@ -93,6 +91,8 @@ export default function SourceWizard() {
     useState(false);
   const [tables, setTables] = useState([]);
   const [loadingTables, setLoadingTables] = useState(false);
+  const [topics, setTopics] = useState([]);
+  const [loadingTopics, setLoadingTopics] = useState(false);
   const [config, setConfig] = useState({
     id: `src-${Date.now()}`,
     name: "",
@@ -245,6 +245,18 @@ export default function SourceWizard() {
             ...prev,
             bucket: matchedConnection?.config?.bucket || "",
           }));
+        } else if (selectedSource?.id === "kafka") {
+          setConfig((prev) => ({ ...prev, topic: "" })); // Reset topic
+          setLoadingTopics(true);
+          try {
+            const response = await connectionApi.fetchKafkaTopics(config.connectionId);
+            setTopics(response.topics || []);
+          } catch (err) {
+            console.error("Failed to fetch topics:", err);
+            setTopics([]);
+          } finally {
+            setLoadingTopics(false);
+          }
         }
       } catch (err) {
         console.error("Failed to load tables/collections:", err);
@@ -256,6 +268,47 @@ export default function SourceWizard() {
 
     loadTablesOrCollections();
   }, [config.connectionId, selectedSource, connections]);
+
+  const handleTopicChange = async (topicName) => {
+    if (!topicName) {
+      setConfig({ ...config, topic: "", columns: [] });
+      setColumnMapping([]);
+      return;
+    }
+
+    try {
+      const columns = await connectionApi.fetchKafkaTopicSchema(
+        config.connectionId,
+        topicName
+      );
+
+      setConfig({
+        ...config,
+        topic: topicName,
+        columns: columns.map((col) => ({
+          ...col,
+          description: "",
+        })),
+      });
+
+      setExpandedColumns({});
+
+      setColumnMapping(
+        columns.map((col) => ({
+          source: col,
+          selected: true,
+          targetName: col.name,
+          targetType: col.type,
+          filter: null,
+        }))
+      );
+    } catch (err) {
+      console.error("Failed to fetch topic schema:", err);
+      // Fallback: set topic but empty columns if schema inference fails
+      setConfig({ ...config, topic: topicName, columns: [] });
+      setColumnMapping([]);
+    }
+  };
 
   const handleTableChange = async (tableName) => {
     if (!tableName) {
@@ -842,6 +895,51 @@ export default function SourceWizard() {
                   </div>
                 )}
 
+                {/* Kafka - Topic selection */}
+                {selectedSource?.id === "kafka" && (
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-2">
+                      Topic
+                    </label>
+                    <Combobox
+                      options={topics}
+                      value={config.topic}
+                      onChange={(topicName) => {
+                        if (!topicName) return;
+                        handleTopicChange(topicName);
+                      }}
+                      getKey={(topic) => topic}
+                      getLabel={(topic) => topic}
+                      isLoading={loadingTopics}
+                      disabled={!config.connectionId}
+                      placeholder={
+                        loadingTopics
+                          ? "Loading topics..."
+                          : !config.connectionId
+                            ? "Select a connection first"
+                            : topics.length === 0
+                              ? "No topics available"
+                              : "Select a topic..."
+                      }
+                      emptyMessage={
+                        !config.connectionId
+                          ? "Select a connection first"
+                          : "No topics available"
+                      }
+                      classNames={{
+                        button:
+                          "px-4 py-2.5 rounded-xl border-emerald-200/70 bg-gradient-to-r from-white via-emerald-50/50 to-emerald-100/40 shadow-sm shadow-emerald-100/70 hover:shadow-md hover:shadow-emerald-200/70 focus:ring-2 focus:ring-emerald-400/60 focus:border-emerald-300 transition-all",
+                        panel:
+                          "mt-2 rounded-xl border-emerald-100/90 bg-white/95 shadow-xl shadow-emerald-100/60 ring-1 ring-emerald-100/70 backdrop-blur",
+                        option:
+                          "rounded-lg mx-1 my-0.5 hover:bg-emerald-50/70",
+                        optionSelected: "bg-emerald-50/80",
+                        icon: "text-emerald-500",
+                        empty: "text-emerald-500/70",
+                      }}
+                    />
+                  </div>
+                )}
                 {selectedSource?.id === "mongodb" && (
                   <MongoDBSourceConfig
                     connectionId={config.connectionId}
@@ -874,26 +972,7 @@ export default function SourceWizard() {
                   </div>
                 )}
 
-                {/* Kafka - Topic */}
-                {selectedSource?.id === "kafka" && (
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-2">
-                      Topic
-                    </label>
-                    <input
-                      type="text"
-                      value={config.topic}
-                      onChange={(e) =>
-                        setConfig({ ...config, topic: e.target.value })
-                      }
-                      placeholder="e.g., my-topic"
-                      className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-emerald-500"
-                    />
-                    <p className="mt-1 text-xs text-gray-500">
-                      The Kafka topic to consume messages from
-                    </p>
-                  </div>
-                )}
+
 
                 {/* API - REST API Configuration */}
                 {selectedSource?.id === "api" && (

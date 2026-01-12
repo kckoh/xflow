@@ -10,6 +10,70 @@ from dependencies import get_user_session
 router = APIRouter()
 
 
+# Helper functions
+def extract_dataset_name_from_s3_path(s3_path: str, bucket: str = None) -> Optional[str]:
+    """
+    S3 경로에서 dataset 이름 추출
+    예: s3://bucket/dataset_name/file.parquet -> dataset_name
+    """
+    if bucket:
+        # bucket이 주어진 경우: s3://bucket/ 부분 제거
+        path = s3_path.replace(f's3://{bucket}/', '')
+    else:
+        # bucket이 없는 경우: s3:// 부분 제거
+        path = s3_path.replace('s3://', '')
+    
+    parts = path.split('/')
+    if len(parts) > 0:
+        return parts[0] if bucket else (parts[1] if len(parts) > 1 else None)
+    return None
+
+
+async def get_allowed_dataset_names(dataset_access: list[str]) -> list[str]:
+    """
+    Dataset ID 목록을 dataset 이름 목록으로 변환
+    """
+    datasets = await Dataset.find_all().to_list()
+    dataset_id_to_name = {str(d.id): d.name for d in datasets}
+    return [dataset_id_to_name.get(did) for did in dataset_access if did in dataset_id_to_name]
+
+
+async def check_dataset_permission(
+    user_session: Optional[Dict[str, Any]],
+    s3_paths: list[str],
+    bucket: str = None
+) -> None:
+    """
+    사용자가 S3 경로의 dataset에 접근 권한이 있는지 확인
+    권한이 없으면 HTTPException 발생
+    """
+    if not user_session:
+        return
+    
+    is_admin = user_session.get("is_admin", False)
+    all_datasets = user_session.get("all_datasets", False)
+    
+    # Admin이거나 모든 dataset 접근 권한이 있으면 체크 스킵
+    if is_admin or all_datasets:
+        return
+    
+    if not s3_paths:
+        return
+    
+    dataset_access = user_session.get("dataset_access", [])
+    allowed_dataset_names = await get_allowed_dataset_names(dataset_access)
+    
+    # 각 S3 경로에 대해 권한 체크
+    for s3_path in s3_paths:
+        dataset_name = extract_dataset_name_from_s3_path(s3_path, bucket)
+        
+        if dataset_name and dataset_name not in allowed_dataset_names:
+            raise HTTPException(
+                status_code=403,
+                detail=f"No permission to access dataset: {dataset_name}"
+            )
+
+
 class QueryRequest(BaseModel):
     sql: str
 
@@ -28,41 +92,47 @@ async def run_query(
     request: QueryRequest,
     user_session: Optional[Dict[str, Any]] = Depends(get_user_session)
 ):
-    """SQL 쿼리 실행 (권한 체크 포함)"""
+    """SQL 쿼리 실행 (권한 체크 포함, total count는 MongoDB row_count 사용)"""
     try:
         # Check permissions for datasets referenced in SQL
-        
-        if user_session:
-            is_admin = user_session.get("is_admin", False)
-            all_datasets = user_session.get("all_datasets", False)
+        s3_paths = re.findall(r's3://[\w\-]+/[\w\-]+', request.sql)
+        await check_dataset_permission(user_session, s3_paths)
+
+        # Try to get total_count from MongoDB if querying S3 datasets
+        sql = request.sql.strip()
+        original_limit = None
+        total_count = None
+
+        # Extract LIMIT from query
+        limit_match = re.search(r'\bLIMIT\s+(\d+)\b', sql, re.IGNORECASE)
+        if limit_match:
+            original_limit = int(limit_match.group(1))
             
-            # Only check permissions if not admin and not all_datasets
-            if not is_admin and not all_datasets:
-                # Extract S3 paths from SQL
-                s3_paths = re.findall(r's3://[\w\-]+/[\w\-]+', request.sql)
-                
-                if s3_paths:
-                    dataset_access = user_session.get("dataset_access", [])
-                    datasets = await Dataset.find_all().to_list()
-                    dataset_id_to_name = {str(d.id): d.name for d in datasets}
-                    allowed_dataset_names = [dataset_id_to_name.get(did) for did in dataset_access]
+            # Extract S3 path to find dataset
+            s3_match = re.search(r's3://[\w\-]+/([\w\-]+)', sql)
+            if s3_match:
+                dataset_name = s3_match.group(1)
+                try:
+                    # Find dataset by name
+                    dataset = await Dataset.find_one({"name": dataset_name})
                     
-                    # Check each S3 path
-                    for s3_path in s3_paths:
-                        # Extract dataset name: s3://bucket/dataset_name/... -> dataset_name
-                        parts = s3_path.replace('s3://', '').split('/')
-                        if len(parts) > 1:
-                            dataset_name = parts[1]
-                            
-                            if dataset_name not in allowed_dataset_names:
-                                raise HTTPException(
-                                    status_code=403,
-                                    detail=f"No permission to access dataset: {dataset_name}"
-                                )
-        
-        data = execute_query(request.sql)
+                    if dataset and hasattr(dataset, 'row_count') and dataset.row_count:
+                        total_count = dataset.row_count
+                        print(f"Using MongoDB row_count for {dataset_name}: {total_count}")
+                except Exception as e:
+                    print(f"Failed to get row_count from MongoDB: {e}")
+                    # Continue without total_count
+
+        # Execute main query with original LIMIT
+        data = execute_query(sql)
         data = clean_data(data)
-        return {"data": data, "row_count": len(data)}
+
+        return {
+            "data": data,
+            "row_count": len(data),
+            "total_count": total_count,
+            "has_more": total_count is not None and len(data) < total_count if total_count else False
+        }
     except HTTPException:
         raise
     except Exception as e:
@@ -146,33 +216,23 @@ async def list_bucket_files(
             })
 
         # Filter files by dataset permissions
+        file_paths = [f["file"] for f in files]
         
+        # Check permissions - this will filter internally
         if user_session:
             is_admin = user_session.get("is_admin", False)
             all_datasets = user_session.get("all_datasets", False)
             
-            # Only filter if not admin and not all_datasets
             if not is_admin and not all_datasets:
                 dataset_access = user_session.get("dataset_access", [])
+                allowed_dataset_names = await get_allowed_dataset_names(dataset_access)
                 
-                # Get allowed dataset names
-                datasets = await Dataset.find_all().to_list()
-                dataset_id_to_name = {str(d.id): d.name for d in datasets}
-                allowed_dataset_names = [dataset_id_to_name.get(did) for did in dataset_access if did in dataset_id_to_name]
-                
-                # Filter files
+                # Filter files based on allowed datasets
                 filtered_files = []
                 for file_obj in files:
-                    # Extract dataset name from path: s3://bucket/dataset_name/file.parquet -> dataset_name
-                    file_path = file_obj["file"]
-                    parts = file_path.replace(f's3://{bucket}/', '').split('/')
-                    
-                    if len(parts) > 0:
-                        dataset_name = parts[0]
-                        
-                        # Include if dataset is in allowed list
-                        if dataset_name in allowed_dataset_names:
-                            filtered_files.append(file_obj)
+                    dataset_name = extract_dataset_name_from_s3_path(file_obj["file"], bucket)
+                    if dataset_name and dataset_name in allowed_dataset_names:
+                        filtered_files.append(file_obj)
                 
                 files = filtered_files
 

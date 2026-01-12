@@ -121,5 +121,49 @@ export const connectionApi = {
             throw new Error('Failed to infer collection schema');
         }
         return response.json();
+    },
+
+    /**
+     * Get Kafka topics from a connection
+     * @param {string} connectionId 
+     * @returns {Promise<Object>} { source_id, topics: [...] }
+     */
+    async fetchKafkaTopics(connectionId) {
+        const response = await fetch(`${API_URL}/metadata/${connectionId}/topics`);
+        if (!response.ok) {
+            throw new Error('Failed to fetch Kafka topics');
+        }
+        return response.json();
+    },
+
+    /**
+     * Infer schema from a Kafka topic
+     * @param {string} connectionId 
+     * @param {string} topic 
+     * @returns {Promise<Array>} List of fields
+     */
+    async fetchKafkaTopicSchema(connectionId, topic) {
+        const response = await fetch(`${API_URL}/metadata/${connectionId}/topics/${topic}/schema`);
+        if (!response.ok) {
+            throw new Error('Failed to infer Kafka topic schema');
+        }
+        return response.json();
+    },
+
+    /**
+     * Preview Kafka topic messages
+     * @param {string} connectionId
+     * @param {string} topic
+     * @param {number} limit
+     * @returns {Promise<Array>} List of messages (parsed JSON or {_raw: string})
+     */
+    async fetchKafkaTopicPreview(connectionId, topic, limit = 10) {
+        const response = await fetch(
+            `${API_URL}/metadata/${connectionId}/topics/${topic}/preview?limit=${limit}`
+        );
+        if (!response.ok) {
+            throw new Error('Failed to preview Kafka topic');
+        }
+        return response.json();
     }
 };
