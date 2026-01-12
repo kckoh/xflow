@@ -19,6 +19,39 @@ from schemas.sql_test import (
 router = APIRouter()
 
 
+# ============================================================================
+# Helper Functions for JSON Serialization
+# ============================================================================
+
+def _is_complex_iterable(value) -> bool:
+    """Check if value is a complex iterable (list, dict, numpy array) but not string/bytes"""
+    return isinstance(value, (list, dict)) or (
+        hasattr(value, '__iter__') and not isinstance(value, (str, bytes))
+    )
+
+
+def _serialize_rows_for_json(rows: List[dict]) -> List[dict]:
+    """
+    Serialize row dicts for JSON response.
+    Converts complex iterables to string, handles None, NaN, and Timestamps.
+    """
+    for row in rows:
+        for key, value in row.items():
+            if _is_complex_iterable(value):
+                row[key] = str(value)
+            elif value is None:
+                row[key] = None
+            elif not isinstance(value, (list, dict, type(None))):
+                try:
+                    if pd.isna(value):
+                        row[key] = None
+                    elif isinstance(value, (pd.Timestamp, pd.DatetimeTZDtype)):
+                        row[key] = str(value)
+                except (ValueError, TypeError):
+                    row[key] = str(value)
+    return rows
+
+
 @router.post("/test", response_model=SQLTestResponse)
 async def test_sql_query(request: SQLTestRequest):
     """
@@ -88,25 +121,13 @@ async def test_sql_query(request: SQLTestRequest):
                 nullable=result_df[col].isnull().any()
             ))
         
-        # Get sample rows
+        # Get sample rows and serialize for JSON
         sample_rows = result_df.to_dict('records')
-        
-        # Convert any non-serializable types for sample_rows
-        for row in sample_rows:
-            for key, value in row.items():
-                if pd.isna(value):
-                    row[key] = None
-                elif isinstance(value, (pd.Timestamp, pd.DatetimeTZDtype)):
-                    row[key] = str(value)
+        _serialize_rows_for_json(sample_rows)
 
         # Get before rows (combined source sample) - limit to same number as requested
         before_rows = sample_df.head(limit).to_dict('records')
-        for row in before_rows:
-            for key, value in row.items():
-                if pd.isna(value):
-                    row[key] = None
-                elif isinstance(value, (pd.Timestamp, pd.DatetimeTZDtype)):
-                    row[key] = str(value)
+        _serialize_rows_for_json(before_rows)
         
         execution_time = int((time.time() - start_time) * 1000)
         
@@ -189,12 +210,7 @@ async def _load_and_union_sources(
         
         # Store individual source sample (before adding NULL columns)
         source_sample_rows = df_original.head(5).to_dict('records')
-        for row in source_sample_rows:
-            for key, value in row.items():
-                if pd.isna(value):
-                    row[key] = None
-                elif isinstance(value, (pd.Timestamp, pd.DatetimeTZDtype)):
-                    row[key] = str(value)
+        _serialize_rows_for_json(source_sample_rows)
         
         source_samples.append({
             "source_name": source_dataset.get("name", "Unknown Source"),
@@ -279,6 +295,7 @@ async def _load_sample_data(
     elif source_type == 'mongodb':
         # MongoDB
         from pymongo import MongoClient
+        import json
         
         client = MongoClient(config.get('uri'))
         db = client[config.get('database')]
@@ -287,12 +304,45 @@ async def _load_sample_data(
         # Get documents
         data = list(collection.find().limit(limit))
         
-        # Convert to DataFrame
-        df = pd.DataFrame(data)
+        # Flatten nested documents using json_normalize with NO depth limit
+        # This converts ALL nested objects into flat columns recursively
+        # Example: {"address": {"geo": {"lat": 37.5}}} -> address_geo_lat column
+        df = pd.json_normalize(data, sep='_', max_level=None)
         
         # Remove MongoDB _id if present
         if '_id' in df.columns:
             df = df.drop('_id', axis=1)
+        
+        # Process array of objects columns: extract each field as a separate array column
+        # Example: projects: [{"name": "A", "budget": 100}] 
+        # → projects_name: ["A"], projects_budget: [100]
+        columns_to_process = list(df.columns)  # Create a copy to avoid modification during iteration
+        for col in columns_to_process:
+            if col not in df.columns:  # Skip if already dropped
+                continue
+            # Check if column contains array of dicts
+            if df[col].dtype == 'object':
+                sample_val = df[col].dropna().iloc[0] if len(df[col].dropna()) > 0 else None
+                if sample_val is not None and isinstance(sample_val, list) and len(sample_val) > 0:
+                    if isinstance(sample_val[0], dict):
+                        # This is an array of objects - collect ALL unique fields from ALL rows
+                        # Not just the first item, because different items may have different fields
+                        all_fields = set()
+                        for row_value in df[col].dropna():
+                            if isinstance(row_value, list):
+                                for item in row_value:
+                                    if isinstance(item, dict):
+                                        all_fields.update(item.keys())
+                        
+                        # Extract each field as a separate array column
+                        for field_name in sorted(all_fields):  # Sort for consistent ordering
+                            new_col_name = f"{col}_{field_name}"
+                            # Extract the field from each dict in the array
+                            df[new_col_name] = df[col].apply(
+                                lambda x: [item.get(field_name) for item in x] if isinstance(x, list) else None
+                            )
+                        # Drop the original column
+                        df = df.drop(col, axis=1)
         
         client.close()
         
