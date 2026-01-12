@@ -3,7 +3,7 @@ FROM apache/spark:3.5.0-python3
 USER root
 
 # Install Python dependencies
-RUN pip install --no-cache-dir boto3 pymongo requests
+RUN pip install --no-cache-dir boto3 pymongo requests delta-spark==3.2.0
 
 # Copy Spark jobs with proper permissions
 COPY --chown=spark:spark jobs/ /opt/spark/jobs/
