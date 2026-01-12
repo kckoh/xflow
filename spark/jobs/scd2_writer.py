@@ -66,10 +66,11 @@ def write_scd2_merge(spark: SparkSession, df: DataFrame, path: str, primary_keys
     - New records: Inserted as current
     - Unchanged records: No action
 
-    **Special handling for S3 logs:**
-    - S3 log files are immutable (never updated)
+    **Special handling for immutable sources (S3 logs, API):**
+    - S3 log files are immutable (never updated once written)
+    - API responses are snapshots at a point in time
     - Use simple append mode instead of SCD Type 2
-    - Avoids unnecessary complexity for unchanging data
+    - Avoids unnecessary complexity and Primary Key detection for unchanging data
 
     Args:
         spark: SparkSession
@@ -93,17 +94,21 @@ def write_scd2_merge(spark: SparkSession, df: DataFrame, path: str, primary_keys
         # Get full history for a specific ID
         SELECT * FROM table WHERE id = 123 ORDER BY valid_from
     """
-    # Check if source is S3 logs (immutable data)
-    is_s3_source = source_types and any(st in ['s3', 's3_logs'] for st in source_types)
+    # Check if source is immutable (S3 logs, API responses)
+    # Immutable sources: data doesn't change after collection, use simple append
+    # - S3 logs: Log files never change once written
+    # - API: Responses are snapshots at a point in time (e.g., GitHub issues)
+    is_immutable_source = source_types and any(st in ['s3', 's3_logs', 'api'] for st in source_types)
 
-    if is_s3_source:
-        # S3 logs are immutable, use simple append instead of SCD Type 2
-        print(f"   [S3 Logs] Using append mode (immutable data, no SCD Type 2 needed)")
+    if is_immutable_source:
+        # Immutable data sources: use simple append instead of SCD Type 2
+        source_name = "API" if 'api' in source_types else "S3 Logs"
+        print(f"   [{source_name}] Using append mode (immutable data, no SCD Type 2 needed)")
 
         df.write.format("delta").mode("append").save(path)
 
         record_count = df.count()
-        print(f"   [S3 Logs] ✅ Appended {record_count} records to {path}")
+        print(f"   [{source_name}] ✅ Appended {record_count} records to {path}")
         return
 
     # === RDB/MongoDB: Use full SCD Type 2 ===
