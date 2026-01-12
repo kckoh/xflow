@@ -490,19 +490,6 @@ async def activate_etl_job(job_id: str):
     if not job:
         raise HTTPException(status_code=404, detail="Job not found")
 
-    # Streaming jobs are handled by the dedicated router (streaming_jobs.py).
-    # Keep a fallback check for legacy/mismatched records.
-    is_streaming = job.job_type == "streaming"
-    if not is_streaming and job.sources:
-        if job.sources[0].get("type") == "kafka":
-            is_streaming = True
-
-    if is_streaming:
-        raise HTTPException(
-            status_code=400,
-            detail="Streaming jobs must be started via /api/streaming-jobs/{dataset_id}/start",
-        )
-
     # Batch Job Logic (Airflow)
     if not job.schedule:
         raise HTTPException(
