@@ -49,7 +49,6 @@ async def run_query(
 
             # Try to get total_count from MongoDB if querying lakehouse tables
             # Extract table name from query (e.g., "FROM lakehouse.default.my_table")
-            import re
             table_match = re.search(r'\bFROM\s+lakehouse\.default\.(\w+)', sql, re.IGNORECASE)
             if table_match:
                 table_name = table_match.group(1)
