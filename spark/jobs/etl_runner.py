@@ -1119,10 +1119,170 @@ def read_api_source(spark: SparkSession, source_config: dict) -> DataFrame:
     return df
 
 
+# ============ SCD Type 2 Helper Functions ============
+
+def detect_primary_keys(df: DataFrame) -> list:
+    """Auto-detect primary key column(s) from DataFrame schema"""
+    columns = df.columns
+
+    # Priority 1: Exact matches
+    exact_matches = ['id', 'pk', 'primary_key', 'uid', 'uuid']
+    for col in columns:
+        if col.lower() in exact_matches:
+            print(f"   [SCD2] Detected primary key: {col}")
+            return [col]
+
+    # Priority 2: Columns ending with _id
+    id_columns = [col for col in columns if col.lower().endswith('_id')]
+    if id_columns:
+        print(f"   [SCD2] Detected primary key: {id_columns[0]}")
+        return [id_columns[0]]
+
+    # Priority 3: First column as fallback
+    if columns:
+        print(f"   [SCD2] No obvious primary key found, using first column: {columns[0]}")
+        return [columns[0]]
+
+    raise ValueError("DataFrame has no columns, cannot detect primary key")
+
+
+def write_scd2_merge(spark: SparkSession, df: DataFrame, path: str, primary_keys: list = None, timestamp_col: str = None, source_types: list = None):
+    """Write DataFrame using SCD Type 2 (Slowly Changing Dimension) pattern"""
+    from pyspark.sql import functions as F
+    from delta.tables import DeltaTable
+    from datetime import datetime
+
+    # Check if source is immutable (S3 logs, API responses)
+    is_immutable_source = source_types and any(st in ['s3', 's3_logs', 'api'] for st in source_types)
+
+    if is_immutable_source:
+        # Immutable data sources: use simple append instead of SCD Type 2
+        source_name = "API" if 'api' in source_types else "S3 Logs"
+        print(f"   [{source_name}] Using append mode (immutable data, no SCD Type 2 needed)")
+        df.write.format("delta").mode("append").save(path)
+        record_count = df.count()
+        print(f"   [{source_name}] ✅ Appended {record_count} records to {path}")
+        return
+
+    # === RDB/MongoDB: Use full SCD Type 2 ===
+    current_time = datetime.utcnow()
+    current_time_str = current_time.isoformat()
+
+    # Auto-detect primary keys if not provided
+    if not primary_keys:
+        primary_keys = detect_primary_keys(df)
+
+    print(f"   [SCD2] Applying SCD Type 2 MERGE")
+    print(f"      Primary keys: {primary_keys}")
+    print(f"      Current timestamp: {current_time_str}")
+
+    # Validate primary keys exist in DataFrame
+    missing_keys = [pk for pk in primary_keys if pk not in df.columns]
+    if missing_keys:
+        raise ValueError(f"Primary key columns not found in DataFrame: {missing_keys}")
+
+    # Add SCD Type 2 metadata columns to new data
+    new_data = df.withColumn("valid_from", F.lit(current_time_str)) \
+                 .withColumn("valid_to", F.lit(None).cast("string")) \
+                 .withColumn("is_current", F.lit(True))
+
+    # Check if Delta table exists
+    try:
+        delta_table = DeltaTable.forPath(spark, path)
+        table_exists = True
+        print(f"   [SCD2] Existing Delta table found, performing MERGE")
+    except Exception:
+        table_exists = False
+        print(f"   [SCD2] No existing table, creating new Delta table with SCD2 schema")
+
+    if not table_exists:
+        # First run: Just write the data with SCD2 columns
+        new_data.write.format("delta").mode("overwrite").save(path)
+        record_count = new_data.count()
+        print(f"   [SCD2] ✅ Initial table created with {record_count} records")
+        return
+
+    # Build merge condition (match on primary keys and is_current=TRUE)
+    merge_condition_parts = [f"target.{pk} = source.{pk}" for pk in primary_keys]
+    merge_condition_parts.append("target.is_current = TRUE")
+    merge_condition = " AND ".join(merge_condition_parts)
+
+    # Build change detection condition (any non-key column changed)
+    metadata_cols = ['valid_from', 'valid_to', 'is_current']
+    data_columns = [col for col in df.columns if col not in primary_keys + metadata_cols]
+
+    change_conditions = []
+    for col in data_columns:
+        change_conditions.append(
+            f"(target.{col} <> source.{col} OR "
+            f"(target.{col} IS NULL AND source.{col} IS NOT NULL) OR "
+            f"(target.{col} IS NOT NULL AND source.{col} IS NULL))"
+        )
+
+    change_condition = " OR ".join(change_conditions) if change_conditions else "FALSE"
+
+    print(f"   [SCD2] Merge condition: {merge_condition}")
+    print(f"   [SCD2] Tracking changes in {len(data_columns)} data columns")
+
+    # Step 1: MERGE to expire changed records and insert truly new records
+    merge_builder = delta_table.alias("target").merge(
+        new_data.alias("source"),
+        merge_condition
+    )
+
+    merge_builder = merge_builder.whenMatchedUpdate(
+        condition=change_condition,
+        set={
+            "valid_to": F.lit(current_time_str),
+            "is_current": F.lit(False)
+        }
+    )
+
+    merge_builder = merge_builder.whenNotMatchedInsertAll()
+    merge_builder.execute()
+    print(f"   [SCD2] Step 1: Expired changed records and inserted new records")
+
+    # Step 2: Re-insert changed records as new current versions
+    delta_table = DeltaTable.forPath(spark, path)
+
+    expired_df = delta_table.toDF().filter(
+        (F.col("valid_to") == current_time_str) & (F.col("is_current") == False)
+    )
+
+    expired_count = expired_df.count()
+
+    if expired_count > 0:
+        print(f"   [SCD2] Found {expired_count} changed records, inserting new versions")
+        expired_keys = expired_df.select(primary_keys)
+        updated_records = new_data.join(expired_keys, primary_keys, "inner")
+        updated_records.write.format("delta").mode("append").save(path)
+        print(f"   [SCD2] Step 2: Inserted {updated_records.count()} new versions")
+
+    # Summary
+    delta_table = DeltaTable.forPath(spark, path)
+    total_records = delta_table.toDF().count()
+    current_records = delta_table.toDF().filter(F.col("is_current") == True).count()
+    historical_records = total_records - current_records
+
+    print(f"   [SCD2] ✅ MERGE completed")
+    print(f"      Current records: {current_records}")
+    print(f"      Historical versions: {historical_records}")
+    print(f"      Total records: {total_records}")
+
+
 # ============ Destination Writers ============
 
-def write_s3_destination(df: DataFrame, dest_config: dict, job_name: str = "output", has_nosql_source: bool = False):
-    """Write DataFrame to S3 as Delta Lake format and register in Glue Catalog"""
+def write_s3_destination(df: DataFrame, dest_config: dict, job_name: str = "output", has_nosql_source: bool = False, source_types: list = None):
+    """
+    Write DataFrame to S3 as Delta Lake format
+
+    Args:
+        df: DataFrame to write
+        dest_config: Destination configuration
+        job_name: Job name for table naming
+        has_nosql_source: Whether source includes NoSQL (for VOID type handling)
+        source_types: List of source types (e.g., ['rdb', 's3', 'mongodb'])
+    """
     path = dest_config.get("path")
     if not path:
         raise ValueError("Destination path is required")
@@ -1141,13 +1301,9 @@ def write_s3_destination(df: DataFrame, dest_config: dict, job_name: str = "outp
 
     options = dest_config.get("options", {})
     compression = options.get("compression", "snappy")
-    
-    # Determine write mode: Enforce 'append' if incremental load is enabled
+
+    # Determine write mode
     incremental_config = dest_config.get("incremental_config", {})
-    if incremental_config.get("enabled"):
-        mode = "append"
-    else:
-        mode = options.get("mode", "overwrite")
     partition_by = options.get("partitionBy", [])
     coalesce_num = options.get("coalesce")  # None means use default partitions
 
@@ -1168,16 +1324,39 @@ def write_s3_destination(df: DataFrame, dest_config: dict, job_name: str = "outp
                 print(f"   Converting VOID column to STRING: {field.name}")
                 writer_df = writer_df.withColumn(field.name, writer_df[field.name].cast(StringType()))
 
-    writer = writer_df.write \
-        .format("delta") \
-        .mode(mode) \
-        .option("compression", compression)
+    # Use SCD Type 2 for incremental loads to track full history
+    # (S3 logs will use simple append inside write_scd2_merge)
+    if incremental_config.get("enabled"):
+        print(f"📊 Writing with incremental load (SCD Type 2 for RDB, append for S3)")
 
-    if partition_by:
-        writer = writer.partitionBy(*partition_by)
+        # Get timestamp column for audit trail
+        timestamp_col = incremental_config.get("timestamp_column")
 
-    writer.save(path)
-    print(f"✅ Data written to {path} (Delta Lake format)")
+        # Use SCD2 MERGE (auto-detects primary keys, handles S3 vs RDB)
+        spark = writer_df.sparkSession
+        write_scd2_merge(
+            spark=spark,
+            df=writer_df,
+            path=path,
+            primary_keys=None,  # Auto-detect
+            timestamp_col=timestamp_col,
+            source_types=source_types  # Pass source types for S3 detection
+        )
+    else:
+        # Full load: overwrite mode
+        print(f"📊 Writing with overwrite mode (full load)")
+        mode = options.get("mode", "overwrite")
+
+        writer = writer_df.write \
+            .format("delta") \
+            .mode(mode) \
+            .option("compression", compression)
+
+        if partition_by:
+            writer = writer.partitionBy(*partition_by)
+
+        writer.save(path)
+        print(f"✅ Data written to {path} (Delta Lake format)")
 
     # Note: Glue table registration is handled by Trino register_table() in Airflow DAG
     # This ensures proper Delta Lake metadata format for Trino compatibility
@@ -1411,9 +1590,12 @@ def run_etl(config: dict):
         dest_config = config.get("destination", {})
         dest_type = dest_config.get("type", "s3")
 
+        # Extract source types for SCD Type 2 logic
+        source_types = [s.get("type") or s.get("source_type") for s in config.get("sources", [])]
+
         print(f"💾 Writing to destination: {dest_type}")
         if dest_type == "s3":
-            write_s3_destination(final_df, dest_config, config.get("name", "output"), has_nosql_source)
+            write_s3_destination(final_df, dest_config, config.get("name", "output"), has_nosql_source, source_types)
         else:
             raise ValueError(f"Unsupported destination type: {dest_type}")
 
