@@ -25,6 +25,8 @@ import S3LogParsingConfig from "../../components/targets/S3LogParsingConfig";
 import S3LogProcessEditor from "../../components/targets/S3LogProcessEditor";
 import APIPreview from "../../components/targets/APIPreview";
 import { API_BASE_URL } from "../../config/api";
+import { useAuth } from "../../context/AuthContext";
+import { getPublicUsers } from "../../services/adminApi";
 
 const STEPS = [
   { id: 1, name: "Overview", icon: LayoutDashboard },
@@ -39,6 +41,7 @@ export default function TargetWizard() {
   const navigate = useNavigate();
   const location = useLocation();
   const { showToast } = useToast();
+  const { sessionId } = useAuth();
   const [currentStep, setCurrentStep] = useState(1);
   const [isEditMode, setIsEditMode] = useState(false);
 
@@ -78,6 +81,29 @@ export default function TargetWizard() {
   // Step 4: Schedule
   const [jobType, setJobType] = useState("batch");
   const [schedules, setSchedules] = useState([]);
+
+  // Step 5: Permission
+  const [sharedUserIds, setSharedUserIds] = useState([]);
+  const [users, setUsers] = useState([]);
+  const [usersLoading, setUsersLoading] = useState(false);
+
+  //Load users for Step 5
+  useEffect(() => {
+    if (sessionId && !isEditMode) {
+      const fetchUsers = async () => {
+        setUsersLoading(true);
+        try {
+          const data = await getPublicUsers(sessionId);
+          setUsers(data);
+        } catch (err) {
+          console.error('Failed to fetch users:', err);
+        } finally {
+          setUsersLoading(false);
+        }
+      };
+      fetchUsers();
+    }
+  }, [sessionId, isEditMode]);
 
   // Load existing job data in edit mode
   useEffect(() => {
@@ -692,11 +718,12 @@ export default function TargetWizard() {
           options: {},
           // s3_config is injected by Airflow DAG based on environment
         },
+        shared_user_ids: sharedUserIds, // User sharing
       };
 
       const url = isEditMode
         ? `${API_BASE_URL}/api/datasets/${config.id}`
-        : `${API_BASE_URL}/api/datasets`;
+        : `${API_BASE_URL}/api/datasets${sessionId ? `?session_id=${sessionId}` : ''}`;
 
       const response = await fetch(url, {
         method: isEditMode ? "PUT" : "POST",
@@ -1430,132 +1457,132 @@ export default function TargetWizard() {
                     onTestStatusChange={setIsTestPassed}
                   />
                 ) : /* ================= API Source ================= */
-                sourceNodes[0]?.data?.sourceType === "api" ? (
-                  sourceNodes[activeSourceTab]?.data?.columns?.length ? (
-                    <SchemaTransformEditor
-                      sourceSchema={sourceNodes[activeSourceTab].data?.columns || []}
-                      sourceName={
-                        sourceNodes[activeSourceTab].data?.name ||
-                        `Source ${activeSourceTab + 1}`
-                      }
-                      sourceId={sourceNodes[activeSourceTab].id}
-                      sourceDatasetId={
-                        sourceNodes[activeSourceTab].data?.sourceDatasetId ||
-                        sourceNodes[activeSourceTab].data?.catalogDatasetId
-                      }
-                      targetSchema={targetSchema}
-                      initialTargetSchema={initialTargetSchema}
-                      onSchemaChange={setTargetSchema}
-                      onTestStatusChange={setIsTestPassed}
-                      allSources={sourceNodes.map((node) => ({
-                        id: node.id,
-                        datasetId:
-                          node.data?.sourceDatasetId ||
-                          node.data?.catalogDatasetId,
-                        name: node.data?.name,
-                      }))}
-                      sourceTabs={
-                        sourceNodes.length > 1 ? (
-                          <div className="flex gap-1 flex-wrap">
-                            {sourceNodes.map((source, idx) => (
-                              <button
-                                key={source.id}
-                                onClick={() => setActiveSourceTab(idx)}
-                                className={`px-3 py-1.5 text-xs font-medium rounded-md transition-colors flex items-center gap-1.5 ${activeSourceTab === idx
-                                  ? "bg-blue-100 text-blue-700 border border-blue-300"
-                                  : "bg-slate-50 text-slate-600 border border-slate-200 hover:bg-slate-100"
-                                  }`}
-                              >
-                                <div
-                                  className="w-1.5 h-1.5 rounded-full"
-                                  style={{
-                                    backgroundColor: [
-                                      "#3b82f6",
-                                      "#10b981",
-                                      "#f59e0b",
-                                      "#8b5cf6",
-                                    ][idx % 4],
-                                  }}
-                                />
-                                Source {idx + 1}: {source.data?.name}
-                              </button>
-                            ))}
-                          </div>
-                        ) : null
-                      }
-                    />
-                  ) : (
-                    <div className="flex items-center justify-center h-full">
-                      <div className="max-w-md text-center text-gray-500">
-                        <p className="text-sm">
-                          API schema가 아직 없습니다. Step 2에서 Preview/Schema를 먼저
-                          가져와주세요.
-                        </p>
+                  sourceNodes[0]?.data?.sourceType === "api" ? (
+                    sourceNodes[activeSourceTab]?.data?.columns?.length ? (
+                      <SchemaTransformEditor
+                        sourceSchema={sourceNodes[activeSourceTab].data?.columns || []}
+                        sourceName={
+                          sourceNodes[activeSourceTab].data?.name ||
+                          `Source ${activeSourceTab + 1}`
+                        }
+                        sourceId={sourceNodes[activeSourceTab].id}
+                        sourceDatasetId={
+                          sourceNodes[activeSourceTab].data?.sourceDatasetId ||
+                          sourceNodes[activeSourceTab].data?.catalogDatasetId
+                        }
+                        targetSchema={targetSchema}
+                        initialTargetSchema={initialTargetSchema}
+                        onSchemaChange={setTargetSchema}
+                        onTestStatusChange={setIsTestPassed}
+                        allSources={sourceNodes.map((node) => ({
+                          id: node.id,
+                          datasetId:
+                            node.data?.sourceDatasetId ||
+                            node.data?.catalogDatasetId,
+                          name: node.data?.name,
+                        }))}
+                        sourceTabs={
+                          sourceNodes.length > 1 ? (
+                            <div className="flex gap-1 flex-wrap">
+                              {sourceNodes.map((source, idx) => (
+                                <button
+                                  key={source.id}
+                                  onClick={() => setActiveSourceTab(idx)}
+                                  className={`px-3 py-1.5 text-xs font-medium rounded-md transition-colors flex items-center gap-1.5 ${activeSourceTab === idx
+                                    ? "bg-blue-100 text-blue-700 border border-blue-300"
+                                    : "bg-slate-50 text-slate-600 border border-slate-200 hover:bg-slate-100"
+                                    }`}
+                                >
+                                  <div
+                                    className="w-1.5 h-1.5 rounded-full"
+                                    style={{
+                                      backgroundColor: [
+                                        "#3b82f6",
+                                        "#10b981",
+                                        "#f59e0b",
+                                        "#8b5cf6",
+                                      ][idx % 4],
+                                    }}
+                                  />
+                                  Source {idx + 1}: {source.data?.name}
+                                </button>
+                              ))}
+                            </div>
+                          ) : null
+                        }
+                      />
+                    ) : (
+                      <div className="flex items-center justify-center h-full">
+                        <div className="max-w-md text-center text-gray-500">
+                          <p className="text-sm">
+                            API schema가 아직 없습니다. Step 2에서 Preview/Schema를 먼저
+                            가져와주세요.
+                          </p>
+                        </div>
                       </div>
-                    </div>
-                  )
-                ) : (
-                  /* ================= RDB / Mongo / API (With Schema) Source ================= */
-                  sourceNodes[activeSourceTab] && (
-                    <SchemaTransformEditor
-                      sourceSchema={
-                        sourceNodes[activeSourceTab].data?.columns || []
-                      }
-                      sourceName={
-                        sourceNodes[activeSourceTab].data?.name ||
-                        `Source ${activeSourceTab + 1}`
-                      }
-                      sourceId={sourceNodes[activeSourceTab].id}
-                      sourceDatasetId={
-                        sourceNodes[activeSourceTab].data?.sourceDatasetId ||
-                        sourceNodes[activeSourceTab].data?.catalogDatasetId
-                      }
-                      targetSchema={targetSchema}
-                      initialTargetSchema={initialTargetSchema}
-                      initialCustomSql={customSql}
-                      onSchemaChange={setTargetSchema}
-                      onTestStatusChange={setIsTestPassed}
-                      onSqlChange={setCustomSql}
-                      allSources={sourceNodes.map((node) => ({
-                        id: node.id,
-                        datasetId:
-                          node.data?.sourceDatasetId ||
-                          node.data?.catalogDatasetId,
-                        name: node.data?.name,
-                        schema: node.data?.columns || [], // Add schema/columns
-                      }))}
-                      sourceTabs={
-                        sourceNodes.length > 1 ? (
-                          <div className="flex gap-1 flex-wrap">
-                            {sourceNodes.map((source, idx) => (
-                              <button
-                                key={source.id}
-                                onClick={() => setActiveSourceTab(idx)}
-                                className={`px-3 py-1.5 text-xs font-medium rounded-md transition-colors flex items-center gap-1.5 ${activeSourceTab === idx
-                                  ? "bg-blue-100 text-blue-700 border border-blue-300"
-                                  : "bg-slate-50 text-slate-600 border border-slate-200 hover:bg-slate-100"
-                                  }`}
-                              >
-                                <div
-                                  className="w-1.5 h-1.5 rounded-full"
-                                  style={{
-                                    backgroundColor: [
-                                      "#3b82f6",
-                                      "#10b981",
-                                      "#f59e0b",
-                                      "#8b5cf6",
-                                    ][idx % 4],
-                                  }}
-                                />
-                                Source {idx + 1}: {source.data?.name}
-                              </button>
-                            ))}
-                          </div>
-                        ) : null
-                      }
-                    />
-                  )
-                )}
+                    )
+                  ) : (
+                    /* ================= RDB / Mongo / API (With Schema) Source ================= */
+                    sourceNodes[activeSourceTab] && (
+                      <SchemaTransformEditor
+                        sourceSchema={
+                          sourceNodes[activeSourceTab].data?.columns || []
+                        }
+                        sourceName={
+                          sourceNodes[activeSourceTab].data?.name ||
+                          `Source ${activeSourceTab + 1}`
+                        }
+                        sourceId={sourceNodes[activeSourceTab].id}
+                        sourceDatasetId={
+                          sourceNodes[activeSourceTab].data?.sourceDatasetId ||
+                          sourceNodes[activeSourceTab].data?.catalogDatasetId
+                        }
+                        targetSchema={targetSchema}
+                        initialTargetSchema={initialTargetSchema}
+                        initialCustomSql={customSql}
+                        onSchemaChange={setTargetSchema}
+                        onTestStatusChange={setIsTestPassed}
+                        onSqlChange={setCustomSql}
+                        allSources={sourceNodes.map((node) => ({
+                          id: node.id,
+                          datasetId:
+                            node.data?.sourceDatasetId ||
+                            node.data?.catalogDatasetId,
+                          name: node.data?.name,
+                          schema: node.data?.columns || [], // Add schema/columns
+                        }))}
+                        sourceTabs={
+                          sourceNodes.length > 1 ? (
+                            <div className="flex gap-1 flex-wrap">
+                              {sourceNodes.map((source, idx) => (
+                                <button
+                                  key={source.id}
+                                  onClick={() => setActiveSourceTab(idx)}
+                                  className={`px-3 py-1.5 text-xs font-medium rounded-md transition-colors flex items-center gap-1.5 ${activeSourceTab === idx
+                                    ? "bg-blue-100 text-blue-700 border border-blue-300"
+                                    : "bg-slate-50 text-slate-600 border border-slate-200 hover:bg-slate-100"
+                                    }`}
+                                >
+                                  <div
+                                    className="w-1.5 h-1.5 rounded-full"
+                                    style={{
+                                      backgroundColor: [
+                                        "#3b82f6",
+                                        "#10b981",
+                                        "#f59e0b",
+                                        "#8b5cf6",
+                                      ][idx % 4],
+                                    }}
+                                  />
+                                  Source {idx + 1}: {source.data?.name}
+                                </button>
+                              ))}
+                            </div>
+                          ) : null
+                        }
+                      />
+                    )
+                  )}
               </div>
             </div>
           </div>
@@ -1584,18 +1611,61 @@ export default function TargetWizard() {
           <div className="flex-1 overflow-y-auto">
             <div className="max-w-4xl mx-auto px-6 py-8">
               <h2 className="text-lg font-semibold text-gray-900 mb-6">
-                Permission
+                Share with Users
               </h2>
 
               <div className="bg-white rounded-lg border border-gray-200 p-6">
-                <div className="flex items-center justify-center py-12">
-                  <div className="text-center">
-                    <Shield className="w-12 h-12 text-gray-300 mx-auto mb-4" />
-                    <h3 className="text-lg font-medium text-gray-900">
-                      Permission Settings
-                    </h3>
+                <p className="text-sm text-gray-600 mb-4">
+                  Select users to grant access to this dataset. You will automatically have access.
+                </p>
+
+                {usersLoading ? (
+                  <div className="text-center py-12">
+                    <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-500 mx-auto"></div>
                   </div>
-                </div>
+                ) : users.length === 0 ? (
+                  <div className="flex flex-col items-center py-12">
+                    <Shield className="w-12 h-12 text-gray-300 mb-4" />
+                    <p className="text-sm text-gray-400">No users available</p>
+                  </div>
+                ) : (
+                  <div className="max-h-96 overflow-y-auto space-y-2">
+                    {users.map(user => (
+                      <label
+                        key={user.id}
+                        className="flex items-center gap-3 p-3 hover:bg-gray-50 rounded-lg cursor-pointer transition-colors border border-transparent hover:border-gray-200"
+                      >
+                        <input
+                          type="checkbox"
+                          checked={sharedUserIds.includes(user.id)}
+                          onChange={() => {
+                            setSharedUserIds(prev =>
+                              prev.includes(user.id)
+                                ? prev.filter(id => id !== user.id)
+                                : [...prev, user.id]
+                            );
+                          }}
+                          className="focus:ring-blue-500 h-4 w-4 text-blue-600 border-gray-300 rounded"
+                        />
+                        <div className="flex-1">
+                          <div className="text-sm font-medium text-gray-900">{user.name}</div>
+                          <div className="text-xs text-gray-500">{user.email}</div>
+                        </div>
+                      </label>
+                    ))}
+                  </div>
+                )}
+
+                {sharedUserIds.length > 0 && (
+                  <div className="mt-4 px-4 py-3 bg-blue-50 rounded-lg border border-blue-200">
+                    <p className="text-sm text-blue-700 font-medium">
+                      📌 {sharedUserIds.length} user(s) selected
+                    </p>
+                    <p className="text-xs text-blue-600 mt-1">
+                      Selected users will gain access after you create the dataset.
+                    </p>
+                  </div>
+                )}
               </div>
             </div>
           </div>

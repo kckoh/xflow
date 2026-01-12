@@ -175,3 +175,18 @@ export const getDatasets = async () => {
         };
     });
 };
+
+/**
+ * Get public user list for dataset sharing (non-admin accessible)
+ * @param {string} sessionId 
+ * @returns {Promise<Array>} Minimal user list (id, name, email)
+ */
+export const getPublicUsers = async (sessionId) => {
+    const response = await fetch(`${BASE_URL}/users/public?session_id=${sessionId}`);
+    if (!response.ok) {
+        const error = await response.json();
+        throw new Error(error.detail || 'Failed to fetch users');
+    }
+    return response.json();
+};
+

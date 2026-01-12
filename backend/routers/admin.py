@@ -166,3 +166,26 @@ async def delete_user(user_id: str, session_id: str):
     
     await user.delete()
     return None
+
+
+@router.get("/users/public")
+async def get_public_users(session_id: str):
+    """Get minimal user list for dataset sharing (non-admin accessible)"""
+    # Check authentication only (not admin)
+    if session_id not in sessions:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Not authenticated"
+        )
+    
+    users = await User.find_all().to_list()
+    
+    # Return only minimal public information
+    return [
+        {
+            "id": str(user.id),
+            "name": user.name or user.email.split("@")[0],
+            "email": user.email
+        }
+        for user in users
+    ]

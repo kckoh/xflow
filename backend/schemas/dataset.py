@@ -47,6 +47,9 @@ class DatasetCreate(BaseModel):
     # Visual Editor state
     nodes: Optional[List[dict]] = None
     edges: Optional[List[dict]] = None
+    
+    # Permission sharing
+    shared_user_ids: Optional[List[str]] = []  # User IDs to grant access to
 
 
 class DatasetUpdate(BaseModel):

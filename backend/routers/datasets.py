@@ -6,12 +6,13 @@ import httpx
 from beanie import PydanticObjectId
 from fastapi import APIRouter, HTTPException, status
 
-from models import Dataset, JobRun, Connection, ETLJob
+from models import Dataset, JobRun, Connection, ETLJob, User
 from schemas.dataset import DatasetCreate, DatasetUpdate, DatasetResponse
 from services.lineage_service import sync_pipeline_to_etljob
 # OpenSearch Dual Write
 from utils.indexers import index_single_dataset, delete_dataset_from_index
 from utils.schedule_converter import generate_schedule
+from dependencies import sessions
 
 router = APIRouter()
 
@@ -98,8 +99,8 @@ print(f"[STARTUP] datasets.py loaded - AIRFLOW_DAG_ID={AIRFLOW_DAG_ID}")
 
 
 @router.post("", response_model=DatasetResponse, status_code=status.HTTP_201_CREATED)
-async def create_dataset(dataset: DatasetCreate):
-    """Create a new Dataset configuration"""
+async def create_dataset(dataset: DatasetCreate, session_id: str = None):
+    """Create a new Dataset configuration with auto-permission grant"""
     # Check if dataset name exists
     existing_dataset = await Dataset.find_one(Dataset.name == dataset.name)
     if existing_dataset:
@@ -171,6 +172,39 @@ async def create_dataset(dataset: DatasetCreate):
     )
 
     await new_dataset.insert()
+
+    # Auto-grant permissions to creator and shared users
+    from bson import ObjectId
+    
+    # 1. Grant access to creator (if session exists)
+    if session_id and session_id in sessions:
+        user_session = sessions[session_id]
+        user_id = user_session.get("user_id")
+        
+        if user_id:
+            try:
+                creator = await User.get(ObjectId(user_id))
+                if creator and str(new_dataset.id) not in creator.dataset_access:
+                    creator.dataset_access.append(str(new_dataset.id))
+                    await creator.save()
+                    
+                    # Update session immediately for instant access
+                    sessions[session_id]["dataset_access"] = creator.dataset_access
+                    print(f"✅ Auto-granted access to creator: {creator.email} -> {new_dataset.name}")
+            except Exception as e:
+                print(f"⚠️ Failed to grant creator access: {e}")
+    
+    # 2. Grant access to shared users
+    if dataset.shared_user_ids:
+        for shared_user_id in dataset.shared_user_ids:
+            try:
+                shared_user = await User.get(ObjectId(shared_user_id))
+                if shared_user and str(new_dataset.id) not in shared_user.dataset_access:
+                    shared_user.dataset_access.append(str(new_dataset.id))
+                    await shared_user.save()
+                    print(f"✅ Shared dataset with user: {shared_user.email} -> {new_dataset.name}")
+            except Exception as e:
+                print(f"⚠️ Failed to share with user {shared_user_id}: {e}")
 
     # Dual Write: OpenSearch에 인덱싱
     await index_single_dataset(new_dataset)
