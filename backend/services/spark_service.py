@@ -58,12 +58,17 @@ class SparkService:
                 "arguments": [config_json],
                 "sparkVersion": "3.5.0",
                 "sparkConf": {
-                    # Kafka 설정
-                    "spark.jars.packages": "org.apache.spark:spark-sql-kafka-0-10_2.12:3.5.0",
+                    # Kafka/AWS JARs are now pre-installed in /opt/spark/jars/
                     # S3 설정
                     "spark.hadoop.fs.s3a.impl": "org.apache.hadoop.fs.s3a.S3AFileSystem",
                     "spark.hadoop.fs.s3a.aws.credentials.provider": "com.amazonaws.auth.WebIdentityTokenCredentialsProvider",
                     "spark.sql.shuffle.partitions": "24",
+                    # Spark 3.5.0 V2 Engine stability fix
+                    "spark.sql.streaming.v2.enabled": "false",
+                    "spark.sql.sources.useV1SourceList": "*",
+                    "spark.sql.sources.write.v2.enabled": "false",
+                    "spark.serializer": "org.apache.spark.serializer.KryoSerializer",
+                    "spark.kryo.registrationRequired": "false",
                 },
                 "driver": {
                     "cores": 1,
@@ -92,24 +97,142 @@ class SparkService:
         }
 
     @classmethod
-    def submit_job(cls, config: dict, app_name: str, script_path: str = "/opt/spark/jobs/unified_cdc_runner.py") -> str:
+    def submit_job(cls, config: dict, app_name: str, runner_type: str = "cdc") -> str:
         """
-        Spark Streaming Job 실행 (K8s SparkApplication 생성)
-
-        Args:
-            config: Dataset 설정 (sources, transforms, targets)
-            app_name: Spark 애플리케이션 이름
-            script_path: 실행할 파이썬 스크립트 경로
+        Spark Streaming Job 실행
+        - Prod: K8s SparkOperator
+        - Dev: Spark Standalone REST API
         """
-        try:
-            k8s_client = cls._get_k8s_client()
+        # Runner Mapping
+        # Note: Local path in spark-master container
+        runner_map = {
+            "cdc": "/opt/spark/jobs/unified_cdc_runner.py",
+            "kafka": "/opt/spark/jobs/kafka_source_runner.py",
+            "batch": "/opt/spark/jobs/etl_runner.py"
+        }
+        script_path = runner_map.get(runner_type, runner_map["cdc"])
 
-            # SparkApplication 생성
-            spark_app = cls._build_spark_application(config, app_name, script_path)
-            app_name_normalized = spark_app["metadata"]["name"]
-
-            # 기존 앱 삭제 (있으면)
+        if ENVIRONMENT in ["development", "local"]:
+            return cls._submit_job_local(config, app_name, script_path)
+        else:
+            # Production (K8s) existing logic
             try:
+                k8s_client = cls._get_k8s_client()
+
+                # SparkApplication 생성
+                spark_app = cls._build_spark_application(config, app_name, script_path)
+                app_name_normalized = spark_app["metadata"]["name"]
+
+                # 기존 앱 삭제 (있으면)
+                try:
+                    k8s_client.delete_namespaced_custom_object(
+                        group="sparkoperator.k8s.io",
+                        version="v1beta2",
+                        namespace=SPARK_NAMESPACE,
+                        plural="sparkapplications",
+                        name=app_name_normalized,
+                    )
+                    logger.info(f"기존 SparkApplication 삭제: {app_name_normalized}")
+                    import time
+                    time.sleep(2)  # 삭제 대기
+                except Exception:
+                    pass  # 없으면 무시
+
+                # 새 앱 생성
+                k8s_client.create_namespaced_custom_object(
+                    group="sparkoperator.k8s.io",
+                    version="v1beta2",
+                    namespace=SPARK_NAMESPACE,
+                    plural="sparkapplications",
+                    body=spark_app,
+                )
+
+                logger.info(f"Spark Job 시작: {app_name_normalized}")
+                return "started"
+
+            except Exception as e:
+                logger.error(f"Job 시작 실패: {e}")
+                raise
+
+    @classmethod
+    def _submit_job_local(cls, config: dict, app_name: str, script_path: str) -> str:
+        """Local Spark Master REST API Submission"""
+        import httpx
+        import json
+        
+        url = "http://spark-master:6066/v1/submissions/create"
+        
+        # Determine script resource path (in spark-master container)
+        # Using file:// scheme
+        app_resource = f"file://{script_path}"
+        
+        import base64
+        config_str = json.dumps(config)
+        config_b64 = base64.b64encode(config_str.encode('utf-8')).decode('utf-8')
+        
+        payload = {
+            "action": "CreateSubmissionRequest",
+            "appArgs": [script_path, "dummy_arg_for_spark"],
+            "appResource": app_resource,
+            "clientSparkVersion": "3.5.0",
+            "mainClass": "org.apache.spark.deploy.PythonRunner", # Python requires this main class via REST
+            "environmentVariables": {
+                "SPARK_ENV_LOADED": "1",
+                "JOB_CONFIG": config_b64
+            },
+            "sparkProperties": {
+                "spark.master": "spark://spark-master:7077",
+                "spark.app.name": app_name,
+                "spark.submit.deployMode": "cluster",
+                # Kafka/AWS JARs pre-installed in Docker image
+                # S3 Config for LocalStack
+                "spark.hadoop.fs.s3a.impl": "org.apache.hadoop.fs.s3a.S3AFileSystem",
+                "spark.hadoop.fs.s3a.endpoint": "http://localstack-main:4566",
+                "spark.hadoop.fs.s3a.access.key": "test",
+                "spark.hadoop.fs.s3a.secret.key": "test",
+                "spark.hadoop.fs.s3a.path.style.access": "true",
+                "spark.hadoop.fs.s3a.connection.ssl.enabled": "false",
+                # Spark 3.5.0 V2 Engine stability fix
+                "spark.sql.streaming.v2.enabled": "false",
+                "spark.sql.sources.useV1SourceList": "*",
+                "spark.sql.sources.write.v2.enabled": "false",
+                "spark.serializer": "org.apache.spark.serializer.KryoSerializer",
+                "spark.kryo.registrationRequired": "false"
+            }
+        }
+        
+        try:
+            logger.info(f"Submitting to Spark Master: {url}")
+            response = httpx.post(url, json=payload, timeout=10.0)
+            data = response.json()
+            
+            if data.get("success"):
+                submission_id = data.get("submissionId")
+                logger.info(f"Spark Job Submitted Local: ID={submission_id}")
+                return submission_id
+            else:
+                msg = data.get("message", "Unknown error")
+                logger.error(f"Spark Submission Failed: {msg}")
+                raise Exception(f"Spark Master rejected submission: {msg}")
+                
+        except Exception as e:
+            logger.error(f"Failed to submit local job: {e}")
+            raise
+
+    @classmethod
+    def stop_job(cls, app_name: str, submission_id: str = None) -> bool:
+        """Spark Job 중지"""
+        if ENVIRONMENT in ["development", "local"]:
+            if not submission_id:
+                logger.warning("Local mode requires submission_id to stop job")
+                return False
+            return cls._stop_job_local(submission_id)
+        else:
+            # Production (K8s) existing logic
+            try:
+                k8s_client = cls._get_k8s_client()
+                app_name_normalized = app_name.lower().replace("_", "-")[:63]
+
                 k8s_client.delete_namespaced_custom_object(
                     group="sparkoperator.k8s.io",
                     version="v1beta2",
@@ -117,48 +240,33 @@ class SparkService:
                     plural="sparkapplications",
                     name=app_name_normalized,
                 )
-                logger.info(f"기존 SparkApplication 삭제: {app_name_normalized}")
-                import time
-                time.sleep(2)  # 삭제 대기
-            except Exception:
-                pass  # 없으면 무시
 
-            # 새 앱 생성
-            k8s_client.create_namespaced_custom_object(
-                group="sparkoperator.k8s.io",
-                version="v1beta2",
-                namespace=SPARK_NAMESPACE,
-                plural="sparkapplications",
-                body=spark_app,
-            )
+                logger.info(f"Spark Job 중지: {app_name_normalized}")
+                return True
 
-            logger.info(f"Spark Job 시작: {app_name_normalized}")
-            return "started"
-
-        except Exception as e:
-            logger.error(f"Job 시작 실패: {e}")
-            raise
+            except Exception as e:
+                logger.warning(f"Job 중지 실패 (이미 없을 수 있음): {e}")
+                return False
 
     @classmethod
-    def stop_job(cls, app_name: str) -> bool:
-        """Spark Job 중지 (SparkApplication 삭제)"""
+    def _stop_job_local(cls, submission_id: str) -> bool:
+        """Local Spark Master REST API Kill"""
+        import httpx
+        url = f"http://spark-master:6066/v1/submissions/kill/{submission_id}"
+        
         try:
-            k8s_client = cls._get_k8s_client()
-            app_name_normalized = app_name.lower().replace("_", "-")[:63]
-
-            k8s_client.delete_namespaced_custom_object(
-                group="sparkoperator.k8s.io",
-                version="v1beta2",
-                namespace=SPARK_NAMESPACE,
-                plural="sparkapplications",
-                name=app_name_normalized,
-            )
-
-            logger.info(f"Spark Job 중지: {app_name_normalized}")
-            return True
-
+            logger.info(f"Killing Spark Job: {url}")
+            response = httpx.post(url, timeout=10.0)
+            data = response.json()
+            
+            if data.get("success"):
+                 logger.info(f"Spark Job Killed Local: ID={submission_id}")
+                 return True
+            else:
+                 logger.error(f"Spark Kill Failed: {data.get('message')}")
+                 return False
         except Exception as e:
-            logger.warning(f"Job 중지 실패 (이미 없을 수 있음): {e}")
+            logger.error(f"Failed to kill local job: {e}")
             return False
 
     @classmethod

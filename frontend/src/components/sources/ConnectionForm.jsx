@@ -10,6 +10,7 @@ const CONNECTION_TYPES = [
   { id: "mariadb", label: "MariaDB", category: "RDB" },
   { id: "mongodb", label: "MongoDB", category: "NoSQL" },
   { id: "s3", label: "Amazon S3", category: "Storage" },
+  { id: "kafka", label: "Apache Kafka", category: "Streaming" },
   { id: "api", label: "REST API", category: "API" },
 ];
 
@@ -64,6 +65,14 @@ export default function ConnectionForm({ onSuccess, onCancel, initialType }) {
           auth_type: "none",
           auth_config: {},
           headers: {},
+        };
+      case "kafka":
+        return {
+          bootstrap_servers: "",
+          security_protocol: "PLAINTEXT",
+          sasl_mechanism: "PLAIN",
+          sasl_username: "",
+          sasl_password: "",
         };
       default:
         return {};
@@ -464,6 +473,86 @@ export default function ConnectionForm({ onSuccess, onCancel, initialType }) {
           )}
         </div>
       );
+    } else if (type === "kafka") {
+      return (
+        <div className="space-y-4">
+          <div>
+            <label className="block text-sm font-medium text-gray-700">
+              Bootstrap Servers *
+            </label>
+            <input
+              type="text"
+              required
+              placeholder="e.g., kafka-broker1:9092,kafka-broker2:9092"
+              className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:ring-blue-500 focus:border-blue-500 sm:text-sm"
+              value={config.bootstrap_servers || ""}
+              onChange={(e) => handleConfigChange("bootstrap_servers", e.target.value)}
+            />
+            <p className="mt-1 text-xs text-gray-500">
+              Comma-separated list of broker addresses
+            </p>
+          </div>
+
+          <div>
+            <label className="block text-sm font-medium text-gray-700">
+              Security Protocol
+            </label>
+            <select
+              className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:ring-blue-500 focus:border-blue-500 sm:text-sm"
+              value={config.security_protocol || "PLAINTEXT"}
+              onChange={(e) => handleConfigChange("security_protocol", e.target.value)}
+            >
+              <option value="PLAINTEXT">PLAINTEXT (None)</option>
+              <option value="SASL_PLAINTEXT">SASL_PLAINTEXT</option>
+              <option value="SASL_SSL">SASL_SSL</option>
+              <option value="SSL">SSL</option>
+            </select>
+          </div>
+
+          {(config.security_protocol?.startsWith("SASL")) && (
+            <>
+              <div>
+                <label className="block text-sm font-medium text-gray-700">
+                  SASL Mechanism
+                </label>
+                <select
+                  className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:ring-blue-500 focus:border-blue-500 sm:text-sm"
+                  value={config.sasl_mechanism || "PLAIN"}
+                  onChange={(e) => handleConfigChange("sasl_mechanism", e.target.value)}
+                >
+                  <option value="PLAIN">PLAIN</option>
+                  <option value="SCRAM-SHA-256">SCRAM-SHA-256</option>
+                  <option value="SCRAM-SHA-512">SCRAM-SHA-512</option>
+                </select>
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-gray-700">
+                  Username
+                </label>
+                <input
+                  type="text"
+                  className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:ring-blue-500 focus:border-blue-500 sm:text-sm"
+                  value={config.sasl_username || ""}
+                  onChange={(e) => handleConfigChange("sasl_username", e.target.value)}
+                />
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-gray-700">
+                  Password
+                </label>
+                <input
+                  type="password"
+                  className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:ring-blue-500 focus:border-blue-500 sm:text-sm"
+                  value={config.sasl_password || ""}
+                  onChange={(e) => handleConfigChange("sasl_password", e.target.value)}
+                />
+              </div>
+            </>
+          )}
+        </div>
+      );
     } else {
       return (
         <div className="text-gray-500 text-sm">
@@ -497,11 +586,10 @@ export default function ConnectionForm({ onSuccess, onCancel, initialType }) {
                   onClick={() => handleTypeChange(t.id)}
                   className={`
                                         flex flex-col items-center justify-center p-3 border rounded-lg transition-all
-                                        ${
-                                          type === t.id
-                                            ? "border-blue-500 bg-blue-50 ring-1 ring-blue-500 text-blue-700"
-                                            : "border-gray-200 hover:bg-gray-50 text-gray-600"
-                                        }
+                                        ${type === t.id
+                      ? "border-blue-500 bg-blue-50 ring-1 ring-blue-500 text-blue-700"
+                      : "border-gray-200 hover:bg-gray-50 text-gray-600"
+                    }
                                     `}
                 >
                   <span className="font-medium text-sm">{t.label}</span>
@@ -551,11 +639,10 @@ export default function ConnectionForm({ onSuccess, onCancel, initialType }) {
           {/* Test Result Message Inline */}
           {testMessage && (
             <span
-              className={`text-sm font-medium ${
-                testMessage.type === "success"
+              className={`text-sm font-medium ${testMessage.type === "success"
                   ? "text-green-600"
                   : "text-red-600"
-              }`}
+                }`}
             >
               {testMessage.type === "success" ? "✅ " : "❌ "}
               {testMessage.text}

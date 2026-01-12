@@ -11,6 +11,7 @@ class SourceConfig(BaseModel):
     collection: Optional[str] = None  # For NoSQL (MongoDB)
     query: Optional[str] = None  # Custom SQL query
     customRegex: Optional[str] = None  # For S3 log parsing with named groups
+    config: dict = {}  # Type-specific configuration (e.g., topic for Kafka)
 
 
 class TransformConfig(BaseModel):

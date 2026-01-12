@@ -101,6 +101,11 @@ async def create_source_dataset(dataset: SourceDatasetCreate):
         "created_at": now,
         "updated_at": now,
     }
+
+    # Force streaming job type for Kafka
+    if dataset.source_type == "kafka":
+        dataset_data["job_type"] = "streaming"
+
     
     # Extract schema from S3 when creating S3 source dataset (one-time operation)
     if dataset.source_type == "s3" and not dataset_data.get("columns"):

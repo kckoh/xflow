@@ -12,6 +12,10 @@ from services.lineage_service import sync_pipeline_to_dataset
 # OpenSearch Dual Write
 from utils.indexers import delete_etl_job_from_index, index_single_etl_job
 from utils.schedule_converter import generate_schedule
+import logging
+
+logging.basicConfig(level=logging.INFO)
+logger = logging.getLogger(__name__)
 
 router = APIRouter()
 
@@ -121,6 +125,11 @@ async def create_etl_job(job: ETLJobCreate):
         sources_data = [s.model_dump() for s in job.sources]
     elif job.source:
         sources_data = [job.source.model_dump()]
+
+    # Force streaming type for Kafka sources
+    if sources_data and sources_data[0].get("type") == "kafka":
+        job.job_type = "streaming"
+
 
     # Validate all source connections and calculate table sizes
     total_size_gb = 0.0
@@ -472,7 +481,7 @@ async def delete_etl_job(job_id: str):
 
 @router.post("/{job_id}/activate")
 async def activate_etl_job(job_id: str):
-    """Activate schedule for an ETL job"""
+    """Activate schedule for an ETL job or Start Streaming Job"""
     try:
         job = await ETLJob.get(PydanticObjectId(job_id))
     except Exception:
@@ -481,6 +490,7 @@ async def activate_etl_job(job_id: str):
     if not job:
         raise HTTPException(status_code=404, detail="Job not found")
 
+    # Batch Job Logic (Airflow)
     if not job.schedule:
         raise HTTPException(
             status_code=400, detail="Cannot activate job without a schedule"
@@ -518,7 +528,7 @@ async def activate_etl_job(job_id: str):
 
 @router.post("/{job_id}/deactivate")
 async def deactivate_etl_job(job_id: str):
-    """Pause schedule for an ETL job"""
+    """Pause schedule for an ETL job or Stop Streaming Job"""
     try:
         job = await ETLJob.get(PydanticObjectId(job_id))
     except Exception:
@@ -527,6 +537,20 @@ async def deactivate_etl_job(job_id: str):
     if not job:
         raise HTTPException(status_code=404, detail="Job not found")
 
+    # Streaming Job Logic
+    is_streaming = job.job_type == "streaming"
+            
+    if is_streaming:
+        from services.spark_service import SparkService
+        app_name = f"flow-{str(job.id)}"
+        SparkService.stop_job(app_name)
+        
+        job.status = "paused"
+        job.updated_at = datetime.utcnow()
+        await job.save()
+        return {"message": "Streaming job stopped", "status": "paused"}
+
+    # Batch Job Logic
     job.status = "paused"
     job.updated_at = datetime.utcnow()
     await job.save()
