@@ -1546,8 +1546,10 @@ export default function TargetWizard() {
                       }
                       targetSchema={targetSchema}
                       initialTargetSchema={initialTargetSchema}
+                      initialCustomSql={customSql}
                       onSchemaChange={setTargetSchema}
                       onTestStatusChange={setIsTestPassed}
+                      onSqlChange={setCustomSql}
                       allSources={sourceNodes.map((node) => ({
                         id: node.id,
                         datasetId:
