@@ -61,8 +61,8 @@ function LandingPage() {
             <nav className="fixed top-0 left-0 right-0 z-50 bg-white/80 backdrop-blur-md transition-all duration-300">
                 <div className="max-w-[1440px] mx-auto px-6 h-16 flex items-center justify-between">
                     <div className="flex items-center gap-2">
-                        <img src={icon} alt="XFlow" className="h-10" />
-                        <h1 className="text-2xl font-bold">XFlow</h1>
+                        <img src={icon} alt="xflows" className="h-10" />
+                        <h1 className="text-2xl font-bold">xflows</h1>
                     </div>
                     <div className="hidden md:flex items-center gap-8 text-sm font-medium text-[#5F6368]">
                         <a href="#solutions" className="hover:text-[#202124] transition-colors">Solutions</a>
@@ -73,7 +73,7 @@ function LandingPage() {
                         onClick={() => navigate("/login")}
                         className="bg-[#202124] text-white px-6 py-2.5 rounded-full text-sm font-medium hover:bg-gray-800 transition-colors"
                     >
-                        Start XFlow
+                        Start xflows
                     </button>
                 </div>
             </nav>
@@ -184,7 +184,7 @@ function LandingPage() {
                             </div>
 
                             {/* Invisible Image to maintain layout size */}
-                            <img src={logo} alt="XFlow" className="h-full w-auto object-contain opacity-0 pointer-events-none" />
+                            <img src={logo} alt="xflows" className="h-full w-auto object-contain opacity-0 pointer-events-none" />
                         </div>
                     </div>
                     <br />
@@ -259,7 +259,7 @@ function LandingPage() {
                                 <span className="text-[#5F6368]">limitless scale.</span>
                             </h2>
                             <p className="text-xl text-[#5F6368] leading-relaxed max-w-md">
-                                XFlow gathers scattered big data into a single repository.
+                                xflows gathers scattered big data into a single repository.
                                 Experience flexibility and infinite scalability.
                             </p>
                         </div>
@@ -313,7 +313,7 @@ function LandingPage() {
                     <div>
                         <h2 className="text-3xl md:text-4xl font-medium mb-4">Built for every role</h2>
                         <p className="text-[#5F6368] text-lg max-w-xl">
-                            Whether you build pipelines or analyze trends, XFlow streamlines your work.
+                            Whether you build pipelines or analyze trends, xflows streamlines your work.
                         </p>
                     </div>
                     {/* Navigation Buttons */}
@@ -426,7 +426,7 @@ function LandingPage() {
                         <h4 className="text-xl font-medium mb-2">Fullstack Developer</h4>
                         <p className="text-[#5F6368]">
                             Build data-rich applications with ready-to-use APIs.
-                            Focus on UX while XFlow handles the backend complexity.
+                            Focus on UX while xflows handles the backend complexity.
                         </p>
                     </div>
                     {/* Card 5:Fullstack Developer */}
@@ -439,7 +439,7 @@ function LandingPage() {
                             />
                             <div className="absolute inset-0 bg-black/20 group-hover:bg-black/10 transition-colors duration-500" />
                             <div className="absolute inset-0 flex items-center justify-center">
-                                <h3 className="text-3xl md:text-4xl font-medium text-white drop-shadow-lg">Full Stack overflow</h3>
+                                <h3 className="text-3xl md:text-4xl font-medium text-white drop-shadow-lg">Fullstack Developer</h3>
                             </div>
                             <div className="absolute bottom-6 right-6 w-10 h-10 bg-white/30 backdrop-blur rounded-full flex items-center justify-center text-white">
                                 <ArrowRight size={16} />
@@ -457,14 +457,14 @@ function LandingPage() {
             {/* CTA Footer Section */}
             <section className="py-32 px-6 text-center">
                 {/* <h2 className="text-6xl md:text-8xl font-bold mb-12 tracking-tight">
-                    XFlow
+                    xflows
                 </h2> */}
                 <div className="flex flex-col sm:flex-row items-center justify-center gap-4">
                     <button
                         onClick={() => navigate("/login")}
                         className="bg-[#202124] text-white px-10 py-5 rounded-full text-xl font-medium hover:bg-gray-800 transition-all hover:scale-105"
                     >
-                        Start XFlow Now
+                        Start xflows Now
                     </button>
                 </div>
             </section>
@@ -472,10 +472,10 @@ function LandingPage() {
             {/* Footer (Minimal) */}
             <footer className="py-12 px-6 border-t border-gray-100 max-w-[1440px] mx-auto flex flex-col md:flex-row justify-between items-center gap-6">
                 <div className="text-[100px] leading-none font-bold text-gray-100 select-none pointer-events-none absolute left-0 bottom-0 -z-10 opacity-50">
-                    XFlow
+                    xflows
                 </div>
                 <div className="flex items-center gap-2">
-                    <img src={logo} alt="XFlow" className="h-6" />
+                    <img src={logo} alt="xflows" className="h-6" />
                 </div>
                 <div className="flex gap-8 text-sm text-[#5F6368]">
                     <button className="hover:text-[#202124]">Privacy</button>
@@ -483,7 +483,7 @@ function LandingPage() {
                     <button className="hover:text-[#202124]">Tel: 010-4819-4258</button>
                 </div>
                 <div className="text-sm text-[#9AA0A6]">
-                    © 2026 XFlow
+                    © 2026 xflows
                 </div>
             </footer>
 
