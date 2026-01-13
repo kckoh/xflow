@@ -9,6 +9,7 @@ Usage:
 
 import sys
 import json
+import re
 from pyspark.sql import SparkSession, DataFrame
 
 
@@ -127,39 +128,39 @@ def transform_s3_filter(df: DataFrame, config: dict) -> DataFrame:
 
 def transform_sql(df: DataFrame, config: dict, additional_tables: dict = None) -> DataFrame:
     """
-    Execute SQL query on DataFrame using temp view
-    
-    User writes SQL like: SELECT id, UPPER(name) as name_upper FROM input
+    Execute SQL query on DataFrame using temp view.
+
+    User writes Spark SQL like: SELECT id, UPPER(name) as name_upper FROM input
     "input" refers to the upstream DataFrame (usually UNION ALL of all sources)
-    
+
     For JOIN queries, additional_tables can be provided:
     {"user_join": df1, "order_join": df2}
     These will be registered as separate temp views for direct access.
     """
     from pyspark.sql import SparkSession
-    
+
     sql_query = config.get("sql")
     if not sql_query:
         raise ValueError("SQL query is required in transform config")
-    
+
     # Get or create Spark session
     spark = SparkSession.builder.getOrCreate()
-    
+
     # Register additional named tables first (for JOIN support)
     if additional_tables:
         for table_name, table_df in additional_tables.items():
             table_df.createOrReplaceTempView(table_name)
             print(f"   Registered table '{table_name}' with {table_df.count()} rows")
-    
+
     # Create temporary view named "input" (for backward compatibility)
     df.createOrReplaceTempView("input")
-    
+
     # Execute user's SQL query
     result_df = spark.sql(sql_query)
-    
+
     print(f"   Executed SQL: {sql_query[:100]}...")
     print(f"   Result schema: {result_df.schema}")
-    
+
     return result_df
 
 
