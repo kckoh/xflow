@@ -14,7 +14,7 @@ export default function TransformFunctionModal({ column, onApply, onClose }) {
         { name: 'UPPER', desc: 'Convert to uppercase', template: `UPPER(${column.originalName})` },
         { name: 'LOWER', desc: 'Convert to lowercase', template: `LOWER(${column.originalName})` },
         { name: 'TRIM', desc: 'Remove whitespace', template: `TRIM(${column.originalName})` },
-        { name: 'REPLACE', desc: 'Replace characters', template: `REPLACE(${column.originalName}::STRING, '', '')` },
+        { name: 'REPLACE', desc: 'Replace characters', template: `REPLACE(CAST(${column.originalName} AS STRING), '', '')` },
         { name: 'SUBSTR', desc: 'Extract substring', template: `SUBSTR(${column.originalName}, 1, 10)` },
         { name: 'CONCAT', desc: 'Concatenate strings', template: `CONCAT(${column.originalName}, '-', ${column.originalName})` },
         { name: 'CAST', desc: 'Convert type', template: `CAST(${column.originalName} AS STRING)` },
