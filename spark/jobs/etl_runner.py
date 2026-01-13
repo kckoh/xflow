@@ -761,13 +761,17 @@ def read_s3_file_source(spark: SparkSession, source_config: dict) -> DataFrame:
     if not bucket:
         bucket = connection.get("bucket")
 
+    # Debug: Print source_config to see what's actually being passed
+    print(f"   [DEBUG S3] source_config: {source_config}")
+    print(f"   [DEBUG S3] bucket={bucket}, path={path}")
+
     # bucket이 있고 path가 전체 경로가 아니면 조합
     if bucket and path and not path.startswith("s3"):
         path = f"s3a://{bucket}/{path}"
     elif not path and bucket:
-        raise ValueError("S3 path is required for S3 file source")
+        raise ValueError(f"S3 path is required. bucket={bucket}, source_config keys={list(source_config.keys())}")
     elif not path:
-        raise ValueError("S3 path is required for S3 file source")
+        raise ValueError(f"S3 path is required. source_config={source_config}")
 
     # Convert s3:// to s3a:// if needed
     if path.startswith("s3://"):

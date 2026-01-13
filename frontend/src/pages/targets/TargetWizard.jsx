@@ -806,9 +806,16 @@ export default function TargetWizard() {
         if (!originalDs) return null;
 
         return {
+          nodeId: node.id, // Add nodeId for Airflow to identify source
           connection_id: originalDs.connection_id,
           type: originalDs.source_type || originalDs.sourceType || "unknown",
-          table_name: originalDs.table_name || "",
+          table: originalDs.table || originalDs.table_name || null,
+          collection: originalDs.collection || null,
+          // S3 specific fields
+          bucket: originalDs.bucket || null,
+          path: originalDs.path || null,
+          format: originalDs.format || null,
+          customRegex: node.data?.customRegex || originalDs.customRegex || null,
           config: {
             topic: originalDs.topic, // Critical for Kafka
             columns: node.data?.columns,
