@@ -1,5 +1,4 @@
 import { useState, useEffect } from "react";
-import { nanoid } from "nanoid";
 import { useNavigate, useLocation } from "react-router-dom";
 import {
   ArrowLeft,
@@ -42,6 +41,7 @@ export default function TargetWizard() {
   const { showToast } = useToast();
   const [currentStep, setCurrentStep] = useState(1);
   const [isEditMode, setIsEditMode] = useState(false);
+  const [editingDatasetId, setEditingDatasetId] = useState(null);
 
   // Step 1: Job Selection
   const [sourceTab, setSourceTab] = useState("source"); // 'source' or 'target'
@@ -54,11 +54,23 @@ export default function TargetWizard() {
 
   // Step 2: Configuration
   const [config, setConfig] = useState({
-    id: `tgt_${nanoid(10).toLowerCase()}`,
     name: "",
     description: "",
     tags: [],
   });
+  const toGlueTableName = (value) => {
+    const normalized = (value || "")
+      .toLowerCase()
+      .trim()
+      .replace(/\s+/g, "_")
+      .replace(/[^a-z0-9_]/g, "_")
+      .replace(/_+/g, "_")
+      .replace(/^_+|_+$/g, "");
+
+    if (!normalized) return "";
+    if (!/^[a-z]/.test(normalized)) return `t_${normalized}`;
+    return normalized;
+  };
   const [tagInput, setTagInput] = useState("");
   const [isNameDuplicate, setIsNameDuplicate] = useState(false);
   const [detailPanelTab, setDetailPanelTab] = useState("details"); // 'details' or 'schema'
@@ -102,9 +114,8 @@ export default function TargetWizard() {
         const job = await jobResponse.json();
 
         // Set config
-        // Use existing glue_table_name if available, otherwise generate new tgt_xxx ID
+        setEditingDatasetId(job.id);
         setConfig({
-          id: job.destination?.glue_table_name || `tgt_${nanoid(10).toLowerCase()}`,
           name: job.name || "",
           description: job.description || "",
           tags: job.tags || [],
@@ -254,6 +265,8 @@ export default function TargetWizard() {
     const isDuplicate = allNames.includes(config.name.trim().toLowerCase());
     setIsNameDuplicate(isDuplicate);
   }, [config.name, isEditMode, sourceDatasets]);
+
+  const glueTableName = toGlueTableName(config.name);
 
   const handleToggleJob = (jobId) => {
     // Clear target selections when selecting from source
@@ -740,7 +753,7 @@ export default function TargetWizard() {
             ? `s3a://xflows-output/${destinationSubPath.replace(/^\/+|\/+$/g, '')}/`
             : "s3a://xflows-output/",
           format: "delta",
-          glue_table_name: config.id,  // Glue catalog table name (same as target ID)
+          glue_table_name: glueTableName,
           options: {
             partitionBy: partitionColumns.length > 0 ? partitionColumns : undefined,
           },
@@ -749,7 +762,7 @@ export default function TargetWizard() {
       };
 
       const url = isEditMode
-        ? `${API_BASE_URL}/api/datasets/${config.id}`
+        ? `${API_BASE_URL}/api/datasets/${editingDatasetId}`
         : `${API_BASE_URL}/api/datasets`;
 
       const response = await fetch(url, {
@@ -956,7 +969,10 @@ export default function TargetWizard() {
                         type="text"
                         value={config.name}
                         onChange={(e) =>
-                          setConfig({ ...config, name: e.target.value })
+                          setConfig({
+                            ...config,
+                            name: toGlueTableName(e.target.value),
+                          })
                         }
                         placeholder="Enter dataset name"
                         className={`w-full px-4 py-2 border rounded-lg focus:outline-none focus:ring-2 ${
@@ -966,6 +982,12 @@ export default function TargetWizard() {
                         }`}
                       />
                     </div>
+                    {config.name && (
+                      <p className="mt-1 text-xs text-gray-500">
+                        Glue/S3 identifier:{" "}
+                        <span className="font-mono">{glueTableName}</span>
+                      </p>
+                    )}
                     {isNameDuplicate && (
                       <p className="mt-1 text-sm text-red-500">
                         This dataset name already exists. Please choose a
@@ -1698,9 +1720,17 @@ export default function TargetWizard() {
                     <div className="flex items-center gap-3">
                       <dt className="text-sm text-gray-500 w-24">ID</dt>
                       <dd className="text-sm font-mono bg-gray-100 px-2 py-1 rounded text-gray-900">
-                        {config.id}
+                        {glueTableName}
                       </dd>
                     </div>
+                    {isEditMode && editingDatasetId && (
+                      <div className="flex items-center gap-3">
+                        <dt className="text-sm text-gray-500 w-24">Dataset ID</dt>
+                        <dd className="text-sm font-mono bg-gray-100 px-2 py-1 rounded text-gray-900">
+                          {editingDatasetId}
+                        </dd>
+                      </div>
+                    )}
                     <div className="flex items-center gap-3">
                       <dt className="text-sm text-gray-500 w-24">Name</dt>
                       <dd className="text-sm font-medium text-gray-900">
@@ -1807,7 +1837,7 @@ export default function TargetWizard() {
                           Glue Table Name
                         </label>
                         <div className="px-4 py-2 bg-gray-50 border border-gray-200 rounded-lg text-sm font-mono text-gray-600">
-                          {config.id}
+                          {glueTableName}
                         </div>
                       </div>
                     </div>

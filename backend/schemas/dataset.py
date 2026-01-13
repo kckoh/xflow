@@ -1,5 +1,5 @@
-from typing import Optional, List
-from pydantic import BaseModel
+from typing import Optional, List, Dict, Any
+from pydantic import BaseModel, Field
 from datetime import datetime
 
 
@@ -24,7 +24,8 @@ class DestinationConfig(BaseModel):
     type: str = "s3"  # s3
     path: str  # s3a://bucket/path
     format: str = "parquet"
-    options: dict = {}  # compression, partitionBy, etc.
+    glue_table_name: Optional[str] = None
+    options: Dict[str, Any] = Field(default_factory=dict)  # compression, partitionBy, etc.
 
 
 class DatasetCreate(BaseModel):
