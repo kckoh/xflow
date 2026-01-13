@@ -13,7 +13,13 @@ from schemas.sql_test import (
     SQLTestRequest,
     ColumnSchema,
     SourceSample,
+    SparkWarning,
     SQLTestResponse
+)
+from utils.sql_converter import (
+    validate_spark_compatibility,
+    convert_spark_to_duckdb,
+    is_spark_sql
 )
 
 router = APIRouter()
@@ -79,24 +85,32 @@ async def test_sql_query(request: SQLTestRequest):
         
         # Execute SQL with DuckDB
         con = duckdb.connect()
-        
+
         # Register each individual source as a separate table (for JOIN/SQL Transform support)
         for source_info in individual_sources:
             table_name = source_info['dataset_name']
             table_df = source_info['dataframe']
             con.register(table_name, table_df)
-        
+
         # Also register combined data as "input" table (for Visual Transform/backward compatibility)
         con.register('input', sample_df)
-        
+
         # Execute user's SQL and apply limit
         # For UNION ALL, multiply limit by number of sources to show data from each source
         effective_limit = limit * len(request.sources)
         sql = request.sql
+
+        # Convert Spark SQL to DuckDB if needed
+        sql_conversions = []
+        if is_spark_sql(sql):
+            sql, sql_conversions = convert_spark_to_duckdb(sql)
+            print(f"[SQL Test] Converted Spark SQL to DuckDB: {sql_conversions}")
+            print(f"[SQL Test] Converted SQL: {sql}")
+
         # Only add limit if not present
         if "limit" not in sql.lower():
             sql = f"SELECT * FROM ({sql}) LIMIT {effective_limit}"
-            
+
         result_df = con.execute(sql).df()
         
         # Extract schema
@@ -128,15 +142,29 @@ async def test_sql_query(request: SQLTestRequest):
         # Get before rows (combined source sample) - limit to same number as requested
         before_rows = sample_df.head(limit).to_dict('records')
         _serialize_rows_for_json(before_rows)
-        
+
+        # Validate Spark SQL compatibility
+        spark_warnings_raw = validate_spark_compatibility(request.sql)
+        spark_warnings = [
+            SparkWarning(
+                function=w["function"],
+                spark_equivalent=w["spark_equivalent"],
+                message=w["message"]
+            )
+            for w in spark_warnings_raw
+        ] if spark_warnings_raw else None
+
         execution_time = int((time.time() - start_time) * 1000)
-        
+
         return SQLTestResponse(
             valid=True,
             schema=schema,
             sample_rows=sample_rows,
             before_rows=before_rows,
             source_samples=source_samples,  # Include per-source samples
+            spark_warnings=spark_warnings,  # DuckDB -> Spark compatibility warnings
+            sql_conversions=sql_conversions if sql_conversions else None,  # Spark -> DuckDB conversions
+            executed_sql=sql if sql_conversions else None,  # Show converted SQL
             execution_time_ms=execution_time
         )
         
@@ -196,10 +224,15 @@ async def _load_and_union_sources(
         
         # Load sample data
         df = await _load_sample_data(source_dataset, connection, limit=limit)
-        
+
         if df is None or len(df) == 0:
             continue
-        
+
+        # Debug: print loaded columns vs requested columns
+        print(f"[SQL Test Debug] Source: {source_dataset.get('name')}")
+        print(f"[SQL Test Debug] Loaded columns: {list(df.columns)}")
+        print(f"[SQL Test Debug] Requested columns: {source.columns}")
+
         # Select only the columns specified for this source
         available_cols = [col for col in source.columns if col in df.columns]
         if available_cols:
@@ -565,6 +598,8 @@ async def _load_sample_data(
             raise HTTPException(status_code=500, detail="API response is not valid JSON")
 
         response_path = api_config.get("response_path", "")
+        print(f"[SQL Test Debug] API response_path: '{response_path}'")
+        print(f"[SQL Test Debug] API config keys: {list(api_config.keys())}")
         if response_path:
             keys = response_path.replace("$.", "").split(".")
             current = json_data
@@ -574,6 +609,7 @@ async def _load_sample_data(
                 else:
                     break
             extracted_data = current
+            print(f"[SQL Test Debug] Extracted data type: {type(extracted_data)}")
         else:
             extracted_data = json_data
 

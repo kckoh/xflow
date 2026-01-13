@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { ChevronRight, ChevronsRight, ChevronLeft, ChevronsLeft, ChevronUp, ChevronDown, Braces, Play, Loader2 } from 'lucide-react';
+import { ChevronRight, ChevronsRight, ChevronLeft, ChevronsLeft, ChevronUp, ChevronDown, Braces, Play, Loader2, AlertTriangle } from 'lucide-react';
 import { API_BASE_URL } from '../../config/api';
 import { schemaTransformApi } from '../../services/schemaTransformApi';
 import TransformFunctionModal from './TransformFunctionModal';
@@ -37,6 +37,7 @@ export default function SchemaTransformEditor({
     const [selectedBefore, setSelectedBefore] = useState(new Set());
     const [selectedAfter, setSelectedAfter] = useState(new Set());
     const [isInitialized, setIsInitialized] = useState(false);
+    const [isSqlInitialized, setIsSqlInitialized] = useState(false);
 
     // Transform function modal
     const [showFunctionModal, setShowFunctionModal] = useState(false);
@@ -49,6 +50,8 @@ export default function SchemaTransformEditor({
     const [isTestOpen, setIsTestOpen] = useState(false);
     const [isTestSuccessful, setIsTestSuccessful] = useState(false);
     const [activeSourceSampleTab, setActiveSourceSampleTab] = useState(0); // For source sample tabs
+    const [sparkWarnings, setSparkWarnings] = useState([]); // DuckDB -> Spark compatibility warnings
+    const [sqlConversions, setSqlConversions] = useState([]); // Spark -> DuckDB conversions made
 
     // Tab UI: Column Selection vs SQL Transform
     const [activeTab, setActiveTab] = useState('columns'); // 'columns' | 'sql'
@@ -95,12 +98,13 @@ export default function SchemaTransformEditor({
         }
     }, [customSql, onSqlChange]);
 
-    // Initialize customSql from prop (edit mode)
+    // Initialize customSql from prop only once (edit mode)
     useEffect(() => {
-        if (initialCustomSql && initialCustomSql.trim()) {
+        if (!isSqlInitialized && initialCustomSql && initialCustomSql.trim()) {
             setCustomSql(initialCustomSql);
+            setIsSqlInitialized(true);
         }
-    }, [initialCustomSql]);
+    }, [initialCustomSql, isSqlInitialized]);
 
     // Selection handlers
     const toggleBeforeSelection = (colName) => {
@@ -349,6 +353,8 @@ export default function SchemaTransformEditor({
         setIsTestLoading(true);
         setTestError(null);
         setTestResult(null);
+        setSparkWarnings([]);
+        setSqlConversions([]);
 
         try {
             // Build sources array based on active tab
@@ -407,6 +413,16 @@ export default function SchemaTransformEditor({
                 });
                 setIsTestSuccessful(true);
                 if (onTestStatusChange) onTestStatusChange(true);
+
+                // Store Spark compatibility warnings
+                if (result.spark_warnings && result.spark_warnings.length > 0) {
+                    setSparkWarnings(result.spark_warnings);
+                }
+
+                // Store SQL conversions info (Spark SQL -> DuckDB)
+                if (result.sql_conversions && result.sql_conversions.length > 0) {
+                    setSqlConversions(result.sql_conversions);
+                }
 
                 // For SQL Transform: extract result schema and update targetSchema
                 // This populates the Output Schema section in dataset page
@@ -815,6 +831,48 @@ export default function SchemaTransformEditor({
                     {testError && (
                         <div className="p-3 bg-red-50 border border-red-200 rounded-lg text-red-700 text-sm mb-3">
                             {testError}
+                        </div>
+                    )}
+
+                    {/* Spark SQL Conversion Info (success) */}
+                    {sqlConversions.length > 0 && (
+                        <div className="p-3 bg-green-50 border border-green-200 rounded-lg mb-3">
+                            <div className="flex items-center gap-2 mb-2">
+                                <span className="text-sm font-semibold text-green-800">Spark SQL Mode</span>
+                            </div>
+                            <p className="text-xs text-green-700 mb-1">
+                                Spark SQL syntax detected and converted for preview:
+                            </p>
+                            <ul className="space-y-1">
+                                {sqlConversions.map((conversion, idx) => (
+                                    <li key={idx} className="text-xs text-green-700 font-mono">
+                                        {conversion}
+                                    </li>
+                                ))}
+                            </ul>
+                            <p className="text-xs text-green-600 mt-2">
+                                This SQL will run directly on Spark during ETL execution.
+                            </p>
+                        </div>
+                    )}
+
+                    {/* Spark Compatibility Warnings (for DuckDB SQL) */}
+                    {sparkWarnings.length > 0 && (
+                        <div className="p-3 bg-amber-50 border border-amber-200 rounded-lg mb-3">
+                            <div className="flex items-center gap-2 mb-2">
+                                <AlertTriangle className="w-4 h-4 text-amber-600" />
+                                <span className="text-sm font-semibold text-amber-800">Spark SQL Compatibility Warning</span>
+                            </div>
+                            <ul className="space-y-1">
+                                {sparkWarnings.map((warning, idx) => (
+                                    <li key={idx} className="text-xs text-amber-700">
+                                        <span className="font-mono bg-amber-100 px-1 rounded">{warning.function}()</span>
+                                        {' → '}
+                                        <span className="font-mono bg-green-100 text-green-700 px-1 rounded">{warning.spark_equivalent}()</span>
+                                        <span className="text-amber-600 ml-2">will be auto-converted during ETL execution</span>
+                                    </li>
+                                ))}
+                            </ul>
                         </div>
                     )}
 
