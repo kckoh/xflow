@@ -571,7 +571,7 @@ async def run_etl_job(job_id: str):
 
     # Always run immediately - create job run record
     job_run = JobRun(
-        dataset_id=job_id,
+        job_id=job_id,
         status="pending",
         started_at=datetime.utcnow(),
     )

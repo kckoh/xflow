@@ -76,12 +76,18 @@ def create_scheduler_dag(job_id, job_name, schedule_str, schedule_interval, star
     )
 
     with dag:
-        trigger = TriggerDagRunOperator(
+        def trigger_via_backend(job_id: str):
+            url = f"{BACKEND_API_BASE_URL}/datasets/{job_id}/run"
+            response = requests.post(url, timeout=10)
+            if response.status_code not in (200, 201):
+                raise RuntimeError(
+                    f"Failed to trigger job via backend: {response.status_code} {response.text}"
+                )
+
+        trigger = PythonOperator(
             task_id="trigger_etl_job",
-            trigger_dag_id=GENERIC_DAG_ID,
-            conf={"job_id": job_id},
-            wait_for_completion=False,
-            poke_interval=10,
+            python_callable=trigger_via_backend,
+            op_kwargs={"job_id": job_id},
         )
 
     return dag
