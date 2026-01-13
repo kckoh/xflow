@@ -1477,7 +1477,7 @@ def run_etl(config: dict):
                 source_desc = source_config.get('table') or source_config.get('collection') or source_config.get('connection', {}).get('bucket', 'unknown')
 
             print(f"   [{node_id}] Reading from {source_type}: {source_desc}")
-            if source_type == "rdb":
+            if source_type in ["rdb", "postgres"]:
                 df = read_rdb_source(spark, source_config)
             elif source_type in ["mongodb", "nosql"]:
                 df = read_nosql_source(spark, source_config)
