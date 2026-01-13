@@ -19,7 +19,7 @@ import { useAuth } from "../../context/AuthContext";
 
 export default function CatalogPage() {
   const navigate = useNavigate();
-  const { user } = useAuth();
+  const { user, sessionId } = useAuth();
   const [catalog, setCatalog] = useState([]);
   const [searchQuery, setSearchQuery] = useState("");
   const [isLoading, setIsLoading] = useState(true);
@@ -33,7 +33,10 @@ export default function CatalogPage() {
     setIsLoading(true);
     try {
       // Fetch from catalog API which includes size_bytes, row_count, format
-      const response = await fetch(`${API_BASE_URL}/api/catalog`);
+      const url = sessionId
+        ? `${API_BASE_URL}/api/catalog?session_id=${sessionId}`
+        : `${API_BASE_URL}/api/catalog`;
+      const response = await fetch(url);
       if (response.ok) {
         const data = await response.json();
         // Sort by updated_at descending (newest first)
@@ -64,15 +67,10 @@ export default function CatalogPage() {
 
     const matchesTag = !selectedTag || item.tags?.includes(selectedTag);
 
-    // Permission Check:
-    // 1. Admin, All Datasets -> Access everything
-    // 2. Others -> Only access items in their dataset_access list
-    const hasPermission =
-      user?.is_admin ||
-      user?.all_datasets ||
-      (user?.dataset_access || []).includes(item.id);
+    // Permission Check: Handled by Backend (RBAC)
+    // Server already filters datasets based on user roles and permissions
 
-    return matchesSearch && matchesTag && hasPermission;
+    return matchesSearch && matchesTag;
   });
 
   const formatNumber = (num) => {

@@ -30,7 +30,7 @@ export default function ETLMain() {
   const location = useLocation();
   const [searchParams, setSearchParams] = useSearchParams();
   const { showToast } = useToast();
-  const { user } = useAuth();
+  const { user, sessionId } = useAuth();
 
   // Check if user has permission to manage datasets
   const canManageDatasets = user?.can_manage_datasets || user?.is_admin || false;
@@ -38,12 +38,8 @@ export default function ETLMain() {
   const accessibleDatasetIds = user?.dataset_access || [];
 
   // Filter jobs by user's dataset access permissions
-  const accessibleJobs = jobs.filter((job) => {
-    // Admin or users with all_datasets can see everything
-    if (canAccessAllDatasets) return true;
-    // Users with dataset access can only see their permitted datasets
-    return accessibleDatasetIds.includes(job.id);
-  });
+  // Handled by Backend (RBAC) - Server filters datasets based on permissions
+  const accessibleJobs = jobs;
 
 
 
@@ -100,9 +96,16 @@ export default function ETLMain() {
     setIsLoading(true);
     try {
       // Fetch both datasets and source datasets
+      const etlUrl = sessionId
+        ? `${API_BASE_URL}/api/datasets?session_id=${sessionId}`
+        : `${API_BASE_URL}/api/datasets`;
+      const sourceUrl = sessionId
+        ? `${API_BASE_URL}/api/source-datasets?session_id=${sessionId}`
+        : `${API_BASE_URL}/api/source-datasets`;
+
       const [etlResponse, sourceResponse] = await Promise.all([
-        fetch(`${API_BASE_URL}/api/datasets`),
-        fetch(`${API_BASE_URL}/api/source-datasets`),
+        fetch(etlUrl),
+        fetch(sourceUrl),
       ]);
 
       let allJobs = [];

@@ -28,7 +28,7 @@ import APIPreview from "../../components/targets/APIPreview";
 import TimestampColumnWarning from "../../components/targets/TimestampColumnWarning";
 import { API_BASE_URL } from "../../config/api";
 import { useAuth } from "../../context/AuthContext";
-import { getPublicUsers } from "../../services/adminApi";
+import { getRoles } from "../../services/adminApi";
 
 const STEPS = [
   { id: 1, name: "Overview", icon: LayoutDashboard },
@@ -43,7 +43,7 @@ export default function TargetWizard() {
   const navigate = useNavigate();
   const location = useLocation();
   const { showToast } = useToast();
-  const { sessionId } = useAuth();
+  const { sessionId, user } = useAuth();
   const [currentStep, setCurrentStep] = useState(1);
   const [isEditMode, setIsEditMode] = useState(false);
 
@@ -88,29 +88,29 @@ export default function TargetWizard() {
   const [schedules, setSchedules] = useState([]);
 
   // Step 5: Permission
-  const [sharedUserIds, setSharedUserIds] = useState([]);
-  const [users, setUsers] = useState([]);
-  const [usersLoading, setUsersLoading] = useState(false);
+  const [sharedRoleIds, setSharedRoleIds] = useState([]);
+  const [roles, setRoles] = useState([]);
+  const [rolesLoading, setRolesLoading] = useState(false);
 
   // Destination settings
   const [partitionColumns, setPartitionColumns] = useState([]);
   const [destinationSubPath, setDestinationSubPath] = useState(""); // Path after bucket, e.g., "nyc-taxi/yellow"
 
-  //Load users for Step 5
+  //Load roles for Step 5
   useEffect(() => {
     if (sessionId && !isEditMode) {
-      const fetchUsers = async () => {
-        setUsersLoading(true);
+      const fetchRoles = async () => {
+        setRolesLoading(true);
         try {
-          const data = await getPublicUsers(sessionId);
-          setUsers(data);
+          const data = await getRoles(sessionId);
+          setRoles(data);
         } catch (err) {
-          console.error('Failed to fetch users:', err);
+          console.error('Failed to fetch roles:', err);
         } finally {
-          setUsersLoading(false);
+          setRolesLoading(false);
         }
       };
-      fetchUsers();
+      fetchRoles();
     }
   }, [sessionId, isEditMode]);
 
@@ -883,7 +883,7 @@ export default function TargetWizard() {
           },
           // s3_config is injected by Airflow DAG based on environment
         },
-        shared_user_ids: sharedUserIds, // User sharing
+        shared_role_ids: sharedRoleIds, // Role-based sharing
       };
 
       const url = isEditMode
@@ -1845,53 +1845,70 @@ export default function TargetWizard() {
 
               <div className="bg-white rounded-lg border border-gray-200 p-6">
                 <p className="text-sm text-gray-600 mb-4">
-                  Select to grant access to this dataset.
+                  Select roles to grant access to this dataset. Your own role(s) will automatically have access.
                 </p>
 
-                {usersLoading ? (
+                {rolesLoading ? (
                   <div className="text-center py-12">
                     <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-500 mx-auto"></div>
                   </div>
-                ) : users.length === 0 ? (
-                  <div className="flex flex-col items-center py-12">
-                    <Shield className="w-12 h-12 text-gray-300 mb-4" />
-                    <p className="text-sm text-gray-400">No users available</p>
-                  </div>
                 ) : (
-                  <div className="max-h-96 overflow-y-auto space-y-2">
-                    {users.map(user => (
-                      <label
-                        key={user.id}
-                        className="flex items-center gap-3 p-3 hover:bg-gray-50 rounded-lg cursor-pointer transition-colors border border-transparent hover:border-gray-200"
-                      >
-                        <input
-                          type="checkbox"
-                          checked={sharedUserIds.includes(user.id)}
-                          onChange={() => {
-                            setSharedUserIds(prev =>
-                              prev.includes(user.id)
-                                ? prev.filter(id => id !== user.id)
-                                : [...prev, user.id]
-                            );
-                          }}
-                          className="focus:ring-blue-500 h-4 w-4 text-blue-600 border-gray-300 rounded"
-                        />
-                        <div className="flex-1">
-                          <div className="text-sm font-medium text-gray-900">{user.name}</div>
-                          {/* <div className="text-xs text-gray-500">{user.email}</div> */}
+                  (() => {
+                    const userRoleIds = user?.role_ids || [];
+                    const availableRoles = roles.filter(role =>
+                      !role.is_admin && !userRoleIds.includes(role.id)
+                    );
+
+                    if (availableRoles.length === 0) {
+                      return (
+                        <div className="flex flex-col items-center py-12">
+                          <Shield className="w-12 h-12 text-gray-300 mb-4" />
+                          <p className="text-sm text-gray-400">No available roles to select</p>
                         </div>
-                      </label>
-                    ))}
-                  </div>
+                      );
+                    }
+
+                    return (
+                      <div className="max-h-96 overflow-y-auto space-y-2">
+                        {availableRoles.map(role => (
+                          <label
+                            key={role.id}
+                            className="flex items-center gap-3 p-3 hover:bg-gray-50 rounded-lg cursor-pointer transition-colors border border-transparent hover:border-gray-200"
+                          >
+                            <input
+                              type="checkbox"
+                              checked={sharedRoleIds.includes(role.id)}
+                              onChange={() => {
+                                setSharedRoleIds(prev =>
+                                  prev.includes(role.id)
+                                    ? prev.filter(id => id !== role.id)
+                                    : [...prev, role.id]
+                                );
+                              }}
+                              className="focus:ring-blue-500 h-4 w-4 text-blue-600 border-gray-300 rounded"
+                            />
+                            <div className="flex-1">
+                              <div className="flex items-center gap-2">
+                                <span className="text-sm font-medium text-gray-900">{role.name}</span>
+                              </div>
+                              {role.description && (
+                                <div className="text-xs text-gray-500 mt-0.5">{role.description}</div>
+                              )}
+                            </div>
+                          </label>
+                        ))}
+                      </div>
+                    );
+                  })()
                 )}
 
-                {sharedUserIds.length > 0 && (
+                {sharedRoleIds.length > 0 && (
                   <div className="mt-4 px-4 py-3 bg-blue-50 rounded-lg border border-blue-200">
                     <p className="text-sm text-blue-700 font-medium">
-                      📌 {sharedUserIds.length} user(s) selected
+                      📌 {sharedRoleIds.length} role(s) selected
                     </p>
                     <p className="text-xs text-blue-600 mt-1">
-                      Selected users will gain access after you create the target.
+                      Selected roles will gain access after you create the target.
                     </p>
                   </div>
                 )}
