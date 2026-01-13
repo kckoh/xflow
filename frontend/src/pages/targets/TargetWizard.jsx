@@ -1361,7 +1361,8 @@ export default function TargetWizard() {
                     {detailPanelTab === "schema" && (
                       <div>
                         {/* S3 Source - Show Regex Parsing Config */}
-                        {focusedDataset.source_type === "s3" ? (
+                        {focusedDataset.source_type === "s3" &&
+                        (!focusedDataset.format || focusedDataset.format === "log") ? (
                           <S3LogParsingConfig
                             sourceDatasetId={focusedDataset.id}
                             initialPattern={

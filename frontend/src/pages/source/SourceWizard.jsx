@@ -103,6 +103,7 @@ export default function SourceWizard() {
     bucket: "",
     // S3-specific fields
     path: "",
+    format: "log", // "log" | "parquet" (others supported in backend)
     // MongoDB-specific fields
     collection: "",
     // Kafka-specific fields
@@ -171,6 +172,7 @@ export default function SourceWizard() {
           collection: job.collection || "",
           bucket: job.bucket || "",
           path: job.path || "",
+          format: job.format || "log",
           columns: job.columns || [],
           topic: job.topic || "",
           // API-specific fields
@@ -453,7 +455,7 @@ export default function SourceWizard() {
       } else if (selectedSource.id === "s3") {
         sourceData.bucket = config.bucket;
         sourceData.path = config.path;
-        sourceData.format = "log"; // S3 source는 무조건 .log 파일
+        sourceData.format = config.format || "log";
       } else if (selectedSource.id === "kafka") {
         sourceData.topic = config.topic;
       } else if (selectedSource.id === "api") {
@@ -524,6 +526,11 @@ export default function SourceWizard() {
         // API-specific validation
         if (selectedSource?.id === "api") {
           return config.endpoint.trim() !== "";
+        }
+
+        // S3-specific validation
+        if (selectedSource?.id === "s3") {
+          return config.path.trim() !== "";
         }
 
         return true;
@@ -857,6 +864,24 @@ export default function SourceWizard() {
                 {selectedSource?.id === "s3" && (
                   <div>
                     <label className="block text-sm font-medium text-gray-700 mb-2">
+                      Format
+                    </label>
+                    <select
+                      value={config.format || "log"}
+                      onChange={(e) =>
+                        setConfig((prev) => ({ ...prev, format: e.target.value }))
+                      }
+                      className="w-full px-4 py-2 border border-gray-300 rounded-lg bg-white focus:outline-none focus:ring-2 focus:ring-emerald-500"
+                    >
+                      <option value="log">Log (.log)</option>
+                      <option value="parquet">Parquet (.parquet)</option>
+                    </select>
+                    <p className="mt-1 text-xs text-gray-500">
+                      Log는 정규식 파싱(타겟 위자드에서), Parquet는 파일 스키마를 자동 추론합니다.
+                    </p>
+
+                    <div className="mt-4" />
+                    <label className="block text-sm font-medium text-gray-700 mb-2">
                       Path/Prefix
                     </label>
                     <input
@@ -865,7 +890,11 @@ export default function SourceWizard() {
                       onChange={(e) =>
                         setConfig({ ...config, path: e.target.value })
                       }
-                      placeholder="e.g., logs/2024/ or production/app-logs/"
+                      placeholder={
+                        (config.format || "log") === "parquet"
+                          ? "e.g., tlc/fhvhv/2025/fhvhv_tripdata_2025-01.parquet"
+                          : "e.g., logs/2024/ or production/app-logs/"
+                      }
                       className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-emerald-500"
                     />
                     <p className="mt-1 text-xs text-gray-500">
