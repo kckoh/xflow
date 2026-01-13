@@ -463,7 +463,7 @@ def fetch_dataset_config(as_base64=False, **context):
             # Use dataset name, sanitized for Glue (lowercase, underscores only)
             import re
             safe_name = re.sub(r'[^a-z0-9_]', '_', dataset.get("name", "unknown").lower())
-            config["destination"]["glue_table_name"] = f"tgt_{safe_name}"
+            config["destination"]["glue_table_name"] = safe_name
             print(f"   Auto-generated glue_table_name: {config['destination']['glue_table_name']}")
 
         env = Variable.get("ENVIRONMENT", default_var="local")

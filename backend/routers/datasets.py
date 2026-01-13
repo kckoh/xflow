@@ -152,6 +152,30 @@ async def create_dataset(dataset: DatasetCreate):
             detail="Dataset name already exists"
         )
 
+    # Enforce name-based Glue/S3 table naming rules
+    if dataset.destination and dataset.destination.type == "s3":
+        import re
+
+        safe_name = re.sub(r"[^a-z0-9_]", "_", (dataset.name or "").lower()).strip("_")
+        safe_name = re.sub(r"_+", "_", safe_name)
+        if safe_name and not re.match(r"^[a-z]", safe_name):
+            safe_name = f"t_{safe_name}"
+
+        if not dataset.name or dataset.name != safe_name:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Dataset name must be a valid identifier (lowercase, numbers, underscores; no spaces).",
+            )
+
+        dataset.destination.glue_table_name = dataset.destination.glue_table_name or safe_name
+
+        existing_glue = await Dataset.find_one({"destination.glue_table_name": dataset.destination.glue_table_name})
+        if existing_glue:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Glue table name already exists",
+            )
+
     # Handle both multiple sources (new) and single source (legacy)
     sources_data = []
     if dataset.sources:
