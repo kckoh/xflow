@@ -15,14 +15,17 @@ class User(Document):
     password: Optional[str] = None
     name: Optional[str] = None
 
-    # Admin role
+    # RBAC: Role assignments
+    role_ids: List[str] = Field(default_factory=list)  # List of Role IDs
+
+    # Admin role (kept for backward compatibility and custom override)
     is_admin: bool = False
 
-    # Dataset access control
+    # Dataset access control (kept for custom override)
     dataset_access: List[str] = Field(default_factory=list)  # Dataset IDs user can access
     all_datasets: bool = False  # If true, user can access all datasets
 
-    # Feature-level permissions (applied to accessible datasets)
+    # Feature-level permissions (applied to accessible datasets, kept for custom override)
     can_manage_datasets: bool = False    # Create/Edit/Delete datasets and ETL pipelines
     can_run_query: bool = True           # Run queries (default: true)
 
@@ -268,4 +271,33 @@ class QualityResult(Document):
     class Settings:
         name = "quality_results"
         indexes = ["dataset_id", "run_at"]
+
+
+class Role(Document):
+    """
+    Role document for RBAC.
+    Defines a set of permissions and dataset access rules.
+    """
+    
+    name: str = Field(..., unique=True, index=True)  # "Admin", "Analyst", "Viewer"
+    description: Optional[str] = None
+    
+    # Admin flag
+    is_admin: bool = False  # If true, this role has all permissions
+    
+    # Feature-level permissions
+    can_manage_datasets: bool = False    # Create/Edit/Delete datasets and ETL pipelines
+    can_run_query: bool = True           # Run queries
+    
+    # Dataset access control for this role
+    dataset_permissions: List[str] = Field(default_factory=list)  # Dataset IDs this role can access
+    all_datasets: bool = False  # If true, role can access all datasets
+    
+    created_at: datetime = Field(default_factory=datetime.utcnow)
+    updated_at: datetime = Field(default_factory=datetime.utcnow)
+    
+    class Settings:
+        name = "roles"
+        indexes = ["name"]
+
 

@@ -26,6 +26,11 @@ class UserCreateAdmin(BaseModel):
     email: str
     password: str
     name: Optional[str] = None
+    
+    # RBAC (NEW)
+    role_ids: List[str] = []  # List of Role IDs to assign
+    
+    # Legacy fields (for custom override)
     is_admin: bool = False
     
     # Dataset access control
@@ -34,7 +39,6 @@ class UserCreateAdmin(BaseModel):
     
     # Feature-level permissions
     can_manage_datasets: bool = False
-    can_view_catalog: bool = True
     can_run_query: bool = True
 
 
@@ -44,6 +48,11 @@ class UserUpdateAdmin(BaseModel):
     email: Optional[str] = None
     password: Optional[str] = None
     name: Optional[str] = None
+    
+    # RBAC (NEW)
+    role_ids: Optional[List[str]] = None
+    
+    # Legacy fields (for custom override)
     is_admin: Optional[bool] = None
     
     # Dataset access control
@@ -52,7 +61,6 @@ class UserUpdateAdmin(BaseModel):
     
     # Feature-level permissions
     can_manage_datasets: Optional[bool] = None
-    can_view_catalog: Optional[bool] = None
     can_run_query: Optional[bool] = None
 
 
@@ -62,6 +70,12 @@ class UserResponseAdmin(BaseModel):
     id: str
     email: str
     name: Optional[str] = None
+    
+    # RBAC (NEW)
+    role_ids: List[str] = []
+    roles: Optional[List[dict]] = None  # Populated role objects
+    
+    # Legacy fields
     is_admin: bool = False
     
     # Dataset access control
@@ -70,7 +84,6 @@ class UserResponseAdmin(BaseModel):
     
     # Feature-level permissions
     can_manage_datasets: bool = False
-    can_view_catalog: bool = True
     can_run_query: bool = True
     
     created_at: Optional[str] = None

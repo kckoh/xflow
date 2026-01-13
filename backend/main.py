@@ -35,6 +35,7 @@ from routers import (
     logs,
     metadata,
     opensearch,
+    roles,
     s3_logs_preview,
     source_datasets,
     sql_test,
@@ -141,6 +142,9 @@ app.include_router(logs.router)
 
 # Admin (User management - admin only)
 app.include_router(admin.router, prefix="/api/admin", tags=["admin"])
+
+# Roles (Role management - admin only)
+app.include_router(roles.router, prefix="/api/admin", tags=["roles"])
 
 # AI Query Assistant (Text-to-SQL)
 app.include_router(ai.router, prefix="/api/ai", tags=["ai"])
