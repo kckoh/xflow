@@ -2,8 +2,11 @@ FROM apache/spark:3.5.0-python3
 
 USER root
 
-# Install Python dependencies
-RUN pip install --no-cache-dir boto3 pymongo requests
+# Install uv for fast Python package installation
+COPY --from=ghcr.io/astral-sh/uv:latest /uv /usr/local/bin/uv
+
+# Install Python dependencies with uv (10-100x faster than pip)
+RUN uv pip install --system --no-cache boto3 pymongo requests
 
 # Copy Spark jobs with proper permissions
 COPY --chown=spark:spark jobs/ /opt/spark/jobs/
