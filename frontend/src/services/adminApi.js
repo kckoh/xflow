@@ -190,3 +190,91 @@ export const getPublicUsers = async (sessionId) => {
     return response.json();
 };
 
+
+// ==================== ROLE APIs ====================
+
+/**
+ * Get all roles (admin only)
+ * @param {string} sessionId 
+ * @returns {Promise<Array>} List of roles
+ */
+export const getRoles = async (sessionId) => {
+    const response = await fetch(`${BASE_URL}/roles?session_id=${sessionId}`);
+    if (!response.ok) {
+        const error = await response.json();
+        throw new Error(error.detail || 'Failed to fetch roles');
+    }
+    return response.json();
+};
+
+/**
+ * Get a specific role (admin only)
+ * @param {string} sessionId 
+ * @param {string} roleId 
+ * @returns {Promise<Object>} Role details
+ */
+export const getRole = async (sessionId, roleId) => {
+    const response = await fetch(`${BASE_URL}/roles/${roleId}?session_id=${sessionId}`);
+    if (!response.ok) {
+        const error = await response.json();
+        throw new Error(error.detail || 'Failed to fetch role');
+    }
+    return response.json();
+};
+
+/**
+ * Create a new role (admin only)
+ * @param {string} sessionId
+ * @param {Object} roleData - {name, description, is_admin, can_manage_datasets, can_run_query, dataset_permissions, all_datasets}
+ * @returns {Promise<Object>} Created role
+ */
+export const createRole = async (sessionId, roleData) => {
+    const response = await fetch(`${BASE_URL}/roles?session_id=${sessionId}`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(roleData),
+    });
+    if (!response.ok) {
+        const error = await response.json();
+        throw new Error(error.detail || 'Failed to create role');
+    }
+    return response.json();
+};
+
+/**
+ * Update a role (admin only)
+ * @param {string} sessionId
+ * @param {string} roleId
+ * @param {Object} roleData - {name, description, is_admin, can_manage_datasets, can_run_query, dataset_permissions, all_datasets}
+ * @returns {Promise<Object>} Updated role
+ */
+export const updateRole = async (sessionId, roleId, roleData) => {
+    const response = await fetch(`${BASE_URL}/roles/${roleId}?session_id=${sessionId}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(roleData),
+    });
+    if (!response.ok) {
+        const error = await response.json();
+        throw new Error(error.detail || 'Failed to update role');
+    }
+    return response.json();
+};
+
+/**
+ * Delete a role (admin only)
+ * @param {string} sessionId 
+ * @param {string} roleId 
+ */
+export const deleteRole = async (sessionId, roleId) => {
+    const response = await fetch(`${BASE_URL}/roles/${roleId}?session_id=${sessionId}`, {
+        method: 'DELETE',
+    });
+    if (!response.ok) {
+        const error = await response.json();
+        throw new Error(error.detail || 'Failed to delete role');
+    }
+    // 204 No Content
+    if (response.status === 204) return;
+    return response.json();
+};
