@@ -18,25 +18,25 @@ router = APIRouter()
 
 def validate_incremental_config_for_schedule(schedule_frequency: str, incremental_config: dict, sources: list):
     """
-    Validate that scheduled datasets have proper incremental configuration
+    Validate and warn about incremental configuration for scheduled datasets
+
+    Note: This function only logs warnings and does NOT block dataset creation.
+    Datasets without proper incremental config will perform full loads on each run.
 
     Args:
         schedule_frequency: Schedule frequency string
         incremental_config: Dataset-level incremental config
         sources: List of source configurations
-
-    Raises:
-        HTTPException: If validation fails
     """
     if not schedule_frequency or schedule_frequency == "None":
         return  # No schedule, no validation needed
 
     # Check if incremental config exists and is enabled
     if not incremental_config or not incremental_config.get("enabled"):
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Scheduled datasets require incremental load to be enabled. Please ensure your source has a timestamp column (updated_at, created_at, etc.)"
-        )
+        print("⚠️  WARNING: Scheduled dataset does not have incremental load enabled.")
+        print("   → This dataset will perform FULL LOAD on every scheduled run, which may cause data duplication.")
+        print("   → Consider enabling incremental load with a timestamp column (updated_at, created_at, etc.)")
+        return  # Warning only, allow creation
 
     # Validate timestamp column for RDB/MongoDB sources
     for source_item in sources:
@@ -47,18 +47,17 @@ def validate_incremental_config_for_schedule(schedule_frequency: str, incrementa
             # Check source-level incremental_config first, then dataset-level
             inc_cfg = source_item.get("incremental_config") or incremental_config
             if not inc_cfg or not inc_cfg.get("timestamp_column"):
-                raise HTTPException(
-                    status_code=status.HTTP_400_BAD_REQUEST,
-                    detail=f"Source '{source_name}' requires a timestamp column for incremental load. No suitable column (updated_at, created_at, etc.) was found."
-                )
+                print(f"⚠️  WARNING: Source '{source_name}' ({source_type}) does not have a timestamp column configured.")
+                print(f"   → This source will perform FULL LOAD on every run, which may cause data duplication.")
+                print(f"   → Consider adding a timestamp column (updated_at, created_at, etc.) for incremental load.")
+
         elif source_type == "api":
             # API sources need timestamp_param in incremental_config
             api_inc_cfg = source_item.get("api", {}).get("incremental_config")
             if api_inc_cfg and api_inc_cfg.get("enabled") and not api_inc_cfg.get("timestamp_param"):
-                raise HTTPException(
-                    status_code=status.HTTP_400_BAD_REQUEST,
-                    detail=f"API source '{source_name}' requires a timestamp parameter (e.g., 'since', 'updated_at') for incremental load."
-                )
+                print(f"⚠️  WARNING: API source '{source_name}' does not have a timestamp parameter configured.")
+                print(f"   → This source will perform FULL LOAD on every run.")
+                print(f"   → Consider adding a timestamp parameter (e.g., 'since', 'updated_at') for incremental load.")
 
 
 async def get_table_size_gb(connection: Connection, table_name: str) -> float:
