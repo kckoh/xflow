@@ -44,6 +44,9 @@ export default function SqlLabPage() {
     const [sortBy, setSortBy] = useState('');
     const [sortOrder, setSortOrder] = useState('desc');
 
+    // Query limit state
+    const [queryLimit, setQueryLimit] = useState(30);
+
     // Load query and results from multiple sources (priority order)
     useEffect(() => {
         // 1. From navigation state (Edit Query button)
@@ -112,9 +115,10 @@ export default function SqlLabPage() {
         try {
             let finalQuery = query.trim();
 
-            // Default to LIMIT 30 if not specified
+            // Apply selected limit if not specified in query
             if (!/\bLIMIT\b/i.test(finalQuery)) {
-                finalQuery = `${finalQuery.replace(/;$/, "")} LIMIT 30`;
+                const limitValue = queryLimit === 'All' ? 1000000 : queryLimit;
+                finalQuery = `${finalQuery.replace(/;$/, "")} LIMIT ${limitValue}`;
             }
 
             // Execute query based on selected engine
@@ -122,10 +126,13 @@ export default function SqlLabPage() {
                 ? await runTrinoQuery(finalQuery)
                 : await runDuckDBQuery(finalQuery);
             const columns = response.data.length > 0 ? Object.keys(response.data[0]) : [];
+            const wasLimited = !/\\bLIMIT\\b/i.test(query.trim());
             setResults({
                 data: response.data,
                 columns,
                 row_count: response.row_count,
+                was_limited: wasLimited,
+                applied_limit: wasLimited ? queryLimit : null,
                 query: finalQuery,
             });
         } catch (err) {
@@ -246,30 +253,51 @@ export default function SqlLabPage() {
                             className="w-full h-32 px-4 py-3 pb-12 border border-gray-300 rounded-lg font-mono text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none resize-none"
                         />
 
-                        <div className="absolute bottom-3 right-3 flex items-center gap-3">
-                            {/* Execution Status */}
-                            {executing && (
-                                <div className="flex items-center gap-2 text-sm text-gray-600 bg-white/80 px-2 py-1 rounded">
-                                    <Loader2 className="w-4 h-4 animate-spin text-blue-600" />
-                                    <span>Executing...</span>
-                                </div>
-                            )}
+                        <div className="absolute bottom-3 left-3 right-3 flex items-center justify-between">
+                            {/* Left side - LIMIT selector */}
+                            <div className="flex items-center gap-2 bg-white/80 px-2 py-1 rounded">
+                                <label className="text-xs font-medium text-gray-600">LIMIT:</label>
+                                <select
+                                    value={queryLimit}
+                                    onChange={(e) => setQueryLimit(e.target.value === 'All' ? 'All' : parseInt(e.target.value))}
+                                    className="px-2 py-1 text-xs border border-gray-300 rounded bg-white focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none"
+                                >
+                                    <option value={10}>10</option>
+                                    <option value={30}>30</option>
+                                    <option value={50}>50</option>
+                                    <option value={100}>100</option>
+                                    <option value={200}>200</option>
+                                    <option value={500}>500</option>
+                                    <option value="All">All</option>
+                                </select>
+                            </div>
 
-                            <button
-                                onClick={executeQuery}
-                                disabled={executing || !query.trim()}
-                                className={`flex items-center gap-2 px-4 py-1.5 rounded-lg text-sm font-medium transition-all shadow-sm ${executing || !query.trim()
-                                    ? "bg-gray-100 text-gray-400 cursor-not-allowed border border-gray-200"
-                                    : "bg-blue-600 text-white hover:bg-blue-700 hover:shadow-md"
-                                    }`}
-                            >
-                                {executing ? (
-                                    <Loader2 className="w-3.5 h-3.5 animate-spin" />
-                                ) : (
-                                    <Play className="w-3.5 h-3.5" />
+                            {/* Right side - Execution Status and Run button */}
+                            <div className="flex items-center gap-3">
+                                {/* Execution Status */}
+                                {executing && (
+                                    <div className="flex items-center gap-2 text-sm text-gray-600 bg-white/80 px-2 py-1 rounded">
+                                        <Loader2 className="w-4 h-4 animate-spin text-blue-600" />
+                                        <span>Executing...</span>
+                                    </div>
                                 )}
-                                Run
-                            </button>
+
+                                <button
+                                    onClick={executeQuery}
+                                    disabled={executing || !query.trim()}
+                                    className={`flex items-center gap-2 px-4 py-1.5 rounded-lg text-sm font-medium transition-all shadow-sm ${executing || !query.trim()
+                                        ? "bg-gray-100 text-gray-400 cursor-not-allowed border border-gray-200"
+                                        : "bg-blue-600 text-white hover:bg-blue-700 hover:shadow-md"
+                                        }`}
+                                >
+                                    {executing ? (
+                                        <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                                    ) : (
+                                        <Play className="w-3.5 h-3.5" />
+                                    )}
+                                    Run
+                                </button>
+                            </div>
                         </div>
                     </div>
                 </div>
@@ -322,7 +350,7 @@ export default function SqlLabPage() {
                                 {/* Results Header */}
                                 <div className="mb-4 flex items-center justify-between shrink-0">
                                     <span className="text-sm font-medium text-gray-900">
-                                        Results ({results.row_count} rows)
+                                        Results: {results.row_count} rows{results.was_limited ? ` · limited to ${results.applied_limit === 'All' ? 'all' : results.applied_limit}` : ''}
                                     </span>
                                     <button
                                         onClick={downloadCSV}
@@ -384,6 +412,6 @@ export default function SqlLabPage() {
                     )}
                 </div>
             </div>
-        </div>
+        </div >
     );
 }
