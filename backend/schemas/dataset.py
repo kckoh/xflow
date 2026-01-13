@@ -10,6 +10,10 @@ class SourceConfig(BaseModel):
     table: Optional[str] = None  # For RDB
     collection: Optional[str] = None  # For NoSQL (MongoDB)
     query: Optional[str] = None  # Custom SQL query
+    # S3 specific
+    bucket: Optional[str] = None  # For S3
+    path: Optional[str] = None  # For S3
+    format: Optional[str] = None  # For S3 (log, parquet, csv, json)
     customRegex: Optional[str] = None  # For S3 log parsing with named groups
     config: dict = {}  # Type-specific configuration (e.g., topic for Kafka)
 
