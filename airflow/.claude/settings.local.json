@@ -1,0 +1,39 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(kubectl logs:*)",
+      "Bash(kubectl get:*)",
+      "Bash(git checkout:*)",
+      "Bash(aws ecr get-login-password:*)",
+      "Bash(docker login:*)",
+      "Bash(docker build:*)",
+      "Bash(docker tag:*)",
+      "Bash(docker push:*)",
+      "Bash(kubectl rollout:*)",
+      "Bash(npm install)",
+      "Bash(npm run build:*)",
+      "Bash(aws s3 sync:*)",
+      "Bash(aws cloudfront create-invalidation:*)",
+      "Bash(curl:*)",
+      "Bash(git revert:*)",
+      "Bash(ls:*)",
+      "Bash(npm run build)",
+      "Bash(kubectl rollout restart:*)",
+      "Bash(gh pr view:*)",
+      "Bash(docker exec:*)",
+      "Bash(python3:*)",
+      "Bash(gh pr diff:*)",
+      "Bash(kubectl exec:*)",
+      "Bash(kubectl describe:*)",
+      "Bash(helm uninstall:*)",
+      "Bash(kubectl rollout status:*)",
+      "Bash(eksctl create iamserviceaccount:*)",
+      "Bash(eksctl get iamserviceaccount:*)",
+      "Bash(aws iam attach-role-policy:*)",
+      "Bash(kubectl annotate:*)",
+      "Bash(kubectl delete:*)",
+      "Bash(kubectl apply:*)",
+      "Bash(kubectl set env:*)"
+    ]
+  }
+}

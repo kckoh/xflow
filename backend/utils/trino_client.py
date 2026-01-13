@@ -3,7 +3,7 @@ from trino.dbapi import connect
 from trino.auth import BasicAuthentication
 
 # Trino 설정
-TRINO_HOST = os.getenv("TRINO_HOST", "trino-cluster-trino.default.svc")
+TRINO_HOST = os.getenv("TRINO_HOST", "trino.trino.svc.cluster.local")
 TRINO_PORT = int(os.getenv("TRINO_PORT", "8080"))
 TRINO_USER = os.getenv("TRINO_USER", "admin")
 TRINO_CATALOG = os.getenv("TRINO_CATALOG", "lakehouse")

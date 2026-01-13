@@ -915,7 +915,7 @@ def register_trino_table(**context):
     print(f"[Trino] S3 location: {s3_location}")
 
     # Connect to Trino (service in default namespace)
-    trino_host = Variable.get("TRINO_HOST", default_var="trino-cluster-trino.default.svc.cluster.local")
+    trino_host = Variable.get("TRINO_HOST", default_var="trino.trino.svc.cluster.local")
     trino_port = int(Variable.get("TRINO_PORT", default_var="8080"))
 
     conn = trino.dbapi.connect(
