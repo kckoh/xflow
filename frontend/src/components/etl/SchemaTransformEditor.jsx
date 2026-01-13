@@ -308,7 +308,8 @@ export default function SchemaTransformEditor({
             const isMongoDB = source?.sourceType === 'mongodb';
 
             if (col.transform) {
-                return `${col.transform} AS ${col.name}`;
+                // Quote the alias to handle reserved words
+                return `${col.transform} AS "${col.name}"`;
             }
 
             // Use originalName for SELECT since that's what exists in the source data
@@ -317,7 +318,8 @@ export default function SchemaTransformEditor({
                 ? col.originalName.replace(/\./g, '_')
                 : col.originalName;
 
-            return columnName;
+            // Quote column names to handle SQL reserved words (e.g., 'cast', 'type', 'year')
+            return `"${columnName}"`;
         });
 
         return `SELECT ${selectClauses.join(', ')} FROM input`;
