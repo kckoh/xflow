@@ -1416,6 +1416,14 @@ export default function TargetWizard() {
                                         ? { ...prev, columns: inferredColumns }
                                         : prev
                                     );
+                                    // Also update sourceNodes so SQL Transform can access columns
+                                    setSourceNodes((nodes) =>
+                                      nodes.map((node) =>
+                                        node.data?.sourceDatasetId === focusedDataset.id
+                                          ? { ...node, data: { ...node.data, columns: inferredColumns } }
+                                          : node
+                                      )
+                                    );
                                   }}
                                 />
                               </div>
@@ -1545,6 +1553,7 @@ export default function TargetWizard() {
                           node.data?.sourceDatasetId ||
                           node.data?.catalogDatasetId,
                         name: node.data?.name,
+                        schema: node.data?.columns || [],
                       }))}
                       sourceTabs={
                         sourceNodes.length > 1 ? (
