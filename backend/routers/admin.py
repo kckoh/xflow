@@ -38,21 +38,41 @@ async def get_users(session_id: str):
     check_admin(session_id)
     users = await User.find_all().to_list()
     
-    return [
-        UserResponseAdmin(
+    # Populate role information
+    from models import Role
+    from bson import ObjectId
+    
+    result = []
+    for user in users:
+        # Fetch roles for this user
+        roles = []
+        if user.role_ids:
+            role_object_ids = [ObjectId(rid) for rid in user.role_ids]
+            role_docs = await Role.find({"_id": {"$in": role_object_ids}}).to_list()
+            roles = [
+                {
+                    "id": str(role.id),
+                    "name": role.name,
+                    "description": role.description
+                }
+                for role in role_docs
+            ]
+        
+        result.append(UserResponseAdmin(
             id=str(user.id),
             email=user.email,
             name=user.name,
+            role_ids=user.role_ids,
+            roles=roles,
             is_admin=user.is_admin,
             dataset_access=user.dataset_access,
             all_datasets=user.all_datasets,
             can_manage_datasets=user.can_manage_datasets,
             can_run_query=user.can_run_query,
-
             created_at=user.created_at.isoformat() if user.created_at else None
-        )
-        for user in users
-    ]
+        ))
+    
+    return result
 
 
 @router.post("/users", response_model=UserResponseAdmin, status_code=status.HTTP_201_CREATED)
@@ -72,6 +92,7 @@ async def create_user(user_data: UserCreateAdmin, session_id: str):
         email=user_data.email,
         password=user_data.password,
         name=user_data.name or user_data.email.split("@")[0],
+        role_ids=user_data.role_ids,
         is_admin=user_data.is_admin,
         dataset_access=user_data.dataset_access,
         all_datasets=user_data.all_datasets,
@@ -87,6 +108,8 @@ async def create_user(user_data: UserCreateAdmin, session_id: str):
         id=str(new_user.id),
         email=new_user.email,
         name=new_user.name,
+        role_ids=new_user.role_ids,
+        roles=None,  # Not populated in creation response
         is_admin=new_user.is_admin,
         dataset_access=new_user.dataset_access,
         all_datasets=new_user.all_datasets,
@@ -133,6 +156,8 @@ async def update_user(user_id: str, user_data: UserUpdateAdmin, session_id: str)
         id=str(user.id),
         email=user.email,
         name=user.name,
+        role_ids=user.role_ids,
+        roles=None,  # Not populated in update response
         is_admin=user.is_admin,
         dataset_access=user.dataset_access,
         all_datasets=user.all_datasets,

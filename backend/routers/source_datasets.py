@@ -2,6 +2,7 @@ from fastapi import APIRouter, HTTPException, Depends, Query
 from typing import List, Optional, Dict, Any
 from datetime import datetime
 from bson import ObjectId
+from beanie import PydanticObjectId
 import os
 
 import database
@@ -11,7 +12,8 @@ from schemas.source_dataset import (
     SourceDatasetResponse,
 )
 from dependencies import sessions, get_user_session
-from models import User
+from utils.permissions import get_user_permissions
+from models import User, Role
 
 
 async def get_s3_schema(bucket: str, path: str) -> List[dict]:
@@ -135,7 +137,7 @@ async def create_source_dataset(
     dataset_id = str(result.inserted_id)
     dataset_data["id"] = dataset_id
 
-    # Auto-grant permissions to creator
+    # Auto-grant permissions to creator's roles
     print(f"[Permission Debug] session_id: {session_id}")
     print(f"[Permission Debug] session_id in sessions: {session_id in sessions if session_id else False}")
     
@@ -147,21 +149,22 @@ async def create_source_dataset(
             try:
                 creator = await User.get(ObjectId(user_id))
                 print(f"[Permission Debug] creator found: {creator.email if creator else None}")
-                print(f"[Permission Debug] dataset_id: {dataset_id}")
-                print(f"[Permission Debug] current dataset_access: {creator.dataset_access if creator else []}")
                 
-                if creator and dataset_id not in creator.dataset_access:
-                    creator.dataset_access.append(dataset_id)
-                    await creator.save()
-                    
-                    # Update session immediately for instant access
-                    sessions[session_id]["dataset_access"] = creator.dataset_access
-                    
-                    print(f"SUCCESS: Auto-granted source dataset access to creator: {creator.email} -> {dataset.name}")
-                elif creator:
-                    print(f"INFO: Dataset already in creator's access list")
+                if creator and creator.role_ids:
+                    # Update all roles belonging to the creator
+                    for role_id in creator.role_ids:
+                        try:
+                            role = await Role.get(PydanticObjectId(role_id))
+                            if role and dataset_id not in role.dataset_permissions:
+                                role.dataset_permissions.append(dataset_id)
+                                await role.save()
+                                print(f"SUCCESS: Auto-granted source dataset access to creator role: {role.name} -> {dataset.name}")
+                        except Exception as inner_e:
+                            print(f"WARNING: Failed to update creator role {role_id}: {inner_e}")
+                else:
+                     print(f"INFO: Creator has no roles assigned")
             except Exception as e:
-                print(f"WARNING: Failed to grant creator access: {e}")
+                print(f"WARNING: Failed to grant creator role access: {e}")
                 import traceback
                 traceback.print_exc()
     else:
@@ -172,10 +175,34 @@ async def create_source_dataset(
 
 
 @router.get("", response_model=List[SourceDatasetResponse])
-async def get_source_datasets():
-    """Get all source datasets"""
+async def get_source_datasets(
+    user_session: Optional[Dict[str, Any]] = Depends(get_user_session)
+):
+    """Get all source datasets (RBAC Filtered)"""
     db = get_db()
-    cursor = db.source_datasets.find()
+    
+    # RBAC Permission Filter
+    query = {}
+    if user_session:
+        user_id = user_session.get("user_id")
+        if user_id:
+            try:
+                user = await User.get(ObjectId(user_id))
+                if user:
+                    perms = await get_user_permissions(user)
+                    
+                    if not perms["is_admin"] and not perms["all_datasets"]:
+                        accessible_ids = []
+                        for did in perms["accessible_datasets"]:
+                            try:
+                                accessible_ids.append(ObjectId(did))
+                            except:
+                                pass
+                        query["_id"] = {"$in": accessible_ids}
+            except Exception as e:
+                print(f"Error checking permissions in get_source_datasets: {e}")
+
+    cursor = db.source_datasets.find(query)
     datasets = []
 
     async for doc in cursor:

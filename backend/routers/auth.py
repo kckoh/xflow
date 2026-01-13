@@ -5,6 +5,7 @@ from dependencies import sessions
 from fastapi import APIRouter, Header, HTTPException, status
 from models import User
 from schemas.user import UserCreate, UserLogin
+from utils.permissions import get_user_permissions
 
 router = APIRouter()
 
@@ -55,24 +56,28 @@ async def login(user: UserLogin):
             detail="Invalid email or password",
         )
 
-    # Create session with full user info
+    # Calculate permissions using role-based system
+    perms = await get_user_permissions(db_user)
+
     # Special admin email check
-    is_admin = db_user.is_admin or db_user.email == "admin@xflows.net"
-    
+    is_admin = perms["is_admin"] or db_user.email == "admin@xflows.net"
+
     session_id = str(uuid.uuid4())
     sessions[session_id] = {
         "user_id": str(db_user.id),
         "email": db_user.email,
         "name": db_user.name or db_user.email.split("@")[0],
+        # Role-based permissions (calculated)
         "is_admin": is_admin,
+        "can_manage_datasets": perms["can_manage_datasets"],
+        "can_run_query": perms["can_run_query"],
+        "all_datasets": perms["all_datasets"],
+        "dataset_access": perms["accessible_datasets"],
+        # Deprecated fields (kept for backward compatibility)
         "etl_access": db_user.etl_access,
         "domain_edit_access": db_user.domain_edit_access,
-        "dataset_access": db_user.dataset_access,
-        "all_datasets": db_user.all_datasets,
-        "can_manage_datasets": db_user.can_manage_datasets,
-        "can_run_query": db_user.can_run_query,
     }
-    
+
     return {
         "session_id": session_id,
         "user": sessions[session_id]

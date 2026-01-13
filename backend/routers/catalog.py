@@ -2,9 +2,11 @@ from fastapi import APIRouter, HTTPException, Query, Body, status, Depends
 from typing import List, Optional, Dict, Any
 from bson import ObjectId
 import database
+from models import User
 from schemas.catalog import CatalogItem, DatasetDetail, DatasetUpdate, DatasetCreate, LineageCreate
 from services import catalog_service, lineage_service
 from dependencies import sessions, get_user_session
+from utils.permissions import get_user_permissions
 
 router = APIRouter()
 
@@ -31,6 +33,24 @@ async def get_catalog(
     db = database.mongodb_client[database.DATABASE_NAME]
     # Build Search/Filter Query
     query = {}
+
+    # RBAC Permission Filter - Filter Datasets by user's accessible_datasets
+    if user_session:
+        user_id = user_session.get("user_id")
+        if user_id:
+            user = await User.get(ObjectId(user_id))
+            if user:
+                perms = await get_user_permissions(user)
+
+                # Filter Datasets (if not admin/all_access)
+                if not perms["is_admin"] and not perms["all_datasets"]:
+                    accessible_object_ids = []
+                    for did in perms["accessible_datasets"]:
+                        try:
+                            accessible_object_ids.append(ObjectId(did))
+                        except:
+                            pass
+                    query["_id"] = {"$in": accessible_object_ids}
     
     # Only show datasets with successful ETL execution
     query["import_ready"] = True
@@ -95,16 +115,6 @@ async def get_catalog(
              
         items.append(doc)
     
-    # Check etl_access if authenticated
-    if user_session:
-        etl_access = user_session.get("etl_access", False)
-        is_admin = user_session.get("is_admin", False)
-        
-        # Admin or etl_access = true can see catalog
-        if not is_admin and not etl_access:
-            # No access to catalog
-            return []
-        
     return items
 
 ############ Mockdata 추후에 Get hive/s3로 변경###########

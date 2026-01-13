@@ -2,7 +2,8 @@ from fastapi import APIRouter, HTTPException, Query, Depends
 from pydantic import BaseModel
 from typing import Optional, Dict, Any
 from utils.duckdb_client import execute_query, get_schema, preview_data
-from models import Dataset
+from utils.permissions import get_user_permissions, can_access_dataset
+from models import Dataset, User
 import math
 import re
 from dependencies import get_user_session
@@ -44,23 +45,33 @@ async def check_dataset_permission(
     bucket: str = None
 ) -> None:
     """
-    사용자가 S3 경로의 dataset에 접근 권한이 있는지 확인
+    사용자가 S3 경로의 dataset에 접근 권한이 있는지 확인 (RBAC 지원)
     권한이 없으면 HTTPException 발생
     """
     if not user_session:
         return
     
-    is_admin = user_session.get("is_admin", False)
-    all_datasets = user_session.get("all_datasets", False)
-    
-    # Admin이거나 모든 dataset 접근 권한이 있으면 체크 스킵
-    if is_admin or all_datasets:
-        return
-    
     if not s3_paths:
         return
     
-    dataset_access = user_session.get("dataset_access", [])
+    # Get user from session
+    user_id = user_session.get("user_id")
+    if not user_id:
+        return
+    
+    from bson import ObjectId
+    user = await User.get(ObjectId(user_id))
+    if not user:
+        return
+    
+    # Get user permissions using RBAC
+    perms = await get_user_permissions(user)
+    
+    # Admin이거나 모든 dataset 접근 권한이 있으면 체크 스킵
+    if perms["is_admin"] or perms["all_datasets"]:
+        return
+    
+    dataset_access = perms["accessible_datasets"]
     allowed_dataset_names = await get_allowed_dataset_names(dataset_access)
     
     # 각 S3 경로에 대해 권한 체크
@@ -215,26 +226,27 @@ async def list_bucket_files(
                 "size": obj["Size"],
             })
 
-        # Filter files by dataset permissions
-        file_paths = [f["file"] for f in files]
-        
-        # Check permissions - this will filter internally
+        # Filter files by dataset permissions (RBAC)
         if user_session:
-            is_admin = user_session.get("is_admin", False)
-            all_datasets = user_session.get("all_datasets", False)
-            
-            if not is_admin and not all_datasets:
-                dataset_access = user_session.get("dataset_access", [])
-                allowed_dataset_names = await get_allowed_dataset_names(dataset_access)
-                
-                # Filter files based on allowed datasets
-                filtered_files = []
-                for file_obj in files:
-                    dataset_name = extract_dataset_name_from_s3_path(file_obj["file"], bucket)
-                    if dataset_name and dataset_name in allowed_dataset_names:
-                        filtered_files.append(file_obj)
-                
-                files = filtered_files
+            user_id = user_session.get("user_id")
+            if user_id:
+                from bson import ObjectId
+                user = await User.get(ObjectId(user_id))
+                if user:
+                    perms = await get_user_permissions(user)
+                    
+                    if not perms["is_admin"] and not perms["all_datasets"]:
+                        dataset_access = perms["accessible_datasets"]
+                        allowed_dataset_names = await get_allowed_dataset_names(dataset_access)
+                        
+                        # Filter files based on allowed datasets
+                        filtered_files = []
+                        for file_obj in files:
+                            dataset_name = extract_dataset_name_from_s3_path(file_obj["file"], bucket)
+                            if dataset_name and dataset_name in allowed_dataset_names:
+                                filtered_files.append(file_obj)
+                        
+                        files = filtered_files
 
         return {"files": files}
     except Exception as e:

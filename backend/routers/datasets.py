@@ -6,13 +6,16 @@ import httpx
 from beanie import PydanticObjectId
 from fastapi import APIRouter, HTTPException, status
 
-from models import Dataset, JobRun, Connection, ETLJob, User
+from models import Dataset, JobRun, Connection, ETLJob, User, Role
 from schemas.dataset import DatasetCreate, DatasetUpdate, DatasetResponse
 from services.lineage_service import sync_pipeline_to_etljob
 # OpenSearch Dual Write
 from utils.indexers import index_single_dataset, delete_dataset_from_index
 from utils.schedule_converter import generate_schedule
-from dependencies import sessions
+from dependencies import sessions, get_user_session
+from utils.permissions import get_user_permissions
+from typing import Optional, Dict, Any
+from fastapi import Depends
 
 router = APIRouter()
 
@@ -229,10 +232,10 @@ async def create_dataset(dataset: DatasetCreate, session_id: str = None):
 
     await new_dataset.insert()
 
-    # Auto-grant permissions to creator and shared users
+    # Auto-grant permissions to creator's roles and shared roles
     from bson import ObjectId
     
-    # 1. Grant access to creator (if session exists)
+    # 1. Grant access to creator's roles (if session exists)
     if session_id and session_id in sessions:
         user_session = sessions[session_id]
         user_id = user_session.get("user_id")
@@ -240,27 +243,31 @@ async def create_dataset(dataset: DatasetCreate, session_id: str = None):
         if user_id:
             try:
                 creator = await User.get(ObjectId(user_id))
-                if creator and str(new_dataset.id) not in creator.dataset_access:
-                    creator.dataset_access.append(str(new_dataset.id))
-                    await creator.save()
-                    
-                    # Update session immediately for instant access
-                    sessions[session_id]["dataset_access"] = creator.dataset_access
-                    print(f"✅ Auto-granted access to creator: {creator.email} -> {new_dataset.name}")
+                if creator and creator.role_ids:
+                    # Update all roles belonging to the creator
+                    for role_id in creator.role_ids:
+                        try:
+                            role = await Role.get(PydanticObjectId(role_id))
+                            if role and str(new_dataset.id) not in role.dataset_permissions:
+                                role.dataset_permissions.append(str(new_dataset.id))
+                                await role.save()
+                                print(f"✅ Auto-granted access to creator role: {role.name} -> {new_dataset.name}")
+                        except Exception as inner_e:
+                            print(f"⚠️ Failed to update creator role {role_id}: {inner_e}")
             except Exception as e:
-                print(f"⚠️ Failed to grant creator access: {e}")
+                print(f"⚠️ Failed to grant creator role access: {e}")
     
-    # 2. Grant access to shared users
-    if dataset.shared_user_ids:
-        for shared_user_id in dataset.shared_user_ids:
+    # 2. Grant access to shared roles
+    if dataset.shared_role_ids:
+        for shared_role_id in dataset.shared_role_ids:
             try:
-                shared_user = await User.get(ObjectId(shared_user_id))
-                if shared_user and str(new_dataset.id) not in shared_user.dataset_access:
-                    shared_user.dataset_access.append(str(new_dataset.id))
-                    await shared_user.save()
-                    print(f"✅ Shared dataset with user: {shared_user.email} -> {new_dataset.name}")
+                role = await Role.get(PydanticObjectId(shared_role_id))
+                if role and str(new_dataset.id) not in role.dataset_permissions:
+                    role.dataset_permissions.append(str(new_dataset.id))
+                    await role.save()
+                    print(f"✅ Shared dataset with role: {role.name} -> {new_dataset.name}")
             except Exception as e:
-                print(f"⚠️ Failed to share with user {shared_user_id}: {e}")
+                print(f"⚠️ Failed to share with role {shared_role_id}: {e}")
 
     # Dual Write: OpenSearch에 인덱싱
     await index_single_dataset(new_dataset)
@@ -294,13 +301,39 @@ async def create_dataset(dataset: DatasetCreate, session_id: str = None):
 
 
 @router.get("", response_model=List[DatasetResponse])
-async def list_datasets(import_ready: bool = None):
-    """Get all Datasets with their active status, optionally filtered by import_ready flag"""
+async def list_datasets(
+    import_ready: bool = None,
+    user_session: Optional[Dict[str, Any]] = Depends(get_user_session)
+):
+    """Get all Datasets with their active status, filtered by RBAC permissions"""
+    
     # Build query filter
+    query = {}
     if import_ready is not None:
-        datasets = await Dataset.find(Dataset.import_ready == import_ready).to_list()
-    else:
-        datasets = await Dataset.find_all().to_list()
+        query["import_ready"] = import_ready
+
+    # RBAC Permission Filter
+    if user_session:
+        user_id = user_session.get("user_id")
+        if user_id:
+            from bson import ObjectId
+            user = await User.get(ObjectId(user_id))
+            if user:
+                perms = await get_user_permissions(user)
+                
+                # If not admin and not full access, filter by ID list
+                if not perms["is_admin"] and not perms["all_datasets"]:
+                    accessible_ids = []
+                    for did in perms["accessible_datasets"]:
+                        try:
+                            accessible_ids.append(PydanticObjectId(did))
+                        except:
+                            pass
+                    
+                    # Add ID filter to existing query
+                    query["_id"] = {"$in": accessible_ids}
+
+    datasets = await Dataset.find(query).to_list()
 
     # Pre-fetch ETLJobs to map is_active status
     etl_jobs = await ETLJob.find_all().to_list()
