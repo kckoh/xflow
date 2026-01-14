@@ -1,4 +1,6 @@
 import React, { useState, useRef } from 'react';
+import { Sparkles } from 'lucide-react';
+import InlineAIInput from '../ai/InlineAIInput';
 
 /**
  * TransformFunctionModal - Modal for editing column transform functions
@@ -9,6 +11,7 @@ export default function TransformFunctionModal({ column, onApply, onClose }) {
     const [newType, setNewType] = useState(column.type);
     const [transformExpr, setTransformExpr] = useState(column.transform || column.originalName || column.name);
     const [selectedFunction, setSelectedFunction] = useState('');
+    const [showAI, setShowAI] = useState(false);
 
     const functions = [
         { name: 'UPPER', desc: 'Convert to uppercase', template: `UPPER(${column.originalName})` },
@@ -103,7 +106,41 @@ export default function TransformFunctionModal({ column, onApply, onClose }) {
 
                     {/* Expression Editor */}
                     <div>
-                        <label className="block text-sm font-medium text-gray-700 mb-1">Transform Expression (SQL)</label>
+                        <div className="flex items-center justify-between mb-2">
+                            <label className="block text-sm font-medium text-gray-700">Transform Expression (SQL)</label>
+                            <button
+                                onClick={() => setShowAI(!showAI)}
+                                className="flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs font-medium
+                                    bg-gradient-to-r from-indigo-50 to-purple-50 text-indigo-600 
+                                    hover:from-indigo-100 hover:to-purple-100 transition-all
+                                    border border-indigo-200/50"
+                                title="AI Assistant"
+                            >
+                                <Sparkles size={14} />
+                                <span>AI</span>
+                            </button>
+                        </div>
+
+                        {/* AI Input Panel - appears between flex row and textarea */}
+                        {showAI && (
+                            <InlineAIInput
+                                context={`I'm transforming a column named "${column.originalName}" of type "${column.type}". Help me write a SQL transform expression.`}
+                                placeholder="e.g., convert to uppercase, extract first 3 characters..."
+                                onApply={(suggestion) => {
+                                    // Apply AI suggestion to the transform expression
+                                    setTransformExpr(suggestion);
+                                    setShowAI(false);
+                                    // Focus textarea after applying
+                                    if (editorRef.current) {
+                                        setTimeout(() => {
+                                            editorRef.current.focus();
+                                        }, 0);
+                                    }
+                                }}
+                                onCancel={() => setShowAI(false)}
+                            />
+                        )}
+
                         <textarea
                             ref={editorRef}
                             value={transformExpr}

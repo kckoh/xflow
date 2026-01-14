@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { Code, Play, CheckCircle, AlertCircle } from 'lucide-react';
 import { API_BASE_URL } from '../../config/api';
+import InlineAIInput from '../ai/InlineAIInput';
 
 export default function SQLTransformConfig({ node, transformName, onUpdate, onClose }) {
     const [sql, setSql] = useState(node?.data?.sql || 'SELECT * FROM input');
@@ -101,9 +102,26 @@ export default function SQLTransformConfig({ node, transformName, onUpdate, onCl
         <div className="space-y-4">
             {/* SQL Editor */}
             <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">
-                    SQL Query
-                </label>
+                <div className="flex items-center justify-between mb-2">
+                    <label className="block text-sm font-medium text-gray-700">
+                        SQL Query
+                    </label>
+                    <InlineAIInput
+                        context={`I'm writing a SQL query to transform data. The input table is called "input". Help me write a SQL query.`}
+                        placeholder="e.g., select top 10 customers by revenue..."
+                        onApply={(suggestion) => {
+                            // Apply AI suggestion to the SQL query
+                            setSql(suggestion);
+                            // Auto-save to node
+                            onUpdate({
+                                transformConfig: {
+                                    sql: suggestion
+                                },
+                                transformName: transformName
+                            });
+                        }}
+                    />
+                </div>
                 <textarea
                     value={sql}
                     onChange={handleSqlChange}
