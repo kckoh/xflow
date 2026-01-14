@@ -156,6 +156,26 @@ export const deleteRole = async (sessionId, roleId) => {
 };
 
 /**
+ * Add dataset to multiple roles (admin only)
+ * @param {string} sessionId
+ * @param {string} datasetId
+ * @param {Array<string>} roleIds
+ * @returns {Promise<Object>}
+ */
+export const addDatasetToRoles = async (sessionId, datasetId, roleIds) => {
+    const response = await fetch(`${BASE_URL}/roles/bulk-add-dataset?session_id=${sessionId}&dataset_id=${datasetId}`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ dataset_id: datasetId, role_ids: roleIds }),
+    });
+    if (!response.ok) {
+        const error = await response.json();
+        throw new Error(error.detail || 'Failed to add dataset to roles');
+    }
+    return response.json();
+};
+
+/**
  * Get all datasets for permission selection
  * Uses same API as Dataset page (/api/datasets + /api/source-datasets)
  * @returns {Promise<Array>} List of datasets with target schemas
