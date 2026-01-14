@@ -218,6 +218,7 @@ async def get_roles(admin: dict = Depends(require_admin)):
             dataset_etl_access=role.dataset_etl_access,
             query_ai_access=role.query_ai_access,
             dataset_access=role.dataset_access,
+            all_datasets=role.all_datasets,
             created_at=role.created_at.isoformat() if role.created_at else None
         )
         for role in roles
@@ -242,6 +243,7 @@ async def create_role(role_data: RoleCreate, admin: dict = Depends(require_admin
         dataset_etl_access=role_data.dataset_etl_access,
         query_ai_access=role_data.query_ai_access,
         dataset_access=role_data.dataset_access,
+        all_datasets=role_data.all_datasets,
         created_at=datetime.utcnow(),
         updated_at=datetime.utcnow()
     )
@@ -255,6 +257,7 @@ async def create_role(role_data: RoleCreate, admin: dict = Depends(require_admin
         dataset_etl_access=new_role.dataset_etl_access,
         query_ai_access=new_role.query_ai_access,
         dataset_access=new_role.dataset_access,
+        all_datasets=new_role.all_datasets,
         created_at=new_role.created_at.isoformat() if new_role.created_at else None
     )
 
@@ -298,6 +301,7 @@ async def update_role(role_id: str, role_data: RoleUpdate, admin: dict = Depends
         dataset_etl_access=role.dataset_etl_access,
         query_ai_access=role.query_ai_access,
         dataset_access=role.dataset_access,
+        all_datasets=role.all_datasets,
         created_at=role.created_at.isoformat() if role.created_at else None
     )
 
@@ -325,3 +329,53 @@ async def delete_role(role_id: str, admin: dict = Depends(require_admin)):
 
     await role.delete()
     return None
+
+
+@router.post("/roles/{role_id}/add-dataset")
+async def add_dataset_to_role(role_id: str, dataset_id: str, admin: dict = Depends(require_admin)):
+    """Add a dataset to role's dataset_access list"""
+    from bson import ObjectId
+
+    # Find role
+    role = await Role.get(ObjectId(role_id))
+    if not role:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Role not found"
+        )
+
+    # Add dataset_id if not already present
+    if dataset_id not in role.dataset_access:
+        role.dataset_access.append(dataset_id)
+        role.updated_at = datetime.utcnow()
+        await role.save()
+
+    return {"message": "Dataset added to role successfully"}
+
+
+@router.post("/roles/bulk-add-dataset")
+async def bulk_add_dataset_to_roles(
+    dataset_id: str,
+    role_ids: List[str],
+    admin: dict = Depends(require_admin)
+):
+    """Add a dataset to multiple roles' dataset_access lists"""
+    from bson import ObjectId
+
+    updated_count = 0
+    for role_id in role_ids:
+        try:
+            role = await Role.get(ObjectId(role_id))
+            if role and dataset_id not in role.dataset_access:
+                role.dataset_access.append(dataset_id)
+                role.updated_at = datetime.utcnow()
+                await role.save()
+                updated_count += 1
+        except Exception as e:
+            print(f"Error updating role {role_id}: {e}")
+            continue
+
+    return {
+        "message": f"Dataset added to {updated_count} role(s)",
+        "updated_count": updated_count
+    }

@@ -1,17 +1,19 @@
 import os
 from datetime import datetime
-from typing import List
+from typing import List, Optional
+from bson import ObjectId
 
 import httpx
 from beanie import PydanticObjectId
 from fastapi import APIRouter, HTTPException, status
 
-from models import Dataset, JobRun, Connection, ETLJob
+from models import Dataset, JobRun, Connection, ETLJob, Role
 from schemas.dataset import DatasetCreate, DatasetUpdate, DatasetResponse
 from services.lineage_service import sync_pipeline_to_etljob
 # OpenSearch Dual Write
 from utils.indexers import index_single_dataset, delete_dataset_from_index
 from utils.schedule_converter import generate_schedule
+from dependencies import sessions
 
 router = APIRouter()
 
@@ -278,13 +280,29 @@ async def create_dataset(dataset: DatasetCreate):
 
 
 @router.get("", response_model=List[DatasetResponse])
-async def list_datasets(import_ready: bool = None):
-    """Get all Datasets with their active status, optionally filtered by import_ready flag"""
+async def list_datasets(import_ready: bool = None, session_id: Optional[str] = None):
+    """Get all Datasets with their active status, optionally filtered by import_ready flag and user permissions"""
     # Build query filter
     if import_ready is not None:
         datasets = await Dataset.find(Dataset.import_ready == import_ready).to_list()
     else:
         datasets = await Dataset.find_all().to_list()
+
+    # Filter by user permissions if session_id is provided
+    if session_id and session_id in sessions:
+        user_session = sessions[session_id]
+        is_admin = user_session.get("is_admin", False)
+
+        # Admin can see all datasets
+        if not is_admin:
+            all_datasets_access = user_session.get("all_datasets", False)
+
+            if not all_datasets_access:
+                # Get allowed dataset IDs from session (includes both user-level and role-level)
+                allowed_dataset_ids = user_session.get("dataset_access", [])
+
+                # Filter datasets to only those the user can access
+                datasets = [d for d in datasets if str(d.id) in allowed_dataset_ids]
 
     # Pre-fetch ETLJobs to map is_active status
     etl_jobs = await ETLJob.find_all().to_list()

@@ -10,6 +10,7 @@ class RoleCreate(BaseModel):
     dataset_etl_access: bool = False
     query_ai_access: bool = False
     dataset_access: List[str] = []
+    all_datasets: bool = False
 
 
 class RoleUpdate(BaseModel):
@@ -19,6 +20,7 @@ class RoleUpdate(BaseModel):
     dataset_etl_access: Optional[bool] = None
     query_ai_access: Optional[bool] = None
     dataset_access: Optional[List[str]] = None
+    all_datasets: Optional[bool] = None
 
 
 class RoleResponse(BaseModel):
@@ -29,6 +31,7 @@ class RoleResponse(BaseModel):
     dataset_etl_access: bool = False
     query_ai_access: bool = False
     dataset_access: List[str] = []
+    all_datasets: bool = False
     created_at: Optional[str] = None
 
     class Config:

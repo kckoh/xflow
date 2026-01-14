@@ -18,6 +18,7 @@ class Role(Document):
     dataset_etl_access: bool = False  # Access to /dataset and /ETL Jobs
     query_ai_access: bool = False  # Access to /query and AI button
     dataset_access: List[str] = Field(default_factory=list)  # dataset IDs
+    all_datasets: bool = False  # Access to all datasets
 
     created_at: datetime = Field(default_factory=datetime.utcnow)
     updated_at: datetime = Field(default_factory=datetime.utcnow)

@@ -60,6 +60,7 @@ export default function RoleCreateForm({ editingRole, onRoleCreated, onCancel })
         datasetEtlAccess: false,
         queryAiAccess: false,
         datasetAccess: [],
+        allDatasets: false,
     });
     const [errors, setErrors] = useState({});
     const [successMessage, setSuccessMessage] = useState("");
@@ -92,6 +93,7 @@ export default function RoleCreateForm({ editingRole, onRoleCreated, onCancel })
                 datasetEtlAccess: editingRole.dataset_etl_access || false,
                 queryAiAccess: editingRole.query_ai_access || false,
                 datasetAccess: editingRole.dataset_access || [],
+                allDatasets: editingRole.all_datasets || false,
             });
             setErrors({});
             setSuccessMessage("");
@@ -102,6 +104,7 @@ export default function RoleCreateForm({ editingRole, onRoleCreated, onCancel })
                 datasetEtlAccess: false,
                 queryAiAccess: false,
                 datasetAccess: [],
+                allDatasets: false,
             });
             setErrors({});
             setSuccessMessage("");
@@ -128,7 +131,8 @@ export default function RoleCreateForm({ editingRole, onRoleCreated, onCancel })
                 description: formData.description,
                 dataset_etl_access: formData.datasetEtlAccess,
                 query_ai_access: formData.queryAiAccess,
-                dataset_access: formData.datasetAccess,
+                dataset_access: formData.allDatasets ? [] : formData.datasetAccess,
+                all_datasets: formData.allDatasets,
             };
 
             let data;
@@ -149,6 +153,7 @@ export default function RoleCreateForm({ editingRole, onRoleCreated, onCancel })
                     datasetEtlAccess: false,
                     queryAiAccess: false,
                     datasetAccess: [],
+                    allDatasets: false,
                 });
                 setSuccessMessage("Role created successfully!");
                 setTimeout(() => setSuccessMessage(""), 3000);
@@ -264,25 +269,50 @@ export default function RoleCreateForm({ editingRole, onRoleCreated, onCancel })
 
                             {/* Dataset Access */}
                             <div className="p-4 border border-gray-200 rounded-lg">
-                                <div className="mb-3">
-                                    <h4 className="text-sm font-medium text-gray-900">
-                                        Dataset Access
-                                    </h4>
-                                    <p className="text-xs text-gray-500">
-                                        Select which datasets users with this role can access
-                                    </p>
+                                <div className="flex items-center justify-between mb-3">
+                                    <div>
+                                        <h4 className="text-sm font-medium text-gray-900">
+                                            Dataset Access
+                                        </h4>
+                                        <p className="text-xs text-gray-500">
+                                            Select which datasets users with this role can access
+                                        </p>
+                                    </div>
+                                    <label className="flex items-center gap-2 cursor-pointer">
+                                        <input
+                                            type="checkbox"
+                                            checked={formData.allDatasets}
+                                            onChange={(e) =>
+                                                setFormData((prev) => ({
+                                                    ...prev,
+                                                    allDatasets: e.target.checked,
+                                                    datasetAccess: [],
+                                                }))
+                                            }
+                                            className="w-4 h-4 text-blue-600 rounded border-gray-300 focus:ring-blue-500"
+                                        />
+                                        <span className="text-sm text-gray-700">All datasets</span>
+                                    </label>
                                 </div>
 
-                                <DatasetPermissionSelector
-                                    datasets={datasets}
-                                    selectedDatasets={formData.datasetAccess}
-                                    onChange={(selected) =>
-                                        setFormData((prev) => ({
-                                            ...prev,
-                                            datasetAccess: selected,
-                                        }))
-                                    }
-                                />
+                                {!formData.allDatasets && (
+                                    <DatasetPermissionSelector
+                                        datasets={datasets}
+                                        selectedDatasets={formData.datasetAccess}
+                                        onChange={(selected) =>
+                                            setFormData((prev) => ({
+                                                ...prev,
+                                                datasetAccess: selected,
+                                            }))
+                                        }
+                                    />
+                                )}
+
+                                {formData.allDatasets && (
+                                    <div className="py-6 text-center text-sm text-blue-600 bg-blue-50 rounded-lg border border-blue-100">
+                                        ✓ Users with this role have access to all datasets
+                                    </div>
+                                )}
                             </div>
                         </div>
                     </div>
