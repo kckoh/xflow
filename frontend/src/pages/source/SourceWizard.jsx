@@ -476,7 +476,7 @@ export default function SourceWizard() {
       // API call to create/update source dataset
       const url = isEditMode
         ? `${API_BASE_URL}/api/source-datasets/${config.id}`
-        : `${API_BASE_URL}/api/source-datasets`;
+        : `${API_BASE_URL}/api/source-datasets${sessionId ? `?session_id=${sessionId}` : ''}`;
 
       console.log("Sending data:", sourceData);
       console.log("URL:", url);

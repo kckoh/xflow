@@ -144,7 +144,7 @@ print(f"[STARTUP] datasets.py loaded - AIRFLOW_DAG_ID={AIRFLOW_DAG_ID}")
 
 
 @router.post("", response_model=DatasetResponse, status_code=status.HTTP_201_CREATED)
-async def create_dataset(dataset: DatasetCreate):
+async def create_dataset(dataset: DatasetCreate, session_id: Optional[str] = None):
     """Create a new Dataset configuration"""
     # Check if dataset name exists
     existing_dataset = await Dataset.find_one(Dataset.name == dataset.name)
@@ -254,6 +254,42 @@ async def create_dataset(dataset: DatasetCreate):
 
     # Sync to ETLJob (Lineage)
     await sync_pipeline_to_etljob(new_dataset)
+    
+    # Auto-grant permission: Add dataset to creator's roles
+    if session_id and session_id in sessions:
+        user_session = sessions[session_id]
+        user_id = user_session.get("user_id")
+        role_ids = user_session.get("role_ids", [])
+        
+        # Add dataset to all user's roles
+        if role_ids:
+            from models import User
+            try:
+                # Update all roles to include this dataset
+                for role_id in role_ids:
+                    role = await Role.get(PydanticObjectId(role_id))
+                    if role:
+                        dataset_id_str = str(new_dataset.id)
+                        if dataset_id_str not in role.dataset_access:
+                            role.dataset_access.append(dataset_id_str)
+                            await role.save()
+                            print(f"✅ Auto-granted dataset {new_dataset.name} to role {role.name}")
+                
+                # Update session's dataset_access cache
+                if user_id:
+                    user = await User.get(PydanticObjectId(user_id))
+                    if user:
+                        # Recalculate combined dataset access
+                        combined_dataset_access = set(user.dataset_access or [])
+                        for role_id in user.role_ids:
+                            role = await Role.get(PydanticObjectId(role_id))
+                            if role:
+                                combined_dataset_access.update(role.dataset_access or [])
+                        user_session["dataset_access"] = list(combined_dataset_access)
+                        
+            except Exception as e:
+                print(f"⚠️  Failed to auto-grant dataset permission: {e}")
+                # Don't fail the dataset creation if permission grant fails
 
     return DatasetResponse(
         id=str(new_dataset.id),

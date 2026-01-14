@@ -216,14 +216,18 @@ export default function TargetWizard() {
   useEffect(() => {
     const loadDatasets = async () => {
       try {
-        // Fetch source datasets
+        // Get session ID for permission filtering
+        const sessionId = sessionStorage.getItem('sessionId');
+        const sessionParam = sessionId ? `?session_id=${sessionId}` : '';
+
+        // Fetch source datasets with permission filtering
         const sourceResponse = await fetch(
-          `${API_BASE_URL}/api/source-datasets`
+          `${API_BASE_URL}/api/source-datasets${sessionParam}`
         );
         const sourceData = sourceResponse.ok ? await sourceResponse.json() : [];
 
-        // Fetch target datasets (catalog)
-        const targetResponse = await fetch(`${API_BASE_URL}/api/catalog`);
+        // Fetch target datasets (catalog) with permission filtering
+        const targetResponse = await fetch(`${API_BASE_URL}/api/catalog${sessionParam}`);
         const targetData = targetResponse.ok ? await targetResponse.json() : [];
 
         // Combine and normalize datasets
@@ -379,8 +383,7 @@ export default function TargetWizard() {
             );
             if (timestampColumn) {
               console.log(
-                `[Incremental Load] Selected timestamp column by priority: ${
-                  timestampColumn.name || timestampColumn.field
+                `[Incremental Load] Selected timestamp column by priority: ${timestampColumn.name || timestampColumn.field
                 }`
               );
               break;
@@ -526,19 +529,18 @@ export default function TargetWizard() {
 
             const incrementalConfig = timestampColumn
               ? {
-                  enabled: true,
-                  timestamp_column:
-                    timestampColumn.name || timestampColumn.field,
-                }
+                enabled: true,
+                timestamp_column:
+                  timestampColumn.name || timestampColumn.field,
+              }
               : {
-                  enabled: false,
-                  timestamp_column: null,
-                };
+                enabled: false,
+                timestamp_column: null,
+              };
 
             if (timestampColumn) {
               console.log(
-                `[Incremental Load] Auto-detected timestamp column: ${
-                  timestampColumn.name || timestampColumn.field
+                `[Incremental Load] Auto-detected timestamp column: ${timestampColumn.name || timestampColumn.field
                 } for catalog dataset ${dataset.name}`
               );
             } else {
@@ -794,7 +796,7 @@ export default function TargetWizard() {
 
       const url = isEditMode
         ? `${API_BASE_URL}/api/datasets/${editingDatasetId}`
-        : `${API_BASE_URL}/api/datasets`;
+        : `${API_BASE_URL}/api/datasets${sessionId ? `?session_id=${sessionId}` : ''}`;
 
       const response = await fetch(url, {
         method: isEditMode ? "PUT" : "POST",
@@ -806,7 +808,7 @@ export default function TargetWizard() {
         const errorData = await response.json().catch(() => ({}));
         throw new Error(
           errorData.detail ||
-            `Failed to save target dataset (${response.status})`
+          `Failed to save target dataset (${response.status})`
         );
       }
 
@@ -899,11 +901,10 @@ export default function TargetWizard() {
               <button
                 onClick={handleBack}
                 disabled={currentStep === 1}
-                className={`flex items-center gap-2 px-4 py-2 rounded-lg transition-colors ${
-                  currentStep === 1
-                    ? "text-gray-300 cursor-not-allowed"
-                    : "text-gray-600 hover:bg-gray-100"
-                }`}
+                className={`flex items-center gap-2 px-4 py-2 rounded-lg transition-colors ${currentStep === 1
+                  ? "text-gray-300 cursor-not-allowed"
+                  : "text-gray-600 hover:bg-gray-100"
+                  }`}
               >
                 <ArrowLeft className="w-4 h-4" />
                 Back
@@ -913,11 +914,10 @@ export default function TargetWizard() {
                 <button
                   onClick={handleNext}
                   disabled={!canProceed() || isLoading}
-                  className={`flex items-center gap-2 px-5 py-2 rounded-lg transition-colors ${
-                    canProceed() && !isLoading
-                      ? "bg-orange-600 text-white hover:bg-orange-700"
-                      : "bg-gray-200 text-gray-400 cursor-not-allowed"
-                  }`}
+                  className={`flex items-center gap-2 px-5 py-2 rounded-lg transition-colors ${canProceed() && !isLoading
+                    ? "bg-orange-600 text-white hover:bg-orange-700"
+                    : "bg-gray-200 text-gray-400 cursor-not-allowed"
+                    }`}
                 >
                   {isLoading ? (
                     <>
@@ -954,13 +954,12 @@ export default function TargetWizard() {
               >
                 <div className="flex flex-col items-center">
                   <div
-                    className={`w-10 h-10 rounded-full flex items-center justify-center transition-colors shrink-0 ${
-                      currentStep > step.id
-                        ? "bg-orange-500 text-white"
-                        : currentStep === step.id
+                    className={`w-10 h-10 rounded-full flex items-center justify-center transition-colors shrink-0 ${currentStep > step.id
+                      ? "bg-orange-500 text-white"
+                      : currentStep === step.id
                         ? "bg-orange-500 text-white"
                         : "bg-gray-200 text-gray-500"
-                    }`}
+                      }`}
                   >
                     {currentStep > step.id ? (
                       <Check className="w-5 h-5" />
@@ -969,18 +968,16 @@ export default function TargetWizard() {
                     )}
                   </div>
                   <span
-                    className={`mt-2 text-xs font-medium whitespace-nowrap ${
-                      currentStep >= step.id ? "text-gray-900" : "text-gray-500"
-                    }`}
+                    className={`mt-2 text-xs font-medium whitespace-nowrap ${currentStep >= step.id ? "text-gray-900" : "text-gray-500"
+                      }`}
                   >
                     {step.name}
                   </span>
                 </div>
                 {index < STEPS.length - 1 && (
                   <div
-                    className={`flex-1 h-1 mx-4 rounded self-center -mt-6 ${
-                      currentStep > step.id ? "bg-orange-500" : "bg-gray-200"
-                    }`}
+                    className={`flex-1 h-1 mx-4 rounded self-center -mt-6 ${currentStep > step.id ? "bg-orange-500" : "bg-gray-200"
+                      }`}
                   />
                 )}
               </div>
@@ -1019,11 +1016,10 @@ export default function TargetWizard() {
                           })
                         }
                         placeholder="Enter dataset name"
-                        className={`w-full px-4 py-2 border rounded-lg focus:outline-none focus:ring-2 ${
-                          isNameDuplicate
-                            ? "border-red-500 focus:ring-red-500"
-                            : "border-gray-300 focus:ring-orange-500"
-                        }`}
+                        className={`w-full px-4 py-2 border rounded-lg focus:outline-none focus:ring-2 ${isNameDuplicate
+                          ? "border-red-500 focus:ring-red-500"
+                          : "border-gray-300 focus:ring-orange-500"
+                          }`}
                       />
                     </div>
                     {config.name && (
@@ -1132,21 +1128,19 @@ export default function TargetWizard() {
                     <div className="flex items-center gap-1">
                       <button
                         onClick={() => setSourceTab("source")}
-                        className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-all ${
-                          sourceTab === "source"
-                            ? "bg-blue-600 text-white"
-                            : "bg-gray-100 text-gray-600 hover:bg-gray-200"
-                        }`}
+                        className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-all ${sourceTab === "source"
+                          ? "bg-blue-600 text-white"
+                          : "bg-gray-100 text-gray-600 hover:bg-gray-200"
+                          }`}
                       >
                         Source
                       </button>
                       <button
                         onClick={() => setSourceTab("target")}
-                        className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-all ${
-                          sourceTab === "target"
-                            ? "bg-orange-600 text-white"
-                            : "bg-gray-100 text-gray-600 hover:bg-gray-200"
-                        }`}
+                        className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-all ${sourceTab === "target"
+                          ? "bg-orange-600 text-white"
+                          : "bg-gray-100 text-gray-600 hover:bg-gray-200"
+                          }`}
                       >
                         Target
                       </button>
@@ -1208,27 +1202,25 @@ export default function TargetWizard() {
                                   setSelectedTargetIds((prev) =>
                                     prev.includes(dataset.id)
                                       ? prev.filter(
-                                          (item) => item !== dataset.id
-                                        )
+                                        (item) => item !== dataset.id
+                                      )
                                       : [...prev, dataset.id]
                                   );
                                 }
                               }}
-                              className={`cursor-pointer transition-colors ${
-                                isFocused
-                                  ? "bg-orange-50"
-                                  : isSelected
+                              className={`cursor-pointer transition-colors ${isFocused
+                                ? "bg-orange-50"
+                                : isSelected
                                   ? "bg-blue-50"
                                   : "hover:bg-gray-50"
-                              }`}
+                                }`}
                             >
                               <td className="px-3 py-2">
                                 <div
-                                  className={`w-4 h-4 rounded border flex items-center justify-center transition-colors ${
-                                    isSelected
-                                      ? "bg-orange-600 border-orange-600"
-                                      : "border-gray-300 bg-white hover:border-gray-400"
-                                  }`}
+                                  className={`w-4 h-4 rounded border flex items-center justify-center transition-colors ${isSelected
+                                    ? "bg-orange-600 border-orange-600"
+                                    : "border-gray-300 bg-white hover:border-gray-400"
+                                    }`}
                                 >
                                   {isSelected && (
                                     <Check className="w-2.5 h-2.5 text-white" />
@@ -1245,12 +1237,11 @@ export default function TargetWizard() {
                               </td>
                               <td className="px-3 py-2">
                                 <span
-                                  className={`inline-flex items-center px-1.5 py-0.5 rounded text-xs font-medium ${
-                                    dataset.status === "active" ||
+                                  className={`inline-flex items-center px-1.5 py-0.5 rounded text-xs font-medium ${dataset.status === "active" ||
                                     dataset.is_active
-                                      ? "bg-green-100 text-green-700"
-                                      : "bg-gray-100 text-gray-600"
-                                  }`}
+                                    ? "bg-green-100 text-green-700"
+                                    : "bg-gray-100 text-gray-600"
+                                    }`}
                                 >
                                   {dataset.status ||
                                     (dataset.is_active ? "Active" : "-")}
@@ -1276,11 +1267,11 @@ export default function TargetWizard() {
                     const matchesType = ds.datasetType === sourceTab;
                     return matchesSearch && matchesType;
                   }).length === 0 && (
-                    <div className="text-center py-12 text-gray-500">
-                      <Database className="w-10 h-10 mx-auto mb-3 text-gray-300" />
-                      <p className="text-sm">No datasets found</p>
-                    </div>
-                  )}
+                      <div className="text-center py-12 text-gray-500">
+                        <Database className="w-10 h-10 mx-auto mb-3 text-gray-300" />
+                        <p className="text-sm">No datasets found</p>
+                      </div>
+                    )}
                 </div>
 
                 {/* Footer */}
@@ -1297,21 +1288,19 @@ export default function TargetWizard() {
                 <div className="flex border-b border-gray-200">
                   <button
                     onClick={() => setDetailPanelTab("details")}
-                    className={`flex-1 px-4 py-3 text-sm font-medium transition-colors ${
-                      detailPanelTab === "details"
-                        ? "text-orange-600 border-b-2 border-orange-600 bg-orange-50"
-                        : "text-gray-600 hover:bg-gray-50"
-                    }`}
+                    className={`flex-1 px-4 py-3 text-sm font-medium transition-colors ${detailPanelTab === "details"
+                      ? "text-orange-600 border-b-2 border-orange-600 bg-orange-50"
+                      : "text-gray-600 hover:bg-gray-50"
+                      }`}
                   >
                     Details
                   </button>
                   <button
                     onClick={() => setDetailPanelTab("schema")}
-                    className={`flex-1 px-4 py-3 text-sm font-medium transition-colors ${
-                      detailPanelTab === "schema"
-                        ? "text-orange-600 border-b-2 border-orange-600 bg-orange-50"
-                        : "text-gray-600 hover:bg-gray-50"
-                    }`}
+                    className={`flex-1 px-4 py-3 text-sm font-medium transition-colors ${detailPanelTab === "schema"
+                      ? "text-orange-600 border-b-2 border-orange-600 bg-orange-50"
+                      : "text-gray-600 hover:bg-gray-50"
+                      }`}
                   >
                     Schema
                   </button>
@@ -1370,7 +1359,7 @@ export default function TargetWizard() {
                               Columns
                             </h4>
                             {focusedDataset.destination?.type === "s3" &&
-                            !focusedDataset.columns ? (
+                              !focusedDataset.columns ? (
                               <p className="text-sm text-gray-500 italic">
                                 Loading schema from S3...
                               </p>
@@ -1406,7 +1395,7 @@ export default function TargetWizard() {
                       <div>
                         {/* S3 Source - Show Regex Parsing Config */}
                         {focusedDataset.source_type === "s3" &&
-                        (!focusedDataset.format || focusedDataset.format === "log") ? (
+                          (!focusedDataset.format || focusedDataset.format === "log") ? (
                           <S3LogParsingConfig
                             sourceDatasetId={focusedDataset.id}
                             initialPattern={
@@ -1422,10 +1411,10 @@ export default function TargetWizard() {
                                 datasets.map((ds) =>
                                   ds.id === focusedDataset.id
                                     ? {
-                                        ...ds,
-                                        columns: fields,
-                                        extractedFromRegex: true,
-                                      }
+                                      ...ds,
+                                      columns: fields,
+                                      extractedFromRegex: true,
+                                    }
                                     : ds
                                 )
                               );
@@ -1433,10 +1422,10 @@ export default function TargetWizard() {
                               setFocusedDataset((prev) =>
                                 prev?.id === focusedDataset.id
                                   ? {
-                                      ...prev,
-                                      columns: fields,
-                                      extractedFromRegex: true,
-                                    }
+                                    ...prev,
+                                    columns: fields,
+                                    extractedFromRegex: true,
+                                  }
                                   : prev
                               );
                             }}
@@ -1482,7 +1471,7 @@ export default function TargetWizard() {
                               </span>
                             </div>
                             {focusedDataset.destination?.type === "s3" &&
-                            !focusedDataset.columns ? (
+                              !focusedDataset.columns ? (
                               <div className="text-center py-8 text-gray-500">
                                 <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-orange-600 mx-auto mb-3"></div>
                                 <p className="text-sm">
@@ -1552,8 +1541,8 @@ export default function TargetWizard() {
               <div className="flex-1">
                 {/* ================= S3 Log Source ================= */}
                 {sourceNodes[0]?.data?.customRegex &&
-                (sourceNodes[0]?.data?.sourceType === "s3" ||
-                  sourceNodes[0]?.data?.platform?.toLowerCase() === "s3") ? (
+                  (sourceNodes[0]?.data?.sourceType === "s3" ||
+                    sourceNodes[0]?.data?.platform?.toLowerCase() === "s3") ? (
                   <S3LogProcessEditor
                     sourceSchema={sourceNodes.flatMap(
                       (n) => n.data?.columns || []
@@ -1573,139 +1562,137 @@ export default function TargetWizard() {
                     onTestStatusChange={setIsTestPassed}
                   />
                 ) : /* ================= API Source ================= */
-                sourceNodes[0]?.data?.sourceType === "api" ? (
-                  sourceNodes[activeSourceTab]?.data?.columns?.length ? (
-                    <SchemaTransformEditor
-                      sourceSchema={
-                        sourceNodes[activeSourceTab].data?.columns || []
-                      }
-                      sourceName={
-                        sourceNodes[activeSourceTab].data?.name ||
-                        `Source ${activeSourceTab + 1}`
-                      }
-                      sourceId={sourceNodes[activeSourceTab].id}
-                      sourceDatasetId={
-                        sourceNodes[activeSourceTab].data?.sourceDatasetId ||
-                        sourceNodes[activeSourceTab].data?.catalogDatasetId
-                      }
-                      targetSchema={targetSchema}
-                      initialTargetSchema={initialTargetSchema}
-                      initialCustomSql={customSql}
-                      onSchemaChange={setTargetSchema}
-                      onTestStatusChange={setIsTestPassed}
-                      onSqlChange={setCustomSql}
-                      allSources={sourceNodes.map((node) => ({
-                        id: node.id,
-                        datasetId:
-                          node.data?.sourceDatasetId ||
-                          node.data?.catalogDatasetId,
-                        name: node.data?.name,
-                        schema: node.data?.columns || [],
-                      }))}
-                      sourceTabs={
-                        sourceNodes.length > 1 ? (
-                          <div className="flex gap-1 flex-wrap">
-                            {sourceNodes.map((source, idx) => (
-                              <button
-                                key={source.id}
-                                onClick={() => setActiveSourceTab(idx)}
-                                className={`px-3 py-1.5 text-xs font-medium rounded-md transition-colors flex items-center gap-1.5 ${
-                                  activeSourceTab === idx
+                  sourceNodes[0]?.data?.sourceType === "api" ? (
+                    sourceNodes[activeSourceTab]?.data?.columns?.length ? (
+                      <SchemaTransformEditor
+                        sourceSchema={
+                          sourceNodes[activeSourceTab].data?.columns || []
+                        }
+                        sourceName={
+                          sourceNodes[activeSourceTab].data?.name ||
+                          `Source ${activeSourceTab + 1}`
+                        }
+                        sourceId={sourceNodes[activeSourceTab].id}
+                        sourceDatasetId={
+                          sourceNodes[activeSourceTab].data?.sourceDatasetId ||
+                          sourceNodes[activeSourceTab].data?.catalogDatasetId
+                        }
+                        targetSchema={targetSchema}
+                        initialTargetSchema={initialTargetSchema}
+                        initialCustomSql={customSql}
+                        onSchemaChange={setTargetSchema}
+                        onTestStatusChange={setIsTestPassed}
+                        onSqlChange={setCustomSql}
+                        allSources={sourceNodes.map((node) => ({
+                          id: node.id,
+                          datasetId:
+                            node.data?.sourceDatasetId ||
+                            node.data?.catalogDatasetId,
+                          name: node.data?.name,
+                          schema: node.data?.columns || [],
+                        }))}
+                        sourceTabs={
+                          sourceNodes.length > 1 ? (
+                            <div className="flex gap-1 flex-wrap">
+                              {sourceNodes.map((source, idx) => (
+                                <button
+                                  key={source.id}
+                                  onClick={() => setActiveSourceTab(idx)}
+                                  className={`px-3 py-1.5 text-xs font-medium rounded-md transition-colors flex items-center gap-1.5 ${activeSourceTab === idx
                                     ? "bg-blue-100 text-blue-700 border border-blue-300"
                                     : "bg-slate-50 text-slate-600 border border-slate-200 hover:bg-slate-100"
-                                }`}
-                              >
-                                <div
-                                  className="w-1.5 h-1.5 rounded-full"
-                                  style={{
-                                    backgroundColor: [
-                                      "#3b82f6",
-                                      "#10b981",
-                                      "#f59e0b",
-                                      "#8b5cf6",
-                                    ][idx % 4],
-                                  }}
-                                />
-                                Source {idx + 1}: {source.data?.name}
-                              </button>
-                            ))}
-                          </div>
-                        ) : null
-                      }
-                    />
-                  ) : (
-                    <div className="flex items-center justify-center h-full">
-                      <div className="max-w-md text-center text-gray-500">
-                        <p className="text-sm">
-                          API schema가 아직 없습니다. Step 2에서
-                          Preview/Schema를 먼저 가져와주세요.
-                        </p>
+                                    }`}
+                                >
+                                  <div
+                                    className="w-1.5 h-1.5 rounded-full"
+                                    style={{
+                                      backgroundColor: [
+                                        "#3b82f6",
+                                        "#10b981",
+                                        "#f59e0b",
+                                        "#8b5cf6",
+                                      ][idx % 4],
+                                    }}
+                                  />
+                                  Source {idx + 1}: {source.data?.name}
+                                </button>
+                              ))}
+                            </div>
+                          ) : null
+                        }
+                      />
+                    ) : (
+                      <div className="flex items-center justify-center h-full">
+                        <div className="max-w-md text-center text-gray-500">
+                          <p className="text-sm">
+                            API schema가 아직 없습니다. Step 2에서
+                            Preview/Schema를 먼저 가져와주세요.
+                          </p>
+                        </div>
                       </div>
-                    </div>
-                  )
-                ) : (
-                  /* ================= RDB / Mongo / API (With Schema) Source ================= */
-                  sourceNodes[activeSourceTab] && (
-                    <SchemaTransformEditor
-                      sourceSchema={
-                        sourceNodes[activeSourceTab].data?.columns || []
-                      }
-                      sourceName={
-                        sourceNodes[activeSourceTab].data?.name ||
-                        `Source ${activeSourceTab + 1}`
-                      }
-                      sourceId={sourceNodes[activeSourceTab].id}
-                      sourceDatasetId={
-                        sourceNodes[activeSourceTab].data?.sourceDatasetId ||
-                        sourceNodes[activeSourceTab].data?.catalogDatasetId
-                      }
-                      targetSchema={targetSchema}
-                      initialTargetSchema={initialTargetSchema}
-                      initialCustomSql={customSql}
-                      onSchemaChange={setTargetSchema}
-                      onTestStatusChange={setIsTestPassed}
-                      onSqlChange={setCustomSql}
-                      allSources={sourceNodes.map((node) => ({
-                        id: node.id,
-                        datasetId:
-                          node.data?.sourceDatasetId ||
-                          node.data?.catalogDatasetId,
-                        name: node.data?.name,
-                        schema: node.data?.columns || [], // Add schema/columns
-                      }))}
-                      sourceTabs={
-                        sourceNodes.length > 1 ? (
-                          <div className="flex gap-1 flex-wrap">
-                            {sourceNodes.map((source, idx) => (
-                              <button
-                                key={source.id}
-                                onClick={() => setActiveSourceTab(idx)}
-                                className={`px-3 py-1.5 text-xs font-medium rounded-md transition-colors flex items-center gap-1.5 ${
-                                  activeSourceTab === idx
+                    )
+                  ) : (
+                    /* ================= RDB / Mongo / API (With Schema) Source ================= */
+                    sourceNodes[activeSourceTab] && (
+                      <SchemaTransformEditor
+                        sourceSchema={
+                          sourceNodes[activeSourceTab].data?.columns || []
+                        }
+                        sourceName={
+                          sourceNodes[activeSourceTab].data?.name ||
+                          `Source ${activeSourceTab + 1}`
+                        }
+                        sourceId={sourceNodes[activeSourceTab].id}
+                        sourceDatasetId={
+                          sourceNodes[activeSourceTab].data?.sourceDatasetId ||
+                          sourceNodes[activeSourceTab].data?.catalogDatasetId
+                        }
+                        targetSchema={targetSchema}
+                        initialTargetSchema={initialTargetSchema}
+                        initialCustomSql={customSql}
+                        onSchemaChange={setTargetSchema}
+                        onTestStatusChange={setIsTestPassed}
+                        onSqlChange={setCustomSql}
+                        allSources={sourceNodes.map((node) => ({
+                          id: node.id,
+                          datasetId:
+                            node.data?.sourceDatasetId ||
+                            node.data?.catalogDatasetId,
+                          name: node.data?.name,
+                          schema: node.data?.columns || [], // Add schema/columns
+                        }))}
+                        sourceTabs={
+                          sourceNodes.length > 1 ? (
+                            <div className="flex gap-1 flex-wrap">
+                              {sourceNodes.map((source, idx) => (
+                                <button
+                                  key={source.id}
+                                  onClick={() => setActiveSourceTab(idx)}
+                                  className={`px-3 py-1.5 text-xs font-medium rounded-md transition-colors flex items-center gap-1.5 ${activeSourceTab === idx
                                     ? "bg-blue-100 text-blue-700 border border-blue-300"
                                     : "bg-slate-50 text-slate-600 border border-slate-200 hover:bg-slate-100"
-                                }`}
-                              >
-                                <div
-                                  className="w-1.5 h-1.5 rounded-full"
-                                  style={{
-                                    backgroundColor: [
-                                      "#3b82f6",
-                                      "#10b981",
-                                      "#f59e0b",
-                                      "#8b5cf6",
-                                    ][idx % 4],
-                                  }}
-                                />
-                                Source {idx + 1}: {source.data?.name}
-                              </button>
-                            ))}
-                          </div>
-                        ) : null
-                      }
-                    />
-                  )
-                )}
+                                    }`}
+                                >
+                                  <div
+                                    className="w-1.5 h-1.5 rounded-full"
+                                    style={{
+                                      backgroundColor: [
+                                        "#3b82f6",
+                                        "#10b981",
+                                        "#f59e0b",
+                                        "#8b5cf6",
+                                      ][idx % 4],
+                                    }}
+                                  />
+                                  Source {idx + 1}: {source.data?.name}
+                                </button>
+                              ))}
+                            </div>
+                          ) : null
+                        }
+                      />
+                    )
+                  )}
               </div>
             </div>
           </div>
@@ -1976,11 +1963,10 @@ export default function TargetWizard() {
                           {targetSchema.map((col) => (
                             <label
                               key={col.name}
-                              className={`flex items-center gap-2 px-3 py-2 rounded-lg border cursor-pointer transition-colors ${
-                                partitionColumns.includes(col.name)
-                                  ? "bg-purple-50 border-purple-300"
-                                  : "bg-gray-50 border-gray-200 hover:border-gray-300"
-                              }`}
+                              className={`flex items-center gap-2 px-3 py-2 rounded-lg border cursor-pointer transition-colors ${partitionColumns.includes(col.name)
+                                ? "bg-purple-50 border-purple-300"
+                                : "bg-gray-50 border-gray-200 hover:border-gray-300"
+                                }`}
                             >
                               <input
                                 type="checkbox"
