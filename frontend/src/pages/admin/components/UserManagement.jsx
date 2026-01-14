@@ -1,35 +1,7 @@
 import { useState, useMemo, useEffect } from "react";
-import { Search, Edit2, Trash2, Check, X, Loader2, UserPlus } from "lucide-react";
+import { Search, Edit2, Trash2, Loader2, UserPlus } from "lucide-react";
 import { useAuth } from "../../../context/AuthContext";
 import { getUsers, deleteUser } from "../../../services/adminApi";
-
-function AccessBadge({ hasAccess }) {
-    return hasAccess ? (
-        <span className="inline-flex items-center gap-1 px-2 py-0.5 bg-green-100 text-green-700 text-xs rounded-full">
-            <Check className="w-3 h-3" />
-            Enabled
-        </span>
-    ) : (
-        <span className="inline-flex items-center gap-1 px-2 py-0.5 bg-gray-100 text-gray-500 text-xs rounded-full">
-            <X className="w-3 h-3" />
-            Disabled
-        </span>
-    );
-}
-
-function DatasetBadge({ datasetAccess, allDatasets }) {
-    if (allDatasets) {
-        return (
-            <span className="text-sm text-blue-600 font-medium">All Datasets</span>
-        );
-    }
-    if (!datasetAccess || datasetAccess.length === 0) {
-        return <span className="text-sm text-gray-400">None</span>;
-    }
-    return (
-        <span className="text-sm text-gray-600">{datasetAccess.length} dataset(s)</span>
-    );
-}
 
 export default function UserManagement({ onEditUser, onAddUser }) {
     const { sessionId } = useAuth();
@@ -135,15 +107,7 @@ export default function UserManagement({ onEditUser, onAddUser }) {
                             <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                                 Role
                             </th>
-                            <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                                ETL
-                            </th>
-                            <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                                Domain Edit
-                            </th>
-                            <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                                Datasets
-                            </th>
+
                             <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                                 Created
                             </th>
@@ -177,18 +141,7 @@ export default function UserManagement({ onEditUser, onAddUser }) {
                                         <span className="text-sm text-gray-400">-</span>
                                     )}
                                 </td>
-                                <td className="px-4 py-3">
-                                    <AccessBadge hasAccess={user.etl_access} />
-                                </td>
-                                <td className="px-4 py-3">
-                                    <AccessBadge hasAccess={user.domain_edit_access} />
-                                </td>
-                                <td className="px-4 py-3">
-                                    <DatasetBadge
-                                        datasetAccess={user.dataset_access}
-                                        allDatasets={user.all_datasets}
-                                    />
-                                </td>
+
                                 <td className="px-4 py-3">
                                     <span className="text-sm text-gray-500">
                                         {user.created_at ? new Date(user.created_at).toLocaleDateString() : "-"}
