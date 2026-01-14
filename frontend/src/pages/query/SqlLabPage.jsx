@@ -2,7 +2,7 @@ import { useState, useEffect } from "react";
 import { useNavigate, useLocation } from "react-router-dom";
 import { Play, Loader2, XCircle, Download, BarChart3, Database } from "lucide-react";
 import { executeQuery as runDuckDBQuery } from "../../services/apiDuckDB";
-import { executeQuery as runTrinoQuery } from "../../services/apiTrino";
+import { executeQuery as runTrinoQuery, executeQueryPaginated as runTrinoQueryPaginated } from "../../services/apiTrino";
 import { useToast } from "../../components/common/Toast";
 import TableColumnSidebar from "./components/TableColumnSidebar";
 import QueryExplorer from "./components/QueryExplorer";
@@ -128,17 +128,7 @@ export default function SqlLabPage() {
                 // Trino: Use pagination API or direct limit
                 if (queryLimit === 'All') {
                     // ALL: Use pagination (1000 rows at a time)
-                    const response = await fetch(`/api/trino/query-paginated?page=${page}&page_size=1000`, {
-                        method: 'POST',
-                        headers: { 'Content-Type': 'application/json' },
-                        body: JSON.stringify({ sql: finalQuery })
-                    });
-                    const result = await response.json();
-
-                    if (!response.ok) {
-                        throw new Error(result.detail || 'Query failed');
-                    }
-
+                    const result = await runTrinoQueryPaginated(finalQuery, page, 1000);
                     const columns = result.data.length > 0 ? Object.keys(result.data[0]) : [];
 
                     if (page === 1) {
