@@ -34,6 +34,7 @@ from routers import (
     job_runs,
     logs,
     metadata,
+    mviews,
     opensearch,
     s3_logs_preview,
     source_datasets,
@@ -122,6 +123,9 @@ app.include_router(duckdb.router, prefix="/api/duckdb", tags=["duckdb"])
 
 # Trino Query Engine
 app.include_router(trino.router, prefix="/api/trino", tags=["trino"])
+
+# Materialized Views
+app.include_router(mviews.router, prefix="/api/mviews", tags=["mviews"])
 
 # SQL Test (DuckDB-based query testing)
 app.include_router(sql_test.router, prefix="/api/sql", tags=["sql-test"])

@@ -22,14 +22,27 @@ def get_trino_connection(catalog: str = None, schema: str = None):
     return conn
 
 
-def execute_query(sql: str, catalog: str = None, schema: str = None) -> list[dict]:
-    """SQL 쿼리 실행 후 결과 반환"""
+def execute_query(sql: str, catalog: str = None, schema: str = None, limit: int = None) -> list[dict]:
+    """
+    SQL 쿼리 실행 후 결과 반환
+
+    Args:
+        sql: SQL 쿼리
+        catalog: Trino 카탈로그
+        schema: Trino 스키마
+        limit: 최대 반환 행 수 (None이면 모두 반환, 큰 데이터는 위험!)
+    """
     conn = get_trino_connection(catalog, schema)
     cursor = conn.cursor()
     cursor.execute(sql)
 
     columns = [desc[0] for desc in cursor.description]
-    rows = cursor.fetchall()
+
+    # limit 지정 시 fetchmany 사용
+    if limit:
+        rows = cursor.fetchmany(limit)
+    else:
+        rows = cursor.fetchall()
 
     # Convert rows to list of dicts
     data = []
@@ -42,6 +55,59 @@ def execute_query(sql: str, catalog: str = None, schema: str = None) -> list[dic
     cursor.close()
     conn.close()
     return data
+
+
+def execute_query_paginated(sql: str, catalog: str = None, schema: str = None, page: int = 1, page_size: int = 1000):
+    """
+    페이지네이션된 쿼리 실행
+
+    Args:
+        sql: SQL 쿼리
+        catalog: Trino 카탈로그
+        schema: Trino 스키마
+        page: 페이지 번호 (1부터 시작)
+        page_size: 페이지당 행 수
+
+    Returns:
+        dict: {data, page, page_size, has_more}
+    """
+    conn = get_trino_connection(catalog, schema)
+    cursor = conn.cursor()
+
+    # OFFSET/LIMIT 추가 (이미 있으면 무시)
+    if "LIMIT" not in sql.upper():
+        offset = (page - 1) * page_size
+        paginated_sql = f"{sql.rstrip(';')} OFFSET {offset} LIMIT {page_size + 1}"
+    else:
+        paginated_sql = sql
+
+    cursor.execute(paginated_sql)
+    columns = [desc[0] for desc in cursor.description]
+    rows = cursor.fetchall()
+
+    # page_size + 1개를 가져와서 다음 페이지 존재 여부 확인
+    has_more = len(rows) > page_size
+    if has_more:
+        rows = rows[:page_size]
+
+    # Convert to dict
+    data = []
+    for row in rows:
+        row_dict = {}
+        for col, val in zip(columns, row):
+            row_dict[col] = val
+        data.append(row_dict)
+
+    cursor.close()
+    conn.close()
+
+    return {
+        "data": data,
+        "page": page,
+        "page_size": page_size,
+        "row_count": len(data),
+        "has_more": has_more
+    }
 
 
 def get_catalogs() -> list[str]:
