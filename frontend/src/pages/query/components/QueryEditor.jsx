@@ -25,9 +25,12 @@ export default function QueryEditor({ selectedTable, viewMode }) {
     const [queryStatus, setQueryStatus] = useState(null);
     const [results, setResults] = useState(null);
     const [error, setError] = useState(null);
+    const [currentPage, setCurrentPage] = useState(1);
+    const [hasMore, setHasMore] = useState(false);
+    const [loadingMore, setLoadingMore] = useState(false);
     const { showToast } = useToast();
 
-    const executeQuery = async () => {
+    const executeQuery = async (page = 1) => {
         if (!query.trim()) {
             setError("Please enter a query");
             return;
@@ -36,33 +39,78 @@ export default function QueryEditor({ selectedTable, viewMode }) {
         setExecuting(true);
         setError(null);
         setQueryStatus("RUNNING");
+        setCurrentPage(page);
 
         try {
-            // LIMIT 없으면 기본 30 추가
             let finalQuery = query.trim();
-            if (!/\bLIMIT\b/i.test(finalQuery)) {
-                finalQuery = `${finalQuery.replace(/;$/, "")} LIMIT 30`;
-            }
-
             let response;
-            if (queryEngine === "trino") {
-                response = await runTrinoQuery(finalQuery);
-            } else {
-                response = await runDuckDBQuery(finalQuery);
-            }
 
-            const columns = response.data.length > 0 ? Object.keys(response.data[0]) : [];
-            setResults({
-                data: response.data,
-                columns,
-                row_count: response.row_count,
-            });
-            setQueryStatus("SUCCEEDED");
+            if (queryEngine === "trino") {
+                // Trino: 페이지네이션 API 사용
+                response = await fetch(`/api/trino/query-paginated?page=${page}&page_size=1000`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ sql: finalQuery })
+                });
+                const result = await response.json();
+
+                if (!response.ok) {
+                    throw new Error(result.detail || 'Query failed');
+                }
+
+                const columns = result.data.length > 0 ? Object.keys(result.data[0]) : [];
+
+                // 첫 페이지면 새로운 결과, 아니면 추가
+                if (page === 1) {
+                    setResults({
+                        data: result.data,
+                        columns,
+                        row_count: result.row_count,
+                    });
+                } else {
+                    setResults(prev => ({
+                        ...prev,
+                        data: [...prev.data, ...result.data],
+                        row_count: prev.row_count + result.row_count,
+                    }));
+                }
+
+                setHasMore(result.has_more);
+                setQueryStatus("SUCCEEDED");
+            } else {
+                // DuckDB: 기존 방식
+                if (!/\bLIMIT\b/i.test(finalQuery)) {
+                    finalQuery = `${finalQuery.replace(/;$/, "")} LIMIT 30`;
+                }
+                response = await runDuckDBQuery(finalQuery);
+
+                const columns = response.data.length > 0 ? Object.keys(response.data[0]) : [];
+                setResults({
+                    data: response.data,
+                    columns,
+                    row_count: response.row_count,
+                });
+                setHasMore(false);
+                setQueryStatus("SUCCEEDED");
+            }
         } catch (err) {
             setError(err.message);
             setQueryStatus("FAILED");
         } finally {
             setExecuting(false);
+        }
+    };
+
+    const loadMoreResults = async () => {
+        if (!hasMore || loadingMore) return;
+
+        setLoadingMore(true);
+        try {
+            await executeQuery(currentPage + 1);
+        } catch (err) {
+            setError(err.message);
+        } finally {
+            setLoadingMore(false);
         }
     };
 
@@ -243,44 +291,72 @@ export default function QueryEditor({ selectedTable, viewMode }) {
 
                         {/* Table View */}
                         {viewMode === 'table' && (
-                            <div className="overflow-auto border border-gray-200 rounded-lg">
-                                <table className="w-full text-sm">
-                                    <thead className="bg-gray-50 border-b border-gray-200">
-                                        <tr>
-                                            {results.columns.map((column) => (
-                                                <th
-                                                    key={column}
-                                                    className="px-4 py-3 text-left font-medium text-gray-700"
-                                                >
-                                                    {column}
-                                                </th>
-                                            ))}
-                                        </tr>
-                                    </thead>
-                                    <tbody className="divide-y divide-gray-200">
-                                        {results.data.map((row, rowIndex) => (
-                                            <tr
-                                                key={rowIndex}
-                                                className="hover:bg-gray-50 transition-colors"
-                                            >
+                            <>
+                                <div className="overflow-auto border border-gray-200 rounded-lg">
+                                    <table className="w-full text-sm">
+                                        <thead className="bg-gray-50 border-b border-gray-200">
+                                            <tr>
                                                 {results.columns.map((column) => (
-                                                    <td
+                                                    <th
                                                         key={column}
-                                                        className="px-4 py-3 text-gray-900"
+                                                        className="px-4 py-3 text-left font-medium text-gray-700"
                                                     >
-                                                        {(() => {
-                                                            const value = row[column];
-                                                            if (value === null || value === undefined) return "-";
-                                                            if (typeof value === "object") return JSON.stringify(value);
-                                                            return String(value);
-                                                        })()}
-                                                    </td>
+                                                        {column}
+                                                    </th>
                                                 ))}
                                             </tr>
-                                        ))}
-                                    </tbody>
-                                </table>
-                            </div>
+                                        </thead>
+                                        <tbody className="divide-y divide-gray-200">
+                                            {results.data.map((row, rowIndex) => (
+                                                <tr
+                                                    key={rowIndex}
+                                                    className="hover:bg-gray-50 transition-colors"
+                                                >
+                                                    {results.columns.map((column) => (
+                                                        <td
+                                                            key={column}
+                                                            className="px-4 py-3 text-gray-900"
+                                                        >
+                                                            {(() => {
+                                                                const value = row[column];
+                                                                if (value === null || value === undefined) return "-";
+                                                                if (typeof value === "object") return JSON.stringify(value);
+                                                                return String(value);
+                                                            })()}
+                                                        </td>
+                                                    ))}
+                                                </tr>
+                                            ))}
+                                        </tbody>
+                                    </table>
+                                </div>
+
+                                {/* Load More Button */}
+                                {hasMore && queryEngine === "trino" && (
+                                    <div className="mt-4 flex justify-center">
+                                        <button
+                                            onClick={loadMoreResults}
+                                            disabled={loadingMore}
+                                            className={`flex items-center gap-2 px-6 py-3 rounded-lg font-medium transition-colors ${
+                                                loadingMore
+                                                    ? "bg-gray-100 text-gray-400 cursor-not-allowed"
+                                                    : "bg-blue-600 text-white hover:bg-blue-700"
+                                            }`}
+                                        >
+                                            {loadingMore ? (
+                                                <>
+                                                    <Loader2 className="w-4 h-4 animate-spin" />
+                                                    Loading...
+                                                </>
+                                            ) : (
+                                                <>
+                                                    Load More (1000 rows)
+                                                </>
+                                            )}
+                                        </button>
+                                    </div>
+                                )}
+                            </>
                         )}
 
                         {/* Chart View */}
