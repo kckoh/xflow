@@ -30,8 +30,12 @@ export default function CatalogPage() {
   const fetchCatalog = async () => {
     setIsLoading(true);
     try {
+      // Get session ID for permission filtering
+      const sessionId = sessionStorage.getItem('sessionId');
+      const sessionParam = sessionId ? `?session_id=${sessionId}` : '';
+
       // Fetch from catalog API which includes size_bytes, row_count, format
-      const response = await fetch(`${API_BASE_URL}/api/catalog`);
+      const response = await fetch(`${API_BASE_URL}/api/catalog${sessionParam}`);
       if (response.ok) {
         const data = await response.json();
         // Sort by updated_at descending (newest first)
