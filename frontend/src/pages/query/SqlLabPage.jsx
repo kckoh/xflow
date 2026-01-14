@@ -47,6 +47,11 @@ export default function SqlLabPage() {
     // Query limit state
     const [queryLimit, setQueryLimit] = useState(30);
 
+    // Pagination state
+    const [currentPage, setCurrentPage] = useState(1);
+    const [hasMore, setHasMore] = useState(false);
+    const [loadingMore, setLoadingMore] = useState(false);
+
     // Load query and results from multiple sources (priority order)
     useEffect(() => {
         // 1. From navigation state (Edit Query button)
@@ -103,42 +108,97 @@ export default function SqlLabPage() {
         sessionStorage.setItem(ENGINE_STORAGE_KEY, engine);
     }, [engine]);
 
-    const executeQuery = async () => {
+    const executeQuery = async (page = 1) => {
         if (!query.trim()) {
             setError("Please enter a query");
             return;
         }
 
-        setExecuting(true);
-        setError(null);
+        const isInitialQuery = page === 1;
+        if (isInitialQuery) {
+            setExecuting(true);
+            setError(null);
+            setCurrentPage(1);
+        }
 
         try {
             let finalQuery = query.trim();
 
-            // Apply selected limit if not specified in query
-            if (!/\bLIMIT\b/i.test(finalQuery)) {
-                const limitValue = queryLimit === 'All' ? 1000000 : queryLimit;
-                finalQuery = `${finalQuery.replace(/;$/, "")} LIMIT ${limitValue}`;
-            }
+            if (engine === 'trino') {
+                // Trino: Use pagination API
+                const response = await fetch(`/api/trino/query-paginated?page=${page}&page_size=1000`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ sql: finalQuery })
+                });
+                const result = await response.json();
 
-            // Execute query based on selected engine
-            const response = engine === 'trino'
-                ? await runTrinoQuery(finalQuery)
-                : await runDuckDBQuery(finalQuery);
-            const columns = response.data.length > 0 ? Object.keys(response.data[0]) : [];
-            const wasLimited = !/\\bLIMIT\\b/i.test(query.trim());
-            setResults({
-                data: response.data,
-                columns,
-                row_count: response.row_count,
-                was_limited: wasLimited,
-                applied_limit: wasLimited ? queryLimit : null,
-                query: finalQuery,
-            });
+                if (!response.ok) {
+                    throw new Error(result.detail || 'Query failed');
+                }
+
+                const columns = result.data.length > 0 ? Object.keys(result.data[0]) : [];
+
+                if (page === 1) {
+                    // First page - new results
+                    setResults({
+                        data: result.data,
+                        columns,
+                        row_count: result.row_count,
+                        was_limited: false,
+                        applied_limit: null,
+                        query: finalQuery,
+                    });
+                } else {
+                    // Additional pages - append
+                    setResults(prev => ({
+                        ...prev,
+                        data: [...prev.data, ...result.data],
+                        row_count: prev.row_count + result.row_count,
+                    }));
+                }
+
+                setHasMore(result.has_more);
+                setCurrentPage(page);
+            } else {
+                // DuckDB: Original way with limit
+                if (!/\bLIMIT\b/i.test(finalQuery)) {
+                    const limitValue = queryLimit === 'All' ? 1000000 : queryLimit;
+                    finalQuery = `${finalQuery.replace(/;$/, "")} LIMIT ${limitValue}`;
+                }
+
+                const response = await runDuckDBQuery(finalQuery);
+                const columns = response.data.length > 0 ? Object.keys(response.data[0]) : [];
+                const wasLimited = !/\bLIMIT\b/i.test(query.trim());
+                setResults({
+                    data: response.data,
+                    columns,
+                    row_count: response.row_count,
+                    was_limited: wasLimited,
+                    applied_limit: wasLimited ? queryLimit : null,
+                    query: finalQuery,
+                });
+                setHasMore(false);
+            }
         } catch (err) {
             setError(err.message);
         } finally {
-            setExecuting(false);
+            if (isInitialQuery) {
+                setExecuting(false);
+            }
+        }
+    };
+
+    const loadMoreResults = async () => {
+        if (!hasMore || loadingMore) return;
+
+        setLoadingMore(true);
+        try {
+            await executeQuery(currentPage + 1);
+        } catch (err) {
+            setError(err.message);
+        } finally {
+            setLoadingMore(false);
         }
     };
 
@@ -400,6 +460,32 @@ export default function SqlLabPage() {
                                         </tbody>
                                     </table>
                                 </div>
+
+                                {/* Load More Button - Only for Trino */}
+                                {hasMore && engine === 'trino' && (
+                                    <div className="mt-4 flex justify-center shrink-0">
+                                        <button
+                                            onClick={loadMoreResults}
+                                            disabled={loadingMore}
+                                            className={`flex items-center gap-2 px-6 py-3 rounded-lg font-medium transition-colors ${
+                                                loadingMore
+                                                    ? "bg-gray-100 text-gray-400 cursor-not-allowed"
+                                                    : "bg-blue-600 text-white hover:bg-blue-700"
+                                            }`}
+                                        >
+                                            {loadingMore ? (
+                                                <>
+                                                    <Loader2 className="w-4 h-4 animate-spin" />
+                                                    Loading more...
+                                                </>
+                                            ) : (
+                                                <>
+                                                    Load More (1000 rows)
+                                                </>
+                                            )}
+                                        </button>
+                                    </div>
+                                )}
                             </div>
                         )
                     ) : (
