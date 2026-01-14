@@ -2,6 +2,39 @@ from pydantic import BaseModel, EmailStr
 from typing import List, Optional
 
 
+# Role schemas
+class RoleCreate(BaseModel):
+    """Schema for creating a new role"""
+    name: str
+    description: Optional[str] = None
+    dataset_etl_access: bool = False
+    query_ai_access: bool = False
+    dataset_access: List[str] = []
+
+
+class RoleUpdate(BaseModel):
+    """Schema for updating a role"""
+    name: Optional[str] = None
+    description: Optional[str] = None
+    dataset_etl_access: Optional[bool] = None
+    query_ai_access: Optional[bool] = None
+    dataset_access: Optional[List[str]] = None
+
+
+class RoleResponse(BaseModel):
+    """Schema for role response"""
+    id: str
+    name: str
+    description: Optional[str] = None
+    dataset_etl_access: bool = False
+    query_ai_access: bool = False
+    dataset_access: List[str] = []
+    created_at: Optional[str] = None
+
+    class Config:
+        from_attributes = True
+
+
 class UserCreate(BaseModel):
     email: str
     password: str
@@ -27,6 +60,7 @@ class UserCreateAdmin(BaseModel):
     password: str
     name: Optional[str] = None
     is_admin: bool = False
+    role_id: Optional[str] = None
     etl_access: bool = False
     domain_edit_access: bool = False
     dataset_access: List[str] = []
@@ -39,6 +73,7 @@ class UserUpdateAdmin(BaseModel):
     password: Optional[str] = None  # Optional - only update if provided
     name: Optional[str] = None
     is_admin: Optional[bool] = None
+    role_id: Optional[str] = None
     etl_access: Optional[bool] = None
     domain_edit_access: Optional[bool] = None
     dataset_access: Optional[List[str]] = None
@@ -51,6 +86,8 @@ class UserResponseAdmin(BaseModel):
     email: str
     name: Optional[str] = None
     is_admin: bool = False
+    role_id: Optional[str] = None
+    role_name: Optional[str] = None  # For display purposes
     etl_access: bool = False
     domain_edit_access: bool = False
     dataset_access: List[str] = []

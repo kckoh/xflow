@@ -5,6 +5,30 @@ from beanie import Document, Link
 from pydantic import BaseModel, Field
 
 
+class Role(Document):
+    """
+    Role document for MongoDB.
+    Defines a set of permissions that can be assigned to users.
+    """
+
+    name: str = Field(..., unique=True, index=True)
+    description: Optional[str] = None
+
+    # Permission fields
+    dataset_etl_access: bool = False  # Access to /dataset and /ETL Jobs
+    query_ai_access: bool = False  # Access to /query and AI button
+    dataset_access: List[str] = Field(default_factory=list)  # dataset IDs
+
+    created_at: datetime = Field(default_factory=datetime.utcnow)
+    updated_at: datetime = Field(default_factory=datetime.utcnow)
+
+    class Settings:
+        name = "roles"
+        indexes = [
+            "name",
+        ]
+
+
 class User(Document):
     """
     User document for MongoDB.
@@ -17,6 +41,7 @@ class User(Document):
 
     # Permission fields
     is_admin: bool = False
+    role_id: Optional[str] = None  # Reference to Role
     etl_access: bool = False
     domain_edit_access: bool = False
     dataset_access: List[str] = Field(default_factory=list)  # dataset IDs
