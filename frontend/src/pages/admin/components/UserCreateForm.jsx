@@ -1,11 +1,9 @@
-import { useState, useEffect, useMemo } from "react";
-import { Check, Search, X, ChevronLeft, ChevronRight, Database, Loader2 } from "lucide-react";
+import { useState, useEffect } from "react";
+import { Loader2 } from "lucide-react";
 import clsx from "clsx";
 import { useAuth } from "../../../context/AuthContext";
-import { createUser, updateUser, getDatasets } from "../../../services/adminApi";
-import { getDomains } from "../../domain/api/domainApi";
-
-const ITEMS_PER_PAGE = 6;
+import { createUser, updateUser, getDatasets, getRoles } from "../../../services/adminApi";
+import DatasetPermissionSelector from "./DatasetPermissionSelector";
 
 function Toggle({ checked, onChange, label, description }) {
     return (
@@ -51,13 +49,42 @@ function Toggle({ checked, onChange, label, description }) {
     );
 }
 
-function DatasetPermissionSelector({ datasets, selectedDatasets, onChange }) {
-    const [searchQuery, setSearchQuery] = useState("");
-    const [currentPage, setCurrentPage] = useState(1);
-    const [pinnedDataset, setPinnedDataset] = useState(null);
-    const [selectedDomain, setSelectedDomain] = useState("ALL"); // Domain filter state
-    const [domains, setDomains] = useState([]);
-    const [domainsLoading, setDomainsLoading] = useState(true);
+function RoleSelector({ roles, selectedRole, onChange }) {
+    return (
+        <select
+            value={selectedRole || ""}
+            onChange={(e) => onChange(e.target.value || null)}
+            className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+        >
+            <option value="">No Role</option>
+            {roles.map((role) => (
+                <option key={role.id} value={role.id}>
+                    {role.name}
+                </option>
+            ))}
+        </select>
+    );
+}
+
+export default function UserCreateForm({ editingUser, onUserCreated, onCancel }) {
+    const { sessionId } = useAuth();
+    const [formData, setFormData] = useState({
+        email: "",
+        password: "",
+        confirmPassword: "",
+        name: "",
+        roleId: null,
+        etlAccess: false,
+        datasetAccess: [], // array of dataset IDs
+        allDatasets: false,
+    });
+    const [errors, setErrors] = useState({});
+    const [successMessage, setSuccessMessage] = useState("");
+    const [isSubmitting, setIsSubmitting] = useState(false);
+    const [datasets, setDatasets] = useState([]);
+    const [datasetsLoading, setDatasetsLoading] = useState(true);
+    const [roles, setRoles] = useState([]);
+    const [rolesLoading, setRolesLoading] = useState(true);
 
     // Fetch domains on mount
     useEffect(() => {
