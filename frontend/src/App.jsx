@@ -68,7 +68,7 @@ function App() {
           <Route
             path="/dataset"
             element={
-              <ProtectedRoute>
+              <ProtectedRoute requireEtlAccess>
                 <MainLayout>
                   <ETLPage />
                 </MainLayout>
@@ -101,7 +101,7 @@ function App() {
           <Route
             path="/source"
             element={
-              <ProtectedRoute>
+              <ProtectedRoute requireEtlAccess>
                 <MainLayout>
                   <SourceWizard />
                 </MainLayout>
@@ -112,7 +112,7 @@ function App() {
           <Route
             path="/target"
             element={
-              <ProtectedRoute>
+              <ProtectedRoute requireEtlAccess>
                 <MainLayout>
                   <TargetWizard />
                 </MainLayout>
@@ -167,7 +167,7 @@ function App() {
           <Route
             path="/query"
             element={
-              <ProtectedRoute>
+              <ProtectedRoute requireQueryAccess>
                 <MainLayout fullWidth={true}>
                   <SqlLabPage />
                 </MainLayout>
@@ -178,7 +178,7 @@ function App() {
           <Route
             path="/query/explore"
             element={
-              <ProtectedRoute>
+              <ProtectedRoute requireQueryAccess>
                 <MainLayout fullWidth={true}>
                   <ExplorePage />
                 </MainLayout>
@@ -222,7 +222,7 @@ function App() {
           <Route
             path="/etl/visual"
             element={
-              <ProtectedRoute>
+              <ProtectedRoute requireEtlAccess>
                 <MainLayout fullWidth={true}>
                   <ETLJobPage />
                 </MainLayout>
@@ -233,7 +233,7 @@ function App() {
           <Route
             path="/etl/job/:jobId"
             element={
-              <ProtectedRoute>
+              <ProtectedRoute requireEtlAccess>
                 <MainLayout fullWidth={true}>
                   <ETLJobPage />
                 </MainLayout>
@@ -244,7 +244,7 @@ function App() {
           <Route
             path="/etl/job/:jobId/runs"
             element={
-              <ProtectedRoute>
+              <ProtectedRoute requireEtlAccess>
                 <MainLayout fullWidth={true}>
                   <JobDetailPage />
                 </MainLayout>
@@ -255,7 +255,7 @@ function App() {
           <Route
             path="/sources"
             element={
-              <ProtectedRoute>
+              <ProtectedRoute requireEtlAccess>
                 <MainLayout>
                   <ConnectionListPage />
                 </MainLayout>
@@ -266,7 +266,7 @@ function App() {
           <Route
             path="/sources/new"
             element={
-              <ProtectedRoute>
+              <ProtectedRoute requireEtlAccess>
                 <MainLayout>
                   <ConnectionCreatePage />
                 </MainLayout>
