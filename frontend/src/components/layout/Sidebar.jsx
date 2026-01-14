@@ -22,21 +22,35 @@ export function Sidebar({ isCollapsed, onToggle }) {
   const { logout, user } = useAuth();
 
   const allNavItems = [
-    { name: "Dataset", path: "/dataset", icon: Database },
-    { name: "ETL Jobs", path: "/etl", icon: List, requiresEtlAccess: true },
+    { name: "Dataset", path: "/dataset", icon: Database, requiresDatasetEtlAccess: true },
+    { name: "ETL Jobs", path: "/etl", icon: List, requiresDatasetEtlAccess: true },
     { name: "Catalog", path: "/catalog", icon: Activity },
-    { name: "Query", path: "/query", icon: Search },
+    { name: "Query", path: "/query", icon: Search, requiresQueryAiAccess: true },
     { name: "Admin", path: "/admin", icon: Wrench, adminOnly: true },
   ];
 
   // Filter items based on user permissions
   const navItems = allNavItems.filter((item) => {
+    // Admin can see everything
+    if (user?.is_admin === true) {
+      return true;
+    }
+
+    // Admin-only items
     if (item.adminOnly) {
-      return user?.is_admin === true;
+      return false;
     }
-    if (item.requiresEtlAccess) {
-      return user?.etl_access === true || user?.is_admin === true;
+
+    // Dataset/ETL access control - check both user-level and role-level permissions
+    if (item.requiresDatasetEtlAccess) {
+      return user?.etl_access === true || user?.role_dataset_etl_access === true;
     }
+
+    // Query/AI access control - check role-level permission
+    if (item.requiresQueryAiAccess) {
+      return user?.role_query_ai_access === true;
+    }
+
     return true;
   });
 
@@ -169,6 +183,9 @@ export function Topbar({ isCollapsed }) {
     ? user.name.split(" ").map(n => n[0]).join("").toUpperCase().slice(0, 2)
     : "??";
 
+  // Check if user has AI access - check role-level permission
+  const hasAiAccess = user?.is_admin || user?.role_query_ai_access === true;
+
   return (
     <div
       className={clsx(
@@ -180,7 +197,7 @@ export function Topbar({ isCollapsed }) {
       <CatalogSearch />
 
       {/* Right Actions */}
-      <div className="flex items-center space-x-4">
+
         <div className="flex items-center space-x-3">
           <div className="h-8 w-8 rounded-full bg-gradient-to-tr from-blue-500 to-purple-500 flex items-center justify-center text-white font-medium text-xs">
             {initials}
@@ -191,6 +208,5 @@ export function Topbar({ isCollapsed }) {
           </div>
         </div>
       </div>
-    </div>
   );
 }

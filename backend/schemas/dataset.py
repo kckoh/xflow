@@ -79,6 +79,7 @@ class DatasetResponse(DatasetCreate):
     id: str
     name: str
     description: Optional[str] = None
+    owner: Optional[str] = "system"
     # Multiple sources support (new)
     sources: Optional[List[dict]] = None
     # Legacy single source (backward compatibility)

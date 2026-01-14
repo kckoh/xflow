@@ -38,7 +38,13 @@ function Login() {
       }
 
       login(data.session_id, data.user);
-      navigate("/"); // Redirect to Dashboard
+
+      // Redirect based on permissions
+      if (data.user.is_admin || data.user.etl_access) {
+        navigate("/dataset");
+      } else {
+        navigate("/catalog");
+      }
     } catch (error) {
       console.error("Error:", error);
       alert("Login failed. Please try again.");
@@ -110,11 +116,10 @@ function Login() {
             <button
               type="submit"
               disabled={isSubmitting}
-              className={`w-full py-3 px-4 rounded-lg font-medium transition ${
-                isSubmitting
+              className={`w-full py-3 px-4 rounded-lg font-medium transition ${isSubmitting
                   ? "bg-gray-400 cursor-not-allowed"
                   : "bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700"
-              } text-white`}
+                } text-white`}
             >
               {isSubmitting ? "Signing in..." : "Sign In"}
             </button>

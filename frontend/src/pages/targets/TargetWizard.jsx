@@ -18,7 +18,9 @@ import {
   Sparkles,
 } from "lucide-react";
 import { useToast } from "../../components/common/Toast";
+import { useAuth } from "../../context/AuthContext";
 import { getSourceDataset } from "../domain/api/domainApi";
+import { getRoles, addDatasetToRoles } from "../../services/adminApi";
 import SchedulesPanel from "../../components/etl/SchedulesPanel";
 import SchemaTransformEditor from "../../components/etl/SchemaTransformEditor";
 import S3LogParsingConfig from "../../components/targets/S3LogParsingConfig";
@@ -41,6 +43,7 @@ export default function TargetWizard() {
   const navigate = useNavigate();
   const location = useLocation();
   const { showToast } = useToast();
+  const { sessionId, user } = useAuth();
   const [currentStep, setCurrentStep] = useState(1);
   const [isEditMode, setIsEditMode] = useState(false);
   const [editingDatasetId, setEditingDatasetId] = useState(null);
@@ -94,12 +97,46 @@ export default function TargetWizard() {
   const [jobType, setJobType] = useState("batch");
   const [schedules, setSchedules] = useState([]);
 
+  // Step 5: Permission
+  const [roles, setRoles] = useState([]);
+  const [selectedRoleIds, setSelectedRoleIds] = useState([]);
+  const [rolesLoading, setRolesLoading] = useState(false);
 
   // Destination settings
   const [partitionColumns, setPartitionColumns] = useState([]);
   const [showPartitionAI, setShowPartitionAI] = useState(false);
   const [isLoadingPartitionAI, setIsLoadingPartitionAI] = useState(false);
   const [destinationSubPath, setDestinationSubPath] = useState(""); // Path after bucket, e.g., "nyc-taxi/yellow"
+
+  // Fetch roles for Permission step
+  useEffect(() => {
+    const fetchRoles = async () => {
+      if (currentStep === 5 && sessionId) {
+        setRolesLoading(true);
+        try {
+          const allRoles = await getRoles(sessionId);
+          // Filter out user's own role and admin roles
+          const filteredRoles = allRoles.filter(
+            (role) => {
+              // Exclude user's own role (auto-granted)
+              if (role.id === user?.role_id) return false;
+              // Exclude admin and master roles (they have all access anyway)
+              const roleName = role.name?.toLowerCase();
+              if (roleName?.includes('admin') || roleName?.includes('master')) return false;
+              return true;
+            }
+          );
+          setRoles(filteredRoles);
+        } catch (err) {
+          console.error('Failed to fetch roles:', err);
+          showToast('Failed to load roles', 'error');
+        } finally {
+          setRolesLoading(false);
+        }
+      }
+    };
+    fetchRoles();
+  }, [currentStep, sessionId, user]);
 
   // Load existing job data in edit mode
   useEffect(() => {
@@ -190,14 +227,18 @@ export default function TargetWizard() {
   useEffect(() => {
     const loadDatasets = async () => {
       try {
-        // Fetch source datasets
+        // Get session ID for permission filtering
+        const sessionId = sessionStorage.getItem('sessionId');
+        const sessionParam = sessionId ? `?session_id=${sessionId}` : '';
+
+        // Fetch source datasets with permission filtering
         const sourceResponse = await fetch(
-          `${API_BASE_URL}/api/source-datasets`
+          `${API_BASE_URL}/api/source-datasets${sessionParam}`
         );
         const sourceData = sourceResponse.ok ? await sourceResponse.json() : [];
 
-        // Fetch target datasets (catalog)
-        const targetResponse = await fetch(`${API_BASE_URL}/api/catalog`);
+        // Fetch target datasets (catalog) with permission filtering
+        const targetResponse = await fetch(`${API_BASE_URL}/api/catalog${sessionParam}`);
         const targetData = targetResponse.ok ? await targetResponse.json() : [];
 
         // Combine and normalize datasets
@@ -766,7 +807,7 @@ export default function TargetWizard() {
 
       const url = isEditMode
         ? `${API_BASE_URL}/api/datasets/${editingDatasetId}`
-        : `${API_BASE_URL}/api/datasets`;
+        : `${API_BASE_URL}/api/datasets${sessionId ? `?session_id=${sessionId}` : ''}`;
 
       const response = await fetch(url, {
         method: isEditMode ? "PUT" : "POST",
@@ -780,6 +821,19 @@ export default function TargetWizard() {
           errorData.detail ||
           `Failed to save target dataset (${response.status})`
         );
+      }
+
+      const createdDataset = await response.json();
+
+      // Add dataset to selected roles (only for new datasets, not edits)
+      if (!isEditMode && selectedRoleIds.length > 0 && createdDataset.id) {
+        try {
+          await addDatasetToRoles(sessionId, createdDataset.id, selectedRoleIds);
+          console.log(`Dataset added to ${selectedRoleIds.length} role(s)`);
+        } catch (roleError) {
+          console.error("Failed to add dataset to roles:", roleError);
+          // Don't block dataset creation if role update fails
+        }
       }
 
       showToast(
@@ -1683,19 +1737,110 @@ export default function TargetWizard() {
         {currentStep === 5 && (
           <div className="flex-1 overflow-y-auto">
             <div className="max-w-4xl mx-auto px-6 py-8">
-              <h2 className="text-lg font-semibold text-gray-900 mb-6">
+              <h2 className="text-lg font-semibold text-gray-900 mb-2">
                 Permission
               </h2>
+              <p className="text-sm text-gray-500 mb-6">
+                Select which roles can access this dataset
+              </p>
 
               <div className="bg-white rounded-lg border border-gray-200 p-6">
-                <div className="flex items-center justify-center py-12">
-                  <div className="text-center">
-                    <Shield className="w-12 h-12 text-gray-300 mx-auto mb-4" />
-                    <h3 className="text-lg font-medium text-gray-900">
-                      Permission Settings
-                    </h3>
-                  </div>
+                <div className="mb-4">
+                  <h3 className="text-sm font-semibold text-gray-900 mb-1">
+                    Dataset Access
+                  </h3>
+                  <p className="text-xs text-gray-500">
+                    Users with selected roles will be able to view and query this dataset
+                  </p>
                 </div>
+
+                {rolesLoading ? (
+                  <div className="flex items-center justify-center py-8">
+                    <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
+                    <span className="ml-3 text-sm text-gray-500">Loading roles...</span>
+                  </div>
+                ) : (
+                  <div className="space-y-3">
+                    {/* User's own role - auto-selected and disabled */}
+                    {user?.role_id && (
+                      <div className="mb-4">
+                        <p className="text-xs font-medium text-gray-500 mb-2">Your Role (Auto-granted)</p>
+                        <div className="flex items-center p-3 border-2 border-green-200 bg-green-50 rounded-lg">
+                          <input
+                            type="checkbox"
+                            checked={true}
+                            disabled={true}
+                            className="w-4 h-4 text-green-600 border-gray-300 rounded focus:ring-green-500 opacity-60 cursor-not-allowed"
+                          />
+                          <div className="ml-3 flex-1">
+                            <div className="flex items-center gap-2">
+                              <span className="text-sm font-medium text-gray-900">
+                                {user.role_name || 'Your Role'}
+                              </span>
+                              <span className="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-green-100 text-green-800">
+                                Auto-granted
+                              </span>
+                            </div>
+                            <p className="text-xs text-gray-500 mt-0.5">
+                              You automatically have access to datasets you create
+                            </p>
+                          </div>
+                        </div>
+                      </div>
+                    )}
+
+                    {/* Other roles */}
+                    {roles.length === 0 ? (
+                      <div className="text-center py-8">
+                        <Shield className="w-12 h-12 text-gray-300 mx-auto mb-3" />
+                        <p className="text-sm text-gray-500">No other roles available</p>
+                      </div>
+                    ) : (
+                      <>
+                        <p className="text-xs font-medium text-gray-500 mb-2">Additional Roles</p>
+                        <div className="space-y-2">
+                          {roles.map((role) => (
+                            <label
+                              key={role.id}
+                              className="flex items-center p-3 border border-gray-200 rounded-lg hover:bg-gray-50 cursor-pointer transition-colors"
+                            >
+                              <input
+                                type="checkbox"
+                                checked={selectedRoleIds.includes(role.id)}
+                                onChange={(e) => {
+                                  if (e.target.checked) {
+                                    setSelectedRoleIds([...selectedRoleIds, role.id]);
+                                  } else {
+                                    setSelectedRoleIds(selectedRoleIds.filter((id) => id !== role.id));
+                                  }
+                                }}
+                                className="w-4 h-4 text-blue-600 border-gray-300 rounded focus:ring-blue-500"
+                              />
+                              <div className="ml-3 flex-1">
+                                <span className="text-sm font-medium text-gray-900">
+                                  {role.name}
+                                </span>
+                                {role.description && (
+                                  <p className="text-xs text-gray-500 mt-0.5">
+                                    {role.description}
+                                  </p>
+                                )}
+                              </div>
+                            </label>
+                          ))}
+                        </div>
+                      </>
+                    )}
+                  </div>
+                )}
+
+                {selectedRoleIds.length > 0 && (
+                  <div className="mt-4 p-3 bg-blue-50 rounded-lg border border-blue-100">
+                    <p className="text-xs text-blue-700">
+                      <strong>{selectedRoleIds.length}</strong> additional role(s) selected - Users with these roles will have access to this dataset
+                    </p>
+                  </div>
+                )}
               </div>
             </div>
           </div>
