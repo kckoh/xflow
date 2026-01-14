@@ -29,15 +29,21 @@ import sk from "../assets/person/sk.jpg";
 
 function LandingPage() {
     const navigate = useNavigate();
-    const { sessionId } = useAuth();
+    const { sessionId, user } = useAuth();
     const [activeStickySection, setActiveStickySection] = useState(0);
 
     // Redirect if already logged in
     useEffect(() => {
-        if (sessionId) {
-            navigate("/dataset");
+        if (sessionId && user) {
+            // If user has ETL access or is admin, go to dataset page
+            // Otherwise go to catalog page
+            if (user.is_admin || user.etl_access) {
+                navigate("/dataset");
+            } else {
+                navigate("/catalog");
+            }
         }
-    }, [sessionId, navigate]);
+    }, [sessionId, user, navigate]);
 
     // Scroll spy for sticky sections
     useEffect(() => {

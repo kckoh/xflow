@@ -1,6 +1,7 @@
 import { useState, useEffect, useCallback } from 'react';
 import openSearchAPI from '../services/opensearch';
 import { useToast } from '../components/common/Toast';
+import { useAuth } from '../context/AuthContext';
 
 /**
  * 디바운스된 Domain/ETL Job 검색 hook
@@ -14,6 +15,7 @@ export function useSearch(query, options = {}, delay = 300) {
   const [total, setTotal] = useState(0);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
+  const { sessionId } = useAuth(); // Get sessionId
 
   useEffect(() => {
     // 검색어가 비어있으면 결과 초기화
@@ -31,7 +33,7 @@ export function useSearch(query, options = {}, delay = 300) {
     // 디바운스 타이머
     const timer = setTimeout(async () => {
       try {
-        const data = await openSearchAPI.search(query, options);
+        const data = await openSearchAPI.search(query, { ...options, sessionId }); // Pass sessionId
         setResults(data.results || []);
         setTotal(data.total || 0);
       } catch (err) {
@@ -46,7 +48,7 @@ export function useSearch(query, options = {}, delay = 300) {
 
     // 클린업: 타이머 취소
     return () => clearTimeout(timer);
-  }, [query, JSON.stringify(options), delay]);
+  }, [query, JSON.stringify(options), delay, sessionId]); // Add sessionId to deps
 
   return { results, total, loading, error };
 }

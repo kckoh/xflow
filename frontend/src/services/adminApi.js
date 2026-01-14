@@ -85,6 +85,97 @@ export const deleteUser = async (sessionId, userId) => {
 };
 
 /**
+ * Get all roles (admin only)
+ * @param {string} sessionId
+ * @returns {Promise<Array>} List of roles
+ */
+export const getRoles = async (sessionId) => {
+    const response = await fetch(`${BASE_URL}/roles?session_id=${sessionId}`);
+    if (!response.ok) {
+        const error = await response.json();
+        throw new Error(error.detail || 'Failed to fetch roles');
+    }
+    return response.json();
+};
+
+/**
+ * Create a new role (admin only)
+ * @param {string} sessionId
+ * @param {Object} roleData - {name, description, dataset_etl_access, query_ai_access, dataset_access}
+ * @returns {Promise<Object>} Created role
+ */
+export const createRole = async (sessionId, roleData) => {
+    const response = await fetch(`${BASE_URL}/roles?session_id=${sessionId}`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(roleData),
+    });
+    if (!response.ok) {
+        const error = await response.json();
+        throw new Error(error.detail || 'Failed to create role');
+    }
+    return response.json();
+};
+
+/**
+ * Update a role (admin only)
+ * @param {string} sessionId
+ * @param {string} roleId
+ * @param {Object} roleData - {name, description, dataset_etl_access, query_ai_access, dataset_access}
+ * @returns {Promise<Object>} Updated role
+ */
+export const updateRole = async (sessionId, roleId, roleData) => {
+    const response = await fetch(`${BASE_URL}/roles/${roleId}?session_id=${sessionId}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(roleData),
+    });
+    if (!response.ok) {
+        const error = await response.json();
+        throw new Error(error.detail || 'Failed to update role');
+    }
+    return response.json();
+};
+
+/**
+ * Delete a role (admin only)
+ * @param {string} sessionId
+ * @param {string} roleId
+ */
+export const deleteRole = async (sessionId, roleId) => {
+    const response = await fetch(`${BASE_URL}/roles/${roleId}?session_id=${sessionId}`, {
+        method: 'DELETE',
+    });
+    if (!response.ok) {
+        const error = await response.json();
+        throw new Error(error.detail || 'Failed to delete role');
+    }
+    // 204 No Content
+    if (response.status === 204) return;
+    return response.json();
+};
+
+/**
+ * Add dataset to multiple roles (admin only)
+ * @param {string} sessionId
+ * @param {string} datasetId
+ * @param {Array<string>} roleIds
+ * @returns {Promise<Object>}
+ */
+export const addDatasetToRoles = async (sessionId, datasetId, roleIds) => {
+    const response = await fetch(`${BASE_URL}/roles/bulk-add-dataset?session_id=${sessionId}`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ dataset_id: datasetId, role_ids: roleIds }),
+    });
+    if (!response.ok) {
+        const error = await response.json();
+        throw new Error(error.detail || 'Failed to add dataset to roles');
+    }
+    return response.json();
+};
+
+/**
  * Get all datasets for permission selection
  * Uses same API as Dataset page (/api/datasets + /api/source-datasets)
  * @returns {Promise<Array>} List of datasets with target schemas
@@ -98,10 +189,14 @@ export const getDatasets = async () => {
 
     let allDatasets = [];
 
-    // Get ETL/Target datasets
+    // Get ETL/Target datasets and add dataset_type marker
     if (etlResponse.ok) {
         const etlData = await etlResponse.json();
-        allDatasets = [...etlData];
+        const markedTargets = etlData.map((target) => ({
+            ...target,
+            dataset_type: "target",
+        }));
+        allDatasets = [...markedTargets];
     } else {
         console.warn('Failed to fetch ETL datasets');
     }
@@ -170,7 +265,8 @@ export const getDatasets = async () => {
             name: dataset.name,
             description: dataset.description || '',
             schema: schema,
-            targetInfo: targetInfo
+            targetInfo: targetInfo,
+            dataset_type: dataset.dataset_type  // Add dataset_type for filtering
         };
     });
 };

@@ -1,34 +1,56 @@
 import { useState, useRef } from "react";
-import { Users, UserPlus, Wrench } from "lucide-react";
+import { Users, Shield, Wrench } from "lucide-react";
 import UserManagement from "./components/UserManagement";
 import UserCreateForm from "./components/UserCreateForm";
+import RoleManagement from "./components/RoleManagement";
+import RoleCreateForm from "./components/RoleCreateForm";
 import clsx from "clsx";
 
 const tabs = [
     { id: "users", label: "Users", icon: Users },
-    { id: "create", label: "Add User", icon: UserPlus },
+    { id: "roles", label: "Roles", icon: Shield },
 ];
 
 export default function AdminPage() {
     const [activeTab, setActiveTab] = useState("users");
     const [editingUser, setEditingUser] = useState(null);
+    const [editingRole, setEditingRole] = useState(null);
+    const [showUserForm, setShowUserForm] = useState(false);
+    const [showRoleForm, setShowRoleForm] = useState(false);
     const [refreshKey, setRefreshKey] = useState(0);
 
     const handleUserCreated = () => {
         // Trigger refresh of user list
         setRefreshKey((k) => k + 1);
         setEditingUser(null);
-        setActiveTab("users");
+        setShowUserForm(false);
     };
 
     const handleEditUser = (user) => {
         setEditingUser(user);
-        setActiveTab("create");
+        setShowUserForm(true);
     };
 
-    const handleCancelEdit = () => {
+    const handleCancelUserEdit = () => {
         setEditingUser(null);
-        setActiveTab("users");
+        setShowUserForm(false);
+    };
+
+    const handleRoleCreated = () => {
+        // Trigger refresh of role list
+        setRefreshKey((k) => k + 1);
+        setEditingRole(null);
+        setShowRoleForm(false);
+    };
+
+    const handleEditRole = (role) => {
+        setEditingRole(role);
+        setShowRoleForm(true);
+    };
+
+    const handleCancelRoleEdit = () => {
+        setEditingRole(null);
+        setShowRoleForm(false);
     };
 
     return (
@@ -54,9 +76,10 @@ export default function AdminPage() {
                                 key={tab.id}
                                 onClick={() => {
                                     setActiveTab(tab.id);
-                                    if (tab.id === "users") {
-                                        setEditingUser(null);
-                                    }
+                                    setShowUserForm(false);
+                                    setShowRoleForm(false);
+                                    setEditingUser(null);
+                                    setEditingRole(null);
                                 }}
                                 className={clsx(
                                     "py-3 text-sm font-medium border-b-2 transition-colors flex items-center gap-2",
@@ -67,7 +90,6 @@ export default function AdminPage() {
                             >
                                 <tab.icon className="w-4 h-4" />
                                 {tab.label}
-                                {tab.id === "create" && editingUser && " (Edit)"}
                             </button>
                         );
                     })}
@@ -76,17 +98,32 @@ export default function AdminPage() {
 
             {/* Tab Content */}
             <div className="p-6">
-                {activeTab === "users" && (
+                {activeTab === "users" && !showUserForm && (
                     <UserManagement
                         key={refreshKey}
                         onEditUser={handleEditUser}
+                        onAddUser={() => setShowUserForm(true)}
                     />
                 )}
-                {activeTab === "create" && (
+                {activeTab === "users" && showUserForm && (
                     <UserCreateForm
                         editingUser={editingUser}
                         onUserCreated={handleUserCreated}
-                        onCancel={editingUser ? handleCancelEdit : undefined}
+                        onCancel={handleCancelUserEdit}
+                    />
+                )}
+                {activeTab === "roles" && !showRoleForm && (
+                    <RoleManagement
+                        key={refreshKey}
+                        onEditRole={handleEditRole}
+                        onAddRole={() => setShowRoleForm(true)}
+                    />
+                )}
+                {activeTab === "roles" && showRoleForm && (
+                    <RoleCreateForm
+                        editingRole={editingRole}
+                        onRoleCreated={handleRoleCreated}
+                        onCancel={handleCancelRoleEdit}
                     />
                 )}
             </div>
