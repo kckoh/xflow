@@ -12,6 +12,7 @@ export default function DatasetPermissionSelector({ datasets, selectedDatasets, 
     const [selectedDomain, setSelectedDomain] = useState("ALL"); // Domain filter state
     const [domains, setDomains] = useState([]);
     const [domainsLoading, setDomainsLoading] = useState(true);
+    const [datasetTypeFilter, setDatasetTypeFilter] = useState("all"); // "all", "target", "source"
 
     // Fetch domains on mount
     useEffect(() => {
@@ -73,23 +74,42 @@ export default function DatasetPermissionSelector({ datasets, selectedDatasets, 
         return map;
     }, [datasets, domains]);
 
-    // Filter datasets by search query only (domain filtering removed)
+    // Filter datasets by type (all/target/source) and search query
     const filteredDatasets = useMemo(() => {
+        // First filter by dataset type
+        let filtered = datasets;
+        if (datasetTypeFilter === "target") {
+            filtered = datasets.filter(d => d.dataset_type === "target");
+        } else if (datasetTypeFilter === "source") {
+            filtered = datasets.filter((d) => d.dataset_type === "source");
+        }
+
+        // Then filter by search query
         if (!searchQuery.trim()) {
-            return datasets;
+            return filtered;
         }
 
         const query = searchQuery.toLowerCase();
-        return datasets.filter((d) =>
+        return filtered.filter((d) =>
             d.name.toLowerCase().includes(query) ||
             (d.description && d.description.toLowerCase().includes(query))
         );
-    }, [datasets, searchQuery]);
+    }, [datasets, searchQuery, datasetTypeFilter]);
 
-    // Reset to page 1 when search changes
+    // Reset to page 1 when search or dataset type filter changes
     useEffect(() => {
         setCurrentPage(1);
-    }, [searchQuery]);
+    }, [searchQuery, datasetTypeFilter]);
+
+    // Count datasets by type
+    const datasetCounts = useMemo(() => {
+        const counts = {
+            all: datasets.length,
+            target: datasets.filter(d => d.dataset_type === "target").length,
+            source: datasets.filter(d => d.dataset_type === "source").length,
+        };
+        return counts;
+    }, [datasets]);
 
     const totalPages = Math.ceil(filteredDatasets.length / ITEMS_PER_PAGE);
     const startIndex = (currentPage - 1) * ITEMS_PER_PAGE;
@@ -154,6 +174,70 @@ export default function DatasetPermissionSelector({ datasets, selectedDatasets, 
                 <div className="flex h-full">
                     {/* LEFT: Dataset List (70%) - Domain filter removed */}
                     <div className="w-[70%] border-r border-gray-200 flex flex-col">
+                        {/* Dataset Type Tabs */}
+                        <div className="flex border-b border-gray-200 bg-gray-50 flex-shrink-0">
+                            <button
+                                type="button"
+                                onClick={() => setDatasetTypeFilter("all")}
+                                className={clsx(
+                                    "flex-1 px-4 py-2.5 text-sm font-medium transition-colors flex items-center justify-center gap-2",
+                                    datasetTypeFilter === "all"
+                                        ? "text-blue-600 border-b-2 border-blue-600 bg-white"
+                                        : "text-gray-600 hover:text-gray-900 hover:bg-gray-100"
+                                )}
+                            >
+                                <span>All Datasets</span>
+                                <span className={clsx(
+                                    "text-xs px-1.5 py-0.5 rounded-full",
+                                    datasetTypeFilter === "all"
+                                        ? "bg-blue-100 text-blue-600"
+                                        : "bg-gray-200 text-gray-600"
+                                )}>
+                                    {datasetCounts.all}
+                                </span>
+                            </button>
+                            <button
+                                type="button"
+                                onClick={() => setDatasetTypeFilter("target")}
+                                className={clsx(
+                                    "flex-1 px-4 py-2.5 text-sm font-medium transition-colors flex items-center justify-center gap-2",
+                                    datasetTypeFilter === "target"
+                                        ? "text-blue-600 border-b-2 border-blue-600 bg-white"
+                                        : "text-gray-600 hover:text-gray-900 hover:bg-gray-100"
+                                )}
+                            >
+                                <span>Target</span>
+                                <span className={clsx(
+                                    "text-xs px-1.5 py-0.5 rounded-full",
+                                    datasetTypeFilter === "target"
+                                        ? "bg-blue-100 text-blue-600"
+                                        : "bg-gray-200 text-gray-600"
+                                )}>
+                                    {datasetCounts.target}
+                                </span>
+                            </button>
+                            <button
+                                type="button"
+                                onClick={() => setDatasetTypeFilter("source")}
+                                className={clsx(
+                                    "flex-1 px-4 py-2.5 text-sm font-medium transition-colors flex items-center justify-center gap-2",
+                                    datasetTypeFilter === "source"
+                                        ? "text-blue-600 border-b-2 border-blue-600 bg-white"
+                                        : "text-gray-600 hover:text-gray-900 hover:bg-gray-100"
+                                )}
+                            >
+                                <span>Source</span>
+                                <span className={clsx(
+                                    "text-xs px-1.5 py-0.5 rounded-full",
+                                    datasetTypeFilter === "source"
+                                        ? "bg-blue-100 text-blue-600"
+                                        : "bg-gray-200 text-gray-600"
+                                )}>
+                                    {datasetCounts.source}
+                                </span>
+                            </button>
+                        </div>
+
                         {/* Search */}
                         <div className="p-3 border-b border-gray-100 bg-gray-50 flex-shrink-0">
                             <div className="relative">
@@ -204,13 +288,23 @@ export default function DatasetPermissionSelector({ datasets, selectedDatasets, 
                                                     <Check className="w-3 h-3 text-white" />
                                                 )}
                                             </div>
-                                            <div className="flex-1 min-w-0">
+                                            <div className="flex-1 min-w-0 flex items-center gap-2">
                                                 <span className={clsx(
                                                     "text-sm font-medium block truncate",
                                                     isSelected ? "text-blue-900" : "text-gray-900"
                                                 )}>
                                                     {dataset.name}
                                                 </span>
+                                                {dataset.dataset_type && (
+                                                    <span className={clsx(
+                                                        "text-xs px-1.5 py-0.5 rounded font-medium flex-shrink-0",
+                                                        dataset.dataset_type === "target"
+                                                            ? "bg-purple-100 text-purple-700"
+                                                            : "bg-green-100 text-green-700"
+                                                    )}>
+                                                        {dataset.dataset_type === "target" ? "T" : "S"}
+                                                    </span>
+                                                )}
                                             </div>
                                             {isPinned && (
                                                 <ChevronRight className="w-4 h-4 text-blue-600" />

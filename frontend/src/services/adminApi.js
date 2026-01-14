@@ -189,10 +189,14 @@ export const getDatasets = async () => {
 
     let allDatasets = [];
 
-    // Get ETL/Target datasets
+    // Get ETL/Target datasets and add dataset_type marker
     if (etlResponse.ok) {
         const etlData = await etlResponse.json();
-        allDatasets = [...etlData];
+        const markedTargets = etlData.map((target) => ({
+            ...target,
+            dataset_type: "target",
+        }));
+        allDatasets = [...markedTargets];
     } else {
         console.warn('Failed to fetch ETL datasets');
     }
@@ -261,7 +265,8 @@ export const getDatasets = async () => {
             name: dataset.name,
             description: dataset.description || '',
             schema: schema,
-            targetInfo: targetInfo
+            targetInfo: targetInfo,
+            dataset_type: dataset.dataset_type  // Add dataset_type for filtering
         };
     });
 };
