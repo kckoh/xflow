@@ -15,6 +15,7 @@ import {
   Shield,
   X,
   Search,
+  Sparkles,
 } from "lucide-react";
 import { useToast } from "../../components/common/Toast";
 import { useAuth } from "../../context/AuthContext";
@@ -26,6 +27,7 @@ import S3LogParsingConfig from "../../components/targets/S3LogParsingConfig";
 import S3LogProcessEditor from "../../components/targets/S3LogProcessEditor";
 import APIPreview from "../../components/targets/APIPreview";
 import TimestampColumnWarning from "../../components/targets/TimestampColumnWarning";
+import { aiApi } from "../../services/aiApi";
 import { API_BASE_URL } from "../../config/api";
 
 const STEPS = [
@@ -102,6 +104,8 @@ export default function TargetWizard() {
 
   // Destination settings
   const [partitionColumns, setPartitionColumns] = useState([]);
+  const [showPartitionAI, setShowPartitionAI] = useState(false);
+  const [isLoadingPartitionAI, setIsLoadingPartitionAI] = useState(false);
   const [destinationSubPath, setDestinationSubPath] = useState(""); // Path after bucket, e.g., "nyc-taxi/yellow"
 
   // Fetch roles for Permission step
@@ -1987,15 +1991,92 @@ export default function TargetWizard() {
 
                 {/* Partition Settings */}
                 <div className="bg-white rounded-lg border border-gray-200 overflow-hidden">
-                  <div className="p-6 border-b border-gray-100 bg-gray-50/30">
-                    <h3 className="text-sm font-semibold text-gray-900 flex items-center gap-2">
-                      <Cog className="w-4 h-4 text-purple-500" />
-                      Partition Settings
-                    </h3>
-                    <p className="text-xs text-gray-500 mt-1">
-                      Select columns to partition the output data. Partitioning improves query performance for large datasets.
-                    </p>
+                  <div className="p-6 border-b border-gray-100 bg-gray-50/30 flex items-start justify-between">
+                    <div>
+                      <h3 className="text-sm font-semibold text-gray-900 flex items-center gap-2">
+                        <Cog className="w-4 h-4 text-purple-500" />
+                        Partition Settings
+                      </h3>
+                      <p className="text-xs text-gray-500 mt-1">
+                        Select columns to partition the output data. Partitioning improves query performance for large datasets.
+                      </p>
+                    </div>
+                    <button
+                      onClick={async () => {
+                        if (targetSchema.length === 0) {
+                          showToast('No columns available for partitioning', 'error');
+                          return;
+                        }
+
+                        setIsLoadingPartitionAI(true);
+                        try {
+                          const prompt = `I need to partition a dataset for optimal query performance.
+
+Available columns: ${targetSchema.map(col => `${col.name} (${col.type})`).join(', ')}
+
+Please recommend 1-3 columns for partitioning based on:
+1. Time-based columns (date, timestamp) are preferred
+2. Columns with moderate cardinality (10-1000 unique values)
+3. Columns commonly used in WHERE clauses
+4. Avoid high-cardinality columns (like IDs) and very low-cardinality columns (like booleans)
+
+Return ONLY the column names, comma-separated (e.g., "created_date, region, status").`;
+
+                          const response = await aiApi.generateSQL(prompt);
+
+
+                          // Parse AI suggestion and apply to partitionColumns
+                          const suggestion = response.sql || '';
+                          console.log('AI partition suggestion:', suggestion);
+                          console.log('Available columns:', targetSchema.map(col => col.name));
+
+                          // Extract column names - handle various formats
+                          let cleanedSuggestion = suggestion
+                            .replace(/SELECT|FROM|WHERE|;/gi, '')
+                            .replace(/["'`]/g, '')
+                            .trim();
+
+                          const columnNames = cleanedSuggestion
+                            .split(/[,\n]/)
+                            .map(name => name.trim())
+                            .filter(name => name.length > 0)
+                            .filter(name => targetSchema.some(col => col.name === name));
+
+                          if (columnNames.length > 0) {
+                            setPartitionColumns(columnNames);
+                            showToast(`AI recommended: ${columnNames.join(', ')}`, 'success');
+                          } else {
+                            showToast('AI could not recommend partition columns', 'error');
+                          }
+                        } catch (error) {
+                          console.error('AI partition recommendation failed:', error);
+                          showToast('Failed to get AI recommendation', 'error');
+                        } finally {
+                          setIsLoadingPartitionAI(false);
+                        }
+                      }}
+                      disabled={isLoadingPartitionAI || targetSchema.length === 0}
+                      className="flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs font-medium
+                          bg-gradient-to-r from-indigo-50 to-purple-50 text-indigo-600 
+                          hover:from-indigo-100 hover:to-purple-100 transition-all
+                          border border-indigo-200/50
+                          disabled:opacity-50 disabled:cursor-not-allowed"
+                      title="AI Partition Recommendation"
+                    >
+                      {isLoadingPartitionAI ? (
+                        <>
+                          <div className="animate-spin rounded-full h-3.5 w-3.5 border-b-2 border-indigo-600"></div>
+                          <span>Recommending...</span>
+                        </>
+                      ) : (
+                        <>
+                          <Sparkles size={14} />
+                          <span>AI Recommend</span>
+                        </>
+                      )}
+                    </button>
                   </div>
+
                   <div className="p-6">
                     {targetSchema.length > 0 ? (
                       <div className="space-y-2">

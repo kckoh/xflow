@@ -8,12 +8,10 @@ import {
   List,
   ChevronLeft,
   ChevronRight,
-  Sparkles,
   Activity,
   Wrench,
 } from "lucide-react";
 import { useAuth } from "../../context/AuthContext";
-import { useAICopilot } from "../../context/AICopilotContext";
 import clsx from "clsx";
 import { CatalogSearch } from "../opensearch";
 import logo from "../../assets/icon.png";
@@ -180,7 +178,6 @@ export function Sidebar({ isCollapsed, onToggle }) {
 
 export function Topbar({ isCollapsed }) {
   const { user } = useAuth();
-  const { togglePanel, isOpen } = useAICopilot();
 
   const initials = user?.name
     ? user.name.split(" ").map(n => n[0]).join("").toUpperCase().slice(0, 2)
@@ -200,24 +197,8 @@ export function Topbar({ isCollapsed }) {
       <CatalogSearch />
 
       {/* Right Actions */}
-      <div className="flex items-center space-x-4">
-        {/* AI Assistant Button - Only show if user has access */}
-        {hasAiAccess && (
-          <button
-            onClick={togglePanel}
-            className={clsx(
-              "flex items-center gap-2 px-3 py-1.5 rounded-lg text-sm font-medium transition-all",
-              isOpen
-                ? "bg-indigo-100 text-indigo-700"
-                : "bg-gradient-to-r from-indigo-50 to-purple-50 text-indigo-600 hover:from-indigo-100 hover:to-purple-100"
-            )}
-          >
-            <Sparkles size={16} />
-            <span className="hidden sm:inline">AI</span>
-          </button>
-        )}
 
-        <div className="flex items-center space-x-3 pl-4 border-l border-gray-200">
+        <div className="flex items-center space-x-3">
           <div className="h-8 w-8 rounded-full bg-gradient-to-tr from-blue-500 to-purple-500 flex items-center justify-center text-white font-medium text-xs">
             {initials}
           </div>
@@ -227,6 +208,5 @@ export function Topbar({ isCollapsed }) {
           </div>
         </div>
       </div>
-    </div>
   );
 }

@@ -1,8 +1,9 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { ChevronRight, ChevronsRight, ChevronLeft, ChevronsLeft, ChevronUp, ChevronDown, Braces, Play, Loader2, AlertTriangle } from 'lucide-react';
+import { ChevronRight, ChevronsRight, ChevronLeft, ChevronsLeft, ChevronUp, ChevronDown, Braces, Play, Loader2, AlertTriangle, Sparkles } from 'lucide-react';
 import { API_BASE_URL } from '../../config/api';
 import { schemaTransformApi } from '../../services/schemaTransformApi';
 import TransformFunctionModal from './TransformFunctionModal';
+import InlineAIInput from '../ai/InlineAIInput';
 
 /**
  * SchemaTransformEditor - Dual List Box style schema transformation UI
@@ -56,6 +57,7 @@ export default function SchemaTransformEditor({
     // Tab UI: Column Selection vs SQL Transform
     const [activeTab, setActiveTab] = useState('columns'); // 'columns' | 'sql'
     const [customSql, setCustomSql] = useState('');
+    const [showAI, setShowAI] = useState(false);
 
     // Initialize beforeColumns when sourceSchema changes (source tab switches)
     useEffect(() => {
@@ -447,7 +449,7 @@ export default function SchemaTransformEditor({
                     if (currentSource && currentSource.rows && currentSource.rows.length > 0) {
                         // Extract column names from preview result (already flattened by backend)
                         const flattenedColumns = Array.from(new Set(currentSource.rows.flatMap(Object.keys)));
-                        
+
                         // Convert to column schema format
                         const newBeforeColumns = flattenedColumns.map(colName => ({
                             name: colName,
@@ -456,7 +458,7 @@ export default function SchemaTransformEditor({
                             sourceId: sourceId,
                             inTarget: targetSchema.some(tc => tc.originalName === colName && tc.sourceId === sourceId)
                         }));
-                        
+
                         setBeforeColumns(newBeforeColumns);
                     }
                 }
@@ -760,13 +762,37 @@ export default function SchemaTransformEditor({
 
                     {/* Right: SQL Editor */}
                     <div className="flex-1 flex flex-col bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden">
-                        <div className="px-4 py-3 border-b border-slate-200 bg-slate-50/50">
+                        <div className="px-4 py-3 border-b border-slate-200 bg-slate-50/50 flex items-center justify-between">
                             <h3 className="text-xs font-bold text-slate-900 uppercase tracking-wider flex items-center gap-2">
                                 <span className="w-1 h-3 bg-purple-600 rounded-full"></span>
                                 SQL Query Editor
                             </h3>
+                            <button
+                                onClick={() => setShowAI(!showAI)}
+                                className="flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs font-medium
+                                    bg-gradient-to-r from-indigo-50 to-purple-50 text-indigo-600 
+                                    hover:from-indigo-100 hover:to-purple-100 transition-all
+                                    border border-indigo-200/50"
+                                title="AI Assistant"
+                            >
+                                <Sparkles size={14} />
+                                <span>AI</span>
+                            </button>
                         </div>
                         <div className="flex-1 flex flex-col p-4">
+                            {/* AI Input Panel - appears between header and textarea */}
+                            {showAI && (
+                                <InlineAIInput
+                                    context={`I'm writing a SQL query to transform data. The available sources are: ${allSources.map(s => s.name).join(', ')}. Help me write a SQL query.`}
+                                    placeholder="e.g., join tables, aggregate data, filter rows..."
+                                    onApply={(suggestion) => {
+                                        setCustomSql(suggestion);
+                                        setShowAI(false);
+                                    }}
+                                    onCancel={() => setShowAI(false)}
+                                />
+                            )}
+                            
                             <textarea
                                 value={customSql}
                                 onChange={(e) => setCustomSql(e.target.value)}

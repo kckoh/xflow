@@ -26,9 +26,12 @@ class BedrockService:
     def client(self):
         """Bedrock 클라이언트 (lazy initialization)"""
         if self._client is None:
+            # Explicitly set endpoint_url=None to ignore AWS_ENDPOINT env var (LocalStack)
+            # Bedrock must use real AWS, not LocalStack
             self._client = boto3.client(
                 'bedrock-runtime',
-                region_name=self.region
+                region_name=self.region,
+                endpoint_url=None  # Force real AWS Bedrock, ignore LocalStack
             )
         return self._client
 
