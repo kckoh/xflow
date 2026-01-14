@@ -154,6 +154,7 @@ export default function ETLJobPage() {
   // 오른쪽 패널 하단에 표시할 메타데이터 아이템 (table 또는 column)
   const [selectedMetadataItem, setSelectedMetadataItem] = useState(null);
   const [isCdcActive, setIsCdcActive] = useState(false);
+  const [isStreamingActive, setIsStreamingActive] = useState(false);
   const [showImportModal, setShowImportModal] = useState(false);
   const [isLineageMode, setIsLineageMode] = useState(false);
   const [lineageNodes, setLineageNodes] = useState([]);
@@ -168,6 +169,21 @@ export default function ETLJobPage() {
 
   // Check for target import from navigation state
   const fromTargetImport = location.state?.fromTargetImport || false;
+
+  useEffect(() => {
+    if (jobDetails.jobType === "streaming" && mainTab === "Schedules") {
+      setMainTab("Visual");
+    }
+  }, [jobDetails.jobType, mainTab]);
+
+  useEffect(() => {
+    if (!jobId) return;
+    if (jobDetails.jobType !== "streaming") {
+      setIsStreamingActive(false);
+      return;
+    }
+    fetchStreamingStatus();
+  }, [jobId, jobDetails.jobType]);
 
   // Custom hook for metadata updates (removes duplicate code)
   const handleMetadataUpdate = useMetadataUpdate(
@@ -724,6 +740,18 @@ export default function ETLJobPage() {
           const error = await response.json();
           showToast(`Failed to activate CDC: ${error.detail || 'Unknown error'}`, "error");
         }
+      } else if (jobDetails.jobType === "streaming") {
+        const response = await fetch(`${API_BASE_URL}/api/streaming/jobs/${jobId}/start`, {
+          method: "POST",
+        });
+
+        if (response.ok) {
+          showToast("Streaming job started.", "success");
+          setIsStreamingActive(true);
+        } else {
+          const error = await response.json();
+          showToast(`Failed to start streaming: ${error.detail || 'Unknown error'}`, "error");
+        }
       } else {
         // Batch 타입: 기존 배치 실행
         const response = await fetch(`${API_BASE_URL}/api/datasets/${jobId}/run`, {
@@ -746,6 +774,26 @@ export default function ETLJobPage() {
 
   const handleStop = async () => {
     if (!jobId) return;
+
+    if (jobDetails.jobType === "streaming") {
+      if (!confirm("Stop streaming job?")) return;
+      try {
+        const stopRes = await fetch(
+          `${API_BASE_URL}/api/streaming/jobs/${jobId}/stop`,
+          { method: "POST" }
+        );
+        if (!stopRes.ok) {
+          const errorData = await stopRes.json();
+          throw new Error(errorData.detail || "Failed to stop streaming");
+        }
+        showToast("Streaming job stopped.", "success");
+        setIsStreamingActive(false);
+      } catch (error) {
+        console.error("Streaming Stop Error:", error);
+        showToast(`Failed to stop streaming: ${error.message}`, "error");
+      }
+      return;
+    }
 
     if (confirm("Stop CDC pipeline? (Connector and Job will be terminated)")) {
       try {
@@ -799,6 +847,24 @@ export default function ETLJobPage() {
       }
     } catch (error) {
       console.error("Failed to fetch runs:", error);
+    }
+  };
+
+  const fetchStreamingStatus = async () => {
+    try {
+      const response = await fetch(
+        `${API_BASE_URL}/api/streaming/jobs/${jobId}/status`,
+        { credentials: "include" }
+      );
+      if (!response.ok) {
+        setIsStreamingActive(false);
+        return;
+      }
+      const data = await response.json();
+      setIsStreamingActive(data.status === "running");
+    } catch (error) {
+      console.error("Failed to fetch streaming status:", error);
+      setIsStreamingActive(false);
     }
   };
 
@@ -1037,16 +1103,23 @@ export default function ETLJobPage() {
             Save
           </button>
           <button
-            onClick={jobDetails.jobType === "cdc" && isCdcActive ? handleStop : handleRun}
+            onClick={
+              (jobDetails.jobType === "cdc" && isCdcActive) ||
+              (jobDetails.jobType === "streaming" && isStreamingActive)
+                ? handleStop
+                : handleRun
+            }
             disabled={!jobId || isSaving}
             className={`px-4 py-2 rounded-md transition-colors flex items-center gap-2 ${!jobId || isSaving
               ? 'bg-gray-200 text-gray-400 cursor-not-allowed'
-              : jobDetails.jobType === "cdc" && isCdcActive
+              : (jobDetails.jobType === "cdc" && isCdcActive) ||
+                (jobDetails.jobType === "streaming" && isStreamingActive)
                 ? 'bg-red-600 text-white hover:bg-red-700'
                 : 'bg-green-600 text-white hover:bg-green-700'
               }`}
           >
-            {jobDetails.jobType === "cdc" && isCdcActive ? (
+            {(jobDetails.jobType === "cdc" && isCdcActive) ||
+            (jobDetails.jobType === "streaming" && isStreamingActive) ? (
               <>
                 <Pause className="w-4 h-4" />
                 Stop
@@ -1054,7 +1127,7 @@ export default function ETLJobPage() {
             ) : (
               <>
                 <Play className="w-4 h-4" />
-                Run
+                {jobDetails.jobType === "streaming" ? "Start" : "Run"}
               </>
             )}
           </button>
@@ -1063,28 +1136,35 @@ export default function ETLJobPage() {
 
       {/* Main Tabs (Visual / Lineage / Job details / Runs / Schedules) */}
       <div className="bg-white border-b border-gray-200 px-6 flex items-center gap-6">
-        {(isLineageMode
-          ? ["Lineage", "Visual", "Job details", "Runs", "Schedules"]
-          : ["Visual", "Job details", "Runs", "Schedules"]
-        ).map((tab) => {
-          const isDisabled = !jobId && (tab === "Runs" || tab === "Schedules");
-          return (
-            <button
-              key={tab}
-              onClick={() => !isDisabled && setMainTab(tab)}
-              disabled={isDisabled}
-              className={`py-3 text-sm font-medium border-b-2 transition-colors ${mainTab === tab
-                ? "text-blue-600 border-blue-600"
-                : isDisabled
-                  ? "text-gray-400 border-transparent cursor-not-allowed"
-                  : "text-gray-600 border-transparent hover:text-gray-900 hover:border-gray-300"
-                }`}
-              title={isDisabled ? "Save the job first to access this tab" : ""}
-            >
-              {tab}
-            </button>
-          );
-        })}
+        {(() => {
+          const baseTabs = isLineageMode
+            ? ["Lineage", "Visual", "Job details", "Runs", "Schedules"]
+            : ["Visual", "Job details", "Runs", "Schedules"];
+          const visibleTabs =
+            jobDetails.jobType === "streaming"
+              ? baseTabs.filter((tab) => tab !== "Schedules")
+              : baseTabs;
+
+          return visibleTabs.map((tab) => {
+            const isDisabled = !jobId && (tab === "Runs" || tab === "Schedules");
+            return (
+              <button
+                key={tab}
+                onClick={() => !isDisabled && setMainTab(tab)}
+                disabled={isDisabled}
+                className={`py-3 text-sm font-medium border-b-2 transition-colors ${mainTab === tab
+                  ? "text-blue-600 border-blue-600"
+                  : isDisabled
+                    ? "text-gray-400 border-transparent cursor-not-allowed"
+                    : "text-gray-600 border-transparent hover:text-gray-900 hover:border-gray-300"
+                  }`}
+                title={isDisabled ? "Save the job first to access this tab" : ""}
+              >
+                {tab}
+              </button>
+            );
+          });
+        })()}
       </div>
 
       {/* Main Content: Canvas + Properties Panel (Shown only when 'Visual' is active) */}

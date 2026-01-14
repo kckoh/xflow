@@ -96,6 +96,12 @@ export default function TargetWizard() {
   const [partitionColumns, setPartitionColumns] = useState([]);
   const [destinationSubPath, setDestinationSubPath] = useState(""); // Path after bucket, e.g., "nyc-taxi/yellow"
 
+  const steps =
+    jobType === "streaming"
+      ? STEPS.filter((step) => step.id !== 4)
+      : STEPS;
+  const activeStepId = steps[currentStep - 1]?.id;
+
   // Load existing job data in edit mode
   useEffect(() => {
     const loadExistingJob = async () => {
@@ -303,6 +309,16 @@ export default function TargetWizard() {
           showToast("No source datasets found", "warning");
           setIsLoading(false);
           return;
+        }
+
+        const hasKafkaSource = sources.some(
+          (source) => source.source_type === "kafka"
+        );
+        if (hasKafkaSource) {
+          setJobType("streaming");
+          setSchedules([]);
+        } else if (jobType === "streaming") {
+          setJobType("batch");
         }
 
         // Convert source datasets to lineage nodes
@@ -582,7 +598,7 @@ export default function TargetWizard() {
   };
 
   const handleNext = async () => {
-    if (currentStep === 2) {
+    if (activeStepId === 2) {
       // Import source datasets before moving to step 3
       await handleImportSources();
       if (sourceNodes.length > 0 || selectedJobIds.length > 0) {
@@ -592,7 +608,7 @@ export default function TargetWizard() {
         }
       }
     }
-    if (currentStep < STEPS.length) {
+    if (currentStep < steps.length) {
       setCurrentStep(currentStep + 1);
     }
   };
@@ -793,7 +809,7 @@ export default function TargetWizard() {
   };
 
   const canProceed = () => {
-    switch (currentStep) {
+    switch (activeStepId) {
       case 1:
         // Overview step - need unique name
         return config.name.trim() !== "" && !isNameDuplicate;
@@ -865,7 +881,7 @@ export default function TargetWizard() {
                 Back
               </button>
 
-              {currentStep < STEPS.length ? (
+              {currentStep < steps.length ? (
                 <button
                   onClick={handleNext}
                   disabled={!canProceed() || isLoading}
@@ -903,7 +919,9 @@ export default function TargetWizard() {
         {/* Progress Steps */}
         <div className="max-w-4xl mx-auto px-6 py-4">
           <div className="flex items-start">
-            {STEPS.map((step, index) => (
+            {steps.map((step, index) => {
+              const stepIndex = index + 1;
+              return (
               <div
                 key={step.id}
                 className="flex items-center flex-1 last:flex-none"
@@ -911,14 +929,14 @@ export default function TargetWizard() {
                 <div className="flex flex-col items-center">
                   <div
                     className={`w-10 h-10 rounded-full flex items-center justify-center transition-colors shrink-0 ${
-                      currentStep > step.id
+                      currentStep > stepIndex
                         ? "bg-orange-500 text-white"
-                        : currentStep === step.id
+                        : currentStep === stepIndex
                         ? "bg-orange-500 text-white"
                         : "bg-gray-200 text-gray-500"
                     }`}
                   >
-                    {currentStep > step.id ? (
+                    {currentStep > stepIndex ? (
                       <Check className="w-5 h-5" />
                     ) : (
                       <step.icon className="w-5 h-5" />
@@ -926,21 +944,22 @@ export default function TargetWizard() {
                   </div>
                   <span
                     className={`mt-2 text-xs font-medium whitespace-nowrap ${
-                      currentStep >= step.id ? "text-gray-900" : "text-gray-500"
+                      currentStep >= stepIndex ? "text-gray-900" : "text-gray-500"
                     }`}
                   >
                     {step.name}
                   </span>
                 </div>
-                {index < STEPS.length - 1 && (
+                {index < steps.length - 1 && (
                   <div
                     className={`flex-1 h-1 mx-4 rounded self-center -mt-6 ${
-                      currentStep > step.id ? "bg-orange-500" : "bg-gray-200"
+                      currentStep > stepIndex ? "bg-orange-500" : "bg-gray-200"
                     }`}
                   />
                 )}
               </div>
-            ))}
+              );
+            })}
           </div>
         </div>
       </div>
@@ -948,7 +967,7 @@ export default function TargetWizard() {
       {/* Content */}
       <div className="flex-1 overflow-hidden flex flex-col">
         {/* Step 1: Overview */}
-        {currentStep === 1 && (
+        {activeStepId === 1 && (
           <div className="flex-1 overflow-y-auto">
             <div className="max-w-4xl mx-auto px-6 py-8">
               <h2 className="text-lg font-semibold text-gray-900 mb-2">
@@ -1067,7 +1086,7 @@ export default function TargetWizard() {
         )}
 
         {/* Step 2: Source Selection */}
-        {currentStep === 2 && (
+        {activeStepId === 2 && (
           <div className="flex-1 overflow-hidden">
             <div className="h-full flex">
               {/* Left: Table */}
@@ -1502,7 +1521,7 @@ export default function TargetWizard() {
         )}
 
         {/* Step 3: Transform/Process */}
-        {currentStep === 3 && (
+        {activeStepId === 3 && (
           <div className="flex-1 flex flex-col px-4 py-4">
             <div className="max-w-[100%] mx-auto w-full h-full flex flex-col">
               <div className="flex-1">
@@ -1668,7 +1687,7 @@ export default function TargetWizard() {
         )}
 
         {/* Step 4: Schedule */}
-        {currentStep === 4 && (
+        {activeStepId === 4 && (
           <div className="flex-1 overflow-y-auto">
             <div className="max-w-4xl mx-auto px-6 py-8">
               <h2 className="text-lg font-semibold text-gray-900 mb-6">
@@ -1692,7 +1711,7 @@ export default function TargetWizard() {
         )}
 
         {/* Step 5: Permission */}
-        {currentStep === 5 && (
+        {activeStepId === 5 && (
           <div className="flex-1 overflow-y-auto">
             <div className="max-w-4xl mx-auto px-6 py-8">
               <h2 className="text-lg font-semibold text-gray-900 mb-6">
@@ -1714,7 +1733,7 @@ export default function TargetWizard() {
         )}
 
         {/* Step 6: Review */}
-        {currentStep === 6 && (
+        {activeStepId === 6 && (
           <div className="flex-1 overflow-y-auto">
             <div className="max-w-4xl mx-auto px-6 py-8">
               <h2 className="text-lg font-semibold text-gray-900 mb-2">

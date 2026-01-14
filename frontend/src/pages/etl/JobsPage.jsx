@@ -231,6 +231,7 @@ export default function JobsPage() {
   const [jobRuns, setJobRuns] = useState({}); // Store runs for each job by job ID
   const [isLoading, setIsLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState("");
+  const [streamingStates, setStreamingStates] = useState({});
   const [scheduleModal, setScheduleModal] = useState({
     isOpen: false,
     job: null,
@@ -242,6 +243,49 @@ export default function JobsPage() {
   useEffect(() => {
     fetchJobs();
   }, []);
+
+  useEffect(() => {
+    const streamingJobs = jobs.filter((job) => job.job_type === "streaming");
+    if (streamingJobs.length === 0) {
+      setStreamingStates({});
+      return;
+    }
+
+    let isCancelled = false;
+    const fetchStatuses = async () => {
+      try {
+        const results = await Promise.all(
+          streamingJobs.map(async (job) => {
+            const response = await fetch(
+              `${API_BASE_URL}/api/streaming/jobs/${job.id}/status`,
+              { credentials: "include" }
+            );
+            if (!response.ok) {
+              return { id: job.id, active: false };
+            }
+            const data = await response.json();
+            return { id: job.id, active: data.status === "running" };
+          })
+        );
+
+        if (isCancelled) return;
+        const nextStates = {};
+        results.forEach((item) => {
+          nextStates[item.id] = item.active;
+        });
+        setStreamingStates(nextStates);
+      } catch (error) {
+        if (!isCancelled) {
+          console.error("Failed to fetch streaming status:", error);
+        }
+      }
+    };
+
+    fetchStatuses();
+    return () => {
+      isCancelled = true;
+    };
+  }, [jobs]);
 
   const fetchJobs = async () => {
     setIsLoading(true);
@@ -305,6 +349,7 @@ export default function JobsPage() {
   const handleToggle = async (jobId) => {
     const job = jobs.find((j) => j.id === jobId);
     if (!job) return;
+    if (job.job_type === "streaming") return;
 
     const newActiveState = !job.is_active;
 
@@ -381,7 +426,28 @@ export default function JobsPage() {
   };
 
   const handleRun = async (jobId) => {
+    const job = jobs.find((j) => j.id === jobId);
     try {
+      if (job?.job_type === "streaming") {
+        const isActive = !!streamingStates[jobId];
+        const endpoint = isActive ? "stop" : "start";
+        const response = await fetch(
+          `${API_BASE_URL}/api/streaming/jobs/${jobId}/${endpoint}`,
+          { method: "POST" }
+        );
+
+        if (response.ok) {
+          setStreamingStates((prev) => ({ ...prev, [jobId]: !isActive }));
+          showToast(
+            isActive ? "Streaming job stopped." : "Streaming job started.",
+            "success"
+          );
+        } else {
+          showToast("Failed to update streaming job", "error");
+        }
+        return;
+      }
+
       const response = await fetch(
         `${API_BASE_URL}/api/datasets/${jobId}/run`,
         {
@@ -428,6 +494,12 @@ export default function JobsPage() {
       return job.is_active
         ? { label: "Running", color: "green" }
         : { label: "-", color: "gray" };
+    }
+
+    if (job.job_type === "streaming") {
+      return streamingStates[job.id]
+        ? { label: "Running", color: "green" }
+        : { label: "Stopped", color: "gray" };
     }
 
     // Batch job with schedule
@@ -568,7 +640,13 @@ export default function JobsPage() {
                     })()}
                   </td>
                   <td className="px-6 py-4">
-                    <ScheduleBadge job={job} />
+                    {job.job_type === "streaming" ? (
+                      <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md text-xs font-medium bg-slate-100 text-slate-600">
+                        Streaming
+                      </span>
+                    ) : (
+                      <ScheduleBadge job={job} />
+                    )}
                   </td>
                   <td className="px-6 py-4">
                     {jobRuns[job.id]?.[0] ? (
@@ -610,29 +688,41 @@ export default function JobsPage() {
                             e.stopPropagation();
                             handleRun(job.id);
                           }}
-                          className="inline-flex items-center gap-1 px-3 py-1.5 text-sm font-medium text-green-600 bg-green-50 hover:bg-green-100 rounded-lg transition-colors"
-                          title="Run"
+                          className={`inline-flex items-center gap-1 px-3 py-1.5 text-sm font-medium rounded-lg transition-colors ${
+                            job.job_type === "streaming" && streamingStates[job.id]
+                              ? "text-red-600 bg-red-50 hover:bg-red-100"
+                              : "text-green-600 bg-green-50 hover:bg-green-100"
+                          }`}
+                          title={
+                            job.job_type === "streaming"
+                              ? (streamingStates[job.id] ? "Stop" : "Start")
+                              : "Run"
+                          }
                         >
                           <Play className="w-4 h-4" />
-                          Run
+                          {job.job_type === "streaming"
+                            ? (streamingStates[job.id] ? "Stop" : "Start")
+                            : "Run"}
                         </button>
                       )}
-                      {/* Toggle button for all jobs */}
-                      <button
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          handleToggle(job.id);
-                        }}
-                        className={`relative inline-flex h-5 w-9 flex-shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none ${
-                          job.is_active ? "bg-green-500" : "bg-gray-300"
-                        }`}
-                      >
-                        <span
-                          className={`pointer-events-none inline-block h-4 w-4 transform rounded-full bg-white shadow ring-0 transition duration-200 ease-in-out ${
-                            job.is_active ? "translate-x-4" : "translate-x-0"
+                      {/* Toggle button for scheduled jobs */}
+                      {job.job_type !== "streaming" && (
+                        <button
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            handleToggle(job.id);
+                          }}
+                          className={`relative inline-flex h-5 w-9 flex-shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none ${
+                            job.is_active ? "bg-green-500" : "bg-gray-300"
                           }`}
-                        />
-                      </button>
+                        >
+                          <span
+                            className={`pointer-events-none inline-block h-4 w-4 transform rounded-full bg-white shadow ring-0 transition duration-200 ease-in-out ${
+                              job.is_active ? "translate-x-4" : "translate-x-0"
+                            }`}
+                          />
+                        </button>
+                      )}
                     </div>
                   </td>
                 </tr>

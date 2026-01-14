@@ -5,6 +5,10 @@ from bson import ObjectId
 import os
 
 import database
+import json
+import pandas as pd
+from kafka import KafkaConsumer
+from pydantic import BaseModel
 from schemas.source_dataset import (
     SourceDatasetCreate,
     SourceDatasetUpdate,
@@ -78,6 +82,98 @@ async def get_s3_schema(bucket: str, path: str) -> List[dict]:
         print(f"Failed to get S3 schema for {bucket}/{path}: {e}")
         return []
 
+
+def _infer_json_schema(records: List[dict]) -> List[dict]:
+    if not records:
+        return []
+
+    df = pd.json_normalize(records, sep="_")
+    schema = []
+    for col in df.columns:
+        series = df[col]
+        sample = None
+        if not series.empty:
+            non_null = series.dropna()
+            if not non_null.empty:
+                sample = non_null.iloc[0]
+
+        if isinstance(sample, bool):
+            col_type = "boolean"
+        elif isinstance(sample, int):
+            col_type = "int"
+        elif isinstance(sample, float):
+            col_type = "double"
+        else:
+            col_type = "string"
+
+        schema.append({"name": col, "type": col_type})
+    return schema
+
+
+def _consume_kafka_records(bootstrap_servers: str, topic: str, limit: int = 1) -> List[dict]:
+    consumer = KafkaConsumer(
+        topic,
+        bootstrap_servers=bootstrap_servers,
+        auto_offset_reset="earliest",
+        enable_auto_commit=False,
+        consumer_timeout_ms=3000,
+        request_timeout_ms=3000,
+        api_version_auto_timeout_ms=3000,
+        fetch_max_wait_ms=500,
+        max_poll_records=limit,
+        value_deserializer=lambda v: v.decode("utf-8") if v else None,
+    )
+    records = []
+    try:
+        for msg in consumer:
+            if not msg.value:
+                continue
+            try:
+                payload = json.loads(msg.value)
+            except Exception:
+                continue
+            if isinstance(payload, dict):
+                records.append(payload)
+            elif isinstance(payload, list):
+                records.extend([p for p in payload if isinstance(p, dict)])
+            if len(records) >= limit:
+                break
+    finally:
+        consumer.close()
+    return records[:limit]
+
+
+def get_kafka_schema(bootstrap_servers: str, topic: str, limit: int = 1) -> dict:
+    records = _consume_kafka_records(bootstrap_servers, topic, limit=limit)
+    return {
+        "schema": _infer_json_schema(records),
+        "sample": records,
+    }
+
+
+class KafkaSchemaRequest(BaseModel):
+    connection_id: str
+    topic: str
+    sample_size: int = 1
+
+
+class KafkaTopicsRequest(BaseModel):
+    connection_id: str
+
+
+def get_kafka_topics(bootstrap_servers: str) -> List[str]:
+    consumer = KafkaConsumer(
+        bootstrap_servers=bootstrap_servers,
+        api_version_auto_timeout_ms=5000,
+        request_timeout_ms=5000,
+        consumer_timeout_ms=5000,
+    )
+    try:
+        topics = consumer.topics() or set()
+        return sorted(topics)
+    finally:
+        consumer.close()
+
 router = APIRouter(prefix="/api/source-datasets", tags=["source-datasets"])
 
 
@@ -115,6 +211,20 @@ async def create_source_dataset(dataset: SourceDatasetCreate):
             except Exception as e:
                 print(f"Warning: Failed to extract schema from S3: {e}")
                 # Continue without schema - user can add manually later
+    elif dataset.source_type == "kafka" and not dataset_data.get("columns"):
+        connection_id = dataset_data.get("connection_id")
+        topic = dataset_data.get("topic")
+        if connection_id and topic:
+            try:
+                conn = await db.connections.find_one({"_id": ObjectId(connection_id)})
+                if conn:
+                    bootstrap_servers = conn.get("config", {}).get("bootstrap_servers")
+                    if bootstrap_servers:
+                        kafka_schema = get_kafka_schema(bootstrap_servers, topic)
+                        if kafka_schema.get("schema"):
+                            dataset_data["columns"] = kafka_schema["schema"]
+            except Exception as e:
+                print(f"Warning: Failed to extract Kafka schema: {e}")
 
     result = await db.source_datasets.insert_one(dataset_data)
     dataset_data["id"] = str(result.inserted_id)
@@ -170,8 +280,71 @@ async def get_source_dataset(dataset_id: str):
                 s3_schema = await get_s3_schema(bucket, path)
                 if s3_schema:
                     doc["columns"] = s3_schema
+    elif doc.get("source_type") == "kafka":
+        if not doc.get("columns"):
+            connection_id = doc.get("connection_id")
+            topic = doc.get("topic")
+            if connection_id and topic:
+                try:
+                    conn = await db.connections.find_one({"_id": ObjectId(connection_id)})
+                    if conn:
+                        bootstrap_servers = conn.get("config", {}).get("bootstrap_servers")
+                        if bootstrap_servers:
+                            kafka_schema = get_kafka_schema(bootstrap_servers, topic)
+                            if kafka_schema.get("schema"):
+                                doc["columns"] = kafka_schema["schema"]
+                except Exception as e:
+                    print(f"Warning: Failed to fetch Kafka schema: {e}")
 
     return doc
+
+
+@router.post("/kafka/schema")
+async def fetch_kafka_schema(request: KafkaSchemaRequest):
+    """Fetch Kafka topic schema from a sample message."""
+    db = get_db()
+
+    try:
+        conn = await db.connections.find_one({"_id": ObjectId(request.connection_id)})
+    except Exception:
+        raise HTTPException(status_code=400, detail="Invalid connection ID format")
+
+    if not conn:
+        raise HTTPException(status_code=404, detail="Connection not found")
+
+    bootstrap_servers = conn.get("config", {}).get("bootstrap_servers")
+    if not bootstrap_servers:
+        raise HTTPException(status_code=400, detail="Connection missing bootstrap_servers")
+
+    if not request.topic:
+        raise HTTPException(status_code=400, detail="Topic is required")
+
+    result = get_kafka_schema(bootstrap_servers, request.topic, limit=request.sample_size)
+    if not result.get("schema"):
+        raise HTTPException(status_code=400, detail="Failed to infer schema from topic")
+
+    return result
+
+
+@router.post("/kafka/topics")
+async def fetch_kafka_topics(request: KafkaTopicsRequest):
+    """Fetch Kafka topic list from a connection."""
+    db = get_db()
+
+    try:
+        conn = await db.connections.find_one({"_id": ObjectId(request.connection_id)})
+    except Exception:
+        raise HTTPException(status_code=400, detail="Invalid connection ID format")
+
+    if not conn:
+        raise HTTPException(status_code=404, detail="Connection not found")
+
+    bootstrap_servers = conn.get("config", {}).get("bootstrap_servers")
+    if not bootstrap_servers:
+        raise HTTPException(status_code=400, detail="Connection missing bootstrap_servers")
+
+    topics = get_kafka_topics(bootstrap_servers)
+    return {"topics": topics}
 
 
 @router.put("/{dataset_id}", response_model=SourceDatasetResponse)
