@@ -101,9 +101,10 @@ async def get_catalog(
         is_admin = user_session.get("is_admin", False)
         
         # Admin or etl_access = true can see catalog
-        if not is_admin and not etl_access:
-            # No access to catalog
-            return []
+        # Admin or etl_access = true can see catalog
+        # REMOVED: if not is_admin and not etl_access: return []
+        # Allow users without ETL access to see datasets they have explicit permission for
+
         
         # Filter by dataset permissions (unless admin or all_datasets access)
         if not is_admin:
