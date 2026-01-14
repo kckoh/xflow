@@ -72,6 +72,7 @@ export default function UserCreateForm({ editingUser, onUserCreated, onCancel })
         confirmPassword: "",
         name: "",
         roleId: null,
+        isAdmin: false,
     });
     const [errors, setErrors] = useState({});
     const [successMessage, setSuccessMessage] = useState("");
@@ -104,6 +105,7 @@ export default function UserCreateForm({ editingUser, onUserCreated, onCancel })
                 confirmPassword: "",
                 name: editingUser.name || "",
                 roleId: editingUser.role_id || null,
+                isAdmin: editingUser.is_admin || false,
             });
             setErrors({});
             setSuccessMessage("");
@@ -114,6 +116,7 @@ export default function UserCreateForm({ editingUser, onUserCreated, onCancel })
                 confirmPassword: "",
                 name: "",
                 roleId: null,
+                isAdmin: false,
             });
             setErrors({});
             setSuccessMessage("");
@@ -157,7 +160,7 @@ export default function UserCreateForm({ editingUser, onUserCreated, onCancel })
             const payload = {
                 email: formData.email,
                 name: formData.name,
-                is_admin: false,
+                is_admin: formData.isAdmin,
                 role_id: formData.roleId,
             };
 
@@ -185,6 +188,7 @@ export default function UserCreateForm({ editingUser, onUserCreated, onCancel })
                     confirmPassword: "",
                     name: "",
                     roleId: null,
+                    isAdmin: false,
                 });
                 setSuccessMessage("User created successfully!");
                 setTimeout(() => setSuccessMessage(""), 3000);
@@ -333,6 +337,19 @@ export default function UserCreateForm({ editingUser, onUserCreated, onCancel })
                             <p className="mt-1 text-xs text-gray-500">
                                 Assign a role to control user permissions
                             </p>
+                        </div>
+                        <div className="col-span-2">
+                            <label className="block text-sm font-medium text-gray-700 mb-2">
+                                Admin Permissions
+                            </label>
+                            <Toggle
+                                checked={formData.isAdmin}
+                                onChange={(checked) =>
+                                    setFormData((prev) => ({ ...prev, isAdmin: checked }))
+                                }
+                                label="Grant Admin Access"
+                                description="Admin users have full access to all features and can manage other users"
+                            />
                         </div>
                     </div>
                 </div>
