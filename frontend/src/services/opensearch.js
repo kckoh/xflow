@@ -14,8 +14,12 @@ import { API_BASE_URL } from '../config/api';
  * @param {number} offset - 페이지네이션 오프셋
  * @returns {Promise<Object>} 검색 결과
  */
-export async function search(query, { docType = null, tags = null, limit = 20, offset = 0 } = {}) {
+export async function search(query, { docType = null, tags = null, limit = 20, offset = 0, sessionId = null } = {}) {
   const params = new URLSearchParams({ q: query, limit, offset });
+
+  if (sessionId) {
+    params.append('session_id', sessionId);
+  }
 
   if (docType) {
     params.append('doc_type', docType);
