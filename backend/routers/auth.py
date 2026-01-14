@@ -1,9 +1,10 @@
 import uuid
 from datetime import datetime
+from bson import ObjectId
 
 from dependencies import sessions
 from fastapi import APIRouter, Header, HTTPException, status
-from models import User
+from models import User, Role
 from schemas.user import UserCreate, UserLogin
 
 router = APIRouter()
@@ -58,19 +59,45 @@ async def login(user: UserLogin):
     # Create session with full user info
     # Special admin email check
     is_admin = db_user.is_admin or db_user.email == "admin@xflows.net"
-    
+
+    # Fetch role information if user has a role
+    role_permissions = {
+        "dataset_etl_access": False,
+        "query_ai_access": False,
+        "dataset_access": [],
+        "all_datasets": False,
+    }
+
+    if db_user.role_id and not is_admin:
+        try:
+            role = await Role.get(ObjectId(db_user.role_id))
+            if role:
+                role_permissions = {
+                    "dataset_etl_access": role.dataset_etl_access,
+                    "query_ai_access": role.query_ai_access,
+                    "dataset_access": role.dataset_access,
+                    "all_datasets": role.all_datasets,
+                }
+        except Exception as e:
+            print(f"Error fetching role: {e}")
+
     session_id = str(uuid.uuid4())
     sessions[session_id] = {
         "user_id": str(db_user.id),
         "email": db_user.email,
         "name": db_user.name or db_user.email.split("@")[0],
         "is_admin": is_admin,
-        "etl_access": db_user.etl_access,
+        "role_id": db_user.role_id,
+        # User-level permissions (backward compatibility)
+        "etl_access": db_user.etl_access or role_permissions["dataset_etl_access"],
         "domain_edit_access": db_user.domain_edit_access,
-        "dataset_access": db_user.dataset_access,
-        "all_datasets": db_user.all_datasets,
+        "dataset_access": db_user.dataset_access if db_user.dataset_access else role_permissions["dataset_access"],
+        "all_datasets": db_user.all_datasets or role_permissions["all_datasets"],
+        # Role-level permissions
+        "role_dataset_etl_access": role_permissions["dataset_etl_access"],
+        "role_query_ai_access": role_permissions["query_ai_access"],
     }
-    
+
     return {
         "session_id": session_id,
         "user": sessions[session_id]

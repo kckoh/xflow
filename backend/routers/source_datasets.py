@@ -1,5 +1,5 @@
 from fastapi import APIRouter, HTTPException
-from typing import List
+from typing import List, Optional
 from datetime import datetime
 from bson import ObjectId
 import os
@@ -10,6 +10,7 @@ from schemas.source_dataset import (
     SourceDatasetUpdate,
     SourceDatasetResponse,
 )
+from dependencies import sessions
 
 
 async def get_s3_schema(bucket: str, path: str) -> List[dict]:
@@ -124,8 +125,8 @@ async def create_source_dataset(dataset: SourceDatasetCreate):
 
 
 @router.get("", response_model=List[SourceDatasetResponse])
-async def get_source_datasets():
-    """Get all source datasets"""
+async def get_source_datasets(session_id: Optional[str] = None):
+    """Get all source datasets, filtered by user permissions"""
     db = get_db()
     cursor = db.source_datasets.find()
     datasets = []
@@ -141,6 +142,22 @@ async def get_source_datasets():
             doc["columns"] = doc.get("schema", [])
 
         datasets.append(doc)
+
+    # Filter by user permissions if session_id is provided
+    if session_id and session_id in sessions:
+        user_session = sessions[session_id]
+        is_admin = user_session.get("is_admin", False)
+
+        # Admin can see all datasets
+        if not is_admin:
+            all_datasets_access = user_session.get("all_datasets", False)
+
+            if not all_datasets_access:
+                # Get allowed dataset IDs from session
+                allowed_dataset_ids = user_session.get("dataset_access", [])
+
+                # Filter datasets to only those the user can access
+                datasets = [d for d in datasets if d["id"] in allowed_dataset_ids]
 
     return datasets
 
