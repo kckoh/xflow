@@ -222,9 +222,16 @@ async def create_dataset(dataset: DatasetCreate, session_id: Optional[str] = Non
     if dataset.schedule_frequency:
         schedule = generate_schedule(dataset.schedule_frequency, dataset.ui_params)
 
+    # Deterimine Owner from Session
+    owner = "system"
+    if session_id and session_id in sessions:
+        user_session = sessions[session_id]
+        owner = user_session.get("name") or user_session.get("email") or "system"
+
     new_dataset = Dataset(
         name=dataset.name,
         description=dataset.description,
+        owner=owner,
         dataset_type=dataset.dataset_type,
         job_type=dataset.job_type,
         sources=sources_data,
@@ -295,6 +302,7 @@ async def create_dataset(dataset: DatasetCreate, session_id: Optional[str] = Non
         id=str(new_dataset.id),
         name=new_dataset.name,
         description=new_dataset.description,
+        owner=new_dataset.owner,
         dataset_type=new_dataset.dataset_type,
         job_type=new_dataset.job_type,
         sources=new_dataset.sources,
@@ -349,6 +357,7 @@ async def list_datasets(import_ready: bool = None, session_id: Optional[str] = N
             id=str(dataset.id),
             name=dataset.name,
             description=dataset.description,
+            owner=getattr(dataset, 'owner', 'system'),
             dataset_type=getattr(dataset, 'dataset_type', 'source'),
             job_type=getattr(dataset, 'job_type', 'batch'),
             sources=dataset.sources,
@@ -491,6 +500,7 @@ async def update_dataset(dataset_id: str, dataset_update: DatasetUpdate):
         id=str(dataset.id),
         name=dataset.name,
         description=dataset.description,
+        owner=getattr(dataset, 'owner', 'system'),
         dataset_type=getattr(dataset, 'dataset_type', 'source'),
         job_type=dataset.job_type,
         sources=dataset.sources,
