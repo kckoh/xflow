@@ -366,19 +366,12 @@ async def add_dataset_to_role(role_id: str, dataset_id: str, admin: dict = Depen
 @router.post("/roles/bulk-add-dataset")
 async def bulk_add_dataset_to_roles(
     data: BulkAddDataset,
-    session_id: str
+    admin: dict = Depends(require_admin)
 ):
     """
     Add a dataset to multiple roles' dataset_access lists
-    Allowed for authenticated users to share their created datasets
+    Admin only
     """
-    # Check authentication
-    if session_id not in sessions:
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Not authenticated"
-        )
-
     from bson import ObjectId
 
     updated_count = 0
