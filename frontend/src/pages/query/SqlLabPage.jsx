@@ -125,41 +125,62 @@ export default function SqlLabPage() {
             let finalQuery = query.trim();
 
             if (engine === 'trino') {
-                // Trino: Use pagination API
-                const response = await fetch(`/api/trino/query-paginated?page=${page}&page_size=1000`, {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ sql: finalQuery })
-                });
-                const result = await response.json();
+                // Trino: Use pagination API or direct limit
+                if (queryLimit === 'All') {
+                    // ALL: Use pagination (1000 rows at a time)
+                    const response = await fetch(`/api/trino/query-paginated?page=${page}&page_size=1000`, {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ sql: finalQuery })
+                    });
+                    const result = await response.json();
 
-                if (!response.ok) {
-                    throw new Error(result.detail || 'Query failed');
-                }
+                    if (!response.ok) {
+                        throw new Error(result.detail || 'Query failed');
+                    }
 
-                const columns = result.data.length > 0 ? Object.keys(result.data[0]) : [];
+                    const columns = result.data.length > 0 ? Object.keys(result.data[0]) : [];
 
-                if (page === 1) {
-                    // First page - new results
+                    if (page === 1) {
+                        // First page - new results
+                        setResults({
+                            data: result.data,
+                            columns,
+                            row_count: result.row_count,
+                            was_limited: false,
+                            applied_limit: 'All',
+                            query: finalQuery,
+                        });
+                    } else {
+                        // Additional pages - append
+                        setResults(prev => ({
+                            ...prev,
+                            data: [...prev.data, ...result.data],
+                            row_count: prev.row_count + result.row_count,
+                        }));
+                    }
+
+                    setHasMore(result.has_more);
+                    setCurrentPage(page);
+                } else {
+                    // Specific limit: Apply limit and don't paginate
+                    if (!/\bLIMIT\b/i.test(finalQuery)) {
+                        finalQuery = `${finalQuery.replace(/;$/, "")} LIMIT ${queryLimit}`;
+                    }
+
+                    const response = await runTrinoQuery(finalQuery);
+                    const columns = response.data.length > 0 ? Object.keys(response.data[0]) : [];
+                    const wasLimited = !/\bLIMIT\b/i.test(query.trim());
                     setResults({
-                        data: result.data,
+                        data: response.data,
                         columns,
-                        row_count: result.row_count,
-                        was_limited: false,
-                        applied_limit: null,
+                        row_count: response.row_count,
+                        was_limited: wasLimited,
+                        applied_limit: wasLimited ? queryLimit : null,
                         query: finalQuery,
                     });
-                } else {
-                    // Additional pages - append
-                    setResults(prev => ({
-                        ...prev,
-                        data: [...prev.data, ...result.data],
-                        row_count: prev.row_count + result.row_count,
-                    }));
+                    setHasMore(false); // No pagination for specific limits
                 }
-
-                setHasMore(result.has_more);
-                setCurrentPage(page);
             } else {
                 // DuckDB: Original way with limit
                 if (!/\bLIMIT\b/i.test(finalQuery)) {
