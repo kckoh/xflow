@@ -2,7 +2,7 @@ apiVersion: networking.k8s.io/v1
 kind: Ingress
 metadata:
   name: trino-ingress
-  namespace: default
+  namespace: trino
   annotations:
     alb.ingress.kubernetes.io/group.name: xflow-alb
     alb.ingress.kubernetes.io/scheme: internet-facing
@@ -20,6 +20,6 @@ spec:
             pathType: Prefix
             backend:
               service:
-                name: trino-cluster-trino
+                name: trino
                 port:
                   number: 8080

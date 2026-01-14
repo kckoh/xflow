@@ -1361,7 +1361,8 @@ export default function TargetWizard() {
                     {detailPanelTab === "schema" && (
                       <div>
                         {/* S3 Source - Show Regex Parsing Config */}
-                        {focusedDataset.source_type === "s3" ? (
+                        {focusedDataset.source_type === "s3" &&
+                        (!focusedDataset.format || focusedDataset.format === "log") ? (
                           <S3LogParsingConfig
                             sourceDatasetId={focusedDataset.id}
                             initialPattern={
@@ -1415,6 +1416,14 @@ export default function TargetWizard() {
                                       prev?.id === focusedDataset.id
                                         ? { ...prev, columns: inferredColumns }
                                         : prev
+                                    );
+                                    // Also update sourceNodes so SQL Transform can access columns
+                                    setSourceNodes((nodes) =>
+                                      nodes.map((node) =>
+                                        node.data?.sourceDatasetId === focusedDataset.id
+                                          ? { ...node, data: { ...node.data, columns: inferredColumns } }
+                                          : node
+                                      )
                                     );
                                   }}
                                 />
@@ -1537,14 +1546,17 @@ export default function TargetWizard() {
                       }
                       targetSchema={targetSchema}
                       initialTargetSchema={initialTargetSchema}
+                      initialCustomSql={customSql}
                       onSchemaChange={setTargetSchema}
                       onTestStatusChange={setIsTestPassed}
+                      onSqlChange={setCustomSql}
                       allSources={sourceNodes.map((node) => ({
                         id: node.id,
                         datasetId:
                           node.data?.sourceDatasetId ||
                           node.data?.catalogDatasetId,
                         name: node.data?.name,
+                        schema: node.data?.columns || [],
                       }))}
                       sourceTabs={
                         sourceNodes.length > 1 ? (

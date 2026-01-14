@@ -31,6 +31,13 @@ class SourceSample(BaseModel):
     rows: List[Dict[str, Any]]
 
 
+class SparkWarning(BaseModel):
+    """Warning about Spark SQL compatibility"""
+    function: str
+    spark_equivalent: str
+    message: str
+
+
 class SQLTestResponse(BaseModel):
     """Response model for SQL test endpoint"""
     valid: bool
@@ -38,5 +45,8 @@ class SQLTestResponse(BaseModel):
     sample_rows: Optional[List[Dict[str, Any]]] = None
     before_rows: Optional[List[Dict[str, Any]]] = None
     source_samples: Optional[List[SourceSample]] = None  # Per-source samples
+    spark_warnings: Optional[List[SparkWarning]] = None  # DuckDB -> Spark compatibility warnings
+    sql_conversions: Optional[List[str]] = None  # Spark SQL -> DuckDB conversions made
+    executed_sql: Optional[str] = None  # Actual SQL executed (after conversion)
     error: Optional[str] = None
     execution_time_ms: Optional[int] = None

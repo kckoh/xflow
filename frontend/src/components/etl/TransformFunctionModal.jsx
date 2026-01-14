@@ -14,6 +14,7 @@ export default function TransformFunctionModal({ column, onApply, onClose }) {
         { name: 'UPPER', desc: 'Convert to uppercase', template: `UPPER(${column.originalName})` },
         { name: 'LOWER', desc: 'Convert to lowercase', template: `LOWER(${column.originalName})` },
         { name: 'TRIM', desc: 'Remove whitespace', template: `TRIM(${column.originalName})` },
+        { name: 'REPLACE', desc: 'Replace characters', template: `REPLACE(CAST(${column.originalName} AS STRING), '', '')` },
         { name: 'SUBSTR', desc: 'Extract substring', template: `SUBSTR(${column.originalName}, 1, 10)` },
         { name: 'CONCAT', desc: 'Concatenate strings', template: `CONCAT(${column.originalName}, '-', ${column.originalName})` },
         { name: 'CAST', desc: 'Convert type', template: `CAST(${column.originalName} AS STRING)` },
@@ -24,7 +25,23 @@ export default function TransformFunctionModal({ column, onApply, onClose }) {
     ];
 
     const applyFunction = (func) => {
-        if (editorRef.current) {
+        // If current expression is just the original field name (not transformed yet),
+        // replace it entirely with the function template
+        const isOriginalField = transformExpr === column.originalName || transformExpr === column.name;
+
+        if (isOriginalField) {
+            // Replace entire expression
+            setTransformExpr(func.template);
+            setSelectedFunction(func.name);
+
+            // Focus textarea after replacement
+            if (editorRef.current) {
+                setTimeout(() => {
+                    editorRef.current.focus();
+                }, 0);
+            }
+        } else if (editorRef.current) {
+            // Insert at cursor position if already transformed
             const textarea = editorRef.current;
             const start = textarea.selectionStart;
             const end = textarea.selectionEnd;
@@ -41,10 +58,12 @@ export default function TransformFunctionModal({ column, onApply, onClose }) {
                 const newCursorPos = start + func.template.length;
                 textarea.setSelectionRange(newCursorPos, newCursorPos);
             }, 0);
+            setSelectedFunction(func.name);
         } else {
+            // Fallback: append
             setTransformExpr(prev => prev + func.template);
+            setSelectedFunction(func.name);
         }
-        setSelectedFunction(func.name);
     };
 
     return (

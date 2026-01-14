@@ -268,7 +268,7 @@ export default function QueryChart({
         }
 
         return result;
-    }, [data, xAxis, yAxes, breakdownBy, aggregation, timeGrain, limit, sortBy, sortOrder]);
+    }, [data, xAxis, yAxes, breakdownBy, aggregation, timeGrain, limit, sortBy, sortOrder, calculatedMetrics]);
 
     // For stacked bar with breakdown
     const stackedChartData = useMemo(() => {
@@ -309,7 +309,12 @@ export default function QueryChart({
             case 'bar':
                 return (
                     <ResponsiveContainer width="100%" height={600}>
-                        <BarChart data={displayData} margin={{ bottom: 80 }}>
+                        <BarChart
+                            data={displayData}
+                            margin={{ bottom: 80 }}
+                            barCategoryGap="15%"
+                            barGap={0}
+                        >
                             <CartesianGrid strokeDasharray="3 3" stroke="#E5E7EB" />
                             <XAxis
                                 dataKey={xAxis || '_category'}
