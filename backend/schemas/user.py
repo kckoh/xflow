@@ -99,3 +99,9 @@ class UserResponseAdmin(BaseModel):
 
     class Config:
         from_attributes = True
+
+
+class BulkAddDataset(BaseModel):
+    """Schema for adding a dataset to multiple roles"""
+    dataset_id: str
+    role_ids: List[str]

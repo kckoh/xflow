@@ -163,7 +163,7 @@ export const deleteRole = async (sessionId, roleId) => {
  * @returns {Promise<Object>}
  */
 export const addDatasetToRoles = async (sessionId, datasetId, roleIds) => {
-    const response = await fetch(`${BASE_URL}/roles/bulk-add-dataset?session_id=${sessionId}&dataset_id=${datasetId}`, {
+    const response = await fetch(`${BASE_URL}/roles/bulk-add-dataset?session_id=${sessionId}`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ dataset_id: datasetId, role_ids: roleIds }),

@@ -7,7 +7,7 @@ from typing import List
 
 from fastapi import APIRouter, HTTPException, status, Depends
 from models import User, Role
-from schemas.user import UserCreateAdmin, UserUpdateAdmin, UserResponseAdmin, RoleCreate, RoleUpdate, RoleResponse
+from schemas.user import UserCreateAdmin, UserUpdateAdmin, UserResponseAdmin, RoleCreate, RoleUpdate, RoleResponse, BulkAddDataset
 from dependencies import sessions
 
 router = APIRouter()
@@ -206,8 +206,18 @@ async def delete_user(user_id: str, admin: dict = Depends(require_admin)):
 
 # Role endpoints
 @router.get("/roles", response_model=List[RoleResponse])
-async def get_roles(admin: dict = Depends(require_admin)):
-    """Get all roles (admin only)"""
+async def get_roles(session_id: str):
+    """
+    Get all roles (authenticated users only)
+    Changed from admin-only to allow all authenticated users for permission assignment in wizards
+    """
+    # Check authentication (but not admin)
+    if session_id not in sessions:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Not authenticated"
+        )
+    
     roles = await Role.find_all().to_list()
 
     return [
@@ -355,19 +365,28 @@ async def add_dataset_to_role(role_id: str, dataset_id: str, admin: dict = Depen
 
 @router.post("/roles/bulk-add-dataset")
 async def bulk_add_dataset_to_roles(
-    dataset_id: str,
-    role_ids: List[str],
-    admin: dict = Depends(require_admin)
+    data: BulkAddDataset,
+    session_id: str
 ):
-    """Add a dataset to multiple roles' dataset_access lists"""
+    """
+    Add a dataset to multiple roles' dataset_access lists
+    Allowed for authenticated users to share their created datasets
+    """
+    # Check authentication
+    if session_id not in sessions:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Not authenticated"
+        )
+
     from bson import ObjectId
 
     updated_count = 0
-    for role_id in role_ids:
+    for role_id in data.role_ids:
         try:
             role = await Role.get(ObjectId(role_id))
-            if role and dataset_id not in role.dataset_access:
-                role.dataset_access.append(dataset_id)
+            if role and data.dataset_id not in role.dataset_access:
+                role.dataset_access.append(data.dataset_id)
                 role.updated_at = datetime.utcnow()
                 await role.save()
                 updated_count += 1

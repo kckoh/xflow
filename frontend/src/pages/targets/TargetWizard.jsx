@@ -113,7 +113,14 @@ export default function TargetWizard() {
           const allRoles = await getRoles(sessionId);
           // Filter out user's own role and admin roles
           const filteredRoles = allRoles.filter(
-            (role) => role.id !== user?.role_id
+            (role) => {
+              // Exclude user's own role (auto-granted)
+              if (role.id === user?.role_id) return false;
+              // Exclude admin and master roles (they have all access anyway)
+              const roleName = role.name?.toLowerCase();
+              if (roleName?.includes('admin') || roleName?.includes('master')) return false;
+              return true;
+            }
           );
           setRoles(filteredRoles);
         } catch (err) {
@@ -1748,49 +1755,85 @@ export default function TargetWizard() {
                     <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
                     <span className="ml-3 text-sm text-gray-500">Loading roles...</span>
                   </div>
-                ) : roles.length === 0 ? (
-                  <div className="text-center py-8">
-                    <Shield className="w-12 h-12 text-gray-300 mx-auto mb-3" />
-                    <p className="text-sm text-gray-500">No roles available</p>
-                  </div>
                 ) : (
-                  <div className="space-y-2">
-                    {roles.map((role) => (
-                      <label
-                        key={role.id}
-                        className="flex items-center p-3 border border-gray-200 rounded-lg hover:bg-gray-50 cursor-pointer transition-colors"
-                      >
-                        <input
-                          type="checkbox"
-                          checked={selectedRoleIds.includes(role.id)}
-                          onChange={(e) => {
-                            if (e.target.checked) {
-                              setSelectedRoleIds([...selectedRoleIds, role.id]);
-                            } else {
-                              setSelectedRoleIds(selectedRoleIds.filter((id) => id !== role.id));
-                            }
-                          }}
-                          className="w-4 h-4 text-blue-600 border-gray-300 rounded focus:ring-blue-500"
-                        />
-                        <div className="ml-3 flex-1">
-                          <span className="text-sm font-medium text-gray-900">
-                            {role.name}
-                          </span>
-                          {role.description && (
+                  <div className="space-y-3">
+                    {/* User's own role - auto-selected and disabled */}
+                    {user?.role_id && (
+                      <div className="mb-4">
+                        <p className="text-xs font-medium text-gray-500 mb-2">Your Role (Auto-granted)</p>
+                        <div className="flex items-center p-3 border-2 border-green-200 bg-green-50 rounded-lg">
+                          <input
+                            type="checkbox"
+                            checked={true}
+                            disabled={true}
+                            className="w-4 h-4 text-green-600 border-gray-300 rounded focus:ring-green-500 opacity-60 cursor-not-allowed"
+                          />
+                          <div className="ml-3 flex-1">
+                            <div className="flex items-center gap-2">
+                              <span className="text-sm font-medium text-gray-900">
+                                {user.role_name || 'Your Role'}
+                              </span>
+                              <span className="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-green-100 text-green-800">
+                                Auto-granted
+                              </span>
+                            </div>
                             <p className="text-xs text-gray-500 mt-0.5">
-                              {role.description}
+                              You automatically have access to datasets you create
                             </p>
-                          )}
+                          </div>
                         </div>
-                      </label>
-                    ))}
+                      </div>
+                    )}
+
+                    {/* Other roles */}
+                    {roles.length === 0 ? (
+                      <div className="text-center py-8">
+                        <Shield className="w-12 h-12 text-gray-300 mx-auto mb-3" />
+                        <p className="text-sm text-gray-500">No other roles available</p>
+                      </div>
+                    ) : (
+                      <>
+                        <p className="text-xs font-medium text-gray-500 mb-2">Additional Roles</p>
+                        <div className="space-y-2">
+                          {roles.map((role) => (
+                            <label
+                              key={role.id}
+                              className="flex items-center p-3 border border-gray-200 rounded-lg hover:bg-gray-50 cursor-pointer transition-colors"
+                            >
+                              <input
+                                type="checkbox"
+                                checked={selectedRoleIds.includes(role.id)}
+                                onChange={(e) => {
+                                  if (e.target.checked) {
+                                    setSelectedRoleIds([...selectedRoleIds, role.id]);
+                                  } else {
+                                    setSelectedRoleIds(selectedRoleIds.filter((id) => id !== role.id));
+                                  }
+                                }}
+                                className="w-4 h-4 text-blue-600 border-gray-300 rounded focus:ring-blue-500"
+                              />
+                              <div className="ml-3 flex-1">
+                                <span className="text-sm font-medium text-gray-900">
+                                  {role.name}
+                                </span>
+                                {role.description && (
+                                  <p className="text-xs text-gray-500 mt-0.5">
+                                    {role.description}
+                                  </p>
+                                )}
+                              </div>
+                            </label>
+                          ))}
+                        </div>
+                      </>
+                    )}
                   </div>
                 )}
 
                 {selectedRoleIds.length > 0 && (
                   <div className="mt-4 p-3 bg-blue-50 rounded-lg border border-blue-100">
                     <p className="text-xs text-blue-700">
-                      <strong>{selectedRoleIds.length}</strong> role(s) selected - Users with these roles will have access to this dataset
+                      <strong>{selectedRoleIds.length}</strong> additional role(s) selected - Users with these roles will have access to this dataset
                     </p>
                   </div>
                 )}

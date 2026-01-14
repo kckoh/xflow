@@ -120,26 +120,25 @@ async def create_source_dataset(dataset: SourceDatasetCreate, session_id: Option
     result = await db.source_datasets.insert_one(dataset_data)
     dataset_data["id"] = str(result.inserted_id)
     
-    # Auto-grant permission: Add dataset to creator's roles
+    # Auto-grant permission: Add dataset to creator's role
     if session_id and session_id in sessions:
         user_session = sessions[session_id]
         user_id = user_session.get("user_id")
-        role_ids = user_session.get("role_ids", [])
+        role_id = user_session.get("role_id")  # Single role, not plural
         
-        # Add dataset to all user's roles
-        if role_ids:
+        # Add dataset to user's role
+        if role_id:
             from models import Role, User
             from beanie import PydanticObjectId
             try:
-                # Update all roles to include this dataset
-                for role_id in role_ids:
-                    role = await Role.get(PydanticObjectId(role_id))
-                    if role:
-                        dataset_id_str = dataset_data["id"]
-                        if dataset_id_str not in role.dataset_access:
-                            role.dataset_access.append(dataset_id_str)
-                            await role.save()
-                            print(f"✅ Auto-granted source dataset {dataset.name} to role {role.name}")
+                # Update role to include this dataset
+                role = await Role.get(PydanticObjectId(role_id))
+                if role:
+                    dataset_id_str = dataset_data["id"]
+                    if dataset_id_str not in role.dataset_access:
+                        role.dataset_access.append(dataset_id_str)
+                        await role.save()
+                        print(f"✅ Auto-granted source dataset {dataset.name} to role {role.name}")
                 
                 # Update session's dataset_access cache
                 if user_id:
@@ -147,8 +146,9 @@ async def create_source_dataset(dataset: SourceDatasetCreate, session_id: Option
                     if user:
                         # Recalculate combined dataset access
                         combined_dataset_access = set(user.dataset_access or [])
-                        for role_id in user.role_ids:
-                            role = await Role.get(PydanticObjectId(role_id))
+                        # Add role's dataset access
+                        if user.role_id:
+                            role = await Role.get(PydanticObjectId(user.role_id))
                             if role:
                                 combined_dataset_access.update(role.dataset_access or [])
                         user_session["dataset_access"] = list(combined_dataset_access)
