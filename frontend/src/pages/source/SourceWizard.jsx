@@ -77,7 +77,7 @@ const SOURCE_OPTIONS = [
 export default function SourceWizard() {
   const navigate = useNavigate();
   const location = useLocation();
-  const { user } = useAuth();
+  const { user, sessionId } = useAuth();
   const [currentStep, setCurrentStep] = useState(1);
   const [selectedSource, setSelectedSource] = useState(null);
   const [expandedColumns, setExpandedColumns] = useState({});
