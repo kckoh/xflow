@@ -104,8 +104,29 @@ class KafkaStreamingService:
         cmd = (
             "bash -lc "
             + shlex.quote(
-                f"if [ -f {pid_file} ]; then kill $(cat {pid_file}) && rm -f {pid_file}; "
-                f"else pkill -f 'kafka_streaming_runner.py.*{app_name}'; fi"
+                "set +e; "
+                f"pids=\"\"; "
+                f"if [ -f {pid_file} ]; then "
+                f"  pid=$(cat {pid_file} || true); "
+                f"  if [ -n \"$pid\" ]; then pids=\"$pids $pid\"; fi; "
+                f"fi; "
+                f"pids=\"$pids $(ps -ef | grep -E 'kafka_streaming_runner.py.*{app_name}' | grep -v grep | awk '{{print $2}}')\"; "
+                f"pids=\"$pids $(ps -ef | grep -E 'SparkSubmit.*--name {app_name}' | grep -v grep | awk '{{print $2}}')\"; "
+                f"for p in $pids; do "
+                f"  if [ -n \"$p\" ]; then "
+                f"    kill -TERM $p 2>/dev/null || true; "
+                f"    pkill -TERM -P $p 2>/dev/null || true; "
+                f"  fi; "
+                f"done; "
+                f"sleep 2; "
+                f"for p in $pids; do "
+                f"  if [ -n \"$p\" ]; then "
+                f"    kill -KILL $p 2>/dev/null || true; "
+                f"    pkill -KILL -P $p 2>/dev/null || true; "
+                f"  fi; "
+                f"done; "
+                f"rm -f {pid_file}; "
+                f"exit 0"
             )
         )
 
