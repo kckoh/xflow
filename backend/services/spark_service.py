@@ -113,7 +113,7 @@ class SparkService:
         cls,
         config: dict,
         app_name: str,
-        script_path: str = "/opt/spark/jobs/unified_cdc_runner.py",
+        script_path: str = "/opt/spark/jobs/kafka_streaming_runner.py",
         node_selector: dict | None = None,
         tolerations: list | None = None,
     ) -> str:
