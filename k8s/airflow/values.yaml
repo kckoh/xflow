@@ -146,7 +146,7 @@ env:
     value: "spark://spark-master:7077"
   # MongoDB configuration (cross-namespace: mongodb.default)
   - name: MONGODB_URL
-    value: "mongodb://root:example@mongodb.default:27017"
+    value: "mongodb://root:example@mongodb.mongodb.xflow:27017"
   - name: MONGODB_DATABASE
     value: "xflow"
   # Backend API (cross-namespace: backend.default)
@@ -184,11 +184,11 @@ logs:
 # S3 Remote Logging
 config:
   logging:
-    remote_logging: 'True'
-    remote_base_log_folder: 's3://xflow-airflow-logs/logs'
-    remote_log_conn_id: 'aws_default'
+    remote_logging: "True"
+    remote_base_log_folder: "s3://xflow-airflow-logs/logs"
+    remote_log_conn_id: "aws_default"
   core:
-    colored_console_log: 'False'
+    colored_console_log: "False"
 
 # Ingress (optional - can use ALB Ingress)
 ingress:

@@ -115,16 +115,16 @@ async def get_mongodb_collections(connection_id: str):
     if conn.type == 'mongodb':
         try:
             from services.mongodb_connector import MongoDBConnector
-            
-            with MongoDBConnector(
+
+            async with MongoDBConnector(
                 uri=conn.config.get('uri'),
                 database=conn.config.get('database')
             ) as connector:
-                collections = connector.get_collections()
-                
+                collections = await connector.get_collections()
+
                 # Update connection status
                 await conn.update({"$set": {"status": "connected"}})
-                
+
                 return {
                     "source_id": connection_id,
                     "collections": collections
@@ -159,12 +159,12 @@ async def get_collection_schema(
     if conn.type == 'mongodb':
         try:
             from services.mongodb_connector import MongoDBConnector
-            
-            with MongoDBConnector(
+
+            async with MongoDBConnector(
                 uri=conn.config.get('uri'),
                 database=conn.config.get('database')
             ) as connector:
-                schema = connector.infer_schema(collection_name, sample_size)
+                schema = await connector.infer_schema(collection_name, sample_size)
                 return schema
         except Exception as e:
             raise HTTPException(status_code=500, detail=f"Failed to infer schema: {str(e)}")
