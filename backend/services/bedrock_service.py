@@ -20,6 +20,8 @@ class BedrockService:
             'BEDROCK_MODEL_ID',
             'global.anthropic.claude-haiku-4-5-20251001-v1:0'
         )
+        # Input token limit 
+        self.max_input_tokens = 20000
         self._client = None
 
     @property
@@ -81,6 +83,11 @@ class BedrockService:
                 columns=metadata.get('columns', []),
                 question=question
             )
+        
+        # Validate input token count
+        input_tokens = self._estimate_tokens(prompt)
+        if input_tokens > self.max_input_tokens:
+            return f"-- Error: Input too long ({input_tokens:,} tokens). Maximum allowed: {self.max_input_tokens:,} tokens.\n-- Please reduce the context or schema size."
         
         try:
             response = self.client.invoke_model(
@@ -296,6 +303,24 @@ The query must be compatible with both DuckDB (for preview) and Spark SQL (for e
 
             Recommended partition columns:"""
 
+    def _estimate_tokens(self, text: str) -> int:
+        """
+        텍스트의 토큰 수 추정
+        
+        Claude 토큰화 근사치:
+        - 영어: 1 token ≈ 4 characters
+        - 한글/중국어: 1 token ≈ 2-3 characters
+        - 보수적 추정: 1 token ≈ 3 characters (다국어 고려)
+        
+        Args:
+            text: 추정할 텍스트
+            
+        Returns:
+            추정 토큰 수
+        """
+        # Conservative estimate: 1 token per 3 characters
+        return len(text) // 3
+    
     def _extract_sql(self, text: str) -> str:
         """
         생성된 텍스트에서 SQL 추출
