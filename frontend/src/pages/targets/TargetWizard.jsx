@@ -2010,20 +2010,16 @@ export default function TargetWizard() {
 
                         setIsLoadingPartitionAI(true);
                         try {
-                          const prompt = `I need to partition a dataset for optimal query performance.
-
-Available columns: ${targetSchema.map(col => `${col.name} (${col.type})`).join(', ')}
-
-Please recommend 1-3 columns for partitioning based on:
-1. Time-based columns (date, timestamp) are preferred
-2. Columns with moderate cardinality (10-1000 unique values)
-3. Columns commonly used in WHERE clauses
-4. Avoid high-cardinality columns (like IDs) and very low-cardinality columns (like booleans)
-
-Return ONLY the column names, comma-separated (e.g., "created_date, region, status").`;
-
-                          const response = await aiApi.generateSQL(prompt);
-
+                          const response = await aiApi.generateSQL(
+                            'Recommend partition columns',
+                            {
+                              columns: targetSchema.map(col => ({
+                                name: col.name,
+                                type: col.type
+                              }))
+                            },
+                            'partition'
+                          );
 
                           // Parse AI suggestion and apply to partitionColumns
                           const suggestion = response.sql || '';

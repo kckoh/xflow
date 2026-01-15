@@ -355,16 +355,11 @@ export default function SqlLabPage() {
                     {/* AI Input Panel */}
                     {showAI && (
                         <InlineAIInput
-                            context={`Available tables and schemas in the database.
-Query engine: ${engine === 'duckdb' ? 'DuckDB (for S3 Parquet files)' : 'Trino (distributed query engine)'}
-
-For DuckDB queries:
-- Use read_parquet('s3://bucket/path/*.parquet') to query S3 files
-- Example: SELECT * FROM read_parquet('s3://my-bucket/data/*.parquet') WHERE date > '2024-01-01'
-
-For Trino queries:
-- Use lakehouse.default.table_name format
-- Example: SELECT * FROM lakehouse.default.my_table WHERE date > DATE '2024-01-01'`}
+                            promptType="sql_lab"
+                            metadata={{
+                                engine: engine,
+                                tables: []
+                            }}
                             placeholder="Ask AI to generate SQL query..."
                             onApply={(sql) => {
                                 setQuery(sql);

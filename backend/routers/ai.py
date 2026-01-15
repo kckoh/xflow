@@ -19,33 +19,45 @@ router = APIRouter()
 async def generate_sql(request: Request, body: GenerateSQLRequest):
     """
     자연어 질문을 SQL로 변환
-
-    1. OpenSearch에서 관련 스키마 검색 (RAG)
-    2. 스키마 컨텍스트 + 질문으로 Bedrock 호출
-    3. SQL 생성 및 반환
+    
+    Supports two modes:
+    1. Legacy: OpenSearch RAG + Bedrock (prompt_type='general')
+    2. New: Direct prompt templates (field_transform, sql_transform, sql_lab, partition)
     """
     try:
-        # 1. OpenSearch에서 관련 스키마 검색
+        bedrock_service = get_bedrock_service()
+        
+        # New mode: Use prompt templates
+        if body.prompt_type != 'general':
+            sql = bedrock_service.generate_sql(
+                question=body.question,
+                prompt_type=body.prompt_type,
+                metadata=body.metadata or {}
+            )
+            return GenerateSQLResponse(
+                sql=sql,
+                schema_context=f"Prompt type: {body.prompt_type}"
+            )
+        
+        # Legacy mode: OpenSearch RAG
         rag_service = get_rag_service()
         results, schema_context = rag_service.search_schema(body.question)
-
-        # 검색 결과 없으면 빈 컨텍스트로 진행 (AI가 "not found" 응답)
+        
+        # 검색 결과 없으면 빈 컨텍스트로 진행
         if not results:
             schema_context = "No matching schemas found."
-
-        # 2. Bedrock로 SQL 생성
-        bedrock_service = get_bedrock_service()
+        
         sql = bedrock_service.generate_sql(
-            schema_context=schema_context,
             question=body.question,
+            schema_context=schema_context,
             additional_context=body.context
         )
-
+        
         return GenerateSQLResponse(
             sql=sql,
             schema_context=schema_context
         )
-
+        
     except Exception as e:
         print(f"Generate SQL error: {e}")
         raise HTTPException(

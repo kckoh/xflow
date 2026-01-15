@@ -13,9 +13,17 @@ class GenerateSQLRequest(BaseModel):
     question: str = Field(
         description="자연어 질문 (예: '매출 top 10 고객 보여줘')"
     )
+    prompt_type: str = Field(
+        default='general',
+        description="프롬프트 타입 (field_transform, sql_transform, sql_lab, partition, general)"
+    )
+    metadata: Optional[dict] = Field(
+        default=None,
+        description="컨텍스트별 메타데이터 (컬럼 정보, 소스 정보 등)"
+    )
     context: Optional[str] = Field(
         default=None,
-        description="추가 컨텍스트 정보 (선택)"
+        description="추가 컨텍스트 정보 (선택, legacy)"
     )
 
 
