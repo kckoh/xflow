@@ -783,7 +783,13 @@ export default function SchemaTransformEditor({
                             {/* AI Input Panel - appears between header and textarea */}
                             {showAI && (
                                 <InlineAIInput
-                                    context={`I'm writing a SQL query to transform data. The available sources are: ${allSources.map(s => s.name).join(', ')}. Help me write a SQL query.`}
+                                    promptType="sql_transform"
+                                    metadata={{
+                                        sources: allSources.map(s => ({
+                                            name: s.name,
+                                            schema: s.schema || []
+                                        }))
+                                    }}
                                     placeholder="e.g., join tables, aggregate data, filter rows..."
                                     onApply={(suggestion) => {
                                         setCustomSql(suggestion);
@@ -792,7 +798,7 @@ export default function SchemaTransformEditor({
                                     onCancel={() => setShowAI(false)}
                                 />
                             )}
-                            
+
                             <textarea
                                 value={customSql}
                                 onChange={(e) => setCustomSql(e.target.value)}

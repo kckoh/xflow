@@ -124,7 +124,11 @@ export default function TransformFunctionModal({ column, onApply, onClose }) {
                         {/* AI Input Panel - appears between flex row and textarea */}
                         {showAI && (
                             <InlineAIInput
-                                context={`I'm transforming a column named "${column.originalName}" of type "${column.type}". Help me write a SQL transform expression.`}
+                                promptType="field_transform"
+                                metadata={{
+                                    column_name: column.originalName,
+                                    column_type: column.type
+                                }}
                                 placeholder="e.g., convert to uppercase, extract first 3 characters..."
                                 onApply={(suggestion) => {
                                     // Apply AI suggestion to the transform expression

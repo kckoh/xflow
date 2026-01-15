@@ -7,7 +7,8 @@ import { aiApi } from '../../services/aiApi';
  * Expands below the trigger button to show an input field
  */
 export default function InlineAIInput({
-    context = '',
+    promptType = 'general',
+    metadata = {},
     placeholder = 'Ask AI to help...',
     onApply,
     onCancel
@@ -24,13 +25,12 @@ export default function InlineAIInput({
         setError(null);
 
         try {
-            // Build context-aware prompt
-            const fullPrompt = context
-                ? `${context}\n\nUser request: ${input}`
-                : input;
-
-            // Call AI API directly
-            const response = await aiApi.generateSQL(fullPrompt);
+            // Call AI API with prompt type and metadata
+            const response = await aiApi.generateSQL(
+                input,
+                metadata,
+                promptType
+            );
 
             // Apply the AI suggestion (use the SQL from response)
             if (onApply && response.sql) {
