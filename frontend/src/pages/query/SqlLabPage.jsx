@@ -1,9 +1,10 @@
 import { useState, useEffect } from "react";
 import { useNavigate, useLocation } from "react-router-dom";
-import { Play, Loader2, XCircle, Download, BarChart3, Database } from "lucide-react";
+import { Play, Loader2, XCircle, Download, BarChart3, Database, Sparkles } from "lucide-react";
 import { executeQuery as runDuckDBQuery } from "../../services/apiDuckDB";
 import { executeQuery as runTrinoQuery, executeQueryPaginated as runTrinoQueryPaginated } from "../../services/apiTrino";
 import { useToast } from "../../components/common/Toast";
+import InlineAIInput from "../../components/ai/InlineAIInput";
 import TableColumnSidebar from "./components/TableColumnSidebar";
 import QueryExplorer from "./components/QueryExplorer";
 
@@ -52,6 +53,9 @@ export default function SqlLabPage() {
     const [hasMore, setHasMore] = useState(false);
     const [loadingMore, setLoadingMore] = useState(false);
     const [viewPage, setViewPage] = useState(1); // 현재 보고 있는 페이지
+
+    // AI state
+    const [showAI, setShowAI] = useState(false);
 
     // Load query and results from multiple sources (priority order)
     useEffect(() => {
@@ -315,23 +319,61 @@ export default function SqlLabPage() {
                                 </p>
                             )}
                         </div>
-                        {/* Engine Selector */}
-                        <div className="flex items-center gap-2">
-                            <Database className="w-4 h-4 text-gray-500" />
-                            <select
-                                value={engine}
-                                onChange={(e) => setEngine(e.target.value)}
-                                className="px-3 py-1.5 text-sm border border-gray-300 rounded-lg bg-white focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none"
+                        {/* AI Button and Engine Selector */}
+                        <div className="flex items-center gap-3">
+                            {/* AI Button */}
+                            <button
+                                onClick={() => setShowAI(!showAI)}
+                                className="flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs font-medium
+                                    bg-gradient-to-r from-indigo-50 to-purple-50 text-indigo-600 
+                                    hover:from-indigo-100 hover:to-purple-100 transition-all
+                                    border border-indigo-200/50"
+                                title="AI SQL Assistant"
                             >
-                                <option value="duckdb">DuckDB (Fast)</option>
-                                <option value="trino">Trino (Distributed)</option>
-                            </select>
+                                <Sparkles size={14} />
+                                <span>AI</span>
+                            </button>
+
+                            {/* Engine Selector */}
+                            <div className="flex items-center gap-2">
+                                <Database className="w-4 h-4 text-gray-500" />
+                                <select
+                                    value={engine}
+                                    onChange={(e) => setEngine(e.target.value)}
+                                    className="px-3 py-1.5 text-sm border border-gray-300 rounded-lg bg-white focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none"
+                                >
+                                    <option value="duckdb">DuckDB (Fast)</option>
+                                    <option value="trino">Trino (Distributed)</option>
+                                </select>
+                            </div>
                         </div>
                     </div>
                 </div>
 
                 {/* Query Editor */}
                 <div className="p-4 border-b border-gray-200 min-w-0">
+                    {/* AI Input Panel */}
+                    {showAI && (
+                        <InlineAIInput
+                            context={`Available tables and schemas in the database.
+Query engine: ${engine === 'duckdb' ? 'DuckDB (for S3 Parquet files)' : 'Trino (distributed query engine)'}
+
+For DuckDB queries:
+- Use read_parquet('s3://bucket/path/*.parquet') to query S3 files
+- Example: SELECT * FROM read_parquet('s3://my-bucket/data/*.parquet') WHERE date > '2024-01-01'
+
+For Trino queries:
+- Use lakehouse.default.table_name format
+- Example: SELECT * FROM lakehouse.default.my_table WHERE date > DATE '2024-01-01'`}
+                            placeholder="Ask AI to generate SQL query..."
+                            onApply={(sql) => {
+                                setQuery(sql);
+                                setShowAI(false);
+                            }}
+                            onCancel={() => setShowAI(false)}
+                        />
+                    )}
+
                     <div className="relative min-w-0">
                         <textarea
                             value={query}
