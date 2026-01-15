@@ -4,21 +4,33 @@
 # Cluster: xflow-test2 (ap-northeast-2)
 # ===========================================
 
+# Configuration
+AWS_REGION="ap-northeast-2"
+CLUSTER_NAME="xflow-test2"
+NODEGROUP_NAME="ng-spot"
+
+# Get AWS Account ID dynamically
+AWS_ACCOUNT_ID=$(aws sts get-caller-identity --query Account --output text)
+ECR_REGISTRY="${AWS_ACCOUNT_ID}.dkr.ecr.${AWS_REGION}.amazonaws.com"
+
+echo "AWS Account ID: ${AWS_ACCOUNT_ID}"
+echo "ECR Registry: ${ECR_REGISTRY}"
+
 # ----- START ALL -----
 
 # 1. Scale up Spot nodes (~2 min)
-eksctl scale nodegroup --cluster xflow-test2 --name ng-spot --nodes 2 --region ap-northeast-2
+eksctl scale nodegroup --cluster ${CLUSTER_NAME} --name ${NODEGROUP_NAME} --nodes 2 --region ${AWS_REGION}
 
 # 2. Wait for nodes to be Ready
 kubectl get nodes -w
 
-# 3. Install Helm chart
-cd /Users/kckoh/Desktop/xflow/charts/xflow
+# 3. Install Helm chart (run from charts/xflow directory)
+# cd /path/to/xflow/charts/xflow
 helm upgrade --install xflow . -f values-eks-test.yaml -n xflow \
   --set trino.ingress.enabled=false \
   --set global.imageRegistry="" \
-  --set backend.image.repository=134059028370.dkr.ecr.ap-northeast-2.amazonaws.com/xflow-backend-test \
-  --set airflow.images.airflow.repository=134059028370.dkr.ecr.ap-northeast-2.amazonaws.com/xflow-airflow-test
+  --set backend.image.repository=${ECR_REGISTRY}/xflow-backend-test \
+  --set airflow.images.airflow.repository=${ECR_REGISTRY}/xflow-airflow-test
 
 # 4. Watch pod status
 kubectl get pods -n xflow -w
@@ -46,7 +58,7 @@ kubectl port-forward svc/xflow-trino 8081:8080 -n xflow &
 helm uninstall xflow -n xflow
 
 # Scale down Spot nodes (saves cost)
-eksctl scale nodegroup --cluster xflow-test2 --name ng-spot --nodes 0 --region ap-northeast-2
+eksctl scale nodegroup --cluster ${CLUSTER_NAME} --name ${NODEGROUP_NAME} --nodes 0 --region ${AWS_REGION}
 
 # ----- USEFUL COMMANDS -----
 
@@ -57,4 +69,4 @@ kubectl get nodes
 kubectl get pods -n xflow
 
 # Check nodegroup status
-eksctl get nodegroup --cluster xflow-test2 --region ap-northeast-2
+eksctl get nodegroup --cluster ${CLUSTER_NAME} --region ${AWS_REGION}

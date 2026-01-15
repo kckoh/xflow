@@ -22,9 +22,16 @@ spec:
       imagePullSecrets:
         {{- toYaml . | nindent 8 }}
       {{- end }}
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 1000
+        fsGroup: 1000
       containers:
         - name: backend
           image: {{ include "xflow.image" (dict "Values" .Values "image" .Values.backend.image) }}
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
           imagePullPolicy: {{ .Values.backend.image.pullPolicy | default "Always" }}
           ports:
             - containerPort: 8000

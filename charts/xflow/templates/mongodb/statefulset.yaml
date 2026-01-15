@@ -22,9 +22,13 @@ spec:
       imagePullSecrets:
         {{- toYaml . | nindent 8 }}
       {{- end }}
+      securityContext:
+        fsGroup: 999
       containers:
         - name: mongodb
           image: "{{ .Values.mongodb.image.repository }}:{{ .Values.mongodb.image.tag }}"
+          securityContext:
+            allowPrivilegeEscalation: false
           ports:
             - containerPort: 27017
               name: mongodb
@@ -56,10 +60,18 @@ spec:
             initialDelaySeconds: 30
             periodSeconds: 20
             timeoutSeconds: 5
-      {{- if .Values.mongodb.persistence.enabled }}
-      volumes:
-        - name: mongodb-data
-          persistentVolumeClaim:
-            claimName: mongodb-pvc
-      {{- end }}
+  {{- if .Values.mongodb.persistence.enabled }}
+  volumeClaimTemplates:
+    - metadata:
+        name: mongodb-data
+        labels:
+          app: mongodb
+      spec:
+        accessModes:
+          - ReadWriteOnce
+        storageClassName: {{ .Values.mongodb.persistence.storageClass | default (include "xflow.storageClass" .) }}
+        resources:
+          requests:
+            storage: {{ .Values.mongodb.persistence.size | default "10Gi" }}
+  {{- end }}
 {{- end }}
