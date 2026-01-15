@@ -198,28 +198,57 @@ class BedrockService:
             sources_list.append(f"- Table: \"{name}\"\n  Columns: {cols}")
         sources_text = "\n".join(sources_list) if sources_list else "No sources available"
         
+        # Determine table reference based on number of sources
+        num_sources = len(sources)
+        if num_sources == 1:
+            table_reference = "Use 'input' as the table name in your FROM clause"
+            example_from = "FROM input"
+        else:
+            table_names = ', '.join([s.get('name', 'unknown') for s in sources])
+            table_reference = f"Use the actual table names ({table_names}) in your FROM clause for JOINs"
+            example_from = f"FROM {sources[0].get('name', 'source1')}"
+        
         return f"""You are helping write a SQL query to transform data in an ETL pipeline.
+The query must be compatible with both DuckDB (for preview) and Spark SQL (for execution).
 
             **Available Source Tables:**
             {sources_text}
 
             **IMPORTANT RULES:**
             1. Generate a complete SELECT query
-            2. Use the source table names as shown above
-            3. You can JOIN multiple sources if needed
-            4. Use standard SQL syntax (DuckDB/Spark compatible)
+            2. {table_reference}
+            3. You can JOIN multiple sources if needed (use actual table names for JOINs)
+            4. Use ONLY functions compatible with BOTH DuckDB AND Spark SQL
             5. Do NOT reference tables not listed above
             6. Do NOT use 's3://' paths - use table names only
 
+            **Compatible Date/Time Functions (USE ONLY THESE):**
+            - Convert to date: CAST(column AS DATE)
+            - Convert to timestamp: CAST(column AS TIMESTAMP)
+            - Convert date to string (YYYY-MM-DD): CAST(CAST(column AS DATE) AS STRING)
+            - Extract year: YEAR(column)
+            - Extract month: MONTH(column)
+            - Extract day: DAY(column)
+            - String functions: UPPER(), LOWER(), TRIM(), SUBSTRING()
+            - Aggregate: COUNT(), SUM(), AVG(), MIN(), MAX()
+
+            **DO NOT USE (incompatible):**
+            - DATE(column) - DuckDB only
+            - TO_DATE(column) - Spark only
+            - DATE_FORMAT() - different syntax in DuckDB vs Spark
+            - CURRENT_DATE() vs CURRENT_DATE - different syntax
+
             **Example Queries:**
-            - Simple select: SELECT id, name, email FROM source1
-            - Join tables: SELECT a.id, a.name, b.value FROM source1 a JOIN source2 b ON a.id = b.id
-            - Aggregate: SELECT category, COUNT(*) as count FROM source1 GROUP BY category
-            - Transform: SELECT id, UPPER(name) as name, DATE_FORMAT(created_at, 'yyyy-MM-dd') as date FROM source1
+            - Simple select: SELECT id, name, email {example_from}
+            - Date to string: SELECT id, CAST(CAST(created_at AS DATE) AS STRING) as created_date {example_from}
+            - Extract date parts: SELECT id, YEAR(created_at) as year, MONTH(created_at) as month {example_from}
+            - Join tables (multi-source): SELECT a.id, a.name, b.value FROM {sources[0].get('name', 'source1')} a JOIN {sources[1].get('name', 'source2') if num_sources > 1 else 'source2'} b ON a.id = b.id
+            - Aggregate: SELECT category, COUNT(*) as count {example_from} GROUP BY category
+            - Transform: SELECT id, UPPER(name) as name_upper, CAST(CAST(created_at AS DATE) AS STRING) as date {example_from}
 
             User Request: {question}
 
-            Generate a SQL query:"""
+            Generate a SQL query compatible with both DuckDB and Spark SQL:"""
 
     def _get_sql_lab_prompt(self, engine: str, tables: list, question: str) -> str:
         """SQL Lab prompt - generates queries for DuckDB or Trino"""
