@@ -10,7 +10,7 @@ class ConnectionTester:
     """
     
     @staticmethod
-    def test_connection(conn_type: str, config: Dict[str, Any]) -> Tuple[bool, str]:
+    async def test_connection(conn_type: str, config: Dict[str, Any]) -> Tuple[bool, str]:
         """
         Test connection based on type.
         Returns (is_success, message).
@@ -20,7 +20,7 @@ class ConnectionTester:
         elif conn_type == 's3':
             return ConnectionTester._test_s3(config)
         elif conn_type == 'mongodb':
-            return ConnectionTester._test_mongodb(config)
+            return await ConnectionTester._test_mongodb(config)
         elif conn_type == 'api':
             return ConnectionTester._test_api(config)
         else:
@@ -87,7 +87,7 @@ class ConnectionTester:
             return False, f"Error: {str(e)}"
 
     @staticmethod
-    def _test_mongodb(config: Dict[str, Any]) -> Tuple[bool, str]:
+    async def _test_mongodb(config: Dict[str, Any]) -> Tuple[bool, str]:
         """Test MongoDB connection."""
         try:
             from services.mongodb_connector import test_mongodb_connection
@@ -98,7 +98,7 @@ class ConnectionTester:
             if not uri or not database:
                 return False, "Missing MongoDB connection parameters (uri or database)"
 
-            return test_mongodb_connection(uri, database)
+            return await test_mongodb_connection(uri, database)
 
         except Exception as e:
             return False, f"MongoDB connection test failed: {str(e)}"
