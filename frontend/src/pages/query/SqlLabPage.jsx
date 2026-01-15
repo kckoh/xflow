@@ -354,7 +354,7 @@ export default function SqlLabPage() {
                                 )}
 
                                 <button
-                                    onClick={executeQuery}
+                                    onClick={() => executeQuery()}
                                     disabled={executing || !query.trim()}
                                     className={`flex items-center gap-2 px-4 py-1.5 rounded-lg text-sm font-medium transition-all shadow-sm ${executing || !query.trim()
                                         ? "bg-gray-100 text-gray-400 cursor-not-allowed border border-gray-200"
