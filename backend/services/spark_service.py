@@ -67,6 +67,10 @@ class SparkService:
                 "sparkConf": {
                     # Kafka 설정
                     "spark.jars.packages": "org.apache.spark:spark-sql-kafka-0-10_2.12:3.5.0",
+                    # Ivy 캐시 경로 (컨테이너 내 쓰기 가능한 경로 사용)
+                    "spark.jars.ivy": "/tmp/.ivy2",
+                    "spark.driver.extraJavaOptions": "-Divy.cache.dir=/tmp/.ivy2/cache -Divy.home=/tmp/.ivy2",
+                    "spark.executor.extraJavaOptions": "-Divy.cache.dir=/tmp/.ivy2/cache -Divy.home=/tmp/.ivy2",
                     # S3 설정
                     "spark.hadoop.fs.s3a.impl": "org.apache.hadoop.fs.s3a.S3AFileSystem",
                     "spark.hadoop.fs.s3a.aws.credentials.provider": "com.amazonaws.auth.WebIdentityTokenCredentialsProvider",
