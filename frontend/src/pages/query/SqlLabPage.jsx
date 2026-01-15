@@ -132,7 +132,7 @@ export default function SqlLabPage() {
                     const columns = result.data.length > 0 ? Object.keys(result.data[0]) : [];
 
                     if (page === 1) {
-                        // First page - new results
+                        // 첫 페이지 - 새로운 결과
                         setResults({
                             data: result.data,
                             columns,
@@ -142,7 +142,7 @@ export default function SqlLabPage() {
                             query: finalQuery,
                         });
                     } else {
-                        // Additional pages - append
+                        // 추가 페이지 - 누적
                         setResults(prev => ({
                             ...prev,
                             data: [...prev.data, ...result.data],
@@ -210,6 +210,16 @@ export default function SqlLabPage() {
             setError(err.message);
         } finally {
             setLoadingMore(false);
+        }
+    };
+
+    // 특정 페이지 섹션으로 스크롤
+    const scrollToPage = (pageNum) => {
+        const rowsPerPage = 1000;
+        const startRow = (pageNum - 1) * rowsPerPage;
+        const tableRows = document.querySelectorAll('tbody tr');
+        if (tableRows[startRow]) {
+            tableRows[startRow].scrollIntoView({ behavior: 'smooth', block: 'start' });
         }
     };
 
@@ -472,29 +482,48 @@ export default function SqlLabPage() {
                                     </table>
                                 </div>
 
-                                {/* Load More Button - Only for Trino */}
-                                {hasMore && engine === 'trino' && (
-                                    <div className="mt-4 flex justify-center shrink-0">
-                                        <button
-                                            onClick={loadMoreResults}
-                                            disabled={loadingMore}
-                                            className={`flex items-center gap-2 px-6 py-3 rounded-lg font-medium transition-colors ${
-                                                loadingMore
-                                                    ? "bg-gray-100 text-gray-400 cursor-not-allowed"
-                                                    : "bg-blue-600 text-white hover:bg-blue-700"
-                                            }`}
-                                        >
-                                            {loadingMore ? (
-                                                <>
-                                                    <Loader2 className="w-4 h-4 animate-spin" />
-                                                    Loading more...
-                                                </>
-                                            ) : (
-                                                <>
-                                                    Load More (1000 rows)
-                                                </>
-                                            )}
-                                        </button>
+                                {/* Page Navigation + Load More - Only for Trino with ALL limit */}
+                                {engine === 'trino' && queryLimit === 'All' && results && (
+                                    <div className="mt-4 flex justify-center items-center gap-2 shrink-0">
+                                        {/* 로드된 페이지 버튼들 */}
+                                        <div className="flex items-center gap-1">
+                                            {[...Array(currentPage)].map((_, i) => {
+                                                const pageNum = i + 1;
+                                                return (
+                                                    <button
+                                                        key={pageNum}
+                                                        onClick={() => scrollToPage(pageNum)}
+                                                        className="px-3 py-2 rounded-lg font-medium text-sm bg-white text-gray-700 border border-gray-300 hover:bg-gray-50 transition-colors"
+                                                    >
+                                                        {pageNum}
+                                                    </button>
+                                                );
+                                            })}
+                                        </div>
+
+                                        {/* Load More 버튼 */}
+                                        {hasMore && (
+                                            <button
+                                                onClick={loadMoreResults}
+                                                disabled={loadingMore}
+                                                className={`flex items-center gap-2 px-4 py-2 rounded-lg font-medium transition-colors ${
+                                                    loadingMore
+                                                        ? "bg-gray-100 text-gray-400 cursor-not-allowed"
+                                                        : "bg-blue-600 text-white hover:bg-blue-700"
+                                                }`}
+                                            >
+                                                {loadingMore ? (
+                                                    <>
+                                                        <Loader2 className="w-4 h-4 animate-spin" />
+                                                        Loading...
+                                                    </>
+                                                ) : (
+                                                    <>
+                                                        Load More (1000 rows)
+                                                    </>
+                                                )}
+                                            </button>
+                                        )}
                                     </div>
                                 )}
                             </div>
