@@ -1,0 +1,16 @@
+{{- if and .Values.mongodb.enabled .Values.mongodb.persistence.enabled }}
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: mongodb-pvc
+  labels:
+    app: mongodb
+    {{- include "xflow.labels" . | nindent 4 }}
+spec:
+  accessModes:
+    - ReadWriteOnce
+  storageClassName: {{ .Values.mongodb.persistence.storageClass | default (include "xflow.storageClass" .) }}
+  resources:
+    requests:
+      storage: {{ .Values.mongodb.persistence.size | default "10Gi" }}
+{{- end }}

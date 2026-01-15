@@ -1,0 +1,146 @@
+# ===========================================
+# XFlow Helm Chart - Minikube/Local Configuration
+# ===========================================
+# Usage:
+#   # Build local images first
+#   docker build -t xflow-backend:local ./backend
+#
+#   # Install chart
+#   helm install xflow ./charts/xflow \
+#     -f ./charts/xflow/values-minikube.yaml \
+#     -n xflow --create-namespace
+#
+#   # Access services via port-forward
+#   kubectl port-forward svc/backend 8000:80 -n xflow
+
+global:
+  namespace: xflow
+  createNamespace: true
+
+  # Empty for local images
+  imageRegistry: ""
+
+  cloudProvider: local
+
+  aws:
+    enabled: false
+
+  gcp:
+    enabled: false
+
+  azure:
+    enabled: false
+
+  storageClass: standard
+
+  # No domain for local
+  domain: ""
+
+  tls:
+    enabled: false
+
+# Disable ingress for local (use port-forward instead)
+ingress:
+  enabled: false
+  className: nginx
+  alb:
+    enabled: false
+
+# Backend
+backend:
+  enabled: true
+  image:
+    repository: xflow-backend
+    tag: local
+    pullPolicy: Never  # Use locally built image
+  replicas: 1
+  serviceAccount:
+    create: true
+    name: backend-sa
+    annotations: {}
+  config:
+    mongodbDatabase: xflow
+    corsOrigins: "http://localhost:5173,http://localhost:8000"
+    airflowDagId: dataset_dag_local
+    opensearchHost: opensearch
+    opensearchPort: "9200"
+    environment: development
+    useS3: "false"
+    sparkNamespace: spark-jobs
+  ingress:
+    enabled: false
+  resources:
+    requests:
+      memory: "128Mi"
+      cpu: "100m"
+    limits:
+      memory: "256Mi"
+      cpu: "250m"
+
+# MongoDB
+mongodb:
+  enabled: true
+  image:
+    repository: mongo
+    tag: "7"
+  replicas: 1
+  persistence:
+    enabled: true
+    size: 1Gi
+    storageClass: standard
+  auth:
+    rootUsername: root
+    rootPassword: localdev
+  resources:
+    requests:
+      memory: "128Mi"
+      cpu: "100m"
+    limits:
+      memory: "256Mi"
+      cpu: "250m"
+
+# OpenSearch (minimal for local)
+opensearch:
+  enabled: true
+  image:
+    repository: opensearchproject/opensearch
+    tag: "2.11.1"
+  replicas: 1
+  javaOpts: "-Xms256m -Xmx256m"
+  persistence:
+    enabled: true
+    size: 1Gi
+    storageClass: standard
+  security:
+    enabled: false
+  plugins: []  # Skip plugins for faster startup
+  dashboards:
+    enabled: false  # Disable dashboards for local
+  resources:
+    requests:
+      memory: "384Mi"
+      cpu: "100m"
+    limits:
+      memory: "512Mi"
+      cpu: "250m"
+
+# Spark (minimal)
+spark:
+  enabled: true
+  namespace: spark-jobs
+  createNamespace: true
+  serviceAccount:
+    create: true
+    name: spark-sa
+    annotations: {}
+  image:
+    repository: xflow-spark
+    tag: local
+
+# Airflow (disabled for local - use docker-compose instead)
+airflow:
+  enabled: false
+
+# Trino (disabled for local - use docker-compose instead)
+trino:
+  enabled: false

@@ -1,0 +1,31 @@
+{{- if and .Values.monitoring.grafana.enabled .Values.monitoring.grafana.ingress.enabled .Values.ingress.enabled }}
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: grafana-ingress
+  namespace: {{ .Values.monitoring.namespace | default "monitoring" }}
+  labels:
+    app: grafana
+    {{- include "xflow.labels" . | nindent 4 }}
+  annotations:
+    {{- include "xflow.ingress.annotations" . | nindent 4 }}
+spec:
+  ingressClassName: {{ include "xflow.ingressClassName" . }}
+  {{- if and .Values.global.tls.enabled .Values.global.tls.secretName }}
+  tls:
+    - hosts:
+        - {{ .Values.monitoring.grafana.ingress.host | default (include "xflow.host" (dict "Values" .Values "subdomain" "grafana")) }}
+      secretName: {{ .Values.global.tls.secretName }}
+  {{- end }}
+  rules:
+    - host: {{ .Values.monitoring.grafana.ingress.host | default (include "xflow.host" (dict "Values" .Values "subdomain" "grafana")) }}
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: grafana
+                port:
+                  number: 80
+{{- end }}

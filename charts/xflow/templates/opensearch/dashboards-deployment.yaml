@@ -1,0 +1,49 @@
+{{- if and .Values.opensearch.enabled .Values.opensearch.dashboards.enabled }}
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: opensearch-dashboards
+  labels:
+    app: opensearch-dashboards
+    {{- include "xflow.labels" . | nindent 4 }}
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: opensearch-dashboards
+  template:
+    metadata:
+      labels:
+        app: opensearch-dashboards
+        {{- include "xflow.selectorLabels" . | nindent 8 }}
+    spec:
+      {{- with .Values.global.imagePullSecrets }}
+      imagePullSecrets:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      containers:
+        - name: dashboards
+          image: "{{ .Values.opensearch.dashboards.image.repository }}:{{ .Values.opensearch.dashboards.image.tag }}"
+          ports:
+            - containerPort: 5601
+              name: http
+          env:
+            - name: OPENSEARCH_HOSTS
+              value: '["http://opensearch:9200"]'
+            - name: DISABLE_SECURITY_DASHBOARDS_PLUGIN
+              value: {{ not .Values.opensearch.security.enabled | quote }}
+          resources:
+            {{- toYaml .Values.opensearch.dashboards.resources | nindent 12 }}
+          readinessProbe:
+            httpGet:
+              path: /api/status
+              port: 5601
+            initialDelaySeconds: 30
+            periodSeconds: 10
+          livenessProbe:
+            httpGet:
+              path: /api/status
+              port: 5601
+            initialDelaySeconds: 60
+            periodSeconds: 20
+{{- end }}
