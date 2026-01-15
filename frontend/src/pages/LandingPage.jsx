@@ -19,8 +19,6 @@ import logo from "../assets/logo.png";
 import icon from "../assets/icon.png";
 
 import visual1 from "../assets/visual/visual1.png";
-import visual2 from "../assets/visual/visual2.png";
-import visual3 from "../assets/visual/visual3.png";
 import kc from "../assets/person/kc.png";
 import mh from "../assets/person/mh.jpg";
 import sc from "../assets/person/sc.png";
@@ -92,7 +90,7 @@ function LandingPage() {
                     <div className="absolute bottom-20 right-[20%] w-96 h-96 bg-purple-100/50 rounded-full blur-3xl mix-blend-multiply animate-pulse delay-1000" />
                 </div>
 
-                <div className="relative z-10 max-w-5xl mx-auto flex flex-col items-center">
+                <div className="relative z-10 max-w-5xl mx-auto flex flex-col items-center justify-center min-h-[calc(100vh-100px)]">
                     <style>{`
                         @keyframes shimmer-rain {
                             0% { transform: translateY(-50px); opacity: 0; }
@@ -212,6 +210,7 @@ function LandingPage() {
                             Get Started
                         </button>
                         <button
+                            onClick={() => document.getElementById('hero-video').scrollIntoView({ behavior: 'smooth' })}
                             className="bg-[#F1F3F4] text-[#202124] px-8 py-4 rounded-full text-lg font-medium hover:bg-gray-200 transition-all hover:scale-105"
                         >
                             Watch Video
@@ -220,7 +219,7 @@ function LandingPage() {
                 </div>
                 <br /><br /><br /><br /><br />
                 {/* Hero Visual Placeholder */}
-                <div className="mt-20 w-full max-w-6xl mx-auto px-6">
+                <div id="hero-video" className="mt-0 w-full max-w-6xl mx-auto px-6 py-20">
                     <div className="aspect-[16/9] bg-[#F8F9FA] rounded-[32px] border border-gray-100 shadow-2xl flex items-center justify-center relative overflow-hidden group">
                         <iframe
                             className="w-full h-full object-cover"
@@ -296,12 +295,24 @@ function LandingPage() {
 
                             {/* Visual 2 */}
                             <div className={`absolute inset-0 transition-opacity duration-700 ease-in-out bg-[#E8F0FE] flex items-center justify-center ${activeStickySection === 1 ? 'opacity-100' : 'opacity-0'}`}>
-                                <img src={visual2} alt="Data Lake Architecture" className="w-full h-full object-cover" />
+                                <iframe
+                                    className="w-full h-full object-cover"
+                                    src="https://www.youtube.com/embed/nXdYq2uApUE?autoplay=1&mute=1&loop=1&playlist=nXdYq2uApUE&controls=0"
+                                    title="Data Lake Architecture Video"
+                                    allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+                                    allowFullScreen
+                                />
                             </div>
 
                             {/* Visual 3 */}
                             <div className={`absolute inset-0 transition-opacity duration-700 ease-in-out bg-[#F3E8FD] flex items-center justify-center ${activeStickySection === 2 ? 'opacity-100' : 'opacity-0'}`}>
-                                <img src={visual3} alt="Catalog Interface" className="w-full h-full object-cover" />
+                                <iframe
+                                    className="w-full h-full object-cover"
+                                    src="https://www.youtube.com/embed/NWBJPmWz2ro?autoplay=1&mute=1&loop=1&playlist=NWBJPmWz2ro&controls=0"
+                                    title="Catalog Interface Video"
+                                    allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+                                    allowFullScreen
+                                />
                             </div>
 
                         </div>
@@ -488,7 +499,7 @@ function LandingPage() {
                 <div className="flex gap-8 text-sm text-[#5F6368]">
                     <button className="hover:text-[#202124]">Privacy</button>
                     <button className="hover:text-[#202124]">Terms</button>
-                    <button className="hover:text-[#202124]">Tel: 010-6291-6666</button>
+                    <button className="hover:text-[#202124]">Tel: 999-9999-9999</button>
                 </div>
                 <div className="text-sm text-[#9AA0A6]">
                     © 2026 XFlow
