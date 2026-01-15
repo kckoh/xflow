@@ -89,6 +89,9 @@ async def start_streaming_job(dataset_id: str):
     source_schema = source_dataset.get("columns") or source_node.get("data", {}).get("columns", [])
     query = transform_node.get("data", {}).get("query") if transform_node else None
     source_format = source_dataset.get("format") or "json"
+    auto_schema = source_dataset.get("auto_schema")
+    if auto_schema is None:
+        auto_schema = source_format == "json"
 
     destination = dataset.destination or {}
     base_path = destination.get("path")
@@ -99,31 +102,43 @@ async def start_streaming_job(dataset_id: str):
             base_path += "/"
         destination["checkpoint_path"] = f"{base_path}_checkpoints/{dataset_id}/"
 
+    group_id = f"xflow-stream-{dataset_id}"
     job_config = {
         "id": str(dataset.id),
         "name": dataset.name,
         "kafka": {
             "bootstrap_servers": bootstrap_servers,
             "topic": topic,
+            "group_id": group_id,
         },
         "source_schema": source_schema,
         "query": query,
         "format": source_format,
+        "auto_schema": auto_schema,
         "destination": destination,
     }
 
     app_name = f"kafka-stream-{dataset_id}"
     KafkaStreamingService.submit_job(job_config, app_name)
 
-    return {"status": "started", "app_name": app_name}
+    return {
+        "status": "started",
+        "app_name": app_name,
+        "group_id": group_id,
+    }
 
 
 @router.post("/jobs/{dataset_id}/stop")
 async def stop_streaming_job(dataset_id: str):
     dataset_id = _normalize_dataset_id(dataset_id)
     app_name = f"kafka-stream-{dataset_id}"
+    group_id = f"xflow-stream-{dataset_id}"
     stopped = KafkaStreamingService.stop_job(app_name)
-    return {"status": "stopped" if stopped else "unknown", "app_name": app_name}
+    return {
+        "status": "stopped" if stopped else "unknown",
+        "app_name": app_name,
+        "group_id": group_id,
+    }
 
 
 @router.get("/jobs/{dataset_id}/status")
@@ -141,6 +156,7 @@ async def get_streaming_status(dataset_id: str):
         return {"status": "stopped", "state": "NOT_STREAMING"}
 
     app_name = f"kafka-stream-{dataset_id}"
+    group_id = f"xflow-stream-{dataset_id}"
     status = KafkaStreamingService.get_job_status(app_name)
     state = (status.get("state") or "UNKNOWN").upper()
 
@@ -151,4 +167,5 @@ async def get_streaming_status(dataset_id: str):
         "status": "running" if is_running else "stopped",
         "state": state,
         "app_name": app_name,
+        "group_id": group_id,
     }

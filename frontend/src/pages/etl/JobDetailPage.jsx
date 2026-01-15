@@ -38,6 +38,7 @@ export default function JobDetailPage() {
   const [statusFilter, setStatusFilter] = useState("all");
   const [copiedId, setCopiedId] = useState(false);
   const [isStreamingActive, setIsStreamingActive] = useState(false);
+  const [streamingGroupId, setStreamingGroupId] = useState("");
   const { showToast } = useToast();
 
   // Quality state
@@ -149,13 +150,16 @@ export default function JobDetailPage() {
       );
       if (!response.ok) {
         setIsStreamingActive(false);
+        setStreamingGroupId("");
         return;
       }
       const data = await response.json();
       setIsStreamingActive(data.status === "running");
+      setStreamingGroupId(data.group_id || "");
     } catch (error) {
       console.error("Failed to fetch streaming status:", error);
       setIsStreamingActive(false);
+      setStreamingGroupId("");
     }
   };
 
@@ -538,6 +542,17 @@ export default function JobDetailPage() {
                       </div>
                     </dd>
                   </div>
+                  {job?.job_type === "streaming" && (
+                    <div>
+                      <dt className="text-sm font-medium text-gray-500">
+                        Kafka Group ID
+                      </dt>
+                      <dd className="mt-1 text-sm text-gray-900 break-all">
+                        {streamingGroupId ||
+                          (job?.id ? `xflow-stream-${job.id}` : "-")}
+                      </dd>
+                    </div>
+                  )}
                   <div>
                     <dt className="text-sm font-medium text-gray-500">Owner</dt>
                     <dd className="mt-1 text-sm text-gray-900">

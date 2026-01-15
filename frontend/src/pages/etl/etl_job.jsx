@@ -155,6 +155,7 @@ export default function ETLJobPage() {
   const [selectedMetadataItem, setSelectedMetadataItem] = useState(null);
   const [isCdcActive, setIsCdcActive] = useState(false);
   const [isStreamingActive, setIsStreamingActive] = useState(false);
+  const [streamingGroupId, setStreamingGroupId] = useState("");
   const [showImportModal, setShowImportModal] = useState(false);
   const [isLineageMode, setIsLineageMode] = useState(false);
   const [lineageNodes, setLineageNodes] = useState([]);
@@ -858,13 +859,16 @@ export default function ETLJobPage() {
       );
       if (!response.ok) {
         setIsStreamingActive(false);
+        setStreamingGroupId("");
         return;
       }
       const data = await response.json();
       setIsStreamingActive(data.status === "running");
+      setStreamingGroupId(data.group_id || "");
     } catch (error) {
       console.error("Failed to fetch streaming status:", error);
       setIsStreamingActive(false);
+      setStreamingGroupId("");
     }
   };
 
@@ -1760,6 +1764,7 @@ export default function ETLJobPage() {
         <JobDetailsPanel
           jobDetails={jobDetails}
           jobId={jobId}
+          streamingGroupId={streamingGroupId}
           onUpdate={(details) => {
             console.log("Job details updated:", details);
             setJobDetails(details);

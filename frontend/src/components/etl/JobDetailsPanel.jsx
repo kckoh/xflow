@@ -2,7 +2,12 @@ import { useState, useEffect } from 'react';
 import { Settings, RefreshCw, Clock, Zap, Database } from 'lucide-react';
 
 
-export default function JobDetailsPanel({ jobDetails, onUpdate, jobId }) {
+export default function JobDetailsPanel({
+    jobDetails,
+    onUpdate,
+    jobId,
+    streamingGroupId,
+}) {
     const [description, setDescription] = useState('');
     const [maxRetries, setMaxRetries] = useState(0);
     const [jobType, setJobType] = useState('batch'); // 'batch' or 'cdc'
@@ -61,6 +66,16 @@ export default function JobDetailsPanel({ jobDetails, onUpdate, jobId }) {
                         <h3 className="text-lg font-semibold text-gray-900">Basic Information</h3>
                     </div>
                     <div className="p-6 space-y-5">
+                        {jobType === "streaming" && (
+                            <div className="grid grid-cols-1 gap-2">
+                                <label className="block text-sm font-medium text-gray-700">
+                                    Kafka Group ID
+                                </label>
+                                <div className="text-sm text-gray-900 break-all">
+                                    {streamingGroupId || (jobId ? `xflow-stream-${jobId}` : "-")}
+                                </div>
+                            </div>
+                        )}
                         <div>
                             <label className="block text-sm font-medium text-gray-700 mb-2">
                                 Description
