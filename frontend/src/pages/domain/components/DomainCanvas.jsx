@@ -64,7 +64,6 @@ const DomainFlow = React.forwardRef((props, ref) => {
                     data: {
                         ...node.data,
                         onDelete: handleDeleteNode,
-                        onDelete: handleDeleteNode,
                         onToggleExpand: handleToggleExpand,
                         onEtlStepSelect: props.onEtlStepSelect // Inject handler
                     }

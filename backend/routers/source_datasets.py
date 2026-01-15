@@ -6,8 +6,10 @@ import os
 
 import database
 import json
+from concurrent.futures import ThreadPoolExecutor, TimeoutError as FutureTimeoutError
 import pandas as pd
 from kafka import KafkaConsumer
+import hashlib
 from pydantic import BaseModel
 from schemas.source_dataset import (
     SourceDatasetCreate,
@@ -111,15 +113,22 @@ def _infer_json_schema(records: List[dict]) -> List[dict]:
     return schema
 
 
+def _preview_group_id(prefix: str, key: str) -> str:
+    digest = hashlib.sha1(key.encode("utf-8")).hexdigest()[:12]
+    return f"{prefix}-{digest}"
+
+
 def _consume_kafka_records(bootstrap_servers: str, topic: str, limit: int = 1) -> List[dict]:
     consumer = KafkaConsumer(
         topic,
         bootstrap_servers=bootstrap_servers,
+        group_id=_preview_group_id("xflow-preview", f"{bootstrap_servers}:{topic}"),
         auto_offset_reset="earliest",
         enable_auto_commit=False,
-        consumer_timeout_ms=3000,
-        request_timeout_ms=3000,
-        api_version_auto_timeout_ms=3000,
+        consumer_timeout_ms=8000,
+        session_timeout_ms=10000,
+        request_timeout_ms=15000,
+        api_version_auto_timeout_ms=8000,
         fetch_max_wait_ms=500,
         max_poll_records=limit,
         value_deserializer=lambda v: v.decode("utf-8") if v else None,
@@ -144,8 +153,20 @@ def _consume_kafka_records(bootstrap_servers: str, topic: str, limit: int = 1) -
     return records[:limit]
 
 
+def _run_with_timeout(fn, timeout_s: int, *args, **kwargs):
+    with ThreadPoolExecutor(max_workers=1) as executor:
+        future = executor.submit(fn, *args, **kwargs)
+        try:
+            return future.result(timeout=timeout_s)
+        except FutureTimeoutError as exc:
+            raise TimeoutError("Kafka request timed out") from exc
+
+
 def get_kafka_schema(bootstrap_servers: str, topic: str, limit: int = 1) -> dict:
-    records = _consume_kafka_records(bootstrap_servers, topic, limit=limit)
+    try:
+        records = _run_with_timeout(_consume_kafka_records, 10, bootstrap_servers, topic, limit)
+    except TimeoutError as exc:
+        raise HTTPException(status_code=504, detail=str(exc)) from exc
     return {
         "schema": _infer_json_schema(records),
         "sample": records,
@@ -165,8 +186,10 @@ class KafkaTopicsRequest(BaseModel):
 def get_kafka_topics(bootstrap_servers: str) -> List[str]:
     consumer = KafkaConsumer(
         bootstrap_servers=bootstrap_servers,
+        group_id=_preview_group_id("xflow-topics", bootstrap_servers),
+        session_timeout_ms=5000,
         api_version_auto_timeout_ms=5000,
-        request_timeout_ms=5000,
+        request_timeout_ms=8000,
         consumer_timeout_ms=5000,
     )
     try:
@@ -198,6 +221,9 @@ async def create_source_dataset(dataset: SourceDatasetCreate, session_id: Option
         "created_at": now,
         "updated_at": now,
     }
+
+    if dataset.source_type == "kafka" and not dataset_data.get("format"):
+        dataset_data["format"] = "json"
     
     # Extract schema from S3 when creating S3 source dataset (one-time operation)
     if dataset.source_type == "s3" and not dataset_data.get("columns"):
@@ -212,7 +238,7 @@ async def create_source_dataset(dataset: SourceDatasetCreate, session_id: Option
             except Exception as e:
                 print(f"Warning: Failed to extract schema from S3: {e}")
                 # Continue without schema - user can add manually later
-    elif dataset.source_type == "kafka" and not dataset_data.get("columns"):
+    elif dataset.source_type == "kafka" and not dataset_data.get("columns") and dataset_data.get("format") == "json":
         connection_id = dataset_data.get("connection_id")
         topic = dataset_data.get("topic")
         if connection_id and topic:
@@ -334,7 +360,7 @@ async def get_source_dataset(dataset_id: str):
                 s3_schema = await get_s3_schema(bucket, path)
                 if s3_schema:
                     doc["columns"] = s3_schema
-    elif doc.get("source_type") == "kafka":
+    elif doc.get("source_type") == "kafka" and doc.get("format") == "json":
         if not doc.get("columns"):
             connection_id = doc.get("connection_id")
             topic = doc.get("topic")
@@ -397,7 +423,10 @@ async def fetch_kafka_topics(request: KafkaTopicsRequest):
     if not bootstrap_servers:
         raise HTTPException(status_code=400, detail="Connection missing bootstrap_servers")
 
-    topics = get_kafka_topics(bootstrap_servers)
+    try:
+        topics = _run_with_timeout(get_kafka_topics, 5, bootstrap_servers)
+    except TimeoutError as exc:
+        raise HTTPException(status_code=504, detail=str(exc)) from exc
     return {"topics": topics}
 
 

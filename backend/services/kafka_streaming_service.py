@@ -1,6 +1,7 @@
 import json
 import logging
 import os
+import re
 import shlex
 
 import docker
@@ -20,7 +21,13 @@ SPARK_SUBMIT_PACKAGES = os.getenv(
 
 class KafkaStreamingService:
     @classmethod
+    def _validate_app_name(cls, app_name: str) -> None:
+        if not re.fullmatch(r"[A-Za-z0-9_.-]+", app_name or ""):
+            raise ValueError("Invalid app_name")
+
+    @classmethod
     def submit_job(cls, config: dict, app_name: str) -> str:
+        cls._validate_app_name(app_name)
         if ENVIRONMENT == "local":
             return cls._submit_local(config, app_name)
 
@@ -42,6 +49,7 @@ class KafkaStreamingService:
 
     @classmethod
     def stop_job(cls, app_name: str) -> bool:
+        cls._validate_app_name(app_name)
         if ENVIRONMENT == "local":
             return cls._stop_local(app_name)
 
@@ -49,6 +57,7 @@ class KafkaStreamingService:
 
     @classmethod
     def get_job_status(cls, app_name: str) -> dict:
+        cls._validate_app_name(app_name)
         if ENVIRONMENT == "local":
             return cls._get_status_local(app_name)
 
@@ -151,25 +160,15 @@ class KafkaStreamingService:
     def _get_status_local(cls, app_name: str) -> dict:
         client = docker.from_env()
         container = client.containers.get(SPARK_MASTER_CONTAINER)
-        pid_file = f"/tmp/{app_name}.pid"
 
         cmd = (
             "bash -lc "
             + shlex.quote(
                 " ".join(
                     [
-                        f"if [ -f {pid_file} ]; then",
-                        "pid=$(cat",
-                        pid_file,
-                        ");",
-                        "if ps -p $pid > /dev/null 2>&1; then",
-                        "echo RUNNING;",
-                        "else echo STOPPED; fi;",
-                        "else",
                         f"if ps -ef | grep -E '[k]afka_streaming_runner.py.*{app_name}' > /dev/null; then",
                         "echo RUNNING;",
                         "else echo STOPPED; fi;",
-                        "fi",
                     ]
                 )
             )

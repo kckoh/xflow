@@ -5,6 +5,7 @@ from bson import ObjectId
 import database
 from models import Dataset
 from services.kafka_streaming_service import KafkaStreamingService
+from utils.kafka import has_kafka_source
 
 router = APIRouter(prefix="/api/streaming", tags=["streaming"])
 
@@ -20,18 +21,16 @@ def _find_node(nodes, predicate):
     return None
 
 
-def _has_kafka_source(nodes) -> bool:
-    for node in nodes or []:
-        data = node.get("data", {}) if isinstance(node, dict) else {}
-        source_type = (data.get("sourceType") or "").lower()
-        platform = (data.get("platform") or "").lower()
-        if source_type == "kafka" or "kafka" in platform:
-            return True
-    return False
+def _normalize_dataset_id(dataset_id: str) -> str:
+    try:
+        return str(PydanticObjectId(dataset_id))
+    except Exception:
+        raise HTTPException(status_code=400, detail="Invalid dataset id")
 
 
 @router.post("/jobs/{dataset_id}/start")
 async def start_streaming_job(dataset_id: str):
+    dataset_id = _normalize_dataset_id(dataset_id)
     try:
         dataset = await Dataset.get(PydanticObjectId(dataset_id))
     except Exception:
@@ -41,7 +40,7 @@ async def start_streaming_job(dataset_id: str):
         raise HTTPException(status_code=404, detail="Dataset not found")
 
     if dataset.job_type != "streaming":
-        if _has_kafka_source(dataset.nodes or []):
+        if has_kafka_source(dataset.nodes or []):
             dataset.job_type = "streaming"
             await dataset.save()
         else:
@@ -89,6 +88,7 @@ async def start_streaming_job(dataset_id: str):
 
     source_schema = source_dataset.get("columns") or source_node.get("data", {}).get("columns", [])
     query = transform_node.get("data", {}).get("query") if transform_node else None
+    source_format = source_dataset.get("format") or "json"
 
     destination = dataset.destination or {}
     base_path = destination.get("path")
@@ -108,6 +108,7 @@ async def start_streaming_job(dataset_id: str):
         },
         "source_schema": source_schema,
         "query": query,
+        "format": source_format,
         "destination": destination,
     }
 
@@ -119,6 +120,7 @@ async def start_streaming_job(dataset_id: str):
 
 @router.post("/jobs/{dataset_id}/stop")
 async def stop_streaming_job(dataset_id: str):
+    dataset_id = _normalize_dataset_id(dataset_id)
     app_name = f"kafka-stream-{dataset_id}"
     stopped = KafkaStreamingService.stop_job(app_name)
     return {"status": "stopped" if stopped else "unknown", "app_name": app_name}
@@ -126,6 +128,7 @@ async def stop_streaming_job(dataset_id: str):
 
 @router.get("/jobs/{dataset_id}/status")
 async def get_streaming_status(dataset_id: str):
+    dataset_id = _normalize_dataset_id(dataset_id)
     try:
         dataset = await Dataset.get(PydanticObjectId(dataset_id))
     except Exception:
@@ -134,7 +137,7 @@ async def get_streaming_status(dataset_id: str):
     if not dataset:
         raise HTTPException(status_code=404, detail="Dataset not found")
 
-    if dataset.job_type != "streaming" and not _has_kafka_source(dataset.nodes or []):
+    if dataset.job_type != "streaming" and not has_kafka_source(dataset.nodes or []):
         return {"status": "stopped", "state": "NOT_STREAMING"}
 
     app_name = f"kafka-stream-{dataset_id}"

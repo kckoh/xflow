@@ -106,7 +106,7 @@ export default function SourceWizard() {
     bucket: "",
     // S3-specific fields
     path: "",
-    format: "log", // "log" | "parquet" (others supported in backend)
+    format: "log", // "log" | "parquet" | "json" | "raw"
     // MongoDB-specific fields
     collection: "",
     // Kafka-specific fields
@@ -175,7 +175,7 @@ export default function SourceWizard() {
           collection: job.collection || "",
           bucket: job.bucket || "",
           path: job.path || "",
-          format: job.format || "log",
+          format: job.format || (sourceType === "kafka" ? "json" : "log"),
           columns: job.columns || [],
           topic: job.topic || "",
           // API-specific fields
@@ -226,6 +226,22 @@ export default function SourceWizard() {
 
     loadConnections();
   }, [currentStep, selectedSource]);
+
+  useEffect(() => {
+    if (!selectedSource) return;
+
+    if (selectedSource.id === "kafka") {
+      setConfig((prev) => ({
+        ...prev,
+        format: ["json", "raw"].includes(prev.format) ? prev.format : "json",
+      }));
+    } else if (selectedSource.id === "s3") {
+      setConfig((prev) => ({
+        ...prev,
+        format: ["log", "parquet"].includes(prev.format) ? prev.format : "log",
+      }));
+    }
+  }, [selectedSource]);
 
   // Load tables/collections when connection is selected
   useEffect(() => {
@@ -547,6 +563,7 @@ export default function SourceWizard() {
         sourceData.format = config.format || "log";
       } else if (selectedSource.id === "kafka") {
         sourceData.topic = config.topic;
+        sourceData.format = config.format || "json";
       } else if (selectedSource.id === "api") {
         sourceData.api = {
           endpoint: config.endpoint,
@@ -1000,6 +1017,24 @@ export default function SourceWizard() {
                 {/* Kafka - Topic */}
                 {selectedSource?.id === "kafka" && (
                   <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-2">
+                      Format
+                    </label>
+                    <select
+                      value={config.format || "json"}
+                      onChange={(e) =>
+                        setConfig((prev) => ({ ...prev, format: e.target.value }))
+                      }
+                      className="w-full px-4 py-2 border border-gray-300 rounded-lg bg-white focus:outline-none focus:ring-2 focus:ring-emerald-500"
+                    >
+                      <option value="json">JSON</option>
+                      <option value="raw">Raw String</option>
+                    </select>
+                    <p className="mt-1 text-xs text-gray-500">
+                      JSON은 스키마 추론/컬럼을 지원, Raw는 문자열 그대로 저장합니다.
+                    </p>
+
+                    <div className="mt-4" />
                     <label className="block text-sm font-medium text-gray-700 mb-2">
                       Topic
                     </label>

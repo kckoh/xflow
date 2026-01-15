@@ -10,24 +10,15 @@ from fastapi import APIRouter, HTTPException, status
 from models import Dataset, JobRun, Connection, ETLJob, Role
 from schemas.dataset import DatasetCreate, DatasetUpdate, DatasetResponse
 from services.lineage_service import sync_pipeline_to_etljob
+from utils.kafka import has_kafka_source
 # OpenSearch Dual Write
 from utils.indexers import index_single_dataset, delete_dataset_from_index
 from utils.schedule_converter import generate_schedule
 from dependencies import sessions
 
 
-def _has_kafka_source(nodes: list) -> bool:
-    for node in nodes or []:
-        data = node.get("data", {}) if isinstance(node, dict) else {}
-        source_type = (data.get("sourceType") or "").lower()
-        platform = (data.get("platform") or "").lower()
-        if source_type == "kafka" or "kafka" in platform:
-            return True
-    return False
-
-
 def _apply_streaming_job_type(dataset, nodes: list):
-    if _has_kafka_source(nodes):
+    if has_kafka_source(nodes):
         dataset.job_type = "streaming"
         dataset.schedule_frequency = None
         dataset.ui_params = None

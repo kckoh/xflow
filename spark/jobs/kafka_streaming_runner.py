@@ -92,6 +92,23 @@ def _build_output_path(destination: dict, job_name: str) -> str:
     return path + (glue_table_name or job_name)
 
 
+def _write_batch(batch_df, batch_id: int, output_path: str) -> None:
+    if batch_df.rdd.isEmpty():
+        logger.info("Batch %s empty; no records to write", batch_id)
+        return
+
+    if "_corrupt_record" in batch_df.columns:
+        corrupt_count = batch_df.filter(col("_corrupt_record").isNotNull()).count()
+        if corrupt_count:
+            logger.warning("Batch %s has %s corrupt records", batch_id, corrupt_count)
+        batch_df = batch_df.filter(col("_corrupt_record").isNull()).drop("_corrupt_record")
+        if batch_df.rdd.isEmpty():
+            logger.info("Batch %s had only corrupt records", batch_id)
+            return
+
+    batch_df.write.format("delta").mode("append").option("mergeSchema", "true").save(output_path)
+
+
 def _escape_at_identifiers(query: str) -> str:
     if not query or "@" not in query:
         return query
@@ -135,6 +152,7 @@ def run_streaming_job(config: dict):
     dataset_name = config.get("name", "kafka-stream")
     query = config.get("query") or "SELECT * FROM input"
     destination = config.get("destination", {})
+    source_format = (config.get("format") or "json").lower()
 
     kafka_cfg = config.get("kafka", {})
     bootstrap_servers = kafka_cfg.get("bootstrap_servers")
@@ -165,8 +183,16 @@ def run_streaming_job(config: dict):
 
     json_df = kafka_df.selectExpr("CAST(value AS STRING) as json_str")
 
-    if source_schema:
-        parsed = json_df.select(from_json(col("json_str"), source_schema).alias("data"))
+    if source_format == "raw":
+        input_df = json_df.select(col("json_str").alias("raw_value"))
+    elif source_schema:
+        parsed = json_df.select(
+            from_json(
+                col("json_str"),
+                source_schema,
+                {"mode": "PERMISSIVE", "columnNameOfCorruptRecord": "_corrupt_record"},
+            ).alias("data")
+        )
         input_df = parsed.select("data.*")
     else:
         input_df = json_df
@@ -180,10 +206,10 @@ def run_streaming_job(config: dict):
     checkpoint_path = destination.get("checkpoint_path") or f"s3a://xflows-output/checkpoints/{dataset_id}/"
 
     query_handle = result_df.writeStream \
-        .format("delta") \
         .outputMode("append") \
         .option("checkpointLocation", checkpoint_path) \
-        .start(output_path)
+        .foreachBatch(lambda df, batch_id: _write_batch(df, batch_id, output_path)) \
+        .start()
 
     logger.info("Streaming query started")
     query_handle.awaitTermination()
