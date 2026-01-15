@@ -44,7 +44,7 @@ async def test_connection_config(connection: ConnectionCreate):
     if connection.type == "api":
         _validate_api_connection_config(connection.config)
 
-    is_success, message = ConnectionTester.test_connection(connection.type, connection.config)
+    is_success, message = await ConnectionTester.test_connection(connection.type, connection.config)
     
     if not is_success:
         raise HTTPException(status_code=400, detail=message)

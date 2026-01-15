@@ -114,7 +114,7 @@ backend:
   # ConfigMap environment variables
   config:
     mongodbDatabase: xflow
-    corsOrigins: "http://localhost:5173"
+    corsOrigins: "http://localhost:5173,https://xflows.net,https://app.xflows.net"
     airflowDagId: dataset_dag_k8s
     opensearchHost: opensearch
     opensearchPort: "9200"
@@ -143,12 +143,14 @@ backend:
       path: /health
       initialDelaySeconds: 30
       periodSeconds: 10
-      timeoutSeconds: 5
+      timeoutSeconds: 10
+      failureThreshold: 5
     liveness:
       path: /health
       initialDelaySeconds: 60
       periodSeconds: 20
-      timeoutSeconds: 5
+      timeoutSeconds: 10
+      failureThreshold: 5
 
 # ------------------------------------------
 # MongoDB

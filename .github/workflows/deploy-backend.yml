@@ -5,14 +5,14 @@ on:
     branches:
       - main
     paths:
-      - 'backend/**'
-      - '.github/workflows/deploy-backend.yml'
+      - "backend/**"
+      - ".github/workflows/deploy-backend.yml"
 
 env:
   AWS_REGION: ap-northeast-2
   ECR_REPO: 134059028370.dkr.ecr.ap-northeast-2.amazonaws.com/xflow-backend
   EKS_CLUSTER: xflow-cluster
-  NAMESPACE: default
+  NAMESPACE: xflow
   DEPLOYMENT: backend
 
 jobs:
