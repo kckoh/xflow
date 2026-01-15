@@ -77,7 +77,7 @@
 Helm upgrade 후 다시 설정 필요:
 
 ```bash
-kubectl exec -n airflow deploy/airflow-scheduler -- airflow variables set MONGODB_URL "mongodb://root:example@mongodb.default:27017"
+kubectl exec -n airflow deploy/airflow-scheduler -- airflow variables set MONGODB_URL "mongodb://root:example@mongodb.mongodb.xflow:27017"
 kubectl exec -n airflow deploy/airflow-scheduler -- airflow variables set MONGODB_DATABASE "xflow"
 kubectl exec -n airflow deploy/airflow-scheduler -- airflow variables set ENVIRONMENT "production"
 ```

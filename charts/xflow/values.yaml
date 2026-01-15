@@ -143,12 +143,14 @@ backend:
       path: /health
       initialDelaySeconds: 30
       periodSeconds: 10
-      timeoutSeconds: 5
+      timeoutSeconds: 10
+      failureThreshold: 5
     liveness:
       path: /health
       initialDelaySeconds: 60
       periodSeconds: 20
-      timeoutSeconds: 5
+      timeoutSeconds: 10
+      failureThreshold: 5
 
 # ------------------------------------------
 # MongoDB
