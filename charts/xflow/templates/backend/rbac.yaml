@@ -1,0 +1,36 @@
+{{- if and .Values.backend.enabled .Values.spark.enabled }}
+# RBAC for Backend to manage Spark jobs
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: backend-spark-role
+  namespace: {{ .Values.spark.namespace | default "spark-jobs" }}
+  labels:
+    {{- include "xflow.labels" . | nindent 4 }}
+rules:
+  - apiGroups: [""]
+    resources: ["pods", "services", "configmaps", "persistentvolumeclaims"]
+    verbs: ["*"]
+  - apiGroups: [""]
+    resources: ["pods/log"]
+    verbs: ["get", "list"]
+  - apiGroups: ["sparkoperator.k8s.io"]
+    resources: ["sparkapplications", "scheduledsparkapplications"]
+    verbs: ["*"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: backend-spark-rolebinding
+  namespace: {{ .Values.spark.namespace | default "spark-jobs" }}
+  labels:
+    {{- include "xflow.labels" . | nindent 4 }}
+subjects:
+  - kind: ServiceAccount
+    name: {{ .Values.backend.serviceAccount.name | default "backend-sa" }}
+    namespace: {{ include "xflow.namespace" . }}
+roleRef:
+  kind: Role
+  name: backend-spark-role
+  apiGroup: rbac.authorization.k8s.io
+{{- end }}

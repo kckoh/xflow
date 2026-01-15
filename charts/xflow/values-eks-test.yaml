@@ -1,0 +1,337 @@
+# ===========================================
+# XFlow Helm Chart - EKS Test Configuration
+# ===========================================
+# 도메인/ACM 없이 테스트용 배포
+
+global:
+  namespace: xflow
+  createNamespace: false  # eksctl이 이미 생성함
+
+  imageRegistry: "134059028370.dkr.ecr.ap-northeast-2.amazonaws.com"
+
+  cloudProvider: aws
+
+  aws:
+    enabled: true
+    region: ap-northeast-2
+    accountId: "134059028370"
+
+  storageClass: gp2
+
+  # 테스트: 도메인/TLS 비활성화
+  domain: ""
+  tls:
+    enabled: false
+
+# Ingress 비활성화 (테스트용 - port-forward 사용)
+ingress:
+  enabled: false
+
+# Backend
+backend:
+  enabled: true
+  image:
+    repository: xflow-backend-test
+    tag: latest
+    pullPolicy: Always
+  replicas: 1
+  serviceAccount:
+    create: false  # eksctl이 이미 생성함
+    name: backend-sa
+  config:
+    mongodbDatabase: xflow
+    corsOrigins: "*"
+    airflowDagId: dataset_dag_k8s
+    opensearchHost: opensearch
+    opensearchPort: "9200"
+    environment: production
+    useS3: "true"
+    sparkNamespace: spark-jobs
+  ingress:
+    enabled: false
+  resources:
+    requests:
+      memory: "256Mi"
+      cpu: "250m"
+    limits:
+      memory: "512Mi"
+      cpu: "500m"
+
+# MongoDB
+mongodb:
+  enabled: true
+  image:
+    repository: mongo
+    tag: "7"
+  replicas: 1
+  persistence:
+    enabled: true
+    size: 10Gi
+    storageClass: gp2
+  auth:
+    rootUsername: root
+    rootPassword: xflow-test-password
+  resources:
+    requests:
+      memory: "256Mi"
+      cpu: "250m"
+    limits:
+      memory: "512Mi"
+      cpu: "500m"
+
+# OpenSearch
+opensearch:
+  enabled: true
+  image:
+    repository: opensearchproject/opensearch
+    tag: "2.11.1"
+  replicas: 1
+  javaOpts: "-Xms512m -Xmx512m"
+  persistence:
+    enabled: true
+    size: 10Gi
+    storageClass: gp2
+  security:
+    enabled: false
+  plugins:
+    - analysis-nori
+  dashboards:
+    enabled: true
+    image:
+      repository: opensearchproject/opensearch-dashboards
+      tag: "2.11.1"
+    ingress:
+      enabled: false
+  resources:
+    requests:
+      memory: "768Mi"
+      cpu: "250m"
+    limits:
+      memory: "1536Mi"
+      cpu: "500m"
+
+# Spark
+spark:
+  enabled: true
+  namespace: spark-jobs
+  createNamespace: false  # eksctl이 이미 생성함
+  serviceAccount:
+    create: false  # eksctl이 이미 생성함
+    name: spark-sa
+  image:
+    repository: xflow-spark-test
+    tag: latest
+
+# Airflow
+airflow:
+  enabled: true
+  executor: LocalExecutor
+  images:
+    airflow:
+      repository: 134059028370.dkr.ecr.ap-northeast-2.amazonaws.com/xflow-airflow-test
+      tag: latest
+      pullPolicy: Always
+  defaultAirflowRepository: ""
+  defaultAirflowTag: ""
+  serviceAccount:
+    create: false
+    name: airflow-webserver
+  webserver:
+    replicas: 1
+    serviceAccount:
+      create: false
+      name: airflow-webserver
+    resources:
+      requests:
+        memory: "1Gi"
+        cpu: "250m"
+      limits:
+        memory: "2Gi"
+        cpu: "500m"
+  scheduler:
+    replicas: 1
+    serviceAccount:
+      create: false
+      name: airflow-scheduler
+    resources:
+      requests:
+        memory: "512Mi"
+        cpu: "250m"
+      limits:
+        memory: "1Gi"
+        cpu: "500m"
+  triggerer:
+    enabled: true
+    replicas: 1
+    serviceAccount:
+      create: false
+      name: airflow-triggerer
+    persistence:
+      enabled: false
+    resources:
+      requests:
+        memory: "256Mi"
+        cpu: "100m"
+      limits:
+        memory: "512Mi"
+        cpu: "250m"
+  workers:
+    serviceAccount:
+      create: false
+      name: airflow-worker
+    persistence:
+      enabled: false
+  postgresql:
+    enabled: true
+    primary:
+      persistence:
+        enabled: true
+        size: 5Gi
+        storageClass: gp2
+  redis:
+    enabled: false
+  dags:
+    gitSync:
+      enabled: false
+    persistence:
+      enabled: false
+  env:
+    - name: AIRFLOW__CORE__LOAD_EXAMPLES
+      value: "false"
+    - name: MONGODB_URL
+      value: "mongodb://root:xflow-test-password@mongodb.xflow:27017"
+    - name: MONGODB_DATABASE
+      value: "xflow"
+    - name: BACKEND_API_URL
+      value: "http://backend.xflow:80"
+    - name: AWS_REGION
+      value: "ap-northeast-2"
+  ingress:
+    web:
+      enabled: false
+  webserverSecretKey: "xflow-test-secret-key-change-me"
+
+# Trino
+trino:
+  enabled: true
+  image:
+    tag: "479"
+  server:
+    workers: 1
+  coordinator:
+    jvm:
+      maxHeapSize: "2G"
+    resources:
+      requests:
+        memory: "1Gi"
+        cpu: "500m"
+      limits:
+        memory: "3Gi"
+        cpu: "1"
+  worker:
+    jvm:
+      maxHeapSize: "2G"
+    resources:
+      requests:
+        memory: "1Gi"
+        cpu: "500m"
+      limits:
+        memory: "3Gi"
+        cpu: "1"
+  serviceAccount:
+    create: false
+    name: trino-sa
+  catalogs:
+    lakehouse: |-
+      connector.name=delta_lake
+      fs.native-s3.enabled=true
+      s3.region=ap-northeast-2
+      hive.metastore=glue
+      hive.metastore.glue.default-warehouse-dir=s3://xflow-delta-lake-134059028370/warehouse
+      s3.use-web-identity-token-credentials-provider=true
+      delta.register-table-procedure.enabled=true
+  service:
+    type: ClusterIP
+    port: 8080
+
+# Monitoring
+monitoring:
+  namespace: monitoring
+  createNamespace: false  # eksctl이 이미 생성함
+  grafana:
+    enabled: true
+    admin:
+      user: admin
+      password: xflow-grafana-test
+    persistence:
+      enabled: false
+    service:
+      type: ClusterIP
+    datasources:
+      "datasources.yaml":
+        apiVersion: 1
+        datasources:
+          - name: Loki
+            type: loki
+            url: http://loki-gateway.monitoring.svc.cluster.local
+            access: proxy
+            isDefault: true
+    ingress:
+      enabled: false
+  loki:
+    enabled: false
+    deploymentMode: SingleBinary
+    loki:
+      auth_enabled: false
+      storage:
+        type: s3
+        bucketNames:
+          chunks: xflow-loki-logs-134059028370
+          ruler: xflow-loki-logs-134059028370
+          admin: xflow-loki-logs-134059028370
+        s3:
+          region: ap-northeast-2
+      schemaConfig:
+        configs:
+          - from: 2024-01-01
+            store: tsdb
+            object_store: s3
+            schema: v13
+            index:
+              prefix: index_
+              period: 24h
+      commonConfig:
+        replication_factor: 1
+        path_prefix: /var/loki-data
+    serviceAccount:
+      create: false
+      name: loki
+    singleBinary:
+      replicas: 1
+      persistence:
+        enabled: false
+      extraVolumes:
+        - name: loki-data
+          emptyDir: {}
+      extraVolumeMounts:
+        - name: loki-data
+          mountPath: /var/loki-data
+    read:
+      replicas: 0
+    write:
+      replicas: 0
+    backend:
+      replicas: 0
+    monitoring:
+      selfMonitoring:
+        enabled: false
+        grafanaAgent:
+          installOperator: false
+      lokiCanary:
+        enabled: false
+    test:
+      enabled: false
+    chunksCache:
+      enabled: false
+    resultsCache:
+      enabled: false

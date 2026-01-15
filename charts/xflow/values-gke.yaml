@@ -1,0 +1,184 @@
+# ===========================================
+# XFlow Helm Chart - Google GKE Configuration
+# ===========================================
+# Usage:
+#   helm install xflow ./charts/xflow \
+#     -f ./charts/xflow/values-gke.yaml \
+#     --set global.imageRegistry=gcr.io/YOUR_PROJECT_ID \
+#     --set global.gcp.projectId=YOUR_PROJECT_ID \
+#     --set global.domain=your-domain.com \
+#     -n xflow --create-namespace
+
+global:
+  namespace: xflow
+  createNamespace: true
+
+  # REQUIRED: Set your GCR registry
+  # Example: gcr.io/my-project or us-docker.pkg.dev/my-project/my-repo
+  imageRegistry: ""
+
+  cloudProvider: gcp
+
+  aws:
+    enabled: false
+
+  gcp:
+    enabled: true
+    # REQUIRED: Set your GCP project ID
+    projectId: ""
+    region: us-central1
+
+  azure:
+    enabled: false
+
+  storageClass: standard-rwo
+
+  # REQUIRED: Set your domain
+  domain: ""
+
+  tls:
+    enabled: true
+    # For GKE, use managed certificate or cert-manager
+    secretName: ""
+
+# Ingress (GCE Ingress)
+ingress:
+  enabled: true
+  className: gce
+  alb:
+    enabled: false
+  annotations:
+    kubernetes.io/ingress.global-static-ip-name: "xflow-ip"
+
+# Backend
+backend:
+  enabled: true
+  image:
+    repository: xflow-backend
+    tag: latest
+    pullPolicy: Always
+  replicas: 1
+  serviceAccount:
+    create: true
+    name: backend-sa
+    annotations: {}
+    # REQUIRED: Set your GCP service account for Workload Identity
+    # iam.gke.io/gcp-service-account: xflow-backend@YOUR_PROJECT.iam.gserviceaccount.com
+  config:
+    mongodbDatabase: xflow
+    corsOrigins: "http://localhost:5173,https://YOUR_DOMAIN"
+    airflowDagId: dataset_dag_k8s
+    opensearchHost: opensearch
+    opensearchPort: "9200"
+    environment: production
+    sparkNamespace: spark-jobs
+
+# MongoDB
+mongodb:
+  enabled: true
+  image:
+    repository: mongo
+    tag: "7"
+  replicas: 1
+  persistence:
+    enabled: true
+    size: 10Gi
+    storageClass: standard-rwo
+  auth:
+    rootUsername: root
+    rootPassword: ""
+
+# OpenSearch
+opensearch:
+  enabled: true
+  image:
+    repository: opensearchproject/opensearch
+    tag: "2.11.1"
+  replicas: 1
+  javaOpts: "-Xms512m -Xmx512m"
+  persistence:
+    enabled: true
+    size: 10Gi
+    storageClass: standard-rwo
+  security:
+    enabled: false
+  plugins:
+    - analysis-nori
+  dashboards:
+    enabled: true
+    image:
+      repository: opensearchproject/opensearch-dashboards
+      tag: "2.11.1"
+    ingress:
+      enabled: true
+
+# Spark
+spark:
+  enabled: true
+  namespace: spark-jobs
+  createNamespace: true
+  serviceAccount:
+    create: true
+    name: spark-sa
+    annotations: {}
+    # REQUIRED: Set your GCP service account for Workload Identity
+    # iam.gke.io/gcp-service-account: xflow-spark@YOUR_PROJECT.iam.gserviceaccount.com
+  image:
+    repository: xflow-spark
+    tag: latest
+
+# Airflow
+airflow:
+  enabled: true
+  executor: LocalExecutor
+  images:
+    airflow:
+      repository: ""
+      tag: latest
+      pullPolicy: Always
+  serviceAccount:
+    create: true
+    annotations: {}
+    # iam.gke.io/gcp-service-account: xflow-airflow@YOUR_PROJECT.iam.gserviceaccount.com
+  postgresql:
+    enabled: true
+    primary:
+      persistence:
+        enabled: true
+        size: 5Gi
+        storageClass: standard-rwo
+  config:
+    logging:
+      remote_logging: "True"
+      # REQUIRED: Set your GCS bucket for logs
+      remote_base_log_folder: "gs://YOUR_BUCKET/logs"
+      remote_log_conn_id: "google_cloud_default"
+
+# Trino
+trino:
+  enabled: true
+  image:
+    tag: "479"
+  server:
+    workers: 1
+  serviceAccount:
+    create: true
+    name: trino-sa
+    annotations: {}
+    # iam.gke.io/gcp-service-account: xflow-trino@YOUR_PROJECT.iam.gserviceaccount.com
+  catalogs:
+    lakehouse: |-
+      connector.name=delta_lake
+      fs.native-gcs.enabled=true
+      gcs.project-id=YOUR_PROJECT_ID
+      # REQUIRED: Set your GCS bucket
+      hive.metastore.glue.default-warehouse-dir=gs://YOUR_BUCKET/warehouse
+      delta.register-table-procedure.enabled=true
+  ingress:
+    enabled: true
+
+# GCS bucket configuration
+storage:
+  gcs:
+    dataLakeBucket: ""
+    airflowLogsBucket: ""

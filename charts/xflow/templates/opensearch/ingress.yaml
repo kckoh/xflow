@@ -1,0 +1,30 @@
+{{- if and .Values.opensearch.enabled .Values.opensearch.dashboards.enabled .Values.opensearch.dashboards.ingress.enabled .Values.ingress.enabled }}
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: opensearch-dashboards-ingress
+  labels:
+    app: opensearch-dashboards
+    {{- include "xflow.labels" . | nindent 4 }}
+  annotations:
+    {{- include "xflow.ingress.annotations" . | nindent 4 }}
+spec:
+  ingressClassName: {{ include "xflow.ingressClassName" . }}
+  {{- if and .Values.global.tls.enabled .Values.global.tls.secretName }}
+  tls:
+    - hosts:
+        - {{ .Values.opensearch.dashboards.ingress.host | default (include "xflow.host" (dict "Values" .Values "subdomain" "opensearch")) }}
+      secretName: {{ .Values.global.tls.secretName }}
+  {{- end }}
+  rules:
+    - host: {{ .Values.opensearch.dashboards.ingress.host | default (include "xflow.host" (dict "Values" .Values "subdomain" "opensearch")) }}
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: opensearch-dashboards
+                port:
+                  number: 5601
+{{- end }}

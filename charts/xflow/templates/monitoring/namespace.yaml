@@ -1,0 +1,8 @@
+{{- if and (or .Values.monitoring.grafana.enabled .Values.monitoring.loki.enabled) .Values.monitoring.createNamespace }}
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: {{ .Values.monitoring.namespace | default "monitoring" }}
+  labels:
+    {{- include "xflow.labels" . | nindent 4 }}
+{{- end }}

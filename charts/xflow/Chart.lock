@@ -1,0 +1,15 @@
+dependencies:
+- name: airflow
+  repository: https://airflow.apache.org
+  version: 1.13.1
+- name: trino
+  repository: https://trinodb.github.io/charts
+  version: 0.21.0
+- name: grafana
+  repository: https://grafana.github.io/helm-charts
+  version: 8.0.0
+- name: loki
+  repository: https://grafana.github.io/helm-charts
+  version: 6.6.2
+digest: sha256:f114beea586d7f1728de7d480e1d075506cca0928a0fc0ccd6772f894f5cc388
+generated: "2026-01-14T22:08:32.710215+09:00"

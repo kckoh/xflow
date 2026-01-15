@@ -1,0 +1,55 @@
+{{- if .Values.backend.enabled }}
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: backend-config
+  labels:
+    app: backend
+    {{- include "xflow.labels" . | nindent 4 }}
+data:
+  # MongoDB
+  MONGODB_DATABASE: {{ .Values.backend.config.mongodbDatabase | quote }}
+
+  # CORS
+  CORS_ORIGINS: {{ .Values.backend.config.corsOrigins | quote }}
+
+  # Airflow
+  AIRFLOW_DAG_ID: {{ .Values.backend.config.airflowDagId | quote }}
+
+  # OpenSearch
+  OPENSEARCH_HOST: {{ .Values.backend.config.opensearchHost | default "opensearch" | quote }}
+  OPENSEARCH_PORT: {{ .Values.backend.config.opensearchPort | default "9200" | quote }}
+
+  # Environment
+  ENVIRONMENT: {{ .Values.backend.config.environment | default "production" | quote }}
+
+  # Spark
+  SPARK_NAMESPACE: {{ .Values.spark.namespace | default "spark-jobs" | quote }}
+  SPARK_IMAGE: {{ include "xflow.componentImage" (dict "Values" .Values "repository" .Values.spark.image.repository "tag" .Values.spark.image.tag) | quote }}
+
+  # Kafka (optional)
+  {{- if .Values.backend.config.kafkaConnectUrl }}
+  KAFKA_CONNECT_URL: {{ .Values.backend.config.kafkaConnectUrl | quote }}
+  {{- end }}
+  {{- if .Values.backend.config.kafkaBootstrapServers }}
+  KAFKA_BOOTSTRAP_SERVERS: {{ .Values.backend.config.kafkaBootstrapServers | quote }}
+  {{- end }}
+
+  # Cloud-specific settings
+  {{- if eq .Values.global.cloudProvider "aws" }}
+  AWS_REGION: {{ include "xflow.awsRegion" . | quote }}
+  USE_S3: {{ .Values.backend.config.useS3 | default "true" | quote }}
+  {{- else if eq .Values.global.cloudProvider "gcp" }}
+  GCP_PROJECT_ID: {{ .Values.global.gcp.projectId | quote }}
+  GCP_REGION: {{ .Values.global.gcp.region | quote }}
+  USE_GCS: "true"
+  {{- else if eq .Values.global.cloudProvider "azure" }}
+  AZURE_REGION: {{ .Values.global.azure.region | quote }}
+  USE_AZURE_BLOB: "true"
+  {{- else }}
+  USE_S3: "false"
+  {{- end }}
+
+  # Neo4j (disabled)
+  NEO4J_URI: ""
+{{- end }}
