@@ -364,7 +364,9 @@ def run_streaming_job(config: dict):
     query = _escape_at_identifiers(query)
     if schema_columns and not auto_schema:
         query = _adjust_query_for_schema(query, schema_columns)
-    result_df = spark.sql(query)
+
+    if not (auto_schema and source_format == "json"):
+        result_df = spark.sql(query)
 
     output_path = _build_output_path(destination, dataset_name)
     checkpoint_path = destination.get("checkpoint_path") or f"s3a://xflows-output/checkpoints/{dataset_id}/"
