@@ -51,6 +51,7 @@ export default function SqlLabPage() {
     const [currentPage, setCurrentPage] = useState(1);
     const [hasMore, setHasMore] = useState(false);
     const [loadingMore, setLoadingMore] = useState(false);
+    const [viewPage, setViewPage] = useState(1); // 현재 보고 있는 페이지
 
     // Load query and results from multiple sources (priority order)
     useEffect(() => {
@@ -119,6 +120,7 @@ export default function SqlLabPage() {
             setExecuting(true);
             setError(null);
             setCurrentPage(1);
+            setViewPage(1); // 첫 페이지로 리셋
         }
 
         try {
@@ -206,6 +208,8 @@ export default function SqlLabPage() {
         setLoadingMore(true);
         try {
             await executeQuery(currentPage + 1);
+            // Load More 후 새로 로드된 페이지로 자동 이동
+            setViewPage(currentPage + 1);
         } catch (err) {
             setError(err.message);
         } finally {
@@ -213,14 +217,16 @@ export default function SqlLabPage() {
         }
     };
 
-    // 특정 페이지 섹션으로 스크롤
-    const scrollToPage = (pageNum) => {
-        const rowsPerPage = 1000;
-        const startRow = (pageNum - 1) * rowsPerPage;
-        const tableRows = document.querySelectorAll('tbody tr');
-        if (tableRows[startRow]) {
-            tableRows[startRow].scrollIntoView({ behavior: 'smooth', block: 'start' });
+    // 화면에 표시할 페이지 데이터 계산
+    const getPageData = () => {
+        if (!results || queryLimit !== 'All' || engine !== 'trino') {
+            return results?.data || [];
         }
+
+        const rowsPerPage = 1000;
+        const startIndex = (viewPage - 1) * rowsPerPage;
+        const endIndex = startIndex + rowsPerPage;
+        return results.data.slice(startIndex, endIndex);
     };
 
     const downloadCSV = () => {
@@ -431,7 +437,9 @@ export default function SqlLabPage() {
                                 {/* Results Header */}
                                 <div className="mb-4 flex items-center justify-between shrink-0">
                                     <span className="text-sm font-medium text-gray-900">
-                                        Results: {results.row_count} rows{results.was_limited ? ` · limited to ${results.applied_limit === 'All' ? 'all' : results.applied_limit}` : ''}
+                                        Results: {results.row_count} rows total
+                                        {engine === 'trino' && queryLimit === 'All' && ` · Showing page ${viewPage} (${getPageData().length} rows)`}
+                                        {results.was_limited && queryLimit !== 'All' && ` · limited to ${results.applied_limit}`}
                                     </span>
                                     <button
                                         onClick={downloadCSV}
@@ -458,7 +466,7 @@ export default function SqlLabPage() {
                                             </tr>
                                         </thead>
                                         <tbody className="divide-y divide-gray-200 bg-white">
-                                            {results.data.map((row, rowIndex) => (
+                                            {getPageData().map((row, rowIndex) => (
                                                 <tr
                                                     key={rowIndex}
                                                     className="hover:bg-gray-50 transition-colors"
@@ -492,8 +500,12 @@ export default function SqlLabPage() {
                                                 return (
                                                     <button
                                                         key={pageNum}
-                                                        onClick={() => scrollToPage(pageNum)}
-                                                        className="px-3 py-2 rounded-lg font-medium text-sm bg-white text-gray-700 border border-gray-300 hover:bg-gray-50 transition-colors"
+                                                        onClick={() => setViewPage(pageNum)}
+                                                        className={`px-3 py-2 rounded-lg font-medium text-sm transition-colors ${
+                                                            viewPage === pageNum
+                                                                ? "bg-blue-600 text-white"
+                                                                : "bg-white text-gray-700 border border-gray-300 hover:bg-gray-50"
+                                                        }`}
                                                     >
                                                         {pageNum}
                                                     </button>
