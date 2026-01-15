@@ -117,7 +117,7 @@ class BedrockService:
             else:
                 return f"-- Error generating SQL: {error_msg}"
 
-    def _build_prompt(self, schema_context: str, question: str, additional_context: Optional[str] = None) -> str:
+    def _get_query_page_prompt(self, schema_context: str, question: str, additional_context: Optional[str] = None) -> str:
         """Query page prompt - uses OpenSearch RAG results for DuckDB/Trino SQL generation"""
         context_section = ""
         if additional_context:
