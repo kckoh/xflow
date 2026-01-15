@@ -355,7 +355,7 @@ export default function SqlLabPage() {
                     {/* AI Input Panel */}
                     {showAI && (
                         <InlineAIInput
-                            promptType="general"
+                            promptType="query_page"
                             metadata={{}}
                             placeholder="Ask AI to generate SQL query..."
                             onApply={(sql) => {
@@ -536,8 +536,8 @@ export default function SqlLabPage() {
                                                         key={pageNum}
                                                         onClick={() => setViewPage(pageNum)}
                                                         className={`px-3 py-2 rounded-lg font-medium text-sm transition-colors ${viewPage === pageNum
-                                                                ? "bg-blue-600 text-white"
-                                                                : "bg-white text-gray-700 border border-gray-300 hover:bg-gray-50"
+                                                            ? "bg-blue-600 text-white"
+                                                            : "bg-white text-gray-700 border border-gray-300 hover:bg-gray-50"
                                                             }`}
                                                     >
                                                         {pageNum}
@@ -552,8 +552,8 @@ export default function SqlLabPage() {
                                                 onClick={loadMoreResults}
                                                 disabled={loadingMore}
                                                 className={`flex items-center gap-2 px-4 py-2 rounded-lg font-medium transition-colors ${loadingMore
-                                                        ? "bg-gray-100 text-gray-400 cursor-not-allowed"
-                                                        : "bg-blue-600 text-white hover:bg-blue-700"
+                                                    ? "bg-gray-100 text-gray-400 cursor-not-allowed"
+                                                    : "bg-blue-600 text-white hover:bg-blue-700"
                                                     }`}
                                             >
                                                 {loadingMore ? (

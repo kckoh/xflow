@@ -7,11 +7,11 @@ export const aiApi = {
      * Generate SQL from natural language question
      * @param {string} question - Natural language question
      * @param {object} metadata - Context-specific metadata (column info, sources, etc.)
-     * @param {string} promptType - Type of prompt (field_transform, sql_transform, sql_lab, partition, general)
-     * @param {string} context - Optional additional context (legacy)
+     * @param {string} promptType - Type of prompt (query_page, field_transform, sql_transform, partition)
+     * @param {string} context - Optional additional context
      * @returns {Promise<Object>} { sql: string, schema_context: string }
      */
-    async generateSQL(question, metadata = {}, promptType = 'general', context = null) {
+    async generateSQL(question, metadata = {}, promptType = 'query_page', context = null) {
         const response = await fetch(`${API_URL}/generate-sql`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },

@@ -48,10 +48,10 @@ class BedrockService:
         
         Args:
             question: User's natural language question
-            prompt_type: Type of prompt ('field_transform', 'sql_transform', 'sql_lab', 'partition', 'general')
-            metadata: Context-specific data (column info, sources, etc.)
-            schema_context: Legacy parameter for backward compatibility
-            additional_context: Legacy parameter for backward compatibility
+            prompt_type: Type of prompt (query_page, field_transform, sql_transform, partition)
+            metadata: Context-specific data (column info, sources, schema_context, etc.)
+            schema_context: Deprecated - pass via metadata['schema_context'] instead
+            additional_context: Deprecated - pass via metadata['additional_context'] instead
             
         Returns:
             Generated SQL query or expression
@@ -59,7 +59,13 @@ class BedrockService:
         metadata = metadata or {}
         
         # Build prompt based on type
-        if prompt_type == 'field_transform':
+        if prompt_type == 'query_page':
+            prompt = self._get_query_page_prompt(
+                schema_context=metadata.get('schema_context', ''),
+                question=question,
+                additional_context=metadata.get('additional_context')
+            )
+        elif prompt_type == 'field_transform':
             prompt = self._get_field_transform_prompt(
                 column_name=metadata.get('column_name', ''),
                 column_type=metadata.get('column_type', ''),
@@ -70,20 +76,11 @@ class BedrockService:
                 sources=metadata.get('sources', []),
                 question=question
             )
-        elif prompt_type == 'sql_lab':
-            prompt = self._get_sql_lab_prompt(
-                engine=metadata.get('engine', 'duckdb'),
-                tables=metadata.get('tables', []),
-                question=question
-            )
         elif prompt_type == 'partition':
             prompt = self._get_partition_recommendation_prompt(
                 columns=metadata.get('columns', []),
                 question=question
             )
-        else:
-            # Legacy general prompt
-            prompt = self._build_prompt(schema_context or '', question, additional_context)
         
         try:
             response = self.client.invoke_model(
@@ -121,7 +118,7 @@ class BedrockService:
                 return f"-- Error generating SQL: {error_msg}"
 
     def _build_prompt(self, schema_context: str, question: str, additional_context: Optional[str] = None) -> str:
-        """SQL 생성을 위한 프롬프트 구성 (Legacy)"""
+        """Query page prompt - uses OpenSearch RAG results for DuckDB/Trino SQL generation"""
         context_section = ""
         if additional_context:
             context_section = f"\n\nAdditional Context:\n{additional_context}"
