@@ -1,6 +1,6 @@
 import { useState, useEffect } from "react";
 import { useNavigate, useLocation } from "react-router-dom";
-import { Play, Loader2, XCircle, Download, BarChart3, Database, ChevronLeft, ChevronRight } from "lucide-react";
+import { Play, Loader2, XCircle, Download, BarChart3, Database } from "lucide-react";
 import { executeQuery as runDuckDBQuery } from "../../services/apiDuckDB";
 import { executeQuery as runTrinoQuery, executeQueryPaginated as runTrinoQueryPaginated } from "../../services/apiTrino";
 import { useToast } from "../../components/common/Toast";
@@ -131,15 +131,24 @@ export default function SqlLabPage() {
                     const result = await runTrinoQueryPaginated(finalQuery, page, 1000);
                     const columns = result.data.length > 0 ? Object.keys(result.data[0]) : [];
 
-                    // 페이지네이션: 데이터 교체 (누적 X)
-                    setResults({
-                        data: result.data,
-                        columns,
-                        row_count: result.row_count,
-                        was_limited: false,
-                        applied_limit: 'All',
-                        query: finalQuery,
-                    });
+                    if (page === 1) {
+                        // 첫 페이지 - 새로운 결과
+                        setResults({
+                            data: result.data,
+                            columns,
+                            row_count: result.row_count,
+                            was_limited: false,
+                            applied_limit: 'All',
+                            query: finalQuery,
+                        });
+                    } else {
+                        // 추가 페이지 - 누적
+                        setResults(prev => ({
+                            ...prev,
+                            data: [...prev.data, ...result.data],
+                            row_count: prev.row_count + result.row_count,
+                        }));
+                    }
 
                     setHasMore(result.has_more);
                     setCurrentPage(page);
@@ -191,16 +200,26 @@ export default function SqlLabPage() {
         }
     };
 
-    const goToPage = async (pageNum) => {
-        if (loadingMore || pageNum === currentPage) return;
+    const loadMoreResults = async () => {
+        if (!hasMore || loadingMore) return;
 
         setLoadingMore(true);
         try {
-            await executeQuery(pageNum);
+            await executeQuery(currentPage + 1);
         } catch (err) {
             setError(err.message);
         } finally {
             setLoadingMore(false);
+        }
+    };
+
+    // 특정 페이지 섹션으로 스크롤
+    const scrollToPage = (pageNum) => {
+        const rowsPerPage = 1000;
+        const startRow = (pageNum - 1) * rowsPerPage;
+        const tableRows = document.querySelectorAll('tbody tr');
+        if (tableRows[startRow]) {
+            tableRows[startRow].scrollIntoView({ behavior: 'smooth', block: 'start' });
         }
     };
 
@@ -463,83 +482,47 @@ export default function SqlLabPage() {
                                     </table>
                                 </div>
 
-                                {/* Pagination - Only for Trino with ALL limit */}
+                                {/* Page Navigation + Load More - Only for Trino with ALL limit */}
                                 {engine === 'trino' && queryLimit === 'All' && results && (
                                     <div className="mt-4 flex justify-center items-center gap-2 shrink-0">
-                                        {/* Previous Button */}
-                                        <button
-                                            onClick={() => goToPage(currentPage - 1)}
-                                            disabled={currentPage === 1 || loadingMore}
-                                            className={`flex items-center gap-1 px-3 py-2 rounded-lg font-medium transition-colors ${
-                                                currentPage === 1 || loadingMore
-                                                    ? "bg-gray-100 text-gray-400 cursor-not-allowed"
-                                                    : "bg-white text-gray-700 border border-gray-300 hover:bg-gray-50"
-                                            }`}
-                                        >
-                                            <ChevronLeft className="w-4 h-4" />
-                                            Previous
-                                        </button>
-
-                                        {/* Page Numbers */}
+                                        {/* 로드된 페이지 버튼들 */}
                                         <div className="flex items-center gap-1">
-                                            {/* First Page */}
-                                            {currentPage > 3 && (
-                                                <>
-                                                    <button
-                                                        onClick={() => goToPage(1)}
-                                                        disabled={loadingMore}
-                                                        className="px-3 py-2 rounded-lg font-medium bg-white text-gray-700 border border-gray-300 hover:bg-gray-50"
-                                                    >
-                                                        1
-                                                    </button>
-                                                    <span className="text-gray-400">...</span>
-                                                </>
-                                            )}
-
-                                            {/* Current and nearby pages */}
-                                            {[...Array(5)].map((_, i) => {
-                                                const pageNum = currentPage - 2 + i;
-                                                if (pageNum < 1) return null;
-
+                                            {[...Array(currentPage)].map((_, i) => {
+                                                const pageNum = i + 1;
                                                 return (
                                                     <button
                                                         key={pageNum}
-                                                        onClick={() => goToPage(pageNum)}
-                                                        disabled={loadingMore}
-                                                        className={`px-3 py-2 rounded-lg font-medium transition-colors ${
-                                                            pageNum === currentPage
-                                                                ? "bg-blue-600 text-white"
-                                                                : "bg-white text-gray-700 border border-gray-300 hover:bg-gray-50"
-                                                        }`}
+                                                        onClick={() => scrollToPage(pageNum)}
+                                                        className="px-3 py-2 rounded-lg font-medium text-sm bg-white text-gray-700 border border-gray-300 hover:bg-gray-50 transition-colors"
                                                     >
                                                         {pageNum}
                                                     </button>
                                                 );
                                             })}
-
-                                            {/* Show next page indicator if has more */}
-                                            {hasMore && (
-                                                <span className="text-gray-400">...</span>
-                                            )}
                                         </div>
 
-                                        {/* Next Button */}
-                                        <button
-                                            onClick={() => goToPage(currentPage + 1)}
-                                            disabled={!hasMore || loadingMore}
-                                            className={`flex items-center gap-1 px-3 py-2 rounded-lg font-medium transition-colors ${
-                                                !hasMore || loadingMore
-                                                    ? "bg-gray-100 text-gray-400 cursor-not-allowed"
-                                                    : "bg-white text-gray-700 border border-gray-300 hover:bg-gray-50"
-                                            }`}
-                                        >
-                                            Next
-                                            <ChevronRight className="w-4 h-4" />
-                                        </button>
-
-                                        {/* Loading indicator */}
-                                        {loadingMore && (
-                                            <Loader2 className="w-4 h-4 animate-spin text-blue-600 ml-2" />
+                                        {/* Load More 버튼 */}
+                                        {hasMore && (
+                                            <button
+                                                onClick={loadMoreResults}
+                                                disabled={loadingMore}
+                                                className={`flex items-center gap-2 px-4 py-2 rounded-lg font-medium transition-colors ${
+                                                    loadingMore
+                                                        ? "bg-gray-100 text-gray-400 cursor-not-allowed"
+                                                        : "bg-blue-600 text-white hover:bg-blue-700"
+                                                }`}
+                                            >
+                                                {loadingMore ? (
+                                                    <>
+                                                        <Loader2 className="w-4 h-4 animate-spin" />
+                                                        Loading...
+                                                    </>
+                                                ) : (
+                                                    <>
+                                                        Load More (1000 rows)
+                                                    </>
+                                                )}
+                                            </button>
                                         )}
                                     </div>
                                 )}
