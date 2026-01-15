@@ -62,10 +62,14 @@ export default function ETLMain() {
   const fetchJobs = async () => {
     setIsLoading(true);
     try {
-      // Fetch both datasets and source datasets
+      // Get session ID for permission filtering
+      const sessionId = sessionStorage.getItem('sessionId');
+      const sessionParam = sessionId ? `?session_id=${sessionId}` : '';
+
+      // Fetch both datasets and source datasets with session_id for permission filtering
       const [etlResponse, sourceResponse] = await Promise.all([
-        fetch(`${API_BASE_URL}/api/datasets`),
-        fetch(`${API_BASE_URL}/api/source-datasets`),
+        fetch(`${API_BASE_URL}/api/datasets${sessionParam}`),
+        fetch(`${API_BASE_URL}/api/source-datasets${sessionParam}`),
       ]);
 
       let allJobs = [];
@@ -245,22 +249,20 @@ export default function ETLMain() {
                     </td>
                     <td className="px-3 py-3 text-sm">
                       <span
-                        className={`px-2 py-1 text-xs font-semibold rounded-full ${
-                          (job.dataset_type || "source") === "source"
+                        className={`px-2 py-1 text-xs font-semibold rounded-full ${(job.dataset_type || "source") === "source"
                             ? "bg-emerald-100 text-emerald-800"
                             : "bg-orange-100 text-orange-800"
-                        }`}
+                          }`}
                       >
                         {(job.dataset_type || "source") === "source" ? "Source" : "Target"}
                       </span>
                     </td>
                     <td className="px-3 py-3 text-sm">
                       <span
-                        className={`px-2 py-1 text-xs font-semibold rounded-full ${
-                          job.is_active
+                        className={`px-2 py-1 text-xs font-semibold rounded-full ${job.is_active
                             ? "bg-green-100 text-green-800"
                             : "bg-gray-100 text-gray-600"
-                        }`}
+                          }`}
                       >
                         {job.is_active ? "Active" : "Inactive"}
                       </span>

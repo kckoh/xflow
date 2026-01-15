@@ -1,0 +1,148 @@
+# ===========================================
+# XFlow EKS Cluster Configuration
+# ===========================================
+# Usage: eksctl create cluster -f cluster.yaml
+#
+# 사용 전 아래 값들을 수정하세요:
+#   - metadata.name: 클러스터 이름
+#   - metadata.region: AWS 리전
+#   - 모든 YOUR_ACCOUNT_ID를 실제 계정 ID로 변경
+
+apiVersion: eksctl.io/v1alpha5
+kind: ClusterConfig
+
+metadata:
+  name: xflow-cluster      # 클러스터 이름
+  region: ap-northeast-2   # 리전
+  version: "1.29"
+
+# IAM OIDC Provider (IRSA 사용을 위해 필수)
+iam:
+  withOIDC: true
+
+  # Service Accounts with IAM Roles
+  serviceAccounts:
+    # AWS Load Balancer Controller
+    - metadata:
+        name: aws-load-balancer-controller
+        namespace: kube-system
+      wellKnownPolicies:
+        awsLoadBalancerController: true
+
+    # Backend - S3 접근
+    - metadata:
+        name: backend-sa
+        namespace: xflow
+      attachPolicyARNs:
+        - arn:aws:iam::aws:policy/AmazonS3FullAccess
+
+    # Spark - S3 접근
+    - metadata:
+        name: spark-sa
+        namespace: spark-jobs
+      attachPolicyARNs:
+        - arn:aws:iam::aws:policy/AmazonS3FullAccess
+
+    # Airflow - S3 접근
+    - metadata:
+        name: airflow-scheduler
+        namespace: xflow
+      attachPolicyARNs:
+        - arn:aws:iam::aws:policy/AmazonS3FullAccess
+
+    - metadata:
+        name: airflow-webserver
+        namespace: xflow
+      attachPolicyARNs:
+        - arn:aws:iam::aws:policy/AmazonS3FullAccess
+
+    - metadata:
+        name: airflow-triggerer
+        namespace: xflow
+      attachPolicyARNs:
+        - arn:aws:iam::aws:policy/AmazonS3FullAccess
+
+    - metadata:
+        name: airflow-worker
+        namespace: xflow
+      attachPolicyARNs:
+        - arn:aws:iam::aws:policy/AmazonS3FullAccess
+
+    # Trino - S3 + Glue 접근
+    - metadata:
+        name: trino-sa
+        namespace: xflow
+      attachPolicyARNs:
+        - arn:aws:iam::aws:policy/AmazonS3FullAccess
+        - arn:aws:iam::aws:policy/AWSGlueConsoleFullAccess
+
+    # Loki - S3 접근
+    - metadata:
+        name: loki
+        namespace: monitoring
+      attachPolicyARNs:
+        - arn:aws:iam::aws:policy/AmazonS3FullAccess
+
+# VPC 설정
+vpc:
+  cidr: 10.0.0.0/16
+  nat:
+    gateway: Single  # 비용 절감 (HighlyAvailable for production)
+  # S3 Gateway Endpoint - NAT Gateway 비용 절감 (S3 트래픽이 NAT 우회)
+  gatewayEndpoints:
+    S3: {}
+
+# 노드 그룹
+managedNodeGroups:
+  # 기본 노드 그룹
+  - name: ng-default
+    instanceType: t3.large
+    desiredCapacity: 2
+    minSize: 1
+    maxSize: 4
+    volumeSize: 50
+    volumeType: gp3
+    labels:
+      role: general
+    tags:
+      Environment: test
+
+  # Spark 워크로드용 (Spot 인스턴스로 비용 절감)
+  - name: ng-spark
+    instanceTypes:
+      - m5.xlarge
+      - m5.2xlarge
+    desiredCapacity: 0
+    minSize: 0
+    maxSize: 5
+    spot: true
+    labels:
+      role: spark
+      lifecycle: spot
+    taints:
+      - key: spark-only
+        value: "true"
+        effect: NoSchedule
+    tags:
+      Environment: test
+
+# CloudWatch 로깅
+cloudWatch:
+  clusterLogging:
+    enableTypes:
+      - api
+      - audit
+      - authenticator
+      - controllerManager
+      - scheduler
+
+# Addons
+addons:
+  - name: vpc-cni
+    attachPolicyARNs:
+      - arn:aws:iam::aws:policy/AmazonEKS_CNI_Policy
+  - name: coredns
+  - name: kube-proxy
+  - name: aws-ebs-csi-driver
+    wellKnownPolicies:
+      ebsCSIController: true

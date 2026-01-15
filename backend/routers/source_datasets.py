@@ -1,5 +1,5 @@
 from fastapi import APIRouter, HTTPException
-from typing import List
+from typing import List, Optional
 from datetime import datetime
 from bson import ObjectId
 import os
@@ -14,6 +14,7 @@ from schemas.source_dataset import (
     SourceDatasetUpdate,
     SourceDatasetResponse,
 )
+from dependencies import sessions
 
 
 async def get_s3_schema(bucket: str, path: str) -> List[dict]:
@@ -182,7 +183,7 @@ def get_db():
 
 
 @router.post("", response_model=SourceDatasetResponse)
-async def create_source_dataset(dataset: SourceDatasetCreate):
+async def create_source_dataset(dataset: SourceDatasetCreate, session_id: Optional[str] = None):
     """Create a new source dataset"""
     db = get_db()
     now = datetime.utcnow()
@@ -228,14 +229,51 @@ async def create_source_dataset(dataset: SourceDatasetCreate):
 
     result = await db.source_datasets.insert_one(dataset_data)
     dataset_data["id"] = str(result.inserted_id)
+    
+    # Auto-grant permission: Add dataset to creator's role
+    if session_id and session_id in sessions:
+        user_session = sessions[session_id]
+        user_id = user_session.get("user_id")
+        role_id = user_session.get("role_id")  # Single role, not plural
+        
+        # Add dataset to user's role
+        if role_id:
+            from models import Role, User
+            from beanie import PydanticObjectId
+            try:
+                # Update role to include this dataset
+                role = await Role.get(PydanticObjectId(role_id))
+                if role:
+                    dataset_id_str = dataset_data["id"]
+                    if dataset_id_str not in role.dataset_access:
+                        role.dataset_access.append(dataset_id_str)
+                        await role.save()
+                        print(f"✅ Auto-granted source dataset {dataset.name} to role {role.name}")
+                
+                # Update session's dataset_access cache
+                if user_id:
+                    user = await User.get(PydanticObjectId(user_id))
+                    if user:
+                        # Recalculate combined dataset access
+                        combined_dataset_access = set(user.dataset_access or [])
+                        # Add role's dataset access
+                        if user.role_id:
+                            role = await Role.get(PydanticObjectId(user.role_id))
+                            if role:
+                                combined_dataset_access.update(role.dataset_access or [])
+                        user_session["dataset_access"] = list(combined_dataset_access)
+                        
+            except Exception as e:
+                print(f"⚠️  Failed to auto-grant source dataset permission: {e}")
+                # Don't fail the dataset creation if permission grant fails
 
     return dataset_data
 
 
 
 @router.get("", response_model=List[SourceDatasetResponse])
-async def get_source_datasets():
-    """Get all source datasets"""
+async def get_source_datasets(session_id: Optional[str] = None):
+    """Get all source datasets, filtered by user permissions"""
     db = get_db()
     cursor = db.source_datasets.find()
     datasets = []
@@ -251,6 +289,22 @@ async def get_source_datasets():
             doc["columns"] = doc.get("schema", [])
 
         datasets.append(doc)
+
+    # Filter by user permissions if session_id is provided
+    if session_id and session_id in sessions:
+        user_session = sessions[session_id]
+        is_admin = user_session.get("is_admin", False)
+
+        # Admin can see all datasets
+        if not is_admin:
+            all_datasets_access = user_session.get("all_datasets", False)
+
+            if not all_datasets_access:
+                # Get allowed dataset IDs from session
+                allowed_dataset_ids = user_session.get("dataset_access", [])
+
+                # Filter datasets to only those the user can access
+                datasets = [d for d in datasets if d["id"] in allowed_dataset_ids]
 
     return datasets
 

@@ -1,0 +1,626 @@
+# ===========================================
+# XFlow Helm Chart - Default Values
+# ===========================================
+
+# ------------------------------------------
+# Global Settings
+# ------------------------------------------
+global:
+  # Namespace (used if createNamespace is true)
+  namespace: xflow
+  createNamespace: true
+
+  # Container image registry
+  # Examples:
+  #   AWS ECR: 123456789.dkr.ecr.us-east-1.amazonaws.com
+  #   GCP GCR: gcr.io/my-project
+  #   Azure ACR: myacr.azurecr.io
+  #   DockerHub: docker.io/myorg
+  imageRegistry: ""
+
+  # Image pull secrets (if registry requires authentication)
+  imagePullSecrets: []
+  # - name: regcred
+
+  # Cloud provider: aws | gcp | azure | local
+  cloudProvider: aws
+
+  # AWS-specific settings
+  aws:
+    enabled: true
+    region: ap-northeast-2
+    accountId: ""
+
+  # GCP-specific settings
+  gcp:
+    enabled: false
+    projectId: ""
+    region: us-central1
+
+  # Azure-specific settings
+  azure:
+    enabled: false
+    subscriptionId: ""
+    resourceGroup: ""
+    region: koreacentral
+
+  # Storage class (leave empty for cloud-specific defaults)
+  # AWS: gp2, gp3
+  # GCP: standard-rwo, premium-rwo
+  # Azure: managed-premium
+  # Local: standard
+  storageClass: ""
+
+  # Domain for ingress hosts (e.g., xflows.net)
+  domain: ""
+
+  # TLS settings
+  tls:
+    enabled: false
+    # AWS ACM certificate ARN
+    acm:
+      certificateArn: ""
+    # For GCP/Azure/nginx: secret name containing TLS cert
+    secretName: ""
+
+# ------------------------------------------
+# Ingress Controller Settings
+# ------------------------------------------
+ingress:
+  enabled: true
+  # Ingress class: alb | nginx | gce | azure-application-gateway
+  className: ""
+
+  # AWS ALB Ingress settings
+  alb:
+    enabled: true
+    scheme: internet-facing  # internet-facing | internal
+    targetType: ip
+    groupName: xflow-alb
+
+  # Additional annotations for all ingresses
+  annotations: {}
+
+# ------------------------------------------
+# Backend (FastAPI)
+# ------------------------------------------
+backend:
+  enabled: true
+
+  image:
+    repository: xflow-backend
+    tag: latest
+    pullPolicy: Always
+
+  replicas: 1
+
+  resources:
+    requests:
+      memory: "256Mi"
+      cpu: "250m"
+    limits:
+      memory: "512Mi"
+      cpu: "500m"
+
+  # Service account
+  serviceAccount:
+    create: true
+    name: backend-sa
+    # Annotations for IRSA (AWS), Workload Identity (GCP), etc.
+    annotations: {}
+    # AWS: eks.amazonaws.com/role-arn: arn:aws:iam::ACCOUNT:role/ROLE
+    # GCP: iam.gke.io/gcp-service-account: SA@PROJECT.iam.gserviceaccount.com
+
+  # ConfigMap environment variables
+  config:
+    mongodbDatabase: xflow
+    corsOrigins: "http://localhost:5173"
+    airflowDagId: dataset_dag_k8s
+    opensearchHost: opensearch
+    opensearchPort: "9200"
+    environment: production
+    useS3: "true"
+    sparkNamespace: spark-jobs
+    # Kafka settings (set empty to disable)
+    kafkaConnectUrl: ""
+    kafkaBootstrapServers: ""
+
+  # Secret environment variables
+  secrets:
+    # MongoDB connection URL (auto-generated if empty)
+    mongodbUrl: ""
+
+  # Ingress settings
+  ingress:
+    enabled: true
+    host: ""  # e.g., api.xflows.net (uses global.domain if empty)
+    path: /
+    pathType: Prefix
+
+  # Health probes
+  probes:
+    readiness:
+      path: /health
+      initialDelaySeconds: 30
+      periodSeconds: 10
+      timeoutSeconds: 5
+    liveness:
+      path: /health
+      initialDelaySeconds: 60
+      periodSeconds: 20
+      timeoutSeconds: 5
+
+# ------------------------------------------
+# MongoDB
+# ------------------------------------------
+mongodb:
+  enabled: true
+
+  image:
+    repository: mongo
+    tag: "7"
+
+  replicas: 1
+
+  resources:
+    requests:
+      memory: "256Mi"
+      cpu: "250m"
+    limits:
+      memory: "512Mi"
+      cpu: "500m"
+
+  persistence:
+    enabled: true
+    size: 10Gi
+    # Storage class (uses global.storageClass if empty)
+    storageClass: ""
+
+  auth:
+    rootUsername: root
+    rootPassword: ""  # Auto-generated if empty
+    # Use existing secret instead
+    existingSecret: ""
+
+# ------------------------------------------
+# OpenSearch
+# ------------------------------------------
+opensearch:
+  enabled: true
+
+  image:
+    repository: opensearchproject/opensearch
+    tag: "2.11.1"
+
+  replicas: 1
+
+  javaOpts: "-Xms512m -Xmx512m"
+
+  resources:
+    requests:
+      memory: "768Mi"
+      cpu: "250m"
+    limits:
+      memory: "1536Mi"
+      cpu: "500m"
+
+  persistence:
+    enabled: true
+    size: 10Gi
+    storageClass: ""
+
+  # Security plugin (set to true for production)
+  security:
+    enabled: false
+
+  # Plugins to install
+  plugins:
+    - analysis-nori
+
+  # OpenSearch Dashboards
+  dashboards:
+    enabled: true
+    image:
+      repository: opensearchproject/opensearch-dashboards
+      tag: "2.11.1"
+    resources:
+      requests:
+        memory: "512Mi"
+        cpu: "250m"
+      limits:
+        memory: "1Gi"
+        cpu: "500m"
+    ingress:
+      enabled: true
+      host: ""  # e.g., opensearch.xflows.net
+
+# ------------------------------------------
+# Spark
+# ------------------------------------------
+spark:
+  enabled: true
+
+  # Separate namespace for Spark jobs
+  namespace: spark-jobs
+  createNamespace: true
+
+  # Service account for Spark jobs
+  serviceAccount:
+    create: true
+    name: spark-sa
+    annotations: {}
+
+  # Default Spark image
+  image:
+    repository: xflow-spark
+    tag: latest
+
+  # Default driver configuration
+  driver:
+    cores: 2
+    memory: "4g"
+    nodeSelector: {}
+    tolerations: []
+
+  # Default executor configuration
+  executor:
+    cores: 6
+    instances: 2
+    memory: "26g"
+    nodeSelector: {}
+    tolerations: []
+
+  # Default Spark configuration
+  sparkConf:
+    "spark.sql.shuffle.partitions": "24"
+    "spark.memory.fraction": "0.6"
+
+# ------------------------------------------
+# Airflow (Subchart)
+# ------------------------------------------
+airflow:
+  enabled: true
+
+  # Executor type
+  executor: LocalExecutor
+
+  # Custom Airflow image
+  images:
+    airflow:
+      repository: ""  # Set via global.imageRegistry/xflow-airflow
+      tag: latest
+      pullPolicy: Always
+
+  defaultAirflowRepository: ""
+  defaultAirflowTag: ""
+
+  # Service account
+  serviceAccount:
+    create: true
+    annotations: {}
+
+  # Webserver
+  webserver:
+    replicas: 1
+    resources:
+      requests:
+        memory: "2Gi"
+        cpu: "250m"
+      limits:
+        memory: "3Gi"
+        cpu: "500m"
+    startupProbe:
+      failureThreshold: 30
+      periodSeconds: 10
+    livenessProbe:
+      initialDelaySeconds: 30
+      periodSeconds: 10
+      failureThreshold: 5
+    readinessProbe:
+      initialDelaySeconds: 30
+      periodSeconds: 10
+      failureThreshold: 5
+    service:
+      type: ClusterIP
+
+  # Scheduler
+  scheduler:
+    replicas: 1
+    resources:
+      requests:
+        memory: "1Gi"
+        cpu: "250m"
+      limits:
+        memory: "2Gi"
+        cpu: "500m"
+
+  # DAG Processor
+  dagProcessor:
+    enabled: true
+    replicas: 1
+    resources:
+      requests:
+        memory: "256Mi"
+        cpu: "100m"
+      limits:
+        memory: "512Mi"
+        cpu: "250m"
+
+  # Triggerer
+  triggerer:
+    enabled: true
+    replicas: 1
+    persistence:
+      enabled: false
+    resources:
+      requests:
+        memory: "256Mi"
+        cpu: "100m"
+      limits:
+        memory: "512Mi"
+        cpu: "250m"
+
+  # Workers
+  workers:
+    persistence:
+      enabled: false
+
+  # PostgreSQL (built-in)
+  postgresql:
+    enabled: true
+    image:
+      registry: docker.io
+      repository: bitnami/postgresql
+      tag: "latest"
+    auth:
+      postgresPassword: postgres
+      password: postgres
+    primary:
+      persistence:
+        enabled: true
+        size: 5Gi
+        storageClass: ""  # Uses global.storageClass
+
+  # Redis (not needed for LocalExecutor)
+  redis:
+    enabled: false
+
+  # DAGs
+  dags:
+    gitSync:
+      enabled: false
+    persistence:
+      enabled: false
+
+  # Environment variables
+  env:
+    - name: AIRFLOW__CORE__LOAD_EXAMPLES
+      value: "false"
+    - name: AIRFLOW__WEBSERVER__EXPOSE_CONFIG
+      value: "true"
+    - name: AIRFLOW__API__AUTH_BACKENDS
+      value: "airflow.api.auth.backend.basic_auth,airflow.api.auth.backend.session"
+
+  # Additional env vars (set via values override)
+  # Note: Use string format for extraEnv, not array
+  extraEnv: ""
+
+  # Jobs
+  createUserJob:
+    useHelmHooks: false
+    applyCustomEnv: false
+  migrateDatabaseJob:
+    useHelmHooks: false
+
+  # Flower
+  flower:
+    enabled: false
+
+  # StatsD
+  statsd:
+    enabled: false
+
+  # Logs
+  logs:
+    persistence:
+      enabled: false
+
+  # Remote logging config (S3/GCS)
+  config:
+    logging:
+      remote_logging: "False"
+      remote_base_log_folder: ""
+      remote_log_conn_id: ""
+    core:
+      colored_console_log: "False"
+
+  # Ingress
+  ingress:
+    web:
+      enabled: false
+
+  webserverSecretKey: "change-me-to-a-secure-random-string"
+
+# ------------------------------------------
+# Trino (Subchart)
+# ------------------------------------------
+trino:
+  enabled: true
+
+  image:
+    tag: "479"
+
+  server:
+    workers: 1
+    coordinatorExtraConfig: |
+      http-server.process-forwarded=true
+    workerExtraConfig: ""
+
+  coordinator:
+    jvm:
+      maxHeapSize: "3G"
+    resources:
+      requests:
+        memory: "2Gi"
+        cpu: "500m"
+      limits:
+        memory: "4Gi"
+        cpu: "1"
+
+  worker:
+    jvm:
+      maxHeapSize: "3G"
+    resources:
+      requests:
+        memory: "2Gi"
+        cpu: "500m"
+      limits:
+        memory: "4Gi"
+        cpu: "1"
+
+  serviceAccount:
+    create: true
+    name: trino-sa
+    annotations: {}
+
+  # Catalogs (override per environment)
+  catalogs: {}
+
+  service:
+    type: ClusterIP
+    port: 8080
+
+  ingress:
+    enabled: true
+    host: ""  # e.g., trino.xflows.net
+
+# ------------------------------------------
+# S3/Object Storage Settings
+# ------------------------------------------
+storage:
+  # S3 bucket names (AWS)
+  s3:
+    dataLakeBucket: ""
+    airflowLogsBucket: ""
+
+  # GCS bucket names (GCP)
+  gcs:
+    dataLakeBucket: ""
+    airflowLogsBucket: ""
+
+  # Azure Blob container names
+  azure:
+    storageAccount: ""
+    dataLakeContainer: ""
+    airflowLogsContainer: ""
+
+# ------------------------------------------
+# Monitoring (Grafana + Loki)
+# ------------------------------------------
+monitoring:
+  # Separate namespace for monitoring
+  namespace: monitoring
+  createNamespace: true
+
+  # Grafana
+  grafana:
+    enabled: false
+
+    # Admin credentials (use existingSecret in production)
+    admin:
+      existingSecret: ""
+      userKey: admin-user
+      passwordKey: admin-password
+      # If not using existingSecret:
+      user: admin
+      password: ""  # Set a strong password
+
+    persistence:
+      enabled: false
+
+    service:
+      type: ClusterIP
+
+    # Datasources
+    datasources:
+      "datasources.yaml":
+        apiVersion: 1
+        datasources:
+          - name: Loki
+            type: loki
+            url: http://loki-gateway.monitoring.svc.cluster.local
+            access: proxy
+            isDefault: true
+
+    # Ingress
+    ingress:
+      enabled: true
+      host: ""  # e.g., grafana.xflows.net
+
+  # Loki (log aggregation)
+  loki:
+    enabled: false
+
+    deploymentMode: SingleBinary
+
+    loki:
+      auth_enabled: false
+      storage:
+        type: s3
+        bucketNames:
+          chunks: ""  # e.g., xflow-loki-logs
+          ruler: ""
+          admin: ""
+        s3:
+          region: ap-northeast-2
+      schemaConfig:
+        configs:
+          - from: 2024-01-01
+            store: tsdb
+            object_store: s3
+            schema: v13
+            index:
+              prefix: index_
+              period: 24h
+      commonConfig:
+        replication_factor: 1
+        path_prefix: /var/loki-data
+
+    serviceAccount:
+      create: true
+      name: loki
+      annotations: {}
+
+    singleBinary:
+      replicas: 1
+      persistence:
+        enabled: false
+      extraVolumes:
+        - name: loki-data
+          emptyDir: {}
+      extraVolumeMounts:
+        - name: loki-data
+          mountPath: /var/loki-data
+
+    read:
+      replicas: 0
+    write:
+      replicas: 0
+    backend:
+      replicas: 0
+
+    monitoring:
+      selfMonitoring:
+        enabled: false
+        grafanaAgent:
+          installOperator: false
+      lokiCanary:
+        enabled: false
+
+    test:
+      enabled: false
+
+    chunksCache:
+      enabled: false
+    resultsCache:
+      enabled: false

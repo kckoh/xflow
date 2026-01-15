@@ -1,37 +1,9 @@
 import { useState, useMemo, useEffect } from "react";
-import { Search, Edit2, Trash2, Check, X, Loader2 } from "lucide-react";
+import { Search, Edit2, Trash2, Loader2, UserPlus } from "lucide-react";
 import { useAuth } from "../../../context/AuthContext";
 import { getUsers, deleteUser } from "../../../services/adminApi";
 
-function AccessBadge({ hasAccess }) {
-    return hasAccess ? (
-        <span className="inline-flex items-center gap-1 px-2 py-0.5 bg-green-100 text-green-700 text-xs rounded-full">
-            <Check className="w-3 h-3" />
-            Enabled
-        </span>
-    ) : (
-        <span className="inline-flex items-center gap-1 px-2 py-0.5 bg-gray-100 text-gray-500 text-xs rounded-full">
-            <X className="w-3 h-3" />
-            Disabled
-        </span>
-    );
-}
-
-function DatasetBadge({ datasetAccess, allDatasets }) {
-    if (allDatasets) {
-        return (
-            <span className="text-sm text-blue-600 font-medium">All Datasets</span>
-        );
-    }
-    if (!datasetAccess || datasetAccess.length === 0) {
-        return <span className="text-sm text-gray-400">None</span>;
-    }
-    return (
-        <span className="text-sm text-gray-600">{datasetAccess.length} dataset(s)</span>
-    );
-}
-
-export default function UserManagement({ onEditUser }) {
+export default function UserManagement({ onEditUser, onAddUser }) {
     const { sessionId } = useAuth();
     const [users, setUsers] = useState([]);
     const [searchQuery, setSearchQuery] = useState("");
@@ -103,16 +75,25 @@ export default function UserManagement({ onEditUser }) {
 
     return (
         <div className="space-y-4">
-            {/* Search */}
-            <div className="relative w-80">
-                <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
-                <input
-                    type="text"
-                    placeholder="Search users..."
-                    value={searchQuery}
-                    onChange={(e) => setSearchQuery(e.target.value)}
-                    className="w-full pl-9 pr-4 py-2 text-sm border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                />
+            {/* Search and Add Button */}
+            <div className="flex items-center justify-between">
+                <div className="relative w-80">
+                    <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
+                    <input
+                        type="text"
+                        placeholder="Search users..."
+                        value={searchQuery}
+                        onChange={(e) => setSearchQuery(e.target.value)}
+                        className="w-full pl-9 pr-4 py-2 text-sm border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                    />
+                </div>
+                <button
+                    onClick={onAddUser}
+                    className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white text-sm font-medium rounded-lg hover:bg-blue-700 transition-colors shadow-sm"
+                >
+                    <UserPlus className="w-4 h-4" />
+                    Add User
+                </button>
             </div>
 
             {/* Table */}
@@ -124,14 +105,9 @@ export default function UserManagement({ onEditUser }) {
                                 User
                             </th>
                             <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                                ETL
+                                Role
                             </th>
-                            <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                                Domain Edit
-                            </th>
-                            <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                                Datasets
-                            </th>
+
                             <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                                 Created
                             </th>
@@ -157,17 +133,15 @@ export default function UserManagement({ onEditUser }) {
                                     </div>
                                 </td>
                                 <td className="px-4 py-3">
-                                    <AccessBadge hasAccess={user.etl_access} />
+                                    {user.is_admin ? (
+                                        <span className="text-sm text-purple-600 font-medium">Admin</span>
+                                    ) : user.role_name ? (
+                                        <span className="text-sm text-gray-700">{user.role_name}</span>
+                                    ) : (
+                                        <span className="text-sm text-gray-400">-</span>
+                                    )}
                                 </td>
-                                <td className="px-4 py-3">
-                                    <AccessBadge hasAccess={user.domain_edit_access} />
-                                </td>
-                                <td className="px-4 py-3">
-                                    <DatasetBadge
-                                        datasetAccess={user.dataset_access}
-                                        allDatasets={user.all_datasets}
-                                    />
-                                </td>
+
                                 <td className="px-4 py-3">
                                     <span className="text-sm text-gray-500">
                                         {user.created_at ? new Date(user.created_at).toLocaleDateString() : "-"}

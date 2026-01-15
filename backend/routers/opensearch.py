@@ -5,8 +5,8 @@ OpenSearch 관련 API 엔드포인트
 - 상태 확인
 - Bulk Reindex
 """
-from fastapi import APIRouter, HTTPException, Query
-from typing import Optional, Literal, List
+from fastapi import APIRouter, HTTPException, Query, Depends
+from typing import Optional, Literal, List, Dict, Any
 from schemas.opensearch import (
     IndexingResult, DomainDocument, DomainSearchResult,
     ReindexRequest, ReindexResult, StatusResponse
@@ -16,6 +16,7 @@ from utils.opensearch_client import (
     get_opensearch_client, DOMAIN_INDEX,
     delete_domain_index, create_domain_index
 )
+from dependencies import get_user_session
 
 router = APIRouter()
 
@@ -123,7 +124,8 @@ async def search(
     doc_type: Optional[Literal['dataset']] = Query(None, description="문서 타입 필터"),
     tags: Optional[List[str]] = Query(None, description="태그 필터"),
     limit: int = Query(20, ge=1, le=100, description="결과 개수 제한"),
-    offset: int = Query(0, ge=0, description="페이지네이션 오프셋")
+    offset: int = Query(0, ge=0, description="페이지네이션 오프셋"),
+    user_session: Optional[Dict[str, Any]] = Depends(get_user_session)
 ):
     """
     Dataset 검색
@@ -171,6 +173,23 @@ async def search(
 
         if tags:
             query["bool"]["filter"].append({"terms": {"tags": tags}})
+
+        # Permission check
+        if user_session:
+            is_admin = user_session.get("is_admin", False)
+            all_datasets_access = user_session.get("all_datasets", False)
+            
+            if not is_admin and not all_datasets_access:
+                allowed_dataset_ids = user_session.get("dataset_access", [])
+                
+                if not allowed_dataset_ids:
+                    # No explicit access -> return empty result
+                    return DomainSearchResult(total=0, results=[])
+                
+                # Filter by allowed IDs
+                # Ensure IDs are strings
+                allowed_dataset_ids = [str(id) for id in allowed_dataset_ids]
+                query["bool"]["filter"].append({"terms": {"id": allowed_dataset_ids}})
 
         response = opensearch.search(
             index=DOMAIN_INDEX,

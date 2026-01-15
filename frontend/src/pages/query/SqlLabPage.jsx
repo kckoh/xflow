@@ -1,9 +1,10 @@
 import { useState, useEffect } from "react";
 import { useNavigate, useLocation } from "react-router-dom";
-import { Play, Loader2, XCircle, Download, BarChart3, Database } from "lucide-react";
+import { Play, Loader2, XCircle, Download, BarChart3, Database, Sparkles } from "lucide-react";
 import { executeQuery as runDuckDBQuery } from "../../services/apiDuckDB";
-import { executeQuery as runTrinoQuery } from "../../services/apiTrino";
+import { executeQuery as runTrinoQuery, executeQueryPaginated as runTrinoQueryPaginated } from "../../services/apiTrino";
 import { useToast } from "../../components/common/Toast";
+import InlineAIInput from "../../components/ai/InlineAIInput";
 import TableColumnSidebar from "./components/TableColumnSidebar";
 import QueryExplorer from "./components/QueryExplorer";
 
@@ -46,6 +47,15 @@ export default function SqlLabPage() {
 
     // Query limit state
     const [queryLimit, setQueryLimit] = useState(30);
+
+    // Pagination state
+    const [currentPage, setCurrentPage] = useState(1);
+    const [hasMore, setHasMore] = useState(false);
+    const [loadingMore, setLoadingMore] = useState(false);
+    const [viewPage, setViewPage] = useState(1); // 현재 보고 있는 페이지
+
+    // AI state
+    const [showAI, setShowAI] = useState(false);
 
     // Load query and results from multiple sources (priority order)
     useEffect(() => {
@@ -103,43 +113,124 @@ export default function SqlLabPage() {
         sessionStorage.setItem(ENGINE_STORAGE_KEY, engine);
     }, [engine]);
 
-    const executeQuery = async () => {
+    const executeQuery = async (page = 1) => {
         if (!query.trim()) {
             setError("Please enter a query");
             return;
         }
 
-        setExecuting(true);
-        setError(null);
+        const isInitialQuery = page === 1;
+        if (isInitialQuery) {
+            setExecuting(true);
+            setError(null);
+            setCurrentPage(1);
+            setViewPage(1); // 첫 페이지로 리셋
+        }
 
         try {
             let finalQuery = query.trim();
 
-            // Apply selected limit if not specified in query
-            if (!/\bLIMIT\b/i.test(finalQuery)) {
-                const limitValue = queryLimit === 'All' ? 1000000 : queryLimit;
-                finalQuery = `${finalQuery.replace(/;$/, "")} LIMIT ${limitValue}`;
-            }
+            if (engine === 'trino') {
+                // Trino: Use pagination API or direct limit
+                if (queryLimit === 'All') {
+                    // ALL: Use pagination (1000 rows at a time)
+                    const result = await runTrinoQueryPaginated(finalQuery, page, 1000);
+                    const columns = result.data.length > 0 ? Object.keys(result.data[0]) : [];
 
-            // Execute query based on selected engine
-            const response = engine === 'trino'
-                ? await runTrinoQuery(finalQuery)
-                : await runDuckDBQuery(finalQuery);
-            const columns = response.data.length > 0 ? Object.keys(response.data[0]) : [];
-            const wasLimited = !/\\bLIMIT\\b/i.test(query.trim());
-            setResults({
-                data: response.data,
-                columns,
-                row_count: response.row_count,
-                was_limited: wasLimited,
-                applied_limit: wasLimited ? queryLimit : null,
-                query: finalQuery,
-            });
+                    if (page === 1) {
+                        // 첫 페이지 - 새로운 결과
+                        setResults({
+                            data: result.data,
+                            columns,
+                            row_count: result.row_count,
+                            was_limited: false,
+                            applied_limit: 'All',
+                            query: finalQuery,
+                        });
+                    } else {
+                        // 추가 페이지 - 누적
+                        setResults(prev => ({
+                            ...prev,
+                            data: [...prev.data, ...result.data],
+                            row_count: prev.row_count + result.row_count,
+                        }));
+                    }
+
+                    setHasMore(result.has_more);
+                    setCurrentPage(page);
+                } else {
+                    // Specific limit: Apply limit and don't paginate
+                    if (!/\bLIMIT\b/i.test(finalQuery)) {
+                        finalQuery = `${finalQuery.replace(/;$/, "")} LIMIT ${queryLimit}`;
+                    }
+
+                    const response = await runTrinoQuery(finalQuery);
+                    const columns = response.data.length > 0 ? Object.keys(response.data[0]) : [];
+                    const wasLimited = !/\bLIMIT\b/i.test(query.trim());
+                    setResults({
+                        data: response.data,
+                        columns,
+                        row_count: response.row_count,
+                        was_limited: wasLimited,
+                        applied_limit: wasLimited ? queryLimit : null,
+                        query: finalQuery,
+                    });
+                    setHasMore(false); // No pagination for specific limits
+                }
+            } else {
+                // DuckDB: Original way with limit
+                if (!/\bLIMIT\b/i.test(finalQuery)) {
+                    const limitValue = queryLimit === 'All' ? 1000000 : queryLimit;
+                    finalQuery = `${finalQuery.replace(/;$/, "")} LIMIT ${limitValue}`;
+                }
+
+                const response = await runDuckDBQuery(finalQuery);
+                const columns = response.data.length > 0 ? Object.keys(response.data[0]) : [];
+                const wasLimited = !/\bLIMIT\b/i.test(query.trim());
+                setResults({
+                    data: response.data,
+                    columns,
+                    row_count: response.row_count,
+                    was_limited: wasLimited,
+                    applied_limit: wasLimited ? queryLimit : null,
+                    query: finalQuery,
+                });
+                setHasMore(false);
+            }
         } catch (err) {
             setError(err.message);
         } finally {
-            setExecuting(false);
+            if (isInitialQuery) {
+                setExecuting(false);
+            }
         }
+    };
+
+    const loadMoreResults = async () => {
+        if (!hasMore || loadingMore) return;
+
+        setLoadingMore(true);
+        try {
+            await executeQuery(currentPage + 1);
+            // Load More 후 새로 로드된 페이지로 자동 이동
+            setViewPage(currentPage + 1);
+        } catch (err) {
+            setError(err.message);
+        } finally {
+            setLoadingMore(false);
+        }
+    };
+
+    // 화면에 표시할 페이지 데이터 계산
+    const getPageData = () => {
+        if (!results || queryLimit !== 'All' || engine !== 'trino') {
+            return results?.data || [];
+        }
+
+        const rowsPerPage = 1000;
+        const startIndex = (viewPage - 1) * rowsPerPage;
+        const endIndex = startIndex + rowsPerPage;
+        return results.data.slice(startIndex, endIndex);
     };
 
     const downloadCSV = () => {
@@ -228,23 +319,53 @@ export default function SqlLabPage() {
                                 </p>
                             )}
                         </div>
-                        {/* Engine Selector */}
-                        <div className="flex items-center gap-2">
-                            <Database className="w-4 h-4 text-gray-500" />
-                            <select
-                                value={engine}
-                                onChange={(e) => setEngine(e.target.value)}
-                                className="px-3 py-1.5 text-sm border border-gray-300 rounded-lg bg-white focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none"
+                        {/* AI Button and Engine Selector */}
+                        <div className="flex items-center gap-3">
+                            {/* AI Button */}
+                            <button
+                                onClick={() => setShowAI(!showAI)}
+                                className="flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs font-medium
+                                    bg-gradient-to-r from-indigo-50 to-purple-50 text-indigo-600 
+                                    hover:from-indigo-100 hover:to-purple-100 transition-all
+                                    border border-indigo-200/50"
+                                title="AI SQL Assistant"
                             >
-                                <option value="duckdb">DuckDB (Fast)</option>
-                                <option value="trino">Trino (Distributed)</option>
-                            </select>
+                                <Sparkles size={14} />
+                                <span>AI</span>
+                            </button>
+
+                            {/* Engine Selector */}
+                            <div className="flex items-center gap-2">
+                                <Database className="w-4 h-4 text-gray-500" />
+                                <select
+                                    value={engine}
+                                    onChange={(e) => setEngine(e.target.value)}
+                                    className="px-3 py-1.5 text-sm border border-gray-300 rounded-lg bg-white focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none"
+                                >
+                                    <option value="duckdb">DuckDB (Fast)</option>
+                                    <option value="trino">Trino (Distributed)</option>
+                                </select>
+                            </div>
                         </div>
                     </div>
                 </div>
 
                 {/* Query Editor */}
                 <div className="p-4 border-b border-gray-200 min-w-0">
+                    {/* AI Input Panel */}
+                    {showAI && (
+                        <InlineAIInput
+                            promptType="query_page"
+                            metadata={{}}
+                            placeholder="Ask AI to generate SQL query..."
+                            onApply={(sql) => {
+                                setQuery(sql);
+                                setShowAI(false);
+                            }}
+                            onCancel={() => setShowAI(false)}
+                        />
+                    )}
+
                     <div className="relative min-w-0">
                         <textarea
                             value={query}
@@ -283,7 +404,7 @@ export default function SqlLabPage() {
                                 )}
 
                                 <button
-                                    onClick={executeQuery}
+                                    onClick={() => executeQuery()}
                                     disabled={executing || !query.trim()}
                                     className={`flex items-center gap-2 px-4 py-1.5 rounded-lg text-sm font-medium transition-all shadow-sm ${executing || !query.trim()
                                         ? "bg-gray-100 text-gray-400 cursor-not-allowed border border-gray-200"
@@ -350,7 +471,9 @@ export default function SqlLabPage() {
                                 {/* Results Header */}
                                 <div className="mb-4 flex items-center justify-between shrink-0">
                                     <span className="text-sm font-medium text-gray-900">
-                                        Results: {results.row_count} rows{results.was_limited ? ` · limited to ${results.applied_limit === 'All' ? 'all' : results.applied_limit}` : ''}
+                                        Results: {results.row_count} rows total
+                                        {engine === 'trino' && queryLimit === 'All' && ` · Showing page ${viewPage} (${getPageData().length} rows)`}
+                                        {results.was_limited && queryLimit !== 'All' && ` · limited to ${results.applied_limit}`}
                                     </span>
                                     <button
                                         onClick={downloadCSV}
@@ -377,7 +500,7 @@ export default function SqlLabPage() {
                                             </tr>
                                         </thead>
                                         <tbody className="divide-y divide-gray-200 bg-white">
-                                            {results.data.map((row, rowIndex) => (
+                                            {getPageData().map((row, rowIndex) => (
                                                 <tr
                                                     key={rowIndex}
                                                     className="hover:bg-gray-50 transition-colors"
@@ -400,6 +523,53 @@ export default function SqlLabPage() {
                                         </tbody>
                                     </table>
                                 </div>
+
+                                {/* Page Navigation + Load More - Only for Trino with ALL limit */}
+                                {engine === 'trino' && queryLimit === 'All' && results && (
+                                    <div className="mt-4 flex justify-center items-center gap-2 shrink-0">
+                                        {/* 로드된 페이지 버튼들 */}
+                                        <div className="flex items-center gap-1">
+                                            {[...Array(currentPage)].map((_, i) => {
+                                                const pageNum = i + 1;
+                                                return (
+                                                    <button
+                                                        key={pageNum}
+                                                        onClick={() => setViewPage(pageNum)}
+                                                        className={`px-3 py-2 rounded-lg font-medium text-sm transition-colors ${viewPage === pageNum
+                                                            ? "bg-blue-600 text-white"
+                                                            : "bg-white text-gray-700 border border-gray-300 hover:bg-gray-50"
+                                                            }`}
+                                                    >
+                                                        {pageNum}
+                                                    </button>
+                                                );
+                                            })}
+                                        </div>
+
+                                        {/* Load More 버튼 */}
+                                        {hasMore && (
+                                            <button
+                                                onClick={loadMoreResults}
+                                                disabled={loadingMore}
+                                                className={`flex items-center gap-2 px-4 py-2 rounded-lg font-medium transition-colors ${loadingMore
+                                                    ? "bg-gray-100 text-gray-400 cursor-not-allowed"
+                                                    : "bg-blue-600 text-white hover:bg-blue-700"
+                                                    }`}
+                                            >
+                                                {loadingMore ? (
+                                                    <>
+                                                        <Loader2 className="w-4 h-4 animate-spin" />
+                                                        Loading...
+                                                    </>
+                                                ) : (
+                                                    <>
+                                                        Load More (1000 rows)
+                                                    </>
+                                                )}
+                                            </button>
+                                        )}
+                                    </div>
+                                )}
                             </div>
                         )
                     ) : (

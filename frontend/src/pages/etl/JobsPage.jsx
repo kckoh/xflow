@@ -81,22 +81,19 @@ function ScheduleModal({ isOpen, onClose, job, onSave }) {
             <div className="grid grid-cols-2 gap-4">
               <button
                 onClick={() => setJobType("batch")}
-                className={`relative p-4 rounded-lg border-2 text-left transition-all ${
-                  jobType === "batch"
-                    ? "border-blue-500 bg-blue-50"
-                    : "border-gray-200 hover:border-gray-300"
-                }`}
+                className={`relative p-4 rounded-lg border-2 text-left transition-all ${jobType === "batch"
+                  ? "border-blue-500 bg-blue-50"
+                  : "border-gray-200 hover:border-gray-300"
+                  }`}
               >
                 <div className="flex items-center gap-2 mb-1">
                   <Clock
-                    className={`w-4 h-4 ${
-                      jobType === "batch" ? "text-blue-600" : "text-gray-400"
-                    }`}
+                    className={`w-4 h-4 ${jobType === "batch" ? "text-blue-600" : "text-gray-400"
+                      }`}
                   />
                   <span
-                    className={`font-medium ${
-                      jobType === "batch" ? "text-blue-700" : "text-gray-700"
-                    }`}
+                    className={`font-medium ${jobType === "batch" ? "text-blue-700" : "text-gray-700"
+                      }`}
                   >
                     Batch ETL
                   </span>
@@ -108,22 +105,19 @@ function ScheduleModal({ isOpen, onClose, job, onSave }) {
 
               <button
                 onClick={() => setJobType("cdc")}
-                className={`relative p-4 rounded-lg border-2 text-left transition-all ${
-                  jobType === "cdc"
-                    ? "border-purple-500 bg-purple-50"
-                    : "border-gray-200 hover:border-gray-300"
-                }`}
+                className={`relative p-4 rounded-lg border-2 text-left transition-all ${jobType === "cdc"
+                  ? "border-purple-500 bg-purple-50"
+                  : "border-gray-200 hover:border-gray-300"
+                  }`}
               >
                 <div className="flex items-center gap-2 mb-1">
                   <Zap
-                    className={`w-4 h-4 ${
-                      jobType === "cdc" ? "text-purple-600" : "text-gray-400"
-                    }`}
+                    className={`w-4 h-4 ${jobType === "cdc" ? "text-purple-600" : "text-gray-400"
+                      }`}
                   />
                   <span
-                    className={`font-medium ${
-                      jobType === "cdc" ? "text-purple-700" : "text-gray-700"
-                    }`}
+                    className={`font-medium ${jobType === "cdc" ? "text-purple-700" : "text-gray-700"
+                      }`}
                   >
                     CDC Streaming
                   </span>
@@ -290,7 +284,11 @@ export default function JobsPage() {
   const fetchJobs = async () => {
     setIsLoading(true);
     try {
-      const response = await fetch(`${API_BASE_URL}/api/datasets`, {
+      // Get session ID for permission filtering
+      const sessionId = sessionStorage.getItem('sessionId');
+      const sessionParam = sessionId ? `?session_id=${sessionId}` : '';
+
+      const response = await fetch(`${API_BASE_URL}/api/datasets${sessionParam}`, {
         credentials: "include",
       });
       if (response.ok) {
@@ -627,8 +625,8 @@ export default function JobsPage() {
                         status.color === "green"
                           ? "bg-green-100 text-green-800"
                           : status.color === "blue"
-                          ? "bg-blue-100 text-blue-800"
-                          : "bg-gray-100 text-gray-500";
+                            ? "bg-blue-100 text-blue-800"
+                            : "bg-gray-100 text-gray-500";
 
                       return (
                         <span
@@ -671,9 +669,9 @@ export default function JobsPage() {
                           {jobRuns[job.id][0].status === "success"
                             ? "Succeeded"
                             : jobRuns[job.id][0].status
-                                .charAt(0)
-                                .toUpperCase() +
-                              jobRuns[job.id][0].status.slice(1)}
+                              .charAt(0)
+                              .toUpperCase() +
+                            jobRuns[job.id][0].status.slice(1)}
                         </div>
                       </div>
                     ) : (
@@ -688,11 +686,10 @@ export default function JobsPage() {
                             e.stopPropagation();
                             handleRun(job.id);
                           }}
-                          className={`inline-flex items-center gap-1 px-3 py-1.5 text-sm font-medium rounded-lg transition-colors ${
-                            job.job_type === "streaming" && streamingStates[job.id]
+                          className={`inline-flex items-center gap-1 px-3 py-1.5 text-sm font-medium rounded-lg transition-colors ${job.job_type === "streaming" && streamingStates[job.id]
                               ? "text-red-600 bg-red-50 hover:bg-red-100"
                               : "text-green-600 bg-green-50 hover:bg-green-100"
-                          }`}
+                            }`}
                           title={
                             job.job_type === "streaming"
                               ? (streamingStates[job.id] ? "Stop" : "Start")
@@ -712,14 +709,12 @@ export default function JobsPage() {
                             e.stopPropagation();
                             handleToggle(job.id);
                           }}
-                          className={`relative inline-flex h-5 w-9 flex-shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none ${
-                            job.is_active ? "bg-green-500" : "bg-gray-300"
-                          }`}
+                          className={`relative inline-flex h-5 w-9 flex-shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none ${job.is_active ? "bg-green-500" : "bg-gray-300"
+                            }`}
                         >
                           <span
-                            className={`pointer-events-none inline-block h-4 w-4 transform rounded-full bg-white shadow ring-0 transition duration-200 ease-in-out ${
-                              job.is_active ? "translate-x-4" : "translate-x-0"
-                            }`}
+                            className={`pointer-events-none inline-block h-4 w-4 transform rounded-full bg-white shadow ring-0 transition duration-200 ease-in-out ${job.is_active ? "translate-x-4" : "translate-x-0"
+                              }`}
                           />
                         </button>
                       )}

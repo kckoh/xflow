@@ -1,17 +1,19 @@
 import os
 from datetime import datetime
-from typing import List
+from typing import List, Optional
+from bson import ObjectId
 
 import httpx
 from beanie import PydanticObjectId
 from fastapi import APIRouter, HTTPException, status
 
-from models import Dataset, JobRun, Connection, ETLJob
+from models import Dataset, JobRun, Connection, ETLJob, Role
 from schemas.dataset import DatasetCreate, DatasetUpdate, DatasetResponse
 from services.lineage_service import sync_pipeline_to_etljob
 # OpenSearch Dual Write
 from utils.indexers import index_single_dataset, delete_dataset_from_index
 from utils.schedule_converter import generate_schedule
+from dependencies import sessions
 
 
 def _has_kafka_source(nodes: list) -> bool:
@@ -159,7 +161,7 @@ print(f"[STARTUP] datasets.py loaded - AIRFLOW_DAG_ID={AIRFLOW_DAG_ID}")
 
 
 @router.post("", response_model=DatasetResponse, status_code=status.HTTP_201_CREATED)
-async def create_dataset(dataset: DatasetCreate):
+async def create_dataset(dataset: DatasetCreate, session_id: Optional[str] = None):
     """Create a new Dataset configuration"""
     # Check if dataset name exists
     existing_dataset = await Dataset.find_one(Dataset.name == dataset.name)
@@ -237,9 +239,16 @@ async def create_dataset(dataset: DatasetCreate):
     if dataset.schedule_frequency:
         schedule = generate_schedule(dataset.schedule_frequency, dataset.ui_params)
 
+    # Deterimine Owner from Session
+    owner = "system"
+    if session_id and session_id in sessions:
+        user_session = sessions[session_id]
+        owner = user_session.get("name") or user_session.get("email") or "system"
+
     new_dataset = Dataset(
         name=dataset.name,
         description=dataset.description,
+        owner=owner,
         dataset_type=dataset.dataset_type,
         job_type=dataset.job_type,
         sources=sources_data,
@@ -271,11 +280,48 @@ async def create_dataset(dataset: DatasetCreate):
 
     # Sync to ETLJob (Lineage)
     await sync_pipeline_to_etljob(new_dataset)
+    
+    # Auto-grant permission: Add dataset to creator's role
+    if session_id and session_id in sessions:
+        user_session = sessions[session_id]
+        user_id = user_session.get("user_id")
+        role_id = user_session.get("role_id")  # Single role, not plural
+        
+        # Add dataset to user's role
+        if role_id:
+            from models import User
+            try:
+                # Update role to include this dataset
+                role = await Role.get(PydanticObjectId(role_id))
+                if role:
+                    dataset_id_str = str(new_dataset.id)
+                    if dataset_id_str not in role.dataset_access:
+                        role.dataset_access.append(dataset_id_str)
+                        await role.save()
+                        print(f"✅ Auto-granted dataset {new_dataset.name} to role {role.name}")
+                
+                # Update session's dataset_access cache
+                if user_id:
+                    user = await User.get(PydanticObjectId(user_id))
+                    if user:
+                        # Recalculate combined dataset access
+                        combined_dataset_access = set(user.dataset_access or [])
+                        # Add role's dataset access
+                        if user.role_id:
+                            role = await Role.get(PydanticObjectId(user.role_id))
+                            if role:
+                                combined_dataset_access.update(role.dataset_access or [])
+                        user_session["dataset_access"] = list(combined_dataset_access)
+                        
+            except Exception as e:
+                print(f"⚠️  Failed to auto-grant dataset permission: {e}")
+                # Don't fail the dataset creation if permission grant fails
 
     return DatasetResponse(
         id=str(new_dataset.id),
         name=new_dataset.name,
         description=new_dataset.description,
+        owner=new_dataset.owner,
         dataset_type=new_dataset.dataset_type,
         job_type=new_dataset.job_type,
         sources=new_dataset.sources,
@@ -297,13 +343,29 @@ async def create_dataset(dataset: DatasetCreate):
 
 
 @router.get("", response_model=List[DatasetResponse])
-async def list_datasets(import_ready: bool = None):
-    """Get all Datasets with their active status, optionally filtered by import_ready flag"""
+async def list_datasets(import_ready: bool = None, session_id: Optional[str] = None):
+    """Get all Datasets with their active status, optionally filtered by import_ready flag and user permissions"""
     # Build query filter
     if import_ready is not None:
         datasets = await Dataset.find(Dataset.import_ready == import_ready).to_list()
     else:
         datasets = await Dataset.find_all().to_list()
+
+    # Filter by user permissions if session_id is provided
+    if session_id and session_id in sessions:
+        user_session = sessions[session_id]
+        is_admin = user_session.get("is_admin", False)
+
+        # Admin can see all datasets
+        if not is_admin:
+            all_datasets_access = user_session.get("all_datasets", False)
+
+            if not all_datasets_access:
+                # Get allowed dataset IDs from session (includes both user-level and role-level)
+                allowed_dataset_ids = user_session.get("dataset_access", [])
+
+                # Filter datasets to only those the user can access
+                datasets = [d for d in datasets if str(d.id) in allowed_dataset_ids]
 
     # Pre-fetch ETLJobs to map is_active status
     etl_jobs = await ETLJob.find_all().to_list()
@@ -314,6 +376,7 @@ async def list_datasets(import_ready: bool = None):
             id=str(dataset.id),
             name=dataset.name,
             description=dataset.description,
+            owner=getattr(dataset, 'owner', 'system'),
             dataset_type=getattr(dataset, 'dataset_type', 'source'),
             job_type=getattr(dataset, 'job_type', 'batch'),
             sources=dataset.sources,
@@ -458,6 +521,7 @@ async def update_dataset(dataset_id: str, dataset_update: DatasetUpdate):
         id=str(dataset.id),
         name=dataset.name,
         description=dataset.description,
+        owner=getattr(dataset, 'owner', 'system'),
         dataset_type=getattr(dataset, 'dataset_type', 'source'),
         job_type=dataset.job_type,
         sources=dataset.sources,

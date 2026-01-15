@@ -1,0 +1,184 @@
+# ===========================================
+# XFlow Helm Chart - Azure AKS Configuration
+# ===========================================
+# Usage:
+#   helm install xflow ./charts/xflow \
+#     -f ./charts/xflow/values-aks.yaml \
+#     --set global.imageRegistry=YOUR_ACR.azurecr.io \
+#     --set global.azure.subscriptionId=YOUR_SUBSCRIPTION_ID \
+#     --set global.domain=your-domain.com \
+#     -n xflow --create-namespace
+
+global:
+  namespace: xflow
+  createNamespace: true
+
+  # REQUIRED: Set your ACR registry
+  # Example: myacr.azurecr.io
+  imageRegistry: ""
+
+  cloudProvider: azure
+
+  aws:
+    enabled: false
+
+  gcp:
+    enabled: false
+
+  azure:
+    enabled: true
+    # REQUIRED: Set your Azure subscription ID
+    subscriptionId: ""
+    resourceGroup: ""
+    region: koreacentral
+
+  storageClass: managed-premium
+
+  # REQUIRED: Set your domain
+  domain: ""
+
+  tls:
+    enabled: true
+    secretName: ""
+
+# Ingress (Azure Application Gateway)
+ingress:
+  enabled: true
+  className: azure-application-gateway
+  alb:
+    enabled: false
+  annotations:
+    appgw.ingress.kubernetes.io/ssl-redirect: "true"
+
+# Backend
+backend:
+  enabled: true
+  image:
+    repository: xflow-backend
+    tag: latest
+    pullPolicy: Always
+  replicas: 1
+  serviceAccount:
+    create: true
+    name: backend-sa
+    annotations: {}
+    # REQUIRED: Set your Azure Workload Identity client ID
+    # azure.workload.identity/client-id: YOUR_CLIENT_ID
+  config:
+    mongodbDatabase: xflow
+    corsOrigins: "http://localhost:5173,https://YOUR_DOMAIN"
+    airflowDagId: dataset_dag_k8s
+    opensearchHost: opensearch
+    opensearchPort: "9200"
+    environment: production
+    sparkNamespace: spark-jobs
+
+# MongoDB
+mongodb:
+  enabled: true
+  image:
+    repository: mongo
+    tag: "7"
+  replicas: 1
+  persistence:
+    enabled: true
+    size: 10Gi
+    storageClass: managed-premium
+  auth:
+    rootUsername: root
+    rootPassword: ""
+
+# OpenSearch
+opensearch:
+  enabled: true
+  image:
+    repository: opensearchproject/opensearch
+    tag: "2.11.1"
+  replicas: 1
+  javaOpts: "-Xms512m -Xmx512m"
+  persistence:
+    enabled: true
+    size: 10Gi
+    storageClass: managed-premium
+  security:
+    enabled: false
+  plugins:
+    - analysis-nori
+  dashboards:
+    enabled: true
+    image:
+      repository: opensearchproject/opensearch-dashboards
+      tag: "2.11.1"
+    ingress:
+      enabled: true
+
+# Spark
+spark:
+  enabled: true
+  namespace: spark-jobs
+  createNamespace: true
+  serviceAccount:
+    create: true
+    name: spark-sa
+    annotations: {}
+    # azure.workload.identity/client-id: YOUR_CLIENT_ID
+  image:
+    repository: xflow-spark
+    tag: latest
+
+# Airflow
+airflow:
+  enabled: true
+  executor: LocalExecutor
+  images:
+    airflow:
+      repository: ""
+      tag: latest
+      pullPolicy: Always
+  serviceAccount:
+    create: true
+    annotations: {}
+    # azure.workload.identity/client-id: YOUR_CLIENT_ID
+  postgresql:
+    enabled: true
+    primary:
+      persistence:
+        enabled: true
+        size: 5Gi
+        storageClass: managed-premium
+  config:
+    logging:
+      remote_logging: "True"
+      # REQUIRED: Set your Azure Blob container for logs
+      remote_base_log_folder: "wasb://YOUR_CONTAINER@YOUR_STORAGE_ACCOUNT.blob.core.windows.net/logs"
+      remote_log_conn_id: "azure_default"
+
+# Trino
+trino:
+  enabled: true
+  image:
+    tag: "479"
+  server:
+    workers: 1
+  serviceAccount:
+    create: true
+    name: trino-sa
+    annotations: {}
+    # azure.workload.identity/client-id: YOUR_CLIENT_ID
+  catalogs:
+    lakehouse: |-
+      connector.name=delta_lake
+      fs.native-azure.enabled=true
+      azure.auth-type=oauth
+      # REQUIRED: Set your Azure storage account
+      hive.metastore.glue.default-warehouse-dir=abfss://YOUR_CONTAINER@YOUR_STORAGE_ACCOUNT.dfs.core.windows.net/warehouse
+      delta.register-table-procedure.enabled=true
+  ingress:
+    enabled: true
+
+# Azure Blob storage configuration
+storage:
+  azure:
+    storageAccount: ""
+    dataLakeContainer: ""
+    airflowLogsContainer: ""

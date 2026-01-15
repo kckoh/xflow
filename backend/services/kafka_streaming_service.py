@@ -29,6 +29,15 @@ class KafkaStreamingService:
             config,
             app_name,
             script_path="/opt/spark/jobs/kafka_streaming_runner.py",
+            node_selector={"node-type": "spark", "lifecycle": "spot"},
+            tolerations=[
+                {
+                    "key": "spark-only",
+                    "operator": "Equal",
+                    "value": "true",
+                    "effect": "NoSchedule",
+                }
+            ],
         )
 
     @classmethod

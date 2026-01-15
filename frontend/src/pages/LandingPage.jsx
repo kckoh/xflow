@@ -17,7 +17,7 @@ import {
 import { useEffect, useState } from "react";
 import logo from "../assets/logo.png";
 import icon from "../assets/icon.png";
-import landingVideo from "../assets/landingVideo.mp4";
+
 import visual1 from "../assets/visual/visual1.png";
 import visual2 from "../assets/visual/visual2.png";
 import visual3 from "../assets/visual/visual3.png";
@@ -29,15 +29,21 @@ import sk from "../assets/person/sk.jpg";
 
 function LandingPage() {
     const navigate = useNavigate();
-    const { sessionId } = useAuth();
+    const { sessionId, user } = useAuth();
     const [activeStickySection, setActiveStickySection] = useState(0);
 
     // Redirect if already logged in
     useEffect(() => {
-        if (sessionId) {
-            navigate("/dataset");
+        if (sessionId && user) {
+            // If user has ETL access or is admin, go to dataset page
+            // Otherwise go to catalog page
+            if (user.is_admin || user.etl_access) {
+                navigate("/dataset");
+            } else {
+                navigate("/catalog");
+            }
         }
-    }, [sessionId, navigate]);
+    }, [sessionId, user, navigate]);
 
     // Scroll spy for sticky sections
     useEffect(() => {
@@ -216,13 +222,12 @@ function LandingPage() {
                 {/* Hero Visual Placeholder */}
                 <div className="mt-20 w-full max-w-6xl mx-auto px-6">
                     <div className="aspect-[16/9] bg-[#F8F9FA] rounded-[32px] border border-gray-100 shadow-2xl flex items-center justify-center relative overflow-hidden group">
-                        <video
-                            src={landingVideo}
+                        <iframe
                             className="w-full h-full object-cover"
-                            autoPlay
-                            loop
-                            muted
-                            playsInline
+                            src="https://www.youtube.com/embed/H6QHSqAGwWY?autoplay=1&mute=1&loop=1&playlist=H6QHSqAGwWY&controls=1&rel=0"
+                            title="XFlow Landing Video"
+                            allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+                            allowFullScreen
                         />
                     </div>
                 </div>
@@ -319,13 +324,16 @@ function LandingPage() {
                     {/* Navigation Buttons */}
                     <div className="hidden md:flex gap-4">
                         <button
-                            onClick={() => document.getElementById('persona-scroll').scrollBy({ left: -400, behavior: 'smooth' })}
+                            onClick={() => document.getElementById('persona-scroll').scrollTo({ left: 0, behavior: 'smooth' })}
                             className="w-12 h-12 rounded-full bg-gray-100 hover:bg-gray-200 flex items-center justify-center transition-colors"
                         >
                             <ChevronLeft size={24} />
                         </button>
                         <button
-                            onClick={() => document.getElementById('persona-scroll').scrollBy({ left: 400, behavior: 'smooth' })}
+                            onClick={() => {
+                                const el = document.getElementById('persona-scroll');
+                                el.scrollTo({ left: el.scrollWidth, behavior: 'smooth' });
+                            }}
                             className="w-12 h-12 rounded-full bg-gray-100 hover:bg-gray-200 flex items-center justify-center transition-colors"
                         >
                             <ChevronRight size={24} />
@@ -340,7 +348,7 @@ function LandingPage() {
                     style={{ scrollbarWidth: 'none', msOverflowStyle: 'none' }}
                 >
                     {/* Card 1: PM & Fullstack Developer*/}
-                    <div className="min-w-[85vw] md:min-w-[600px] snap-center">
+                    <div className="min-w-[85vw] md:min-w-[500px] snap-center">
                         <div className="aspect-[16/10] bg-[#F1F3F4] rounded-[32px] relative overflow-hidden group mb-6">
                             <img
                                 src={kc}
@@ -349,7 +357,7 @@ function LandingPage() {
                             />
                             <div className="absolute inset-0 bg-black/20 group-hover:bg-black/10 transition-colors duration-500" />
                             <div className="absolute inset-0 flex items-center justify-center">
-                                <h3 className="text-3xl md:text-4xl font-medium text-white drop-shadow-lg">PM & Fullstack Developer</h3>
+                                <h3 className="text-3xl md:text-4xl font-medium text-white drop-shadow-lg text-center px-1">PM & Fullstack Developer</h3>
                             </div>
                             <div className="absolute bottom-6 right-6 w-10 h-10 bg-white/30 backdrop-blur rounded-full flex items-center justify-center text-white">
                                 <ArrowRight size={16} />
@@ -363,7 +371,7 @@ function LandingPage() {
                     </div>
 
                     {/* Card 2:Fullstack Developer */}
-                    <div className="min-w-[85vw] md:min-w-[600px] snap-center">
+                    <div className="min-w-[85vw] md:min-w-[500px] snap-center">
                         <div className="aspect-[16/10] bg-[#E8F0FE] rounded-[32px] relative overflow-hidden group mb-6">
                             <img
                                 src={mh}
@@ -372,7 +380,7 @@ function LandingPage() {
                             />
                             <div className="absolute inset-0 bg-black/20 group-hover:bg-black/10 transition-colors duration-500" />
                             <div className="absolute inset-0 flex items-center justify-center">
-                                <h3 className="text-3xl md:text-4xl font-medium text-white drop-shadow-lg">Fullstack Developer</h3>
+                                <h3 className="text-3xl md:text-4xl font-medium text-white drop-shadow-lg text-center px-1">Fullstack Developer</h3>
                             </div>
                             <div className="absolute bottom-6 right-6 w-10 h-10 bg-white/30 backdrop-blur rounded-full flex items-center justify-center text-white">
                                 <ArrowRight size={16} />
@@ -386,7 +394,7 @@ function LandingPage() {
                     </div>
 
                     {/* Card 3: Fullstack Developer */}
-                    <div className="min-w-[85vw] md:min-w-[600px] snap-center">
+                    <div className="min-w-[85vw] md:min-w-[500px] snap-center">
                         <div className="aspect-[16/10] bg-[#F3E8FD] rounded-[32px] relative overflow-hidden group mb-6">
                             <img
                                 src={sc}
@@ -395,7 +403,7 @@ function LandingPage() {
                             />
                             <div className="absolute inset-0 bg-black/20 group-hover:bg-black/10 transition-colors duration-500" />
                             <div className="absolute inset-0 flex items-center justify-center">
-                                <h3 className="text-3xl md:text-4xl font-medium text-white drop-shadow-lg">Fullstack Developer</h3>
+                                <h3 className="text-3xl md:text-4xl font-medium text-white drop-shadow-lg text-center px-1">Fullstack Developer</h3>
                             </div>
                             <div className="absolute bottom-6 right-6 w-10 h-10 bg-white/30 backdrop-blur rounded-full flex items-center justify-center text-white">
                                 <ArrowRight size={16} />
@@ -408,7 +416,7 @@ function LandingPage() {
                         </p>
                     </div>
                     {/* Card 4: Fullstack Developer */}
-                    <div className="min-w-[85vw] md:min-w-[600px] snap-center">
+                    <div className="min-w-[85vw] md:min-w-[500px] snap-center">
                         <div className="aspect-[16/10] bg-[#E6F4EA] rounded-[32px] relative overflow-hidden group mb-6">
                             <img
                                 src={jy}
@@ -417,7 +425,7 @@ function LandingPage() {
                             />
                             <div className="absolute inset-0 bg-black/20 group-hover:bg-black/10 transition-colors duration-500" />
                             <div className="absolute inset-0 flex items-center justify-center">
-                                <h3 className="text-3xl md:text-4xl font-medium text-white drop-shadow-lg">Fullstack Developer</h3>
+                                <h3 className="text-2xl md:text-3xl font-medium text-white drop-shadow-lg">Fullstack Developer</h3>
                             </div>
                             <div className="absolute bottom-6 right-6 w-10 h-10 bg-white/30 backdrop-blur rounded-full flex items-center justify-center text-white">
                                 <ArrowRight size={16} />
@@ -430,7 +438,7 @@ function LandingPage() {
                         </p>
                     </div>
                     {/* Card 5:Fullstack Developer */}
-                    <div className="min-w-[85vw] md:min-w-[600px] snap-center">
+                    <div className="min-w-[85vw] md:min-w-[500px] snap-center">
                         <div className="aspect-[16/10] bg-[#FEF7E0] rounded-[32px] relative overflow-hidden group mb-6">
                             <img
                                 src={sk}
@@ -439,7 +447,7 @@ function LandingPage() {
                             />
                             <div className="absolute inset-0 bg-black/20 group-hover:bg-black/10 transition-colors duration-500" />
                             <div className="absolute inset-0 flex items-center justify-center">
-                                <h3 className="text-3xl md:text-4xl font-medium text-white drop-shadow-lg">Full Stack overflow</h3>
+                                <h3 className="text-3xl md:text-4xl font-medium text-white drop-shadow-lg text-center px-1">Fullstack Developer</h3>
                             </div>
                             <div className="absolute bottom-6 right-6 w-10 h-10 bg-white/30 backdrop-blur rounded-full flex items-center justify-center text-white">
                                 <ArrowRight size={16} />
@@ -480,7 +488,7 @@ function LandingPage() {
                 <div className="flex gap-8 text-sm text-[#5F6368]">
                     <button className="hover:text-[#202124]">Privacy</button>
                     <button className="hover:text-[#202124]">Terms</button>
-                    <button className="hover:text-[#202124]">Tel: 010-4819-4258</button>
+                    <button className="hover:text-[#202124]">Tel: 010-6291-6666</button>
                 </div>
                 <div className="text-sm text-[#9AA0A6]">
                     © 2026 XFlow

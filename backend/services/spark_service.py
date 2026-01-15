@@ -37,11 +37,18 @@ class SparkService:
         return cls.K8S_CLIENT
 
     @classmethod
-    def _build_spark_application(cls, config: dict, app_name: str, script_path: str) -> dict:
+    def _build_spark_application(
+        cls,
+        config: dict,
+        app_name: str,
+        script_path: str,
+        node_selector: dict | None = None,
+        tolerations: list | None = None,
+    ) -> dict:
         """SparkApplication CRD 생성"""
         config_json = json.dumps(config)
 
-        return {
+        spark_app = {
             "apiVersion": "sparkoperator.k8s.io/v1beta2",
             "kind": "SparkApplication",
             "metadata": {
@@ -91,8 +98,25 @@ class SparkService:
             },
         }
 
+        if node_selector:
+            spark_app["spec"]["driver"]["nodeSelector"] = node_selector
+            spark_app["spec"]["executor"]["nodeSelector"] = node_selector
+
+        if tolerations:
+            spark_app["spec"]["driver"]["tolerations"] = tolerations
+            spark_app["spec"]["executor"]["tolerations"] = tolerations
+
+        return spark_app
+
     @classmethod
-    def submit_job(cls, config: dict, app_name: str, script_path: str = "/opt/spark/jobs/unified_cdc_runner.py") -> str:
+    def submit_job(
+        cls,
+        config: dict,
+        app_name: str,
+        script_path: str = "/opt/spark/jobs/unified_cdc_runner.py",
+        node_selector: dict | None = None,
+        tolerations: list | None = None,
+    ) -> str:
         """
         Spark Streaming Job 실행 (K8s SparkApplication 생성)
 
@@ -105,7 +129,13 @@ class SparkService:
             k8s_client = cls._get_k8s_client()
 
             # SparkApplication 생성
-            spark_app = cls._build_spark_application(config, app_name, script_path)
+            spark_app = cls._build_spark_application(
+                config,
+                app_name,
+                script_path,
+                node_selector=node_selector,
+                tolerations=tolerations,
+            )
             app_name_normalized = spark_app["metadata"]["name"]
 
             # 기존 앱 삭제 (있으면)

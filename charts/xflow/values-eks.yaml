@@ -1,0 +1,292 @@
+# ===========================================
+# XFlow Helm Chart - AWS EKS Configuration
+# ===========================================
+# Usage:
+#   helm install xflow ./charts/xflow \
+#     -f ./charts/xflow/values-eks.yaml \
+#     --set global.imageRegistry=YOUR_ACCOUNT_ID.dkr.ecr.YOUR_REGION.amazonaws.com \
+#     --set global.aws.accountId=YOUR_ACCOUNT_ID \
+#     --set global.domain=your-domain.com \
+#     -n xflow --create-namespace
+
+global:
+  namespace: xflow
+  createNamespace: true
+
+  # REQUIRED: Set your ECR registry
+  # Example: 123456789012.dkr.ecr.ap-northeast-2.amazonaws.com
+  imageRegistry: ""
+
+  cloudProvider: aws
+
+  aws:
+    enabled: true
+    region: ap-northeast-2
+    # REQUIRED: Set your AWS account ID
+    accountId: ""
+
+  gcp:
+    enabled: false
+
+  azure:
+    enabled: false
+
+  storageClass: gp2
+
+  # REQUIRED: Set your domain
+  domain: ""
+
+  tls:
+    enabled: true
+    acm:
+      # REQUIRED: Set your ACM certificate ARN
+      certificateArn: ""
+
+# Ingress (AWS ALB)
+ingress:
+  enabled: true
+  className: alb
+  alb:
+    enabled: true
+    scheme: internet-facing
+    targetType: ip
+    groupName: xflow-alb
+
+# Backend
+backend:
+  enabled: true
+  image:
+    repository: xflow-backend
+    tag: latest
+    pullPolicy: Always
+  replicas: 1
+  serviceAccount:
+    create: true
+    name: backend-sa
+    annotations: {}
+    # REQUIRED: Set your IAM role ARN for IRSA
+    # eks.amazonaws.com/role-arn: arn:aws:iam::ACCOUNT_ID:role/YOUR_ROLE
+  config:
+    mongodbDatabase: xflow
+    corsOrigins: "http://localhost:5173,https://YOUR_DOMAIN"
+    airflowDagId: dataset_dag_k8s
+    opensearchHost: opensearch
+    opensearchPort: "9200"
+    environment: production
+    useS3: "true"
+    sparkNamespace: spark-jobs
+
+# MongoDB
+mongodb:
+  enabled: true
+  image:
+    repository: mongo
+    tag: "7"
+  replicas: 1
+  persistence:
+    enabled: true
+    size: 10Gi
+    storageClass: gp2
+  auth:
+    rootUsername: root
+    # REQUIRED: Set a strong password
+    rootPassword: ""
+
+# OpenSearch
+opensearch:
+  enabled: true
+  image:
+    repository: opensearchproject/opensearch
+    tag: "2.11.1"
+  replicas: 1
+  javaOpts: "-Xms512m -Xmx512m"
+  persistence:
+    enabled: true
+    size: 10Gi
+    storageClass: gp2
+  security:
+    enabled: false
+  plugins:
+    - analysis-nori
+  dashboards:
+    enabled: true
+    image:
+      repository: opensearchproject/opensearch-dashboards
+      tag: "2.11.1"
+    ingress:
+      enabled: true
+
+# Spark
+spark:
+  enabled: true
+  namespace: spark-jobs
+  createNamespace: true
+  serviceAccount:
+    create: true
+    name: spark-sa
+    annotations: {}
+    # REQUIRED: Set your IAM role ARN for IRSA
+    # eks.amazonaws.com/role-arn: arn:aws:iam::ACCOUNT_ID:role/YOUR_SPARK_ROLE
+  image:
+    repository: xflow-spark
+    tag: latest
+
+# Airflow
+airflow:
+  enabled: true
+  executor: LocalExecutor
+  images:
+    airflow:
+      repository: ""  # Will be set as global.imageRegistry/xflow-airflow
+      tag: latest
+      pullPolicy: Always
+  serviceAccount:
+    create: true
+    annotations: {}
+    # REQUIRED: Set your IAM role ARN for IRSA
+    # eks.amazonaws.com/role-arn: arn:aws:iam::ACCOUNT_ID:role/YOUR_AIRFLOW_ROLE
+  postgresql:
+    enabled: true
+    primary:
+      persistence:
+        enabled: true
+        size: 5Gi
+        storageClass: gp2
+  # Remote logging to S3
+  config:
+    logging:
+      remote_logging: "True"
+      # REQUIRED: Set your S3 bucket for logs
+      remote_base_log_folder: "s3://YOUR_BUCKET/logs"
+      remote_log_conn_id: "aws_default"
+
+# Trino
+trino:
+  enabled: true
+  image:
+    tag: "479"
+  server:
+    workers: 1
+  serviceAccount:
+    create: true
+    name: trino-sa
+    annotations: {}
+    # REQUIRED: Set your IAM role ARN for IRSA
+    # eks.amazonaws.com/role-arn: arn:aws:iam::ACCOUNT_ID:role/YOUR_TRINO_ROLE
+  catalogs:
+    lakehouse: |-
+      connector.name=delta_lake
+      fs.native-s3.enabled=true
+      s3.region=ap-northeast-2
+      hive.metastore=glue
+      # REQUIRED: Set your S3 bucket
+      hive.metastore.glue.default-warehouse-dir=s3://YOUR_BUCKET/warehouse
+      s3.use-web-identity-token-credentials-provider=true
+      delta.register-table-procedure.enabled=true
+  ingress:
+    enabled: true
+
+# S3 bucket configuration
+storage:
+  s3:
+    # REQUIRED: Set your bucket names
+    dataLakeBucket: ""
+    airflowLogsBucket: ""
+
+# Monitoring (Grafana + Loki)
+monitoring:
+  namespace: monitoring
+  createNamespace: true
+
+  grafana:
+    enabled: true
+    admin:
+      existingSecret: grafana-admin
+      userKey: admin-user
+      passwordKey: admin-password
+      # Or set directly (not recommended for production):
+      # user: admin
+      # password: YOUR_SECURE_PASSWORD
+    persistence:
+      enabled: false
+    service:
+      type: ClusterIP
+    datasources:
+      "datasources.yaml":
+        apiVersion: 1
+        datasources:
+          - name: Loki
+            type: loki
+            url: http://loki-gateway.monitoring.svc.cluster.local
+            access: proxy
+            isDefault: true
+          - name: CloudWatch
+            type: cloudwatch
+            jsonData:
+              defaultRegion: ap-northeast-2
+              authType: default
+    ingress:
+      enabled: true
+      # host: grafana.YOUR_DOMAIN
+
+  loki:
+    enabled: true
+    deploymentMode: SingleBinary
+    loki:
+      auth_enabled: false
+      storage:
+        type: s3
+        bucketNames:
+          # REQUIRED: Set your Loki S3 bucket
+          chunks: ""  # e.g., xflow-loki-logs
+          ruler: ""
+          admin: ""
+        s3:
+          region: ap-northeast-2
+      schemaConfig:
+        configs:
+          - from: 2024-01-01
+            store: tsdb
+            object_store: s3
+            schema: v13
+            index:
+              prefix: index_
+              period: 24h
+      commonConfig:
+        replication_factor: 1
+        path_prefix: /var/loki-data
+    serviceAccount:
+      create: true
+      name: loki
+      annotations: {}
+      # REQUIRED: Set your IAM role ARN for IRSA
+      # eks.amazonaws.com/role-arn: arn:aws:iam::ACCOUNT_ID:role/xflow-loki-s3
+    singleBinary:
+      replicas: 1
+      persistence:
+        enabled: false
+      extraVolumes:
+        - name: loki-data
+          emptyDir: {}
+      extraVolumeMounts:
+        - name: loki-data
+          mountPath: /var/loki-data
+    read:
+      replicas: 0
+    write:
+      replicas: 0
+    backend:
+      replicas: 0
+    monitoring:
+      selfMonitoring:
+        enabled: false
+        grafanaAgent:
+          installOperator: false
+      lokiCanary:
+        enabled: false
+    test:
+      enabled: false
+    chunksCache:
+      enabled: false
+    resultsCache:
+      enabled: false

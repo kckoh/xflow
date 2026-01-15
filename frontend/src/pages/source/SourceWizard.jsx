@@ -75,7 +75,7 @@ const SOURCE_OPTIONS = [
 export default function SourceWizard() {
   const navigate = useNavigate();
   const location = useLocation();
-  const { user } = useAuth();
+  const { user, sessionId } = useAuth();
   const [currentStep, setCurrentStep] = useState(1);
   const [selectedSource, setSelectedSource] = useState(null);
   const [expandedColumns, setExpandedColumns] = useState({});
@@ -565,7 +565,7 @@ export default function SourceWizard() {
       // API call to create/update source dataset
       const url = isEditMode
         ? `${API_BASE_URL}/api/source-datasets/${config.id}`
-        : `${API_BASE_URL}/api/source-datasets`;
+        : `${API_BASE_URL}/api/source-datasets${sessionId ? `?session_id=${sessionId}` : ''}`;
 
       console.log("Sending data:", sourceData);
       console.log("URL:", url);

@@ -1,0 +1,30 @@
+{{- if and .Values.backend.enabled .Values.backend.ingress.enabled .Values.ingress.enabled }}
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: backend-ingress
+  labels:
+    app: backend
+    {{- include "xflow.labels" . | nindent 4 }}
+  annotations:
+    {{- include "xflow.ingress.annotations" . | nindent 4 }}
+spec:
+  ingressClassName: {{ include "xflow.ingressClassName" . }}
+  {{- if and .Values.global.tls.enabled .Values.global.tls.secretName }}
+  tls:
+    - hosts:
+        - {{ .Values.backend.ingress.host | default (include "xflow.host" (dict "Values" .Values "subdomain" "api")) }}
+      secretName: {{ .Values.global.tls.secretName }}
+  {{- end }}
+  rules:
+    - host: {{ .Values.backend.ingress.host | default (include "xflow.host" (dict "Values" .Values "subdomain" "api")) }}
+      http:
+        paths:
+          - path: {{ .Values.backend.ingress.path | default "/" }}
+            pathType: {{ .Values.backend.ingress.pathType | default "Prefix" }}
+            backend:
+              service:
+                name: backend
+                port:
+                  number: 80
+{{- end }}
