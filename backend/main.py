@@ -126,6 +126,11 @@ app.include_router(trino.router, prefix="/api/trino", tags=["trino"])
 # SQL Test (DuckDB-based query testing)
 app.include_router(sql_test.router, prefix="/api/sql", tags=["sql-test"])
 
+# Kafka Streaming
+from routers import kafka_streaming
+
+app.include_router(kafka_streaming.router)
+
 # Domains (CRUD + ETL Job Import)
 app.include_router(domains.router, prefix="/api/domains", tags=["domains"])
 

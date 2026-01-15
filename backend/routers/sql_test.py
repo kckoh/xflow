@@ -3,9 +3,11 @@ SQL Test API - Test SQL queries with DuckDB before execution
 """
 from fastapi import APIRouter, HTTPException
 from typing import List, Dict, Any, Optional, Tuple
+import json
 import duckdb
 import pandas as pd
 from bson import ObjectId
+from routers.source_datasets import get_kafka_schema
 
 import database
 from schemas.sql_test import (
@@ -379,6 +381,27 @@ async def _load_sample_data(
         
         client.close()
         
+        return df
+
+    elif source_type == 'kafka':
+        bootstrap_servers = config.get("bootstrap_servers")
+        topic = source_dataset.get("topic")
+        if not bootstrap_servers or not topic:
+            raise HTTPException(
+                status_code=400,
+                detail="Kafka source requires bootstrap_servers and topic"
+            )
+
+        kafka_result = get_kafka_schema(bootstrap_servers, topic, limit=limit)
+        records = kafka_result.get("sample", [])
+
+        if not records:
+            raise HTTPException(
+                status_code=400,
+                detail="No Kafka messages found for preview"
+            )
+
+        df = pd.json_normalize(records[:limit], sep="_")
         return df
     
     elif source_type == 's3':

@@ -29,6 +29,9 @@ class SourceDatasetCreate(BaseModel):
     # API specific
     api: Optional[APISourceDatasetConfig] = None
 
+    # Kafka specific
+    topic: Optional[str] = None
+
 
 class SourceDatasetUpdate(BaseModel):
     name: Optional[str] = None
@@ -54,6 +57,9 @@ class SourceDatasetUpdate(BaseModel):
     # API specific
     api: Optional[APISourceDatasetConfig] = None
 
+    # Kafka specific
+    topic: Optional[str] = None
+
 
 class SourceDatasetResponse(BaseModel):
     id: str
@@ -75,6 +81,9 @@ class SourceDatasetResponse(BaseModel):
 
     # API specific
     api: Optional[APISourceDatasetConfig] = None
+
+    # Kafka specific
+    topic: Optional[str] = None
 
     created_at: datetime
     updated_at: datetime

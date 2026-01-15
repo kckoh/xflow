@@ -3,6 +3,7 @@ import { useParams, useNavigate } from "react-router-dom";
 import {
   ArrowLeft,
   Play,
+  Pause,
   CheckCircle,
   XCircle,
   Clock,
@@ -36,6 +37,8 @@ export default function JobDetailPage() {
   const [searchFilter, setSearchFilter] = useState("");
   const [statusFilter, setStatusFilter] = useState("all");
   const [copiedId, setCopiedId] = useState(false);
+  const [isStreamingActive, setIsStreamingActive] = useState(false);
+  const [streamingGroupId, setStreamingGroupId] = useState("");
   const { showToast } = useToast();
 
   // Quality state
@@ -52,6 +55,21 @@ export default function JobDetailPage() {
       fetchQualityData();
     }
   }, [jobId]);
+
+  useEffect(() => {
+    if (job?.job_type === "streaming" && activeTab === "schedule") {
+      setActiveTab("info");
+    }
+  }, [job?.job_type, activeTab]);
+
+  useEffect(() => {
+    if (!jobId) return;
+    if (job?.job_type !== "streaming") {
+      setIsStreamingActive(false);
+      return;
+    }
+    fetchStreamingStatus();
+  }, [jobId, job?.job_type]);
 
   const fetchQualityData = async () => {
     setQualityLoading(true);
@@ -121,6 +139,27 @@ export default function JobDetailPage() {
       console.error("Failed to fetch runs:", error);
     } finally {
       setIsLoading(false);
+    }
+  };
+
+  const fetchStreamingStatus = async () => {
+    try {
+      const response = await fetch(
+        `${API_BASE_URL}/api/streaming/jobs/${jobId}/status`,
+        { credentials: "include" }
+      );
+      if (!response.ok) {
+        setIsStreamingActive(false);
+        setStreamingGroupId("");
+        return;
+      }
+      const data = await response.json();
+      setIsStreamingActive(data.status === "running");
+      setStreamingGroupId(data.group_id || "");
+    } catch (error) {
+      console.error("Failed to fetch streaming status:", error);
+      setIsStreamingActive(false);
+      setStreamingGroupId("");
     }
   };
 
@@ -205,6 +244,21 @@ export default function JobDetailPage() {
 
   const handleRun = async () => {
     try {
+      if (job?.job_type === "streaming") {
+        const response = await fetch(
+          `${API_BASE_URL}/api/streaming/jobs/${jobId}/start`,
+          { method: "POST" }
+        );
+
+        if (response.ok) {
+          showToast("Streaming job started!", "success");
+          setIsStreamingActive(true);
+        } else {
+          showToast("Failed to start streaming job", "error");
+        }
+        return;
+      }
+
       const response = await fetch(
         `${API_BASE_URL}/api/datasets/${jobId}/run`,
         {
@@ -223,6 +277,25 @@ export default function JobDetailPage() {
     } catch (error) {
       console.error("Failed to run job:", error);
       showToast("Network error: Failed to start job", "error");
+    }
+  };
+
+  const handleStop = async () => {
+    if (job?.job_type !== "streaming") return;
+    try {
+      const response = await fetch(
+        `${API_BASE_URL}/api/streaming/jobs/${jobId}/stop`,
+        { method: "POST" }
+      );
+      if (response.ok) {
+        showToast("Streaming job stopped!", "success");
+        setIsStreamingActive(false);
+      } else {
+        showToast("Failed to stop streaming job", "error");
+      }
+    } catch (error) {
+      console.error("Failed to stop streaming job:", error);
+      showToast("Network error: Failed to stop streaming job", "error");
     }
   };
 
@@ -334,6 +407,10 @@ export default function JobDetailPage() {
     { id: "schedule", label: "Schedule", icon: Calendar },
     { id: "quality", label: "Quality", icon: BarChart3 },
   ];
+  const visibleTabs =
+    job?.job_type === "streaming"
+      ? tabs.filter((tab) => tab.id !== "schedule")
+      : tabs;
 
   return (
     <div className="h-full flex flex-col bg-gray-50">
@@ -358,27 +435,47 @@ export default function JobDetailPage() {
           <div className="flex items-center gap-3">
             {/* Toggle with label */}
             <div className="flex items-center gap-2">
-              <button
-                onClick={handleToggle}
-                className={`relative inline-flex h-6 w-11 flex-shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none ${
-                  job?.is_active ? "bg-green-500" : "bg-gray-300"
-                }`}
-              >
-                <span
-                  className={`pointer-events-none inline-block h-5 w-5 transform rounded-full bg-white shadow ring-0 transition duration-200 ease-in-out ${
-                    job?.is_active ? "translate-x-5" : "translate-x-0"
+              {job?.job_type !== "streaming" && (
+                <button
+                  onClick={handleToggle}
+                  className={`relative inline-flex h-6 w-11 flex-shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none ${
+                    job?.is_active ? "bg-green-500" : "bg-gray-300"
                   }`}
-                />
-              </button>
+                >
+                  <span
+                    className={`pointer-events-none inline-block h-5 w-5 transform rounded-full bg-white shadow ring-0 transition duration-200 ease-in-out ${
+                      job?.is_active ? "translate-x-5" : "translate-x-0"
+                    }`}
+                  />
+                </button>
+              )}
               {/* Action Buttons */}
               {job?.job_type !== "cdc" && (
                 <button
-                  onClick={handleRun}
-                  className="inline-flex items-center gap-1 px-4 py-2 text-sm font-medium text-white bg-green-600 hover:bg-green-700 rounded-lg transition-colors"
-                  title="Run"
+                  onClick={
+                    job?.job_type === "streaming" && isStreamingActive
+                      ? handleStop
+                      : handleRun
+                  }
+                  className={`inline-flex items-center gap-1 px-4 py-2 text-sm font-medium text-white rounded-lg transition-colors ${
+                    job?.job_type === "streaming" && isStreamingActive
+                      ? "bg-red-600 hover:bg-red-700"
+                      : "bg-green-600 hover:bg-green-700"
+                  }`}
+                  title={
+                    job?.job_type === "streaming"
+                      ? (isStreamingActive ? "Stop" : "Start")
+                      : "Run"
+                  }
                 >
-                  <Play className="w-4 h-4" />
-                  Run
+                  {job?.job_type === "streaming" && isStreamingActive ? (
+                    <Pause className="w-4 h-4" />
+                  ) : (
+                    <Play className="w-4 h-4" />
+                  )}
+                  {job?.job_type === "streaming"
+                    ? (isStreamingActive ? "Stop" : "Start")
+                    : "Run"}
                 </button>
               )}
             </div>
@@ -390,7 +487,7 @@ export default function JobDetailPage() {
       <div className="bg-white border-b border-gray-200">
         <div className="px-6">
           <nav className="flex gap-6">
-            {tabs.map((tab) => {
+            {visibleTabs.map((tab) => {
               const Icon = tab.icon;
               return (
                 <button
@@ -445,6 +542,17 @@ export default function JobDetailPage() {
                       </div>
                     </dd>
                   </div>
+                  {job?.job_type === "streaming" && (
+                    <div>
+                      <dt className="text-sm font-medium text-gray-500">
+                        Kafka Group ID
+                      </dt>
+                      <dd className="mt-1 text-sm text-gray-900 break-all">
+                        {streamingGroupId ||
+                          (job?.id ? `xflow-stream-${job.id}` : "-")}
+                      </dd>
+                    </div>
+                  )}
                   <div>
                     <dt className="text-sm font-medium text-gray-500">Owner</dt>
                     <dd className="mt-1 text-sm text-gray-900">
@@ -466,6 +574,11 @@ export default function JobDetailPage() {
                         <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs font-medium bg-purple-100 text-purple-700">
                           <Zap className="w-3 h-3" />
                           CDC
+                        </span>
+                      ) : job?.job_type === "streaming" ? (
+                        <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs font-medium bg-indigo-100 text-indigo-700">
+                          <Activity className="w-3 h-3" />
+                          Streaming
                         </span>
                       ) : (
                         <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs font-medium bg-blue-100 text-blue-700">

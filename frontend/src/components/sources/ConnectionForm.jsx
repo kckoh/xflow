@@ -9,6 +9,7 @@ const CONNECTION_TYPES = [
   { id: "mysql", label: "MySQL", category: "RDB" },
   { id: "mariadb", label: "MariaDB", category: "RDB" },
   { id: "mongodb", label: "MongoDB", category: "NoSQL" },
+  { id: "kafka", label: "Kafka", category: "Streaming" },
   { id: "s3", label: "Amazon S3", category: "Storage" },
   { id: "api", label: "REST API", category: "API" },
 ];
@@ -64,6 +65,10 @@ export default function ConnectionForm({ onSuccess, onCancel, initialType }) {
           auth_type: "none",
           auth_config: {},
           headers: {},
+        };
+      case "kafka":
+        return {
+          bootstrap_servers: "",
         };
       default:
         return {};
@@ -278,6 +283,29 @@ export default function ConnectionForm({ onSuccess, onCancel, initialType }) {
             </div>
             <p className="mt-1 text-xs text-gray-500">
               AWS region where the bucket is located
+            </p>
+          </div>
+        </div>
+      );
+    } else if (type === "kafka") {
+      return (
+        <div className="space-y-4">
+          <div>
+            <label className="block text-sm font-medium text-gray-700">
+              Bootstrap Servers
+            </label>
+            <input
+              type="text"
+              required
+              className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:ring-blue-500 focus:border-blue-500 sm:text-sm"
+              placeholder="e.g., 12.34.56.78:9092"
+              value={config.bootstrap_servers || ""}
+              onChange={(e) =>
+                handleConfigChange("bootstrap_servers", e.target.value)
+              }
+            />
+            <p className="mt-1 text-xs text-gray-500">
+              Comma-separated list is supported (e.g., host1:9092,host2:9092)
             </p>
           </div>
         </div>

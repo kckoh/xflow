@@ -10,11 +10,19 @@ from fastapi import APIRouter, HTTPException, status
 from models import Dataset, JobRun, Connection, ETLJob, Role
 from schemas.dataset import DatasetCreate, DatasetUpdate, DatasetResponse
 from services.lineage_service import sync_pipeline_to_etljob
+from utils.kafka import has_kafka_source
 # OpenSearch Dual Write
 from utils.indexers import index_single_dataset, delete_dataset_from_index
 from utils.schedule_converter import generate_schedule
 from dependencies import sessions
 
+
+def _apply_streaming_job_type(dataset, nodes: list):
+    if has_kafka_source(nodes):
+        dataset.job_type = "streaming"
+        dataset.schedule_frequency = None
+        dataset.ui_params = None
+        dataset.schedule = None
 router = APIRouter()
 
 
@@ -254,6 +262,8 @@ async def create_dataset(dataset: DatasetCreate, session_id: Optional[str] = Non
         updated_at=datetime.utcnow(),
     )
 
+    _apply_streaming_job_type(new_dataset, dataset.nodes or [])
+
     await new_dataset.insert()
 
     # Dual Write: OpenSearch에 인덱싱
@@ -479,6 +489,8 @@ async def update_dataset(dataset_id: str, dataset_update: DatasetUpdate):
         dataset.dataset_type = dataset_update.dataset_type
     if dataset_update.job_type is not None:
         dataset.job_type = dataset_update.job_type
+
+    _apply_streaming_job_type(dataset, dataset.nodes or [])
 
     # Validate incremental config if schedule is set
     validate_incremental_config_for_schedule(

@@ -3,6 +3,7 @@ import boto3
 import requests
 from sqlalchemy import create_engine, text
 from botocore.exceptions import ClientError
+from kafka import KafkaConsumer
 
 class ConnectionTester:
     """
@@ -23,6 +24,8 @@ class ConnectionTester:
             return await ConnectionTester._test_mongodb(config)
         elif conn_type == 'api':
             return ConnectionTester._test_api(config)
+        elif conn_type == 'kafka':
+            return ConnectionTester._test_kafka(config)
         else:
             return False, f"Unsupported connection type: {conn_type}"
 
@@ -160,3 +163,23 @@ class ConnectionTester:
             return False, f"Request failed: {str(e)}"
         except Exception as e:
             return False, f"API connection test failed: {str(e)}"
+
+    @staticmethod
+    def _test_kafka(config: Dict[str, Any]) -> Tuple[bool, str]:
+        """Test Kafka connection by fetching cluster metadata."""
+        try:
+            bootstrap_servers = config.get("bootstrap_servers") or config.get("bootstrap")
+            if not bootstrap_servers:
+                return False, "Kafka bootstrap_servers is required"
+
+            consumer = KafkaConsumer(
+                bootstrap_servers=bootstrap_servers,
+                api_version_auto_timeout_ms=5000,
+                request_timeout_ms=5000,
+                consumer_timeout_ms=5000,
+            )
+            consumer.topics()
+            consumer.close()
+            return True, "Successfully connected to Kafka cluster."
+        except Exception as e:
+            return False, f"Kafka connection failed: {str(e)}"

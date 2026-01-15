@@ -69,8 +69,6 @@ const SOURCE_OPTIONS = [
     description: "Stream data from Apache Kafka",
     icon: SiApachekafka,
     color: "#231F20",
-    disabled: true,
-    comingSoon: true,
   },
 ];
 
@@ -93,6 +91,11 @@ export default function SourceWizard() {
     useState(false);
   const [tables, setTables] = useState([]);
   const [loadingTables, setLoadingTables] = useState(false);
+  const [kafkaSchemaLoading, setKafkaSchemaLoading] = useState(false);
+  const [kafkaSchemaError, setKafkaSchemaError] = useState("");
+  const [kafkaTopics, setKafkaTopics] = useState([]);
+  const [kafkaTopicsLoading, setKafkaTopicsLoading] = useState(false);
+  const [kafkaTopicsError, setKafkaTopicsError] = useState("");
   const [config, setConfig] = useState({
     id: `src-${Date.now()}`,
     name: "",
@@ -103,7 +106,7 @@ export default function SourceWizard() {
     bucket: "",
     // S3-specific fields
     path: "",
-    format: "log", // "log" | "parquet" (others supported in backend)
+    format: "log", // "log" | "parquet" | "json" | "raw"
     // MongoDB-specific fields
     collection: "",
     // Kafka-specific fields
@@ -172,7 +175,7 @@ export default function SourceWizard() {
           collection: job.collection || "",
           bucket: job.bucket || "",
           path: job.path || "",
-          format: job.format || "log",
+          format: job.format || (sourceType === "kafka" ? "json" : "log"),
           columns: job.columns || [],
           topic: job.topic || "",
           // API-specific fields
@@ -224,6 +227,22 @@ export default function SourceWizard() {
     loadConnections();
   }, [currentStep, selectedSource]);
 
+  useEffect(() => {
+    if (!selectedSource) return;
+
+    if (selectedSource.id === "kafka") {
+      setConfig((prev) => ({
+        ...prev,
+        format: ["json", "raw"].includes(prev.format) ? prev.format : "json",
+      }));
+    } else if (selectedSource.id === "s3") {
+      setConfig((prev) => ({
+        ...prev,
+        format: ["log", "parquet"].includes(prev.format) ? prev.format : "log",
+      }));
+    }
+  }, [selectedSource]);
+
   // Load tables/collections when connection is selected
   useEffect(() => {
     const loadTablesOrCollections = async () => {
@@ -258,6 +277,92 @@ export default function SourceWizard() {
 
     loadTablesOrCollections();
   }, [config.connectionId, selectedSource, connections]);
+
+  useEffect(() => {
+    const loadKafkaTopics = async () => {
+      if (selectedSource?.id !== "kafka" || !config.connectionId) {
+        setKafkaTopics([]);
+        return;
+      }
+
+      setKafkaTopicsLoading(true);
+      setKafkaTopicsError("");
+      try {
+        const response = await fetch(
+          `${API_BASE_URL}/api/source-datasets/kafka/topics`,
+          {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ connection_id: config.connectionId }),
+          }
+        );
+
+        if (!response.ok) {
+          const error = await response.json();
+          throw new Error(error.detail || "Failed to fetch Kafka topics");
+        }
+
+        const data = await response.json();
+        const topics = data.topics || [];
+        setKafkaTopics(topics);
+        if (topics.length > 0 && !topics.includes(config.topic)) {
+          setConfig((prev) => ({ ...prev, topic: "" }));
+        }
+      } catch (err) {
+        setKafkaTopics([]);
+        setKafkaTopicsError(err.message || "Failed to fetch Kafka topics");
+      } finally {
+        setKafkaTopicsLoading(false);
+      }
+    };
+
+    loadKafkaTopics();
+  }, [selectedSource, config.connectionId]);
+
+  useEffect(() => {
+    if (selectedSource?.id !== "kafka") {
+      setKafkaSchemaError("");
+      setKafkaSchemaLoading(false);
+      setKafkaTopics([]);
+      setKafkaTopicsError("");
+      setKafkaTopicsLoading(false);
+      return;
+    }
+    setKafkaSchemaError("");
+  }, [selectedSource, config.connectionId, config.topic]);
+
+  const handleKafkaSchemaFetch = async () => {
+    if (!config.connectionId || !config.topic) {
+      setKafkaSchemaError("Select a connection and topic first.");
+      return;
+    }
+
+    try {
+      setKafkaSchemaLoading(true);
+      setKafkaSchemaError("");
+      const response = await fetch(`${API_BASE_URL}/api/source-datasets/kafka/schema`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          connection_id: config.connectionId,
+          topic: config.topic,
+          sample_size: 1,
+        }),
+      });
+
+      if (!response.ok) {
+        const error = await response.json();
+        throw new Error(error.detail || "Failed to fetch Kafka schema");
+      }
+
+      const data = await response.json();
+      setConfig((prev) => ({ ...prev, columns: data.schema || [] }));
+    } catch (err) {
+      setKafkaSchemaError(err.message || "Failed to fetch Kafka schema");
+    } finally {
+      setKafkaSchemaLoading(false);
+    }
+  };
 
   const handleTableChange = async (tableName) => {
     if (!tableName) {
@@ -458,6 +563,7 @@ export default function SourceWizard() {
         sourceData.format = config.format || "log";
       } else if (selectedSource.id === "kafka") {
         sourceData.topic = config.topic;
+        sourceData.format = config.format || "json";
       } else if (selectedSource.id === "api") {
         sourceData.api = {
           endpoint: config.endpoint,
@@ -531,6 +637,11 @@ export default function SourceWizard() {
         // S3-specific validation
         if (selectedSource?.id === "s3") {
           return config.path.trim() !== "";
+        }
+
+        // Kafka-specific validation
+        if (selectedSource?.id === "kafka") {
+          return config.topic.trim() !== "";
         }
 
         return true;
@@ -907,20 +1018,80 @@ export default function SourceWizard() {
                 {selectedSource?.id === "kafka" && (
                   <div>
                     <label className="block text-sm font-medium text-gray-700 mb-2">
+                      Format
+                    </label>
+                    <select
+                      value={config.format || "json"}
+                      onChange={(e) =>
+                        setConfig((prev) => ({ ...prev, format: e.target.value }))
+                      }
+                      className="w-full px-4 py-2 border border-gray-300 rounded-lg bg-white focus:outline-none focus:ring-2 focus:ring-emerald-500"
+                    >
+                      <option value="json">JSON</option>
+                      <option value="raw">Raw String</option>
+                    </select>
+                    <p className="mt-1 text-xs text-gray-500">
+                      JSON은 스키마 추론/컬럼을 지원, Raw는 문자열 그대로 저장합니다.
+                    </p>
+
+                    <div className="mt-4" />
+                    <label className="block text-sm font-medium text-gray-700 mb-2">
                       Topic
                     </label>
-                    <input
-                      type="text"
+                    <select
                       value={config.topic}
                       onChange={(e) =>
-                        setConfig({ ...config, topic: e.target.value })
+                        setConfig({
+                          ...config,
+                          topic: e.target.value,
+                          columns: [],
+                        })
                       }
-                      placeholder="e.g., my-topic"
-                      className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-emerald-500"
-                    />
+                      disabled={!config.connectionId || kafkaTopicsLoading}
+                      className="w-full px-4 py-2 border border-gray-300 rounded-lg bg-white focus:outline-none focus:ring-2 focus:ring-emerald-500 disabled:opacity-50"
+                    >
+                      <option value="">
+                        {kafkaTopicsLoading
+                          ? "Loading topics..."
+                          : "Select a topic"}
+                      </option>
+                      {kafkaTopics.map((topic) => (
+                        <option key={topic} value={topic}>
+                          {topic}
+                        </option>
+                      ))}
+                    </select>
                     <p className="mt-1 text-xs text-gray-500">
-                      The Kafka topic to consume messages from
+                      Choose a topic from the connected Kafka cluster.
                     </p>
+
+                    <div className="mt-4 flex items-center gap-2">
+                      <button
+                        type="button"
+                        onClick={handleKafkaSchemaFetch}
+                        disabled={!config.connectionId || !config.topic || kafkaSchemaLoading}
+                        className="px-3 py-1.5 text-sm rounded-md border border-gray-300 bg-white hover:bg-gray-50 disabled:opacity-50"
+                      >
+                        {kafkaSchemaLoading ? "Loading..." : "Fetch Schema"}
+                      </button>
+                    </div>
+
+                    {kafkaSchemaError && (
+                      <p className="mt-2 text-xs text-red-600">{kafkaSchemaError}</p>
+                    )}
+                    {kafkaTopicsError && (
+                      <p className="mt-2 text-xs text-red-600">{kafkaTopicsError}</p>
+                    )}
+                    {!kafkaTopicsLoading && !kafkaTopicsError && kafkaTopics.length === 0 && (
+                      <p className="mt-2 text-xs text-gray-500">
+                        No topics found for this connection.
+                      </p>
+                    )}
+                    {config.topic && !config.columns.length && !kafkaSchemaLoading && !kafkaSchemaError && (
+                      <p className="mt-2 text-xs text-gray-500">
+                        Fetch schema to preview fields from this topic.
+                      </p>
+                    )}
                   </div>
                 )}
 
