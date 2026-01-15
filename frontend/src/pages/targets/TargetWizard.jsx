@@ -68,11 +68,10 @@ export default function TargetWizard() {
       .trim()
       .replace(/\s+/g, "_")
       .replace(/[^a-zA-Z0-9_()]/g, "_")
-      .replace(/_+/g, "_")
-      .replace(/^_+|_+$/g, "");
+      .replace(/_+/g, "_");
 
     if (!normalized) return "";
-    if (!/^[a-zA-Z]/.test(normalized)) return `t_${normalized}`;
+    if (!/^[a-zA-Z_]/.test(normalized)) return `t_${normalized}`;
     return normalized;
   };
   const [tagInput, setTagInput] = useState("");
