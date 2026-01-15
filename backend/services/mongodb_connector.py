@@ -86,18 +86,13 @@ class MongoDBConnector:
         """
         collection = self.db[collection_name]
 
-        # Get total document count
-        total_count = await collection.count_documents({})
+        # Use $sample aggregation for random sampling (faster than count + find)
+        pipeline = [{"$sample": {"size": sample_size}}]
+        cursor = collection.aggregate(pipeline)
+        samples = await cursor.to_list(length=sample_size)
 
-        # Limit sample size to available documents
-        actual_sample_size = min(sample_size, total_count)
-
-        if actual_sample_size == 0:
+        if not samples:
             return []
-
-        # Sample documents
-        cursor = collection.find().limit(actual_sample_size)
-        samples = await cursor.to_list(length=actual_sample_size)
 
         # Analyze documents to infer schema
         schema = self._analyze_documents(samples)
