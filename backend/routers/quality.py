@@ -4,7 +4,7 @@ Quality API Router - Endpoints for data quality checks.
 
 from typing import List, Optional
 from datetime import datetime
-from fastapi import APIRouter, HTTPException, status, Request
+from fastapi import APIRouter, HTTPException, status, Request, BackgroundTasks
 
 from models import QualityResult, QualityCheck
 from services.quality_service import quality_service
@@ -64,12 +64,14 @@ def to_response(result: QualityResult) -> QualityResultResponse:
 async def run_quality_check_endpoint(
     request: Request,
     dataset_id: str,
-    check_request: QualityRunRequest
+    check_request: QualityRunRequest,
+    background_tasks: BackgroundTasks
 ):
     """
-    Run quality check on a Dataset's S3 data with batch processing.
+    Run quality check on a Dataset's S3 data in background.
 
-    Processes files in batches (100 at a time) and updates results in real-time.
+    Starts a background task that processes files in batches (1000 at a time).
+    Returns immediately with "running" status.
     Frontend can poll GET /latest to see progress during execution.
     """
     try:
@@ -90,15 +92,30 @@ async def run_quality_check_endpoint(
             # Append dataset name
             s3_path = f"{s3_path.rstrip('/')}/{dataset.name}/"
 
-        # Run quality check (with batch processing built-in)
-        result = await quality_service.run_quality_check(
+        # Create initial result with "running" status
+        initial_result = QualityResult(
+            dataset_id=dataset_id,
+            s3_path=s3_path,
+            status="running",
+            run_at=datetime.utcnow(),
+            progress=0.0,
+            total_files=0,
+            processed_files=0
+        )
+        await initial_result.insert()
+
+        # Start background task (non-blocking!)
+        background_tasks.add_task(
+            quality_service.run_quality_check,
             dataset_id=dataset_id,
             s3_path=s3_path,
             null_threshold=check_request.null_threshold,
-            duplicate_threshold=check_request.duplicate_threshold
+            duplicate_threshold=check_request.duplicate_threshold,
+            result_id=str(initial_result.id)  # Pass existing result ID
         )
 
-        return to_response(result)
+        # Return immediately
+        return to_response(initial_result)
     except Exception as e:
         import traceback
         print(f"[Quality Check Error] {str(e)}")

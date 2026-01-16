@@ -101,21 +101,32 @@ class QualityService:
         dataset_id: str,
         s3_path: str,
         null_threshold: float = 5.0,
-        duplicate_threshold: float = 1.0
+        duplicate_threshold: float = 1.0,
+        result_id: Optional[str] = None
     ) -> QualityResult:
         """
         Run quality check on Parquet files in S3.
+
+        Args:
+            result_id: Optional existing result ID to update (for background tasks)
         """
         start_time = time.time()
 
-        # Insert initial pending record
-        result = QualityResult(
-            dataset_id=dataset_id,
-            s3_path=s3_path,
-            status="running",
-            run_at=datetime.utcnow()
-        )
-        await result.insert()
+        # Get existing result or create new one
+        if result_id:
+            from beanie import PydanticObjectId
+            result = await QualityResult.get(PydanticObjectId(result_id))
+            if not result:
+                raise ValueError(f"Result {result_id} not found")
+        else:
+            # Create new result (for backward compatibility)
+            result = QualityResult(
+                dataset_id=dataset_id,
+                s3_path=s3_path,
+                status="running",
+                run_at=datetime.utcnow()
+            )
+            await result.insert()
         
         temp_paths = []
         
@@ -155,7 +166,7 @@ class QualityService:
 
             # Process files in batches (100 files at a time)
             # Each batch processes files from 0 to current batch end (cumulative)
-            BATCH_SIZE = 100
+            BATCH_SIZE = 1000
             num_batches = (len(parquet_keys) + BATCH_SIZE - 1) // BATCH_SIZE
 
             for batch_idx in range(num_batches):
