@@ -977,16 +977,31 @@ export default function SourceWizard() {
                     <label className="block text-sm font-medium text-gray-700 mb-2">
                       Format
                     </label>
-                    <select
+                    <Combobox
+                      options={[
+                        { id: "log", label: "Log (.log)" },
+                        { id: "parquet", label: "Parquet (.parquet)" }
+                      ]}
                       value={config.format || "log"}
-                      onChange={(e) =>
-                        setConfig((prev) => ({ ...prev, format: e.target.value }))
-                      }
-                      className="w-full px-4 py-2 border border-gray-300 rounded-lg bg-white focus:outline-none focus:ring-2 focus:ring-emerald-500"
-                    >
-                      <option value="log">Log (.log)</option>
-                      <option value="parquet">Parquet (.parquet)</option>
-                    </select>
+                      onChange={(format) => {
+                        if (!format) {
+                          return;
+                        }
+                        setConfig((prev) => ({ ...prev, format }));
+                      }}
+                      getKey={(option) => option.id}
+                      getLabel={(option) => option.label}
+                      placeholder="Select a format..."
+                      classNames={{
+                        button:
+                          "px-4 py-2.5 rounded-xl border-emerald-200/70 bg-gradient-to-r from-white via-emerald-50/50 to-emerald-100/40 shadow-sm shadow-emerald-100/70 hover:shadow-md hover:shadow-emerald-200/70 focus:ring-2 focus:ring-emerald-400/60 focus:border-emerald-300 transition-all",
+                        panel:
+                          "mt-2 rounded-xl border-emerald-100/90 bg-white/95 shadow-xl shadow-emerald-100/60 ring-1 ring-emerald-100/70 backdrop-blur",
+                        option: "rounded-lg mx-1 my-0.5 hover:bg-emerald-50/70",
+                        optionSelected: "bg-emerald-50/80",
+                        icon: "text-emerald-500",
+                      }}
+                    />
                     <p className="mt-1 text-xs text-gray-500">
                       Log는 정규식 파싱(타겟 위자드에서), Parquet는 파일 스키마를 자동 추론합니다.
                     </p>

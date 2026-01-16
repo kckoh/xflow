@@ -1,6 +1,9 @@
 import os
 from trino.dbapi import connect
 from trino.auth import BasicAuthentication
+import logging
+
+logger = logging.getLogger(__name__)
 
 # Trino 설정
 TRINO_HOST = os.getenv("TRINO_HOST", "trino.trino.svc.cluster.local")
@@ -165,3 +168,78 @@ def preview_table(catalog: str, schema: str, table: str, limit: int = 100) -> li
     """테이블 데이터 미리보기"""
     sql = f"SELECT * FROM {catalog}.{schema}.{table} LIMIT {limit}"
     return execute_query(sql, catalog=catalog, schema=schema)
+
+
+def register_delta_table(table_name: str, s3_location: str, catalog: str = None, schema: str = None) -> bool:
+    """
+    Delta Lake 테이블을 Trino에 등록
+    
+    Args:
+        table_name: 등록할 테이블 이름
+        s3_location: S3 경로 (s3://bucket/path 또는 s3a://bucket/path)
+        catalog: Trino 카탈로그 (기본: lakehouse)
+        schema: Trino 스키마 (기본: default)
+    
+    Returns:
+        bool: 등록 성공 여부
+    """
+    catalog = catalog or TRINO_CATALOG
+    schema = schema or TRINO_SCHEMA
+    
+    # s3a:// -> s3:// 변환 (Trino는 s3:// 사용)
+    if s3_location.startswith("s3a://"):
+        s3_location = s3_location.replace("s3a://", "s3://", 1)
+    
+    # 경로 정규화
+    s3_location = s3_location.rstrip("/")
+    
+    try:
+        conn = get_trino_connection(catalog=catalog, schema=schema)
+        cursor = conn.cursor()
+        
+        # 1. 기존 테이블 등록 해제 (있으면)
+        try:
+            unregister_sql = f"""
+                CALL {catalog}.system.unregister_table(
+                    schema_name => '{schema}',
+                    table_name => '{table_name}'
+                )
+            """
+            logger.info(f"[Trino] Unregistering existing table: {catalog}.{schema}.{table_name}")
+            cursor.execute(unregister_sql)
+            cursor.fetchall()
+            logger.info(f"[Trino] Unregistered existing table")
+        except Exception as e:
+            logger.debug(f"[Trino] Unregister (ignore if not exists): {e}")
+        
+        # 2. 새 테이블 등록
+        register_sql = f"""
+            CALL {catalog}.system.register_table(
+                schema_name => '{schema}',
+                table_name => '{table_name}',
+                table_location => '{s3_location}'
+            )
+        """
+        logger.info(f"[Trino] Registering table: {catalog}.{schema}.{table_name}")
+        logger.info(f"[Trino] Location: {s3_location}")
+        cursor.execute(register_sql)
+        cursor.fetchall()
+        
+        # 3. 등록 확인
+        verify_sql = f"SHOW TABLES IN {catalog}.{schema} LIKE '{table_name}'"
+        cursor.execute(verify_sql)
+        tables = cursor.fetchall()
+        
+        cursor.close()
+        conn.close()
+        
+        if tables:
+            logger.info(f"[Trino] ✅ Table registered successfully: {catalog}.{schema}.{table_name}")
+            return True
+        else:
+            logger.warning(f"[Trino] ⚠️ Table registration may have failed - table not found")
+            return False
+            
+    except Exception as e:
+        logger.error(f"[Trino] ❌ Error registering table: {e}")
+        return False

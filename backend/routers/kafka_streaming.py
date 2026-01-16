@@ -1,11 +1,16 @@
 from fastapi import APIRouter, HTTPException
 from beanie import PydanticObjectId
 from bson import ObjectId
+import logging
+import re
 
 import database
 from models import Dataset
 from services.kafka_streaming_service import KafkaStreamingService
 from utils.kafka import has_kafka_source
+from utils.trino_client import register_delta_table
+
+logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/api/streaming", tags=["streaming"])
 
@@ -121,10 +126,39 @@ async def start_streaming_job(dataset_id: str):
     app_name = f"kafka-stream-{dataset_id}"
     KafkaStreamingService.submit_job(job_config, app_name)
 
+    # Trino 테이블 등록 (Delta Lake)
+    glue_table_name = destination.get("glue_table_name")
+    if not glue_table_name and destination.get("path"):
+        # Auto-generate glue_table_name from dataset name
+        safe_name = re.sub(r'[^a-z0-9_]', '_', dataset.name.lower())
+        glue_table_name = safe_name
+        destination["glue_table_name"] = glue_table_name
+        # Update dataset with generated table name
+        dataset.destination = destination
+        await dataset.save()
+    
+    if glue_table_name and destination.get("path"):
+        s3_path = destination["path"]
+        # Ensure path ends with table name
+        if not s3_path.endswith(glue_table_name):
+            s3_path = s3_path.rstrip("/") + "/" + glue_table_name
+        
+        logger.info(f"[Streaming] Registering Trino table: {glue_table_name}")
+        try:
+            success = register_delta_table(glue_table_name, s3_path)
+            if success:
+                logger.info(f"[Streaming] ✅ Trino table registered: {glue_table_name}")
+            else:
+                logger.warning(f"[Streaming] ⚠️ Trino registration may have failed")
+        except Exception as e:
+            logger.error(f"[Streaming] ❌ Trino registration error: {e}")
+            # Don't fail the streaming job if Trino registration fails
+
     return {
         "status": "started",
         "app_name": app_name,
         "group_id": group_id,
+        "trino_table": glue_table_name if glue_table_name else None,
     }
 
 
