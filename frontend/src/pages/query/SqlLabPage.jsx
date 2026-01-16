@@ -7,6 +7,7 @@ import { useToast } from "../../components/common/Toast";
 import InlineAIInput from "../../components/ai/InlineAIInput";
 import TableColumnSidebar from "./components/TableColumnSidebar";
 import QueryExplorer from "./components/QueryExplorer";
+import Combobox from "../../components/common/Combobox";
 
 const QUERY_STORAGE_KEY = 'sqllab_current_query';
 const RESULTS_STORAGE_KEY = 'sqllab_last_results';
@@ -337,14 +338,29 @@ export default function SqlLabPage() {
                             {/* Engine Selector */}
                             <div className="flex items-center gap-2">
                                 <Database className="w-4 h-4 text-gray-500" />
-                                <select
+                                <Combobox
+                                    options={[
+                                        { id: "duckdb", label: "DuckDB (Fast)" },
+                                        { id: "trino", label: "Trino (Distributed)" }
+                                    ]}
                                     value={engine}
-                                    onChange={(e) => setEngine(e.target.value)}
-                                    className="px-3 py-1.5 text-sm border border-gray-300 rounded-lg bg-white focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none"
-                                >
-                                    <option value="duckdb">DuckDB (Fast)</option>
-                                    <option value="trino">Trino (Distributed)</option>
-                                </select>
+                                    onChange={(selectedEngine) => {
+                                        if (!selectedEngine) {
+                                            return;
+                                        }
+                                        setEngine(selectedEngine);
+                                    }}
+                                    getKey={(option) => option.id}
+                                    getLabel={(option) => option.label}
+                                    placeholder="Select engine..."
+                                    classNames={{
+                                        button: "px-3 py-1.5 text-sm border border-gray-300 rounded-lg bg-white hover:bg-gray-50 focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-colors",
+                                        panel: "mt-1 rounded-lg border border-gray-200 bg-white shadow-lg",
+                                        option: "hover:bg-gray-50",
+                                        optionSelected: "bg-blue-50",
+                                        icon: "text-gray-400",
+                                    }}
+                                />
                             </div>
                         </div>
                     </div>
