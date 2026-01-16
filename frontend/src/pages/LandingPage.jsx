@@ -256,14 +256,14 @@ function LandingPage() {
                         {/* Step 2: Data Lake */}
                         <div className="sticky-section-trigger min-h-[80vh] flex flex-col justify-center lg:pl-12 lg:pr-6" data-index="1">
                             <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-blue-50 text-blue-600 text-sm font-medium mb-6 w-fit">
-                                <Database size={16} /> Data Lake
+                                <Database size={16} /> Data Lake house
                             </div>
                             <h2 className="text-4xl md:text-5xl font-medium mb-6 leading-tight">
                                 Unified storage,<br />
                                 <span className="text-[#5F6368]">limitless scale.</span>
                             </h2>
                             <p className="text-xl text-[#5F6368] leading-relaxed max-w-md">
-                                XFlow gathers scattered big data into a single repository.
+                                XFlow gathers scattered big data into a single storage.
                                 Experience flexibility and infinite scalability.
                             </p>
                         </div>
@@ -282,6 +282,20 @@ function LandingPage() {
                                 making discovery effortless.
                             </p>
                         </div>
+
+                        {/* Step 4: Query */}
+                        <div className="sticky-section-trigger min-h-[80vh] flex flex-col justify-center lg:pl-12 lg:pr-6" data-index="3">
+                            <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-purple-50 text-green-600 text-sm font-medium mb-6 w-fit">
+                                <Search size={16} /> Query
+                            </div>
+                            <h2 className="text-4xl md:text-5xl font-medium mb-6 leading-tight">
+                                Query your data,<br />
+                                <span className="text-[#5F6368]">instantly.</span>
+                            </h2>
+                            <p className="text-xl text-[#5F6368] leading-relaxed max-w-md">
+                                Query your data with ease. Our AI-powered query engine helps you find answers fast.
+                            </p>
+                        </div>
                     </div>
 
                     {/* Right: Sticky Visual Content */}
@@ -296,8 +310,8 @@ function LandingPage() {
                             {/* Visual 2 */}
                             <div className={`absolute inset-0 transition-opacity duration-700 ease-in-out bg-[#E8F0FE] flex items-center justify-center ${activeStickySection === 1 ? 'opacity-100' : 'opacity-0'}`}>
                                 <iframe
-                                    className="w-full h-full object-cover"
-                                    src="https://www.youtube.com/embed/nXdYq2uApUE?autoplay=1&mute=1&loop=1&playlist=nXdYq2uApUE&controls=0"
+                                    className="w-full h-full object-cover pointer-events-none scale-[1.2]"
+                                    src="https://www.youtube.com/embed/XgOV48YeqAI?autoplay=1&mute=1&loop=1&playlist=XgOV48YeqAI&controls=0&modestbranding=1&rel=0&iv_load_policy=3&fs=0&disablekb=1"
                                     title="Data Lake Architecture Video"
                                     allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
                                     allowFullScreen
@@ -307,9 +321,19 @@ function LandingPage() {
                             {/* Visual 3 */}
                             <div className={`absolute inset-0 transition-opacity duration-700 ease-in-out bg-[#F3E8FD] flex items-center justify-center ${activeStickySection === 2 ? 'opacity-100' : 'opacity-0'}`}>
                                 <iframe
-                                    className="w-full h-full object-cover"
-                                    src="https://www.youtube.com/embed/NWBJPmWz2ro?autoplay=1&mute=1&loop=1&playlist=NWBJPmWz2ro&controls=0"
+                                    className="w-full h-full object-cover pointer-events-none scale-[1.2]"
+                                    src="https://www.youtube.com/embed/qTa5OIDCllo?autoplay=1&mute=1&loop=1&playlist=qTa5OIDCllo&controls=0&modestbranding=1&rel=0&iv_load_policy=3&fs=0&disablekb=1"
                                     title="Catalog Interface Video"
+                                    allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+                                    allowFullScreen
+                                />
+                            </div>
+                            {/* Visual 4 */}
+                            <div className={`absolute inset-0 transition-opacity duration-700 ease-in-out bg-[#E6F4EA] flex items-center justify-center ${activeStickySection === 3 ? 'opacity-100' : 'opacity-0'}`}>
+                                <iframe
+                                    className="w-full h-full object-cover pointer-events-none scale-[1.2]"
+                                    src="https://www.youtube.com/embed/zE1il50QKpg?autoplay=1&mute=1&loop=1&playlist=zE1il50QKpg&controls=0&modestbranding=1&rel=0&iv_load_policy=3&fs=0&disablekb=1"
+                                    title="Query Interface Video"
                                     allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
                                     allowFullScreen
                                 />
@@ -327,9 +351,9 @@ function LandingPage() {
             <section className="py-20 md:py-32 px-6 max-w-[1440px] mx-auto overflow-hidden">
                 <div className="mb-12 flex items-end justify-between px-2">
                     <div>
-                        <h2 className="text-3xl md:text-4xl font-medium mb-4">Built for every role</h2>
+                        <h2 className="text-3xl md:text-4xl font-medium mb-4">Meet the Team</h2>
                         <p className="text-[#5F6368] text-lg max-w-xl">
-                            Whether you build pipelines or analyze trends, XFlow streamlines your work.
+                            XFlow is built by a team of data enthusiasts and engineers who are passionate about making data accessible and easy to use.
                         </p>
                     </div>
                     {/* Navigation Buttons */}
@@ -374,10 +398,9 @@ function LandingPage() {
                                 <ArrowRight size={16} />
                             </div>
                         </div>
-                        <h4 className="text-xl font-medium mb-2">PM & Fullstack Developer</h4>
+                        <h4 className="text-xl font-medium mb-2">Ko Gyung Chul</h4>
                         <p className="text-[#5F6368]">
-                            Automate complex ETL pipelines with drag-and-drop simplicity.
-                            Monitor health and performance in real-time.
+                            linkedin.com/in/ko-gyung-chul
                         </p>
                     </div>
 
@@ -397,10 +420,9 @@ function LandingPage() {
                                 <ArrowRight size={16} />
                             </div>
                         </div>
-                        <h4 className="text-xl font-medium mb-2">Fullstack Developer</h4>
+                        <h4 className="text-xl font-medium mb-2">Kim Min ho</h4>
                         <p className="text-[#5F6368]">
-                            Access clean, cataloged data instantly.
-                            Spend less time wrangling and more time modeling.
+                            linkedin.com/in/minho-kim
                         </p>
                     </div>
 
@@ -420,10 +442,9 @@ function LandingPage() {
                                 <ArrowRight size={16} />
                             </div>
                         </div>
-                        <h4 className="text-xl font-medium mb-2">Fullstack Developer</h4>
+                        <h4 className="text-xl font-medium mb-2">Lee Sang Chan</h4>
                         <p className="text-[#5F6368]">
-                            Trust your metrics with full lineage visibility.
-                            Self-serve insights without waiting on engineering.
+                            linkedin.com/in/lee-sang-chan
                         </p>
                     </div>
                     {/* Card 4: Fullstack Developer */}
@@ -442,10 +463,9 @@ function LandingPage() {
                                 <ArrowRight size={16} />
                             </div>
                         </div>
-                        <h4 className="text-xl font-medium mb-2">Fullstack Developer</h4>
+                        <h4 className="text-xl font-medium mb-2">Song Jun Yeop</h4>
                         <p className="text-[#5F6368]">
-                            Build data-rich applications with ready-to-use APIs.
-                            Focus on UX while XFlow handles the backend complexity.
+                            linkedin.com/in/song-jun-yeop
                         </p>
                     </div>
                     {/* Card 5:Fullstack Developer */}
@@ -464,10 +484,9 @@ function LandingPage() {
                                 <ArrowRight size={16} />
                             </div>
                         </div>
-                        <h4 className="text-xl font-medium mb-2">Fullstack Developer</h4>
+                        <h4 className="text-xl font-medium mb-2">Hong Soon kyu</h4>
                         <p className="text-[#5F6368]">
-                            Track product metrics and user behavior instantly.
-                            Validate hypotheses with real-time data access.
+                            linkedin.com/in/hong-soon-kyu
                         </p>
                     </div>
                 </div>
