@@ -164,7 +164,19 @@ class QualityService:
 
             print(f"[Quality Check] Processing {len(parquet_keys)} files for dataset {dataset_id}")
 
-            # Process files in batches (100 files at a time)
+            # --- Strategy Selection: Sampling for large datasets ---
+            total_size = self._calculate_total_size(bucket, parquet_keys)
+
+            MB = 1024 * 1024
+            is_large_data = total_size >= 100 * MB
+
+            sample_clause = ""
+            if is_large_data:
+                # SAMPLING MODE: Use DuckDB TABLESAMPLE for row-level sampling
+                sample_clause = " TABLESAMPLE 10%"
+                print(f"[Quality Check] Large dataset detected ({total_size / MB:.1f} MB). Using 10% sampling.")
+
+            # Process files in batches (1000 files at a time)
             # Each batch processes files from 0 to current batch end (cumulative)
             BATCH_SIZE = 1000
             num_batches = (len(parquet_keys) + BATCH_SIZE - 1) // BATCH_SIZE
@@ -218,14 +230,25 @@ class QualityService:
 
                 # Use union_by_name=True to handle files with different schemas
                 if len(s3_target_paths) == 1:
-                    from_clause = f"read_parquet('{s3_target_paths[0]}', union_by_name=True)"
+                    from_clause = f"read_parquet('{s3_target_paths[0]}', union_by_name=True){sample_clause}"
                 else:
                     paths_str = ", ".join([f"'{p}'" for p in s3_target_paths])
-                    from_clause = f"read_parquet([{paths_str}], union_by_name=True)"
+                    from_clause = f"read_parquet([{paths_str}], union_by_name=True){sample_clause}"
 
 
                 checks = []
                 score = 100.0
+
+                # Add sampling info if applicable
+                if is_large_data and batch_idx == 0:  # Only show once on first batch
+                    checks.append(QualityCheck(
+                        name="strategy_info",
+                        column=None,
+                        passed=True,
+                        value=0.0,
+                        threshold=0.0,
+                        message=f"Sampling Mode: TABLESAMPLE 10% (Total size: {total_size / MB:.1f} MB)"
+                    ))
 
                 # [PERFORMANCE OPTIMIZATION] One-Pass Scan
                 # Instead of running multiple queries, we build a single SQL query
