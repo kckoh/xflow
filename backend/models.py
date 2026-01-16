@@ -283,6 +283,11 @@ class QualityResult(Document):
     completed_at: Optional[datetime] = None
     duration_ms: int = 0
 
+    # Progress tracking for incremental updates
+    progress: float = 0.0  # 0-100
+    total_files: int = 0  # Total parquet files to process
+    processed_files: int = 0  # Files processed so far
+
     class Settings:
         name = "quality_results"
         indexes = ["dataset_id", "run_at"]

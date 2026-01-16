@@ -4,7 +4,7 @@ Quality API Router - Endpoints for data quality checks.
 
 from typing import List, Optional
 from datetime import datetime
-from fastapi import APIRouter, HTTPException, status, BackgroundTasks, Request
+from fastapi import APIRouter, HTTPException, status, Request, BackgroundTasks
 
 from models import QualityResult, QualityCheck
 from services.quality_service import quality_service
@@ -50,7 +50,10 @@ def to_response(result: QualityResult) -> QualityResultResponse:
         error_message=result.error_message,
         run_at=result.run_at,
         completed_at=result.completed_at,
-        duration_ms=result.duration_ms
+        duration_ms=result.duration_ms,
+        progress=result.progress,
+        total_files=result.total_files,
+        processed_files=result.processed_files
     )
 
 
@@ -58,42 +61,61 @@ def to_response(result: QualityResult) -> QualityResultResponse:
 
 @router.post("/{dataset_id}/run", response_model=QualityResultResponse)
 @limiter.limit("3/minute")
-async def run_quality_check(
+async def run_quality_check_endpoint(
     request: Request,
     dataset_id: str,
-    check_request: QualityRunRequest
+    check_request: QualityRunRequest,
+    background_tasks: BackgroundTasks
 ):
     """
-    Run quality check on a Dataset's S3 data.
+    Run quality check on a Dataset's S3 data in background.
 
-    This will read the Parquet file from S3, run quality checks,
-    and store the result in MongoDB.
+    Starts a background task that processes files in batches (1000 at a time).
+    Returns immediately with "running" status.
+    Frontend can poll GET /latest to see progress during execution.
     """
     try:
         # Fetch dataset to get name
         from models import Dataset
         from beanie import PydanticObjectId
-        
+
         dataset = await Dataset.get(PydanticObjectId(dataset_id))
         if not dataset:
             raise HTTPException(
                 status_code=status.HTTP_404_NOT_FOUND,
                 detail="Dataset not found"
             )
-        
+
         # Append dataset name to S3 path if path ends with bucket root
         s3_path = check_request.s3_path
         if s3_path.rstrip('/').count('/') == 2:  # s3a://bucket/ format
             # Append dataset name
             s3_path = f"{s3_path.rstrip('/')}/{dataset.name}/"
-        
-        result = await quality_service.run_quality_check(
+
+        # Create initial result with "running" status
+        initial_result = QualityResult(
+            dataset_id=dataset_id,
+            s3_path=s3_path,
+            status="running",
+            run_at=datetime.utcnow(),
+            progress=0.0,
+            total_files=0,
+            processed_files=0
+        )
+        await initial_result.insert()
+
+        # Start background task (non-blocking!)
+        background_tasks.add_task(
+            quality_service.run_quality_check,
             dataset_id=dataset_id,
             s3_path=s3_path,
             null_threshold=check_request.null_threshold,
-            duplicate_threshold=check_request.duplicate_threshold
+            duplicate_threshold=check_request.duplicate_threshold,
+            result_id=str(initial_result.id)  # Pass existing result ID
         )
-        return to_response(result)
+
+        # Return immediately
+        return to_response(initial_result)
     except Exception as e:
         import traceback
         print(f"[Quality Check Error] {str(e)}")

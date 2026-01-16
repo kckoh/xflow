@@ -41,3 +41,6 @@ class QualityResultResponse(BaseModel):
     run_at: datetime
     completed_at: Optional[datetime]
     duration_ms: int
+    progress: float = 0.0                  # 0-100
+    total_files: int = 0
+    processed_files: int = 0
