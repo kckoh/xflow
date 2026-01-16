@@ -56,6 +56,43 @@ export default function JobDetailPage() {
     }
   }, [jobId]);
 
+  // Polling for quality check progress
+  useEffect(() => {
+    if (!qualityResult || qualityResult.status !== "running") {
+      setRunningCheck(false);
+      return;
+    }
+
+    // Poll every 2 seconds while running
+    const pollInterval = setInterval(async () => {
+      try {
+        const latest = await getLatestQualityResult(jobId);
+        if (latest) {
+          setQualityResult(latest);
+
+          // If completed or failed, stop polling
+          if (latest.status === "completed") {
+            setRunningCheck(false);
+            setQualityHistory((prev) => [latest, ...prev.slice(0, 4)]);
+            showToast(
+              `Quality check completed! Score: ${Math.round(latest.overall_score)}`,
+              "success"
+            );
+            clearInterval(pollInterval);
+          } else if (latest.status === "failed") {
+            setRunningCheck(false);
+            showToast("Quality check failed", "error");
+            clearInterval(pollInterval);
+          }
+        }
+      } catch (error) {
+        console.error("Failed to poll quality result:", error);
+      }
+    }, 2000);
+
+    return () => clearInterval(pollInterval);
+  }, [qualityResult?.status, jobId]);
+
   useEffect(() => {
     if (job?.job_type === "streaming" && activeTab === "schedule") {
       setActiveTab("info");
@@ -96,17 +133,13 @@ export default function JobDetailPage() {
     setRunningCheck(true);
     try {
       const s3Path = job.destination.s3_path || job.destination.path;
+      // Start background quality check
       const result = await runQualityCheck(jobId, s3Path, { jobId });
       setQualityResult(result);
-      setQualityHistory((prev) => [result, ...prev.slice(0, 4)]);
-      showToast(
-        `Quality check completed! Score: ${result.overall_score}`,
-        "success"
-      );
+      showToast("Quality check started! Polling for updates...", "info");
     } catch (error) {
       console.error("Failed to run quality check:", error);
       showToast("Failed to run quality check", "error");
-    } finally {
       setRunningCheck(false);
     }
   };
@@ -1045,9 +1078,26 @@ export default function JobDetailPage() {
                     {runningCheck ? "Running..." : "Run Quality Check"}
                   </button>
                 </div>
+                {/* Progress Bar */}
+                {runningCheck && qualityResult && (
+                  <div className="px-6 pb-4">
+                    <div className="flex items-center justify-between text-sm text-gray-600 mb-2">
+                      <span>
+                        Processing: {qualityResult.processed_files || 0} / {qualityResult.total_files || 0} files
+                      </span>
+                      <span>{Math.round(qualityResult.progress || 0)}%</span>
+                    </div>
+                    <div className="w-full bg-gray-200 rounded-full h-2">
+                      <div
+                        className="bg-blue-600 h-2 rounded-full transition-all duration-300"
+                        style={{ width: `${qualityResult.progress || 0}%` }}
+                      />
+                    </div>
+                  </div>
+                )}
               </div>
 
-              {qualityLoading ? (
+              {qualityLoading && !qualityResult ? (
                 <div className="bg-white rounded-lg border border-gray-200 shadow-sm p-12 text-center">
                   <RefreshCw className="w-8 h-8 text-gray-400 mx-auto mb-4 animate-spin" />
                   <p className="text-gray-500">Loading quality data...</p>
@@ -1070,7 +1120,14 @@ export default function JobDetailPage() {
                     <div className="bg-white rounded-lg border border-gray-200 shadow-sm p-6">
                       <div className="flex items-center justify-between">
                         <div>
-                          <p className="text-sm text-gray-500">Overall Score</p>
+                          <div className="flex items-center gap-2">
+                            <p className="text-sm text-gray-500">Overall Score</p>
+                            {qualityResult.status === "running" && (
+                              <span className="text-xs text-blue-600 font-medium">
+                                In Progress...
+                              </span>
+                            )}
+                          </div>
                           <p
                             className={`text-3xl font-bold ${
                               qualityResult.overall_score >= 90
