@@ -10,7 +10,7 @@ export default function InlineAIInput({
     promptType = 'general',
     metadata = {},
     placeholder = 'Ask AI to help...',
-    engine = 'duckdb',  // Add engine prop
+    engine = 'trino',  // Default engine changed to trino
     onApply,
     onCancel
 }) {

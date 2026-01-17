@@ -11,7 +11,7 @@ export const aiApi = {
      * @param {string} context - Optional additional context
      * @returns {Promise<Object>} { sql: string, schema_context: string }
      */
-    async generateSQL(question, metadata = {}, promptType = 'query_page', context = null, engine = 'duckdb') {
+    async generateSQL(question, metadata = {}, promptType = 'query_page', context = null, engine = 'trino') {
         const response = await fetch(`${API_URL}/generate-sql`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },

@@ -65,7 +65,7 @@ class BedrockService:
             prompt = self._get_query_page_prompt(
                 schema_context=metadata.get('schema_context', ''),
                 question=question,
-                engine=metadata.get('engine', 'duckdb'),  # Extract engine from metadata
+                engine=metadata.get('engine', 'trino'),  # Extract engine from metadata
                 additional_context=metadata.get('additional_context')
             )
         elif prompt_type == 'field_transform':
@@ -125,7 +125,7 @@ class BedrockService:
             else:
                 return f"-- Error generating SQL: {error_msg}"
 
-    def _get_query_page_prompt(self, schema_context: str, question: str, engine: str = 'duckdb', additional_context: Optional[str] = None) -> str:
+    def _get_query_page_prompt(self, schema_context: str, question: str, engine: str = 'trino', additional_context: Optional[str] = None) -> str:
         """Query page prompt - uses OpenSearch RAG results for DuckDB/Trino SQL generation"""
         context_section = ""
         if additional_context:
