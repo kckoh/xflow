@@ -27,16 +27,17 @@ async def generate_sql(request: Request, body: GenerateSQLRequest):
     try:
         bedrock_service = get_bedrock_service()
         
-        # Query Page mode: Use OpenSearch RAG for dataset discovery
+        # Query Page mode: Use OpenSearch RAG + Semantic Cache
         if body.prompt_type == 'query_page':
             rag_service = get_rag_service()
             results, schema_context = rag_service.search_schema(body.question)
-            
+
             # 검색 결과 없으면 빈 컨텍스트로 진행
             if not results:
                 schema_context = "No matching schemas found."
-            
-            sql = bedrock_service.generate_sql(
+
+            # Semantic Cache 적용
+            result = bedrock_service.generate_sql_with_cache(
                 question=body.question,
                 prompt_type=body.prompt_type,
                 metadata={
@@ -45,10 +46,13 @@ async def generate_sql(request: Request, body: GenerateSQLRequest):
                     'engine': body.engine  # Pass engine to bedrock service
                 }
             )
-            
+
             return GenerateSQLResponse(
-                sql=sql,
-                schema_context=schema_context
+                sql=result["sql"],
+                schema_context=schema_context,
+                cache_hit=result.get("cache_hit", False),
+                similarity=result.get("similarity"),
+                cached_question=result.get("cached_question")
             )
         
         # Specialized mode: Use prompt templates

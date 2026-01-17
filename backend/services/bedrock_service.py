@@ -6,6 +6,8 @@ import os
 import json
 import boto3
 from typing import Optional
+from services.embedding_service import get_embedding_service
+from utils.redis_vector_client import get_redis_vector_client
 
 
 class BedrockService:
@@ -20,9 +22,16 @@ class BedrockService:
             'BEDROCK_MODEL_ID',
             'global.anthropic.claude-haiku-4-5-20251001-v1:0'
         )
-        # Input token limit 
+        # Input token limit
         self.max_input_tokens = 20000
+
+        # Semantic Cache 설정
+        self.cache_enabled = os.getenv('SEMANTIC_CACHE_ENABLED', 'true').lower() == 'true'
+        self.cache_threshold = float(os.getenv('SEMANTIC_CACHE_THRESHOLD', '0.95'))
+
         self._client = None
+        self._embedding_service = None
+        self._vector_client = None
 
     @property
     def client(self):
@@ -36,6 +45,20 @@ class BedrockService:
                 endpoint_url=None  # Force real AWS Bedrock, ignore LocalStack
             )
         return self._client
+
+    @property
+    def embedding_service(self):
+        """임베딩 서비스 (lazy)"""
+        if self._embedding_service is None:
+            self._embedding_service = get_embedding_service()
+        return self._embedding_service
+
+    @property
+    def vector_client(self):
+        """Vector 클라이언트 (lazy)"""
+        if self._vector_client is None:
+            self._vector_client = get_redis_vector_client()
+        return self._vector_client
 
     def generate_sql(
         self, 
@@ -369,6 +392,80 @@ The query must be compatible with both DuckDB (for preview) and Spark SQL (for e
 
         # 코드 블록 없으면 전체 텍스트 정리 후 반환
         return text.strip()
+
+    def generate_sql_with_cache(
+        self,
+        question: str,
+        prompt_type: str = 'general',
+        metadata: Optional[dict] = None,
+        schema_context: Optional[str] = None,
+        additional_context: Optional[str] = None
+    ) -> dict:
+        """
+        Semantic Cache가 적용된 SQL 생성
+
+        Returns:
+            {
+                "sql": str,
+                "cache_hit": bool,
+                "similarity": float (캐시 히트 시),
+                "cached_question": str (캐시 히트 시)
+            }
+        """
+        # 캐시 비활성화 또는 query_page가 아니면 기존 로직
+        if not self.cache_enabled or prompt_type != 'query_page':
+            sql = self.generate_sql(question, prompt_type, metadata, schema_context, additional_context)
+            return {
+                "sql": sql,
+                "cache_hit": False
+            }
+
+        try:
+            # 1. 질문을 벡터로 변환
+            query_vector = self.embedding_service.get_embedding(question)
+
+            # 2. Vector Search (유사 질문 검색)
+            cached_result = self.vector_client.search_similar(
+                query_vector,
+                top_k=1,
+                threshold=self.cache_threshold
+            )
+
+            # 3. Cache Hit
+            if cached_result:
+                print(f"✅ Cache HIT (similarity: {cached_result['similarity']:.3f})")
+                return {
+                    "sql": cached_result['sql_query'],
+                    "cache_hit": True,
+                    "similarity": cached_result['similarity'],
+                    "cached_question": cached_result['question']
+                }
+
+            # 4. Cache Miss - Bedrock 호출
+            print(f"❌ Cache MISS - Calling Bedrock")
+            sql = self.generate_sql(question, prompt_type, metadata, schema_context, additional_context)
+
+            # 5. Redis에 저장 (LRU가 알아서 관리)
+            self.vector_client.save_cache(
+                question=question,
+                embedding=query_vector,
+                sql_query=sql
+            )
+
+            return {
+                "sql": sql,
+                "cache_hit": False
+            }
+
+        except Exception as e:
+            # 캐시 오류 시 폴백 (Bedrock 직접 호출)
+            print(f"⚠️  Cache error (fallback to Bedrock): {e}")
+            sql = self.generate_sql(question, prompt_type, metadata, schema_context, additional_context)
+            return {
+                "sql": sql,
+                "cache_hit": False,
+                "cache_error": str(e)
+            }
 
 
 # 싱글톤 인스턴스

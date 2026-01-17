@@ -38,6 +38,17 @@ class GenerateSQLResponse(BaseModel):
     sql: str = Field(description="생성된 SQL 쿼리")
     schema_context: str = Field(description="사용된 스키마 정보")
 
+    # Semantic Cache 정보
+    cache_hit: bool = Field(default=False, description="캐시 히트 여부")
+    similarity: Optional[float] = Field(
+        default=None,
+        description="캐시된 질문과의 유사도 (0~1)"
+    )
+    cached_question: Optional[str] = Field(
+        default=None,
+        description="캐시에서 찾은 원본 질문"
+    )
+
 
 class SchemaSearchResult(BaseModel):
     """
