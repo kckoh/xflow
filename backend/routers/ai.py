@@ -41,7 +41,8 @@ async def generate_sql(request: Request, body: GenerateSQLRequest):
                 prompt_type=body.prompt_type,
                 metadata={
                     'schema_context': schema_context,
-                    'additional_context': body.context
+                    'additional_context': body.context,
+                    'engine': body.engine  # Pass engine to bedrock service
                 }
             )
             

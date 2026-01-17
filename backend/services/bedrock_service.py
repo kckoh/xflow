@@ -65,6 +65,7 @@ class BedrockService:
             prompt = self._get_query_page_prompt(
                 schema_context=metadata.get('schema_context', ''),
                 question=question,
+                engine=metadata.get('engine', 'duckdb'),  # Extract engine from metadata
                 additional_context=metadata.get('additional_context')
             )
         elif prompt_type == 'field_transform':
@@ -124,36 +125,62 @@ class BedrockService:
             else:
                 return f"-- Error generating SQL: {error_msg}"
 
-    def _get_query_page_prompt(self, schema_context: str, question: str, additional_context: Optional[str] = None) -> str:
+    def _get_query_page_prompt(self, schema_context: str, question: str, engine: str = 'duckdb', additional_context: Optional[str] = None) -> str:
         """Query page prompt - uses OpenSearch RAG results for DuckDB/Trino SQL generation"""
         context_section = ""
         if additional_context:
             context_section = f"\n\nAdditional Context:\n{additional_context}"
 
-        return f"""You are a SQL expert for DuckDB querying Parquet files on S3.
-            Based on the available data schema below, generate a DuckDB SQL query to answer the user's question.
+        if engine == 'trino':
+            return f"""You are a SQL expert for Trino (Presto SQL) querying data from Iceberg tables.
+Based on the available data schema below, generate a Trino SQL query to answer the user's question.
 
-            Available Data Schema:
-            {schema_context}
-            {context_section}
+Available Data Schema:
+{schema_context}
+{context_section}
 
-            User Question: {question}
+User Question: {question}
 
-            IMPORTANT Rules:
-            1. If the user asks about a specific table/dataset that is NOT in the Available Data Schema above, respond with: -- Error: Table '[name]' not found. Available tables: [list table names]
-            2. Return ONLY the SQL query, no explanation before or after
-            3. Use the column names exactly as provided in the schema
-            4. For tables with S3 Path, query the Parquet file directly using: SELECT * FROM 's3://bucket/path/*.parquet'
-            5. Use single quotes around S3 paths (not double quotes)
-            6. If no S3 Path is provided, use the table name as-is
-            7. Use standard SQL syntax compatible with DuckDB
-            8. Add appropriate WHERE, ORDER BY, GROUP BY, LIMIT clauses as needed
-            9. For aggregate queries, always include relevant columns in GROUP BY
+IMPORTANT Rules for Trino:
+1. If the user asks about a specific table/dataset that is NOT in the Available Data Schema above, respond with: -- Error: Table '[name]' not found. Available tables: [list table names]
+2. Return ONLY the SQL query, no explanation before or after
+3. Use the column names exactly as provided in the schema
+4. For tables with S3 Path, use the Iceberg table format: lakehouse.default.table_name
+5. The table name is derived from the dataset name in the schema (convert to lowercase, replace spaces with underscores)
+6. Use standard Presto SQL syntax compatible with Trino
+7. Add appropriate WHERE, ORDER BY, GROUP BY, LIMIT clauses as needed
+8. For aggregate queries, always include relevant columns in GROUP BY
+9. Do NOT use S3 paths directly - always use lakehouse.default.table_name format
 
-            Example S3 query format:
-            SELECT column1, column2 FROM 's3://my-bucket/data/*.parquet' WHERE condition LIMIT 10;
+Example Trino query format:
+SELECT column1, column2 FROM lakehouse.default.my_table WHERE condition LIMIT 10;
 
-            SQL Query:"""
+SQL Query:"""
+        else:  # duckdb (default)
+            return f"""You are a SQL expert for DuckDB querying Parquet files on S3.
+Based on the available data schema below, generate a DuckDB SQL query to answer the user's question.
+
+Available Data Schema:
+{schema_context}
+{context_section}
+
+User Question: {question}
+
+IMPORTANT Rules for DuckDB:
+1. If the user asks about a specific table/dataset that is NOT in the Available Data Schema above, respond with: -- Error: Table '[name]' not found. Available tables: [list table names]
+2. Return ONLY the SQL query, no explanation before or after
+3. Use the column names exactly as provided in the schema
+4. For tables with S3 Path, query the Parquet file directly using: SELECT * FROM 's3://bucket/path/*.parquet'
+5. Use single quotes around S3 paths (not double quotes)
+6. If no S3 Path is provided, use the table name as-is
+7. Use standard SQL syntax compatible with DuckDB
+8. Add appropriate WHERE, ORDER BY, GROUP BY, LIMIT clauses as needed
+9. For aggregate queries, always include relevant columns in GROUP BY
+
+Example S3 query format:
+SELECT column1, column2 FROM 's3://my-bucket/data/*.parquet' WHERE condition LIMIT 10;
+
+SQL Query:"""
 
     def _get_field_transform_prompt(self, column_name: str, column_type: str, question: str) -> str:
         """Field transformation prompt - generates single SQL expression"""

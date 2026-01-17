@@ -371,6 +371,7 @@ export default function SqlLabPage() {
                             promptType="query_page"
                             metadata={{}}
                             placeholder="Ask AI to generate SQL query..."
+                            engine={engine}  // Pass current engine (duckdb or trino)
                             onApply={(sql) => {
                                 setQuery(sql);
                                 setShowAI(false);

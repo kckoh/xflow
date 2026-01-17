@@ -25,6 +25,10 @@ class GenerateSQLRequest(BaseModel):
         default=None,
         description="추가 컨텍스트 정보 (선택)"
     )
+    engine: Optional[str] = Field(
+        default='duckdb',
+        description="쿼리 엔진 (duckdb | trino)"
+    )
 
 
 class GenerateSQLResponse(BaseModel):
