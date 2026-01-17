@@ -117,8 +117,6 @@ class QualityService:
         )
         await result.insert()
         
-        temp_paths = []
-        
         try:
             # URL decode the path
             s3_path = unquote(s3_path)
@@ -159,8 +157,9 @@ class QualityService:
             if is_large_data:
                 # SAMPLING MODE: Use DuckDB TABLESAMPLE for row-level sampling
                 # This is more accurate than file-level sampling
-                sample_clause = " TABLESAMPLE 10%"
-                sampling_info = f"Sampling Mode: TABLESAMPLE 10% (Total size: {total_size / MB:.1f} MB)"
+                # 1% sampling for large datasets (>100MB) to fit in DuckDB memory (~500MB)
+                sample_clause = " TABLESAMPLE 1%"
+                sampling_info = f"Sampling Mode: TABLESAMPLE 1% (Total size: {total_size / MB:.1f} MB)"
             
             # [OPTIMIZATION] Direct S3 Read (Streaming)
             # No download needed. DuckDB reads directly from S3.
@@ -203,34 +202,6 @@ class QualityService:
                     SET s3_secret_access_key='{S3_SECRET_KEY}';
                 """)
             
-            # DEBUG: Detailed logging
-            print("="*50)
-            print("[Quality DEBUG INFO]")
-            print(f"Timestamp: {datetime.utcnow()}")
-            print(f"Dataset ID: {dataset_id}")
-            print(f"Environment: {env}")
-            print(f"S3 Region: {S3_REGION}")
-            print(f"Target Path: {s3_path}")
-            
-            # Check loaded extensions
-            try:
-                exts = conn.execute("SELECT name, loaded FROM duckdb_extensions() WHERE loaded=true").fetchall()
-                print(f"Loaded Extensions: {exts}")
-            except Exception as e:
-                print(f"Error checking extensions: {e}")
-                
-            # Try to list files with various patterns
-            patterns = [s3_path, s3_path.replace("**/*.parquet", "*"), s3_path.replace("**/*.parquet", "**/*")]
-            for pat in patterns:
-                try:
-                    print(f"Testing pattern: {pat}")
-                    files = conn.execute(f"SELECT * FROM glob('{pat}') LIMIT 3").fetchall()
-                    print(f" -> Found: {files}")
-                except Exception as e:
-                    print(f" -> Error: {e}")
-            
-            print("="*50)
-            
             # Build query for S3 paths (use all files, TABLESAMPLE handles sampling)
             s3_target_paths = [f"s3://{bucket}/{k}" for k in parquet_keys]
             
@@ -242,12 +213,6 @@ class QualityService:
                 from_clause = f"read_parquet([{paths_str}], union_by_name=True){sample_clause}"
             
             checks = []
-            
-            # Flags to ensure we deduct points only once per category (25 points each)
-            null_deducted = False
-            duplicate_deducted = False
-            freshness_deducted = False
-            validity_deducted = False
 
             # Add sampling info Check if applicable
             if sampling_info:
@@ -362,8 +327,6 @@ class QualityService:
             
             null_penalty = min(25.0, max_null_ratio * 0.25)
             score -= null_penalty
-            if null_penalty > 0:
-                null_deducted = True
             
             result.null_counts = null_counts
             
@@ -390,8 +353,6 @@ class QualityService:
             ))
             
             score -= dup_penalty
-            if dup_penalty > 0:
-                duplicate_deducted = True
             
             # C) Freshness Check
             time_cols = [
@@ -473,8 +434,6 @@ class QualityService:
                      freshness_penalty = min(25.0, min_lag / 100.0)
             
             score -= freshness_penalty
-            if freshness_penalty > 0:
-                freshness_deducted = True
 
             # D) Validity Check
             target_keywords = ['price', 'amount', 'count', 'quantity', 'cost', 'age']
@@ -516,8 +475,6 @@ class QualityService:
             
             validity_penalty = min(25.0, validity_penalty)
             score -= validity_penalty
-            if validity_penalty > 0:
-                validity_deducted = True
             
             # 6. Calculate final score
             result.checks = checks
@@ -551,14 +508,6 @@ class QualityService:
             result.duration_ms = int((time.time() - start_time) * 1000)
             await result.save()
             raise
-        
-        finally:
-            # Cleanup temp files
-            for path in temp_paths:
-                try:
-                    os.unlink(path)
-                except:
-                    pass
     
     async def get_latest_result(self, dataset_id: str) -> Optional[QualityResult]:
         """Get the most recent quality result for a Dataset."""
