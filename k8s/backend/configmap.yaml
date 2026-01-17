@@ -26,3 +26,9 @@ data:
   REDIS_HOST: "redis-stack"
   REDIS_PORT: "6379"
   REDIS_PASSWORD: ""
+  # Semantic Cache configuration
+  SEMANTIC_CACHE_ENABLED: "true"
+  SEMANTIC_CACHE_THRESHOLD: "0.95"
+  # Bedrock configuration
+  BEDROCK_MODEL_ID: "global.anthropic.claude-haiku-4-5-20251001-v1:0"
+  BEDROCK_EMBEDDING_MODEL_ID: "amazon.titan-embed-text-v2:0"
