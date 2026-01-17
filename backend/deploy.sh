@@ -3,7 +3,7 @@ set -e
 
 # Configuration
 ECR_REPO="134059028370.dkr.ecr.ap-northeast-2.amazonaws.com/xflow-backend"
-NAMESPACE="default"
+NAMESPACE="xflow"
 DEPLOYMENT="backend"
 
 echo "🔨 Building Docker image..."

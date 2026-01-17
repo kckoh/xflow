@@ -55,10 +55,23 @@ async def lifespan(app: FastAPI):
 
     # Startup: Initialize OpenSearch connection
     from utils.opensearch_client import initialize_opensearch
-
     initialize_opensearch()
 
+    # Startup: Initialize Redis connection
+    from utils.redis_client import redis_client
+    try:
+        await redis_client.connect()
+        logging.info("Redis connected successfully")
+    except Exception as e:
+        logging.warning(f"Redis connection failed (using in-memory fallback): {e}")
+
     yield
+
+    # Shutdown: Close Redis connection
+    try:
+        await redis_client.disconnect()
+    except Exception:
+        pass
 
     # Shutdown: Close MongoDB connection
     await close_db()

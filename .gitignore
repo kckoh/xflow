@@ -229,6 +229,7 @@ trino/plugin/
 # Kubernetes secrets
 k8s/monitoring/grafana-secret.yaml
 k8s/trino/secret.yaml
+k8s/redis/secret.yaml
 
 # Helm chart dependencies
 charts/*/charts/*.tgz

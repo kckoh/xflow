@@ -2,7 +2,7 @@ import uuid
 from datetime import datetime
 from bson import ObjectId
 
-from dependencies import sessions
+from dependencies import set_session_data, get_session_data, delete_session_data
 from fastapi import APIRouter, Header, HTTPException, status
 from models import User, Role
 from schemas.user import UserCreate, UserLogin
@@ -82,7 +82,7 @@ async def login(user: UserLogin):
             print(f"Error fetching role: {e}")
 
     session_id = str(uuid.uuid4())
-    sessions[session_id] = {
+    session_data = {
         "user_id": str(db_user.id),
         "email": db_user.email,
         "name": db_user.name or db_user.email.split("@")[0],
@@ -98,23 +98,26 @@ async def login(user: UserLogin):
         "role_query_ai_access": role_permissions["query_ai_access"],
     }
 
+    # Store session in Redis
+    await set_session_data(session_id, session_data)
+
     return {
         "session_id": session_id,
-        "user": sessions[session_id]
+        "user": session_data
     }
 
 
 @router.get("/me")
 async def get_current_user(session_id: str):
     """Get current user from session"""
-    if session_id not in sessions:
+    session_data = await get_session_data(session_id)
+    if not session_data:
         raise HTTPException(status_code=401, detail="Not authenticated")
-    return sessions[session_id]
+    return session_data
 
 
 @router.post("/logout")
-def logout(session_id: str = Header(alias="X-Session-ID")):
+async def logout(session_id: str = Header(alias="X-Session-ID")):
     """Logout and destroy session"""
-    if session_id in sessions:
-        del sessions[session_id]
+    await delete_session_data(session_id)
     return {"message": "Logged out successfully"}
