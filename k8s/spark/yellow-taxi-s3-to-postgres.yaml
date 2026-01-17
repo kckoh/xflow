@@ -1,0 +1,96 @@
+apiVersion: sparkoperator.k8s.io/v1beta2
+kind: SparkApplication
+metadata:
+  name: yellow-taxi-s3-to-postgres
+  namespace: spark-jobs
+spec:
+  type: Python
+  pythonVersion: "3"
+  mode: cluster
+  image: 134059028370.dkr.ecr.ap-northeast-2.amazonaws.com/xflow-spark:latest
+  imagePullPolicy: Always
+  mainApplicationFile: local:///opt/spark/jobs/yellow_taxi_s3_to_postgres.py
+  arguments:
+    - "--s3-input"
+    - "s3a://xflow-benchmark/yellow_taxi/processed/"
+    - "--batch-size"
+    - "50000"
+    - "--write-partitions"
+    - "16"
+    - "--write-mode"
+    - "overwrite"
+    - "--use-iam-role"
+    # PostgreSQL credentials are passed via environment variables from Secret
+  sparkVersion: "3.5.0"
+
+  sparkConf:
+    spark.sql.shuffle.partitions: "100"
+    spark.sql.adaptive.enabled: "true"
+    spark.hadoop.fs.s3a.impl: "org.apache.hadoop.fs.s3a.S3AFileSystem"
+    spark.hadoop.fs.s3a.aws.credentials.provider: "com.amazonaws.auth.WebIdentityTokenCredentialsProvider"
+    spark.hadoop.fs.s3a.endpoint: "s3.ap-northeast-2.amazonaws.com"
+    # JDBC write optimization
+    spark.sql.execution.arrow.pyspark.enabled: "true"
+
+  driver:
+    cores: 2
+    memory: "4g"
+    serviceAccount: spark-sa
+    nodeSelector:
+      node-type: spark
+      lifecycle: spot
+    tolerations:
+      - key: spark-only
+        operator: Equal
+        value: "true"
+        effect: NoSchedule
+    env:
+      - name: AWS_REGION
+        value: ap-northeast-2
+      - name: PG_HOST
+        valueFrom:
+          secretKeyRef:
+            name: postgres-benchmark-secret
+            key: host
+      - name: PG_PORT
+        valueFrom:
+          secretKeyRef:
+            name: postgres-benchmark-secret
+            key: port
+      - name: PG_DATABASE
+        valueFrom:
+          secretKeyRef:
+            name: postgres-benchmark-secret
+            key: database
+      - name: PG_USER
+        valueFrom:
+          secretKeyRef:
+            name: postgres-benchmark-secret
+            key: username
+      - name: PG_PASSWORD
+        valueFrom:
+          secretKeyRef:
+            name: postgres-benchmark-secret
+            key: password
+
+  executor:
+    cores: 4
+    instances: 3
+    memory: "8g"
+    nodeSelector:
+      node-type: spark
+      lifecycle: spot
+    tolerations:
+      - key: spark-only
+        operator: Equal
+        value: "true"
+        effect: NoSchedule
+    env:
+      - name: AWS_REGION
+        value: ap-northeast-2
+
+  restartPolicy:
+    type: OnFailure
+    onFailureRetries: 2
+    onFailureRetryInterval: 30
+    onSubmissionFailureRetries: 2

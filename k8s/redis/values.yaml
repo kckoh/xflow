@@ -1,0 +1,35 @@
+## Redis Standalone Configuration
+## Install: helm install redis bitnami/redis -f k8s/redis/values.yaml
+
+architecture: standalone
+
+auth:
+  enabled: true
+  existingSecret: "redis-secret"
+  existingSecretPasswordKey: "redis-password"
+
+master:
+  persistence:
+    enabled: false
+
+  resources:
+    requests:
+      memory: "128Mi"
+      cpu: "100m"
+    limits:
+      memory: "256Mi"
+      cpu: "250m"
+
+  # Node selector (uncomment if needed)
+  # nodeSelector:
+  #   node-type: general
+
+# Disable replica for standalone
+replica:
+  replicaCount: 0
+
+# Metrics (optional - uncomment to enable)
+# metrics:
+#   enabled: true
+#   serviceMonitor:
+#     enabled: true

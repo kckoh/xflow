@@ -1,0 +1,103 @@
+apiVersion: sparkoperator.k8s.io/v1beta2
+kind: SparkApplication
+metadata:
+  name: yellow-taxi-loader
+  namespace: spark-jobs
+spec:
+  type: Python
+  pythonVersion: "3"
+  mode: cluster
+  image: 134059028370.dkr.ecr.ap-northeast-2.amazonaws.com/xflow-spark:latest
+  imagePullPolicy: Always
+  mainApplicationFile: local:///opt/spark/jobs/yellow_taxi_loader.py
+  arguments:
+    - "--years"
+    - "2011-2024"
+    - "--s3-bucket"
+    - "xflow-benchmark"
+    - "--s3-prefix"
+    - "yellow_taxi"
+    - "--s3-output"
+    - "s3a://xflow-benchmark/yellow_taxi/processed/"
+    - "--format"
+    - "parquet"
+    - "--partitions"
+    - "200"
+    - "--use-iam-role"
+  sparkVersion: "3.5.0"
+
+  sparkConf:
+    # === Shuffle Partitions Tuning ===
+    # 2-3x total cores (5 executors * 6 cores = 30, so 100-200 partitions)
+    spark.sql.shuffle.partitions: "200"
+
+    # === Adaptive Query Execution (AQE) ===
+    spark.sql.adaptive.enabled: "true"
+    spark.sql.adaptive.coalescePartitions.enabled: "true"
+    spark.sql.adaptive.coalescePartitions.minPartitionSize: "64m"
+    spark.sql.adaptive.skewJoin.enabled: "true"
+    spark.sql.adaptive.skewJoin.skewedPartitionThresholdInBytes: "256m"
+
+    # === Memory Tuning ===
+    spark.memory.fraction: "0.6"
+    spark.memory.storageFraction: "0.5"
+    spark.sql.files.maxPartitionBytes: "128m"
+
+    # === S3 Configuration (IRSA) ===
+    spark.hadoop.fs.s3a.impl: "org.apache.hadoop.fs.s3a.S3AFileSystem"
+    spark.hadoop.fs.s3a.aws.credentials.provider: "com.amazonaws.auth.WebIdentityTokenCredentialsProvider"
+    spark.hadoop.fs.s3a.endpoint: "s3.ap-northeast-2.amazonaws.com"
+
+    # S3 Write Optimization
+    spark.hadoop.fs.s3a.fast.upload: "true"
+    spark.hadoop.fs.s3a.fast.upload.buffer: "disk"
+    spark.hadoop.fs.s3a.multipart.size: "64m"
+    spark.hadoop.fs.s3a.multipart.threshold: "128m"
+    spark.hadoop.fs.s3a.threads.max: "64"
+    spark.hadoop.fs.s3a.connection.maximum: "100"
+
+    # === Serialization ===
+    spark.serializer: "org.apache.spark.serializer.KryoSerializer"
+    spark.kryoserializer.buffer.max: "512m"
+
+    # === Network Timeout for large downloads ===
+    spark.network.timeout: "600s"
+    spark.executor.heartbeatInterval: "60s"
+
+  driver:
+    cores: 2
+    memory: "8g"
+    serviceAccount: spark-sa
+    nodeSelector:
+      node-type: spark
+      lifecycle: spot
+    tolerations:
+      - key: spark-only
+        operator: Equal
+        value: "true"
+        effect: NoSchedule
+    env:
+      - name: AWS_REGION
+        value: ap-northeast-2
+
+  executor:
+    cores: 4
+    instances: 3
+    memory: "12g"
+    nodeSelector:
+      node-type: spark
+      lifecycle: spot
+    tolerations:
+      - key: spark-only
+        operator: Equal
+        value: "true"
+        effect: NoSchedule
+    env:
+      - name: AWS_REGION
+        value: ap-northeast-2
+
+  restartPolicy:
+    type: OnFailure
+    onFailureRetries: 3
+    onFailureRetryInterval: 30
+    onSubmissionFailureRetries: 3

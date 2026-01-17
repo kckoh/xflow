@@ -230,6 +230,7 @@ trino/plugin/
 k8s/monitoring/grafana-secret.yaml
 k8s/trino/secret.yaml
 k8s/redis/secret.yaml
+k8s/spark/postgres-secret.yaml
 
 # Helm chart dependencies
 charts/*/charts/*.tgz
