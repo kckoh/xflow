@@ -125,20 +125,26 @@ def run_s3_to_postgres(config: dict):
 
 
 if __name__ == "__main__":
+    import os
+
     parser = argparse.ArgumentParser(description="S3 to PostgreSQL Loader")
     parser.add_argument("--s3-input", type=str, required=True,
                        help="S3 input path (parquet)")
     parser.add_argument("--pg-host", type=str,
-                       default="xflow-benchmark.cxmkkiw0c40b.ap-northeast-2.rds.amazonaws.com",
-                       help="PostgreSQL host")
-    parser.add_argument("--pg-port", type=int, default=5432,
-                       help="PostgreSQL port")
-    parser.add_argument("--pg-database", type=str, default="postgres",
-                       help="PostgreSQL database")
-    parser.add_argument("--pg-user", type=str, default="postgres",
-                       help="PostgreSQL user")
-    parser.add_argument("--pg-password", type=str, default="mysecretpassword",
-                       help="PostgreSQL password")
+                       default=os.getenv("PG_HOST", "localhost"),
+                       help="PostgreSQL host (or set PG_HOST env var)")
+    parser.add_argument("--pg-port", type=int,
+                       default=int(os.getenv("PG_PORT", "5432")),
+                       help="PostgreSQL port (or set PG_PORT env var)")
+    parser.add_argument("--pg-database", type=str,
+                       default=os.getenv("PG_DATABASE", "postgres"),
+                       help="PostgreSQL database (or set PG_DATABASE env var)")
+    parser.add_argument("--pg-user", type=str,
+                       default=os.getenv("PG_USER", "postgres"),
+                       help="PostgreSQL user (or set PG_USER env var)")
+    parser.add_argument("--pg-password", type=str,
+                       default=os.getenv("PG_PASSWORD", ""),
+                       help="PostgreSQL password (or set PG_PASSWORD env var)")
     parser.add_argument("--batch-size", type=int, default=10000,
                        help="JDBC batch size")
     parser.add_argument("--write-partitions", type=int, default=16,

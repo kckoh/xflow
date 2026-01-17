@@ -13,16 +13,6 @@ spec:
   arguments:
     - "--s3-input"
     - "s3a://xflow-benchmark/yellow_taxi/processed/"
-    - "--pg-host"
-    - "xflow-benchmark.cxmkkiw0c40b.ap-northeast-2.rds.amazonaws.com"
-    - "--pg-port"
-    - "5432"
-    - "--pg-database"
-    - "postgres"
-    - "--pg-user"
-    - "postgres"
-    - "--pg-password"
-    - "mysecretpassword"
     - "--batch-size"
     - "50000"
     - "--write-partitions"
@@ -30,6 +20,7 @@ spec:
     - "--write-mode"
     - "overwrite"
     - "--use-iam-role"
+    # PostgreSQL credentials are passed via environment variables from Secret
   sparkVersion: "3.5.0"
 
   sparkConf:
@@ -56,6 +47,31 @@ spec:
     env:
       - name: AWS_REGION
         value: ap-northeast-2
+      - name: PG_HOST
+        valueFrom:
+          secretKeyRef:
+            name: postgres-benchmark-secret
+            key: host
+      - name: PG_PORT
+        valueFrom:
+          secretKeyRef:
+            name: postgres-benchmark-secret
+            key: port
+      - name: PG_DATABASE
+        valueFrom:
+          secretKeyRef:
+            name: postgres-benchmark-secret
+            key: database
+      - name: PG_USER
+        valueFrom:
+          secretKeyRef:
+            name: postgres-benchmark-secret
+            key: username
+      - name: PG_PASSWORD
+        valueFrom:
+          secretKeyRef:
+            name: postgres-benchmark-secret
+            key: password
 
   executor:
     cores: 4

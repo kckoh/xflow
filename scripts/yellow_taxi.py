@@ -38,15 +38,23 @@ def setup_logging():
 
 logger = setup_logging()
 
-# PostgreSQL 연결 설정
+# PostgreSQL 연결 설정 (환경변수에서 읽기)
+import os
+
+PG_HOST = os.getenv("PG_HOST", "localhost")
+PG_PORT = int(os.getenv("PG_PORT", "5432"))
+PG_DATABASE = os.getenv("PG_DATABASE", "postgres")
+PG_USER = os.getenv("PG_USER", "postgres")
+PG_PASSWORD = os.getenv("PG_PASSWORD", "")
+
 logger.info("PostgreSQL 연결 시도...")
 try:
     conn = psycopg2.connect(
-        host="xflow-benchmark.cxmkkiw0c40b.ap-northeast-2.rds.amazonaws.com",
-        port=5432,
-        database="postgres",
-        user="postgres",  # 오타 수정: posgres -> postgres
-        password="mysecretpassword",
+        host=PG_HOST,
+        port=PG_PORT,
+        database=PG_DATABASE,
+        user=PG_USER,
+        password=PG_PASSWORD,
     )
     conn.autocommit = False
     cur = conn.cursor()

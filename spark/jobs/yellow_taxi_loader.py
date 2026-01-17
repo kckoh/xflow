@@ -455,17 +455,18 @@ def bulk_load_to_postgres(config: dict):
     Bulk load data from S3 to PostgreSQL using aws_s3 extension or COPY.
     This function is called separately after Spark ETL completes.
     """
+    import os
     import psycopg2
 
     pg_config = config.get("postgres", {})
     s3_path = config.get("s3_output_path")
 
     conn = psycopg2.connect(
-        host=pg_config.get("host", "xflow-benchmark.cxmkkiw0c40b.ap-northeast-2.rds.amazonaws.com"),
-        port=pg_config.get("port", 5432),
-        database=pg_config.get("database", "postgres"),
-        user=pg_config.get("user", "postgres"),
-        password=pg_config.get("password", "mysecretpassword"),
+        host=pg_config.get("host", os.getenv("PG_HOST", "localhost")),
+        port=pg_config.get("port", int(os.getenv("PG_PORT", "5432"))),
+        database=pg_config.get("database", os.getenv("PG_DATABASE", "postgres")),
+        user=pg_config.get("user", os.getenv("PG_USER", "postgres")),
+        password=pg_config.get("password", os.getenv("PG_PASSWORD", "")),
     )
 
     try:
