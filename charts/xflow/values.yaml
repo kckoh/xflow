@@ -74,7 +74,7 @@ ingress:
   # AWS ALB Ingress settings
   alb:
     enabled: true
-    scheme: internet-facing  # internet-facing | internal
+    scheme: internet-facing # internet-facing | internal
     targetType: ip
     groupName: xflow-alb
 
@@ -133,7 +133,7 @@ backend:
   # Ingress settings
   ingress:
     enabled: true
-    host: ""  # e.g., api.xflows.net (uses global.domain if empty)
+    host: "" # e.g., api.xflows.net (uses global.domain if empty)
     path: /
     pathType: Prefix
 
@@ -180,7 +180,7 @@ mongodb:
 
   auth:
     rootUsername: root
-    rootPassword: ""  # Auto-generated if empty
+    rootPassword: "" # Auto-generated if empty
     # Use existing secret instead
     existingSecret: ""
 
@@ -234,7 +234,7 @@ opensearch:
         cpu: "500m"
     ingress:
       enabled: true
-      host: ""  # e.g., opensearch.xflows.net
+      host: "" # e.g., opensearch.xflows.net
 
 # ------------------------------------------
 # Spark
@@ -274,7 +274,7 @@ spark:
 
   # Default Spark configuration
   sparkConf:
-    "spark.sql.shuffle.partitions": "24"
+    "spark.sql.shuffle.partitions": "100"
     "spark.memory.fraction": "0.6"
 
 # ------------------------------------------
@@ -289,7 +289,7 @@ airflow:
   # Custom Airflow image
   images:
     airflow:
-      repository: ""  # Set via global.imageRegistry/xflow-airflow
+      repository: "" # Set via global.imageRegistry/xflow-airflow
       tag: latest
       pullPolicy: Always
 
@@ -381,7 +381,7 @@ airflow:
       persistence:
         enabled: true
         size: 5Gi
-        storageClass: ""  # Uses global.storageClass
+        storageClass: "" # Uses global.storageClass
 
   # Redis (not needed for LocalExecutor)
   redis:
@@ -494,7 +494,7 @@ trino:
 
   ingress:
     enabled: true
-    host: ""  # e.g., trino.xflows.net
+    host: "" # e.g., trino.xflows.net
 
 # ------------------------------------------
 # S3/Object Storage Settings
@@ -535,7 +535,7 @@ monitoring:
       passwordKey: admin-password
       # If not using existingSecret:
       user: admin
-      password: ""  # Set a strong password
+      password: "" # Set a strong password
 
     persistence:
       enabled: false
@@ -557,7 +557,7 @@ monitoring:
     # Ingress
     ingress:
       enabled: true
-      host: ""  # e.g., grafana.xflows.net
+      host: "" # e.g., grafana.xflows.net
 
   # Loki (log aggregation)
   loki:
@@ -570,7 +570,7 @@ monitoring:
       storage:
         type: s3
         bucketNames:
-          chunks: ""  # e.g., xflow-loki-logs
+          chunks: "" # e.g., xflow-loki-logs
           ruler: ""
           admin: ""
         s3:

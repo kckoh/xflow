@@ -1,7 +1,7 @@
 apiVersion: sparkoperator.k8s.io/v1beta2
 kind: SparkApplication
 metadata:
-  name: etl-job-{{ job_id }}
+  name: yellow-taxi-loader-test
   namespace: spark-jobs
 spec:
   type: Python
@@ -9,22 +9,39 @@ spec:
   mode: cluster
   image: 134059028370.dkr.ecr.ap-northeast-2.amazonaws.com/xflow-spark:latest
   imagePullPolicy: Always
-  mainApplicationFile: local:///opt/spark/jobs/etl_runner.py
+  mainApplicationFile: local:///opt/spark/jobs/yellow_taxi_loader.py
   arguments:
-    - "{{ config_json }}"
+    - "--years"
+    - "2024"  # Only 2024 for testing
+    - "--s3-bucket"
+    - "xflow-benchmark"
+    - "--s3-prefix"
+    - "yellow_taxi_test"
+    - "--s3-output"
+    - "s3a://xflow-benchmark/yellow_taxi_test/processed/"
+    - "--format"
+    - "parquet"
+    - "--partitions"
+    - "50"
+    - "--use-iam-role"
   sparkVersion: "3.5.0"
 
   sparkConf:
     spark.sql.shuffle.partitions: "100"
+    spark.sql.adaptive.enabled: "true"
+    spark.sql.adaptive.coalescePartitions.enabled: "true"
     spark.memory.fraction: "0.6"
     spark.hadoop.fs.s3a.impl: "org.apache.hadoop.fs.s3a.S3AFileSystem"
     spark.hadoop.fs.s3a.aws.credentials.provider: "com.amazonaws.auth.WebIdentityTokenCredentialsProvider"
-    spark.sql.extensions: "io.delta.sql.DeltaSparkSessionExtension"
-    spark.sql.catalog.spark_catalog: "org.apache.spark.sql.delta.catalog.DeltaCatalog"
+    spark.hadoop.fs.s3a.endpoint: "s3.ap-northeast-2.amazonaws.com"
+    spark.hadoop.fs.s3a.fast.upload: "true"
+    spark.hadoop.fs.s3a.fast.upload.buffer: "disk"
+    spark.serializer: "org.apache.spark.serializer.KryoSerializer"
+    spark.network.timeout: "600s"
 
   driver:
     cores: 2
-    memory: "4g"
+    memory: "8g"
     serviceAccount: spark-sa
     nodeSelector:
       node-type: spark
@@ -39,9 +56,9 @@ spec:
         value: ap-northeast-2
 
   executor:
-    cores: 6
+    cores: 4
     instances: 2
-    memory: "26g"
+    memory: "8g"
     nodeSelector:
       node-type: spark
       lifecycle: spot
@@ -56,6 +73,6 @@ spec:
 
   restartPolicy:
     type: OnFailure
-    onFailureRetries: 3
+    onFailureRetries: 2
     onFailureRetryInterval: 10
-    onSubmissionFailureRetries: 3
+    onSubmissionFailureRetries: 2

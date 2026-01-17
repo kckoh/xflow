@@ -12,24 +12,27 @@ POST /api/v1/dags/dataset_dag_k8s/dagRuns
 }
 """
 
-import json
-import json
 import base64
+import json
 from datetime import datetime
 
-from airflow import DAG
 from airflow.operators.python import PythonOperator
-from airflow.providers.cncf.kubernetes.operators.spark_kubernetes import SparkKubernetesOperator
-from airflow.providers.cncf.kubernetes.sensors.spark_kubernetes import SparkKubernetesSensor
-
+from airflow.providers.cncf.kubernetes.operators.spark_kubernetes import (
+    SparkKubernetesOperator,
+)
+from airflow.providers.cncf.kubernetes.sensors.spark_kubernetes import (
+    SparkKubernetesSensor,
+)
 from etl_common import (
     fetch_dataset_config,
     finalize_import,
-    run_quality_check,
-    register_trino_table,
-    on_success_callback,
     on_failure_callback,
+    on_success_callback,
+    register_trino_table,
+    run_quality_check,
 )
+
+from airflow import DAG
 
 
 def get_executor_count(size_gb: float) -> int:
@@ -50,17 +53,20 @@ def generate_spark_application(**context):
     """Generate SparkApplication YAML from dataset config"""
     config_json = context["ti"].xcom_pull(task_ids="fetch_dataset_config")
     # Support both dataset_id (direct run) and job_id (scheduled run)
-    dataset_id = context["dag_run"].conf.get("dataset_id") or context["dag_run"].conf.get("job_id", "unknown")
+    dataset_id = context["dag_run"].conf.get("dataset_id") or context[
+        "dag_run"
+    ].conf.get("job_id", "unknown")
 
     # Extract run_id from dag_run_id for unique naming
     dag_run_id = context["dag_run"].run_id
     # Use last segment after underscore for uniqueness (e.g., dataset_xxx_yyy -> yyy)
     import re
-    parts = dag_run_id.split('_')
+
+    parts = dag_run_id.split("_")
     if len(parts) >= 2:
-        clean_run_id = re.sub(r'[^a-z0-9]', '', parts[-1].lower())[:16]
+        clean_run_id = re.sub(r"[^a-z0-9]", "", parts[-1].lower())[:16]
     else:
-        clean_run_id = re.sub(r'[^a-z0-9]', '', dag_run_id.lower())[-16:]
+        clean_run_id = re.sub(r"[^a-z0-9]", "", dag_run_id.lower())[-16:]
     if not clean_run_id or len(clean_run_id) < 8:
         clean_run_id = f"{int(datetime.now().timestamp()) % 100000000:08d}"
 
@@ -68,7 +74,9 @@ def generate_spark_application(**context):
     config = json.loads(config_json)
     estimated_size_gb = config.get("estimated_size_gb", 1)
     executor_instances = get_executor_count(estimated_size_gb)
-    print(f"Auto-scaling: {estimated_size_gb:.2f} GB -> {executor_instances} executor(s)")
+    print(
+        f"Auto-scaling: {estimated_size_gb:.2f} GB -> {executor_instances} executor(s)"
+    )
 
     # Encode config to base64 for safe passing
     encoded_config = base64.b64encode(config_json.encode("utf-8")).decode("utf-8")
@@ -92,7 +100,7 @@ def generate_spark_application(**context):
             "arguments": ["--base64", encoded_config],
             "sparkVersion": "3.5.0",
             "sparkConf": {
-                "spark.sql.shuffle.partitions": "24",
+                "spark.sql.shuffle.partitions": "100",
                 "spark.memory.fraction": "0.6",
                 "spark.hadoop.fs.s3a.impl": "org.apache.hadoop.fs.s3a.S3AFileSystem",
                 "spark.hadoop.fs.s3a.aws.credentials.provider": "com.amazonaws.auth.WebIdentityTokenCredentialsProvider",
@@ -108,12 +116,14 @@ def generate_spark_application(**context):
                     "node-type": "spark",
                     "lifecycle": "spot",
                 },
-                "tolerations": [{
-                    "key": "spark-only",
-                    "operator": "Equal",
-                    "value": "true",
-                    "effect": "NoSchedule",
-                }],
+                "tolerations": [
+                    {
+                        "key": "spark-only",
+                        "operator": "Equal",
+                        "value": "true",
+                        "effect": "NoSchedule",
+                    }
+                ],
                 "env": [{"name": "AWS_REGION", "value": "ap-northeast-2"}],
             },
             "executor": {
@@ -124,12 +134,14 @@ def generate_spark_application(**context):
                     "node-type": "spark",
                     "lifecycle": "spot",
                 },
-                "tolerations": [{
-                    "key": "spark-only",
-                    "operator": "Equal",
-                    "value": "true",
-                    "effect": "NoSchedule",
-                }],
+                "tolerations": [
+                    {
+                        "key": "spark-only",
+                        "operator": "Equal",
+                        "value": "true",
+                        "effect": "NoSchedule",
+                    }
+                ],
                 "env": [{"name": "AWS_REGION", "value": "ap-northeast-2"}],
             },
             "restartPolicy": {
@@ -208,5 +220,12 @@ with DAG(
         python_callable=finalize_import,
     )
 
-    fetch_config >> generate_spark_spec >> submit_spark_job >> wait_for_spark >> register_table >> quality_check >> finalize
-
+    (
+        fetch_config
+        >> generate_spark_spec
+        >> submit_spark_job
+        >> wait_for_spark
+        >> register_table
+        >> quality_check
+        >> finalize
+    )
