@@ -50,7 +50,7 @@ class RedisVectorClient:
         except redis.exceptions.ResponseError:
             # 인덱스 없음 - 새로 생성
             from redis.commands.search.field import TextField, VectorField, NumericField
-            from redis.commands.search.indexdefinition import IndexDefinition, IndexType
+            from redis.commands.search import IndexDefinition, IndexType
 
             schema = (
                 TextField("question"),
