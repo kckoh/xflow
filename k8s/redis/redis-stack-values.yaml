@@ -1,0 +1,11 @@
+## Redis Stack Server Helm Values
+## Install: helm install redis-stack redis-stack/redis-stack-server -f k8s/redis/redis-stack-values.yaml -n xflow
+
+name: redis-stack
+redis_stack_server:
+  image: "redis/redis-stack-server"
+  tag: "7.4.0-v8"
+  port: 6379
+  replicas: 1
+  storage_class: gp2
+  storage: 1Gi

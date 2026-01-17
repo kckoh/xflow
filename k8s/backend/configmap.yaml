@@ -22,3 +22,7 @@ data:
   SPARK_IMAGE: "134059028370.dkr.ecr.ap-northeast-2.amazonaws.com/xflow-spark:latest"
   SPARK_NAMESPACE: "spark-jobs"
   USE_S3: "true"
+  # Redis Stack configuration (for session & semantic cache)
+  REDIS_HOST: "redis-stack"
+  REDIS_PORT: "6379"
+  REDIS_PASSWORD: ""
