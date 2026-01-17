@@ -30,7 +30,7 @@ export default function SqlLabPage() {
     const [error, setError] = useState(null);
     const [viewMode, setViewMode] = useState('table'); // 'table' | 'chart'
     const [engine, setEngine] = useState(() => {
-        return sessionStorage.getItem(ENGINE_STORAGE_KEY) || 'duckdb';
+        return sessionStorage.getItem(ENGINE_STORAGE_KEY) || 'trino';
     }); // 'duckdb' | 'trino'
 
     // Chart configuration state
@@ -340,7 +340,6 @@ export default function SqlLabPage() {
                                 <Database className="w-4 h-4 text-gray-500" />
                                 <Combobox
                                     options={[
-                                        { id: "duckdb", label: "DuckDB (Fast)" },
                                         { id: "trino", label: "Trino (Distributed)" }
                                     ]}
                                     value={engine}
@@ -371,6 +370,7 @@ export default function SqlLabPage() {
                             promptType="query_page"
                             metadata={{}}
                             placeholder="Ask AI to generate SQL query..."
+                            engine={engine}  // Pass current engine (duckdb or trino)
                             onApply={(sql) => {
                                 setQuery(sql);
                                 setShowAI(false);

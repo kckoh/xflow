@@ -10,6 +10,7 @@ export default function InlineAIInput({
     promptType = 'general',
     metadata = {},
     placeholder = 'Ask AI to help...',
+    engine = 'trino',  // Default engine changed to trino
     onApply,
     onCancel
 }) {
@@ -29,7 +30,9 @@ export default function InlineAIInput({
             const response = await aiApi.generateSQL(
                 input,
                 metadata,
-                promptType
+                promptType,
+                null,  // context
+                engine  // Pass engine to API
             );
 
             // Apply the AI suggestion (use the SQL from response)
