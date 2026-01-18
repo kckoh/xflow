@@ -161,13 +161,7 @@ export const CatalogInfoTab = ({ catalogItem, targetPath, selectedNode }) => {
                     <h4 className="text-xs font-medium text-gray-500 uppercase mb-2">
                         Statistics
                     </h4>
-                    <div className="grid grid-cols-2 gap-3">
-                        <div className="bg-gray-50 rounded-lg p-3 text-center">
-                            <p className="text-lg font-bold text-gray-900">
-                                {catalogItem.row_count?.toLocaleString() || "-"}
-                            </p>
-                            <p className="text-xs text-gray-500">Rows</p>
-                        </div>
+                    <div className="grid grid-cols-1 gap-3">
                         <div className="bg-gray-50 rounded-lg p-3 text-center">
                             <p className="text-lg font-bold text-gray-900">
                                 {formatFileSize(catalogItem.size_bytes)}

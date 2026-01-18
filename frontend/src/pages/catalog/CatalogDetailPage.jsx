@@ -497,10 +497,17 @@ function CatalogDetailContent() {
     );
   }
 
-  const targetPath =
+  let targetPath =
     typeof catalogItem.target === "string"
       ? catalogItem.target
       : catalogItem.destination?.path || catalogItem.target?.path || "-";
+
+  if (targetPath !== "-" && catalogItem.name && !targetPath.endsWith(catalogItem.name)) {
+    if (!targetPath.endsWith("/")) {
+      targetPath += "/";
+    }
+    targetPath += catalogItem.name;
+  }
 
   return (
     <div className="h-[calc(100vh-64px)] flex flex-col">

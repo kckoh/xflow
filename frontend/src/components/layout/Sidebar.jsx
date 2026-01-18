@@ -2,7 +2,6 @@ import { useNavigate, useLocation } from "react-router-dom";
 import {
   Database,
   GitMerge,
-  Settings,
   Search,
   LogOut,
   List,
@@ -145,19 +144,7 @@ export function Sidebar({ isCollapsed, onToggle }) {
 
       {/* User & Logout */}
       <div className="p-4 border-t border-gray-200 space-y-1">
-        <button
-          onClick={() => navigate("/settings")}
-          title={isCollapsed ? "Settings" : ""}
-          className={clsx(
-            "flex items-center text-sm font-medium text-gray-500 hover:text-gray-900 transition-colors w-full p-2 rounded-md hover:bg-gray-50",
-            isCollapsed ? "justify-center" : "px-3",
-          )}
-        >
-          <Settings
-            className={clsx("w-4 h-4 shrink-0", !isCollapsed && "mr-2")}
-          />
-          {!isCollapsed && "Settings"}
-        </button>
+
         <button
           onClick={handleLogout}
           title={isCollapsed ? "Sign out" : ""}
@@ -198,15 +185,15 @@ export function Topbar({ isCollapsed }) {
 
       {/* Right Actions */}
 
-        <div className="flex items-center space-x-3">
-          <div className="h-8 w-8 rounded-full bg-gradient-to-tr from-blue-500 to-purple-500 flex items-center justify-center text-white font-medium text-xs">
-            {initials}
-          </div>
-          <div className="hidden md:block">
-            <p className="text-sm font-medium text-gray-700">{user?.name || "User"}</p>
-            <p className="text-xs text-gray-500">{user?.is_admin ? "Admin" : "User"}</p>
-          </div>
+      <div className="flex items-center space-x-3">
+        <div className="h-8 w-8 rounded-full bg-gradient-to-tr from-blue-500 to-purple-500 flex items-center justify-center text-white font-medium text-xs">
+          {initials}
+        </div>
+        <div className="hidden md:block">
+          <p className="text-sm font-medium text-gray-700">{user?.name || "User"}</p>
+          <p className="text-xs text-gray-500">{user?.is_admin ? "Admin" : "User"}</p>
         </div>
       </div>
+    </div>
   );
 }
