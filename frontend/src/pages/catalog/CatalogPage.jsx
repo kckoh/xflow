@@ -69,11 +69,7 @@ export default function CatalogPage() {
     return matchesSearch && matchesTag;
   });
 
-  const formatNumber = (num) => {
-    if (num >= 1000000) return `${(num / 1000000).toFixed(1)}M`;
-    if (num >= 1000) return `${(num / 1000).toFixed(1)}K`;
-    return num?.toString() || "0";
-  };
+
 
   return (
     <div className="p-6">
@@ -212,13 +208,7 @@ export default function CatalogPage() {
                 </div>
 
                 {/* Stats */}
-                <div className="grid grid-cols-3 gap-2 pt-2 border-t border-gray-100">
-                  <div className="text-center">
-                    <p className="text-sm font-semibold text-gray-900">
-                      {formatNumber(item.row_count)}
-                    </p>
-                    <p className="text-xs text-gray-500">Rows</p>
-                  </div>
+                <div className="grid grid-cols-2 gap-2 pt-2 border-t border-gray-100">
                   <div className="text-center">
                     <p className="text-sm font-semibold text-gray-900">
                       {formatFileSize(item.size_bytes)}
