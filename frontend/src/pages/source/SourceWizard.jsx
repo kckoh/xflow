@@ -56,7 +56,7 @@ const SOURCE_OPTIONS = [
   {
     id: "s3",
     name: "Amazon S3",
-    description: "Connect to S3 bucket",
+    description: "Import from S3 bucket",
     icon: Archive,
     color: "#FF9900",
   },
@@ -930,14 +930,15 @@ export default function SourceWizard() {
                     onDelete={handleDeleteConnection}
                     classNames={{
                       button:
-                        "px-4 py-2 border border-gray-300 rounded-lg bg-white focus:outline-none focus:ring-2 focus:ring-emerald-500",
+                        "px-4 py-2.5 rounded-xl border-emerald-200/70 bg-gradient-to-r from-white via-emerald-50/50 to-emerald-100/40 shadow-sm shadow-emerald-100/70 hover:shadow-md hover:shadow-emerald-200/70 focus:ring-2 focus:ring-emerald-400/60 focus:border-emerald-300 transition-all",
                       panel:
-                        "mt-2 rounded-lg border border-gray-200 bg-white shadow-lg",
-                      option: "rounded-lg mx-1 my-0.5 hover:bg-gray-50",
-                      optionSelected: "bg-gray-100",
-                      icon: "text-gray-500",
-                      footer: "rounded-b-lg bg-gray-50",
-                      empty: "text-gray-500",
+                        "mt-2 rounded-xl border-emerald-100/90 bg-white/95 shadow-xl shadow-emerald-100/60 ring-1 ring-emerald-100/70 backdrop-blur",
+                      option: "rounded-lg mx-1 my-0.5 hover:bg-emerald-50/70",
+                      optionSelected: "bg-emerald-50/80",
+                      icon: "text-emerald-500",
+                      footer:
+                        "rounded-b-xl bg-gradient-to-r from-white via-emerald-50/40 to-emerald-100/30",
+                      empty: "text-emerald-500/70",
                     }}
                   />
                 </div>
@@ -1008,7 +1009,7 @@ export default function SourceWizard() {
                     </label>
                     <Combobox
                       options={[
-                        { id: "log", label: "Log" },
+                        { id: "log", label: "Log (.log)" },
                         { id: "parquet", label: "Parquet (.parquet)" },
                       ]}
                       value={config.format || "log"}
@@ -1066,87 +1067,56 @@ export default function SourceWizard() {
                     <label className="block text-sm font-medium text-gray-700 mb-2">
                       Format
                     </label>
-                    <Combobox
-                      options={[
-                        { id: "json", label: "JSON" },
-                        { id: "raw", label: "Raw String" },
-                      ]}
+                    <select
                       value={config.format || "json"}
-                      onChange={(format) => {
-                        if (!format) {
-                          return;
-                        }
-                        setConfig((prev) => ({ ...prev, format: format.id }));
-                      }}
-                      getKey={(option) => option.id}
-                      getLabel={(option) => option.label}
-                      placeholder="Select a format..."
-                      classNames={{
-                        button:
-                          "px-4 py-2 border border-gray-300 rounded-lg bg-white focus:outline-none focus:ring-2 focus:ring-emerald-500",
-                        panel:
-                          "mt-2 rounded-lg border border-gray-200 bg-white shadow-lg",
-                        option: "rounded-lg mx-1 my-0.5 hover:bg-gray-50",
-                        optionSelected: "bg-gray-100",
-                        icon: "text-gray-500",
-                      }}
-                    />
+                      onChange={(e) =>
+                        setConfig((prev) => ({
+                          ...prev,
+                          format: e.target.value,
+                        }))
+                      }
+                      className="w-full px-4 py-2 border border-gray-300 rounded-lg bg-white focus:outline-none focus:ring-2 focus:ring-emerald-500"
+                    >
+                      <option value="json">JSON</option>
+                      <option value="raw">Raw String</option>
+                    </select>
                     <p className="mt-1 text-xs text-gray-500">
-                      JSON supports schema inference and columns, Raw stores as
-                      string.
+                      JSON은 스키마 추론/컬럼을 지원, Raw는 문자열 그대로
+                      저장합니다.
                     </p>
 
                     <div className="mt-4" />
                     <label className="block text-sm font-medium text-gray-700 mb-2">
                       Topic
                     </label>
-                    <Combobox
-                      options={kafkaTopics}
+                    <select
                       value={config.topic}
-                      onChange={(topic) => {
-                        if (!topic) {
-                          return;
-                        }
+                      onChange={(e) =>
                         setConfig({
                           ...config,
-                          topic: topic,
+                          topic: e.target.value,
                           columns: [],
-                        });
-                      }}
-                      getKey={(topic) => topic}
-                      getLabel={(topic) => topic}
-                      isLoading={kafkaTopicsLoading}
+                        })
+                      }
                       disabled={!config.connectionId || kafkaTopicsLoading}
-                      placeholder={
-                        kafkaTopicsLoading
+                      className="w-full px-4 py-2 border border-gray-300 rounded-lg bg-white focus:outline-none focus:ring-2 focus:ring-emerald-500 disabled:opacity-50"
+                    >
+                      <option value="">
+                        {kafkaTopicsLoading
                           ? "Loading topics..."
-                          : !config.connectionId
-                          ? "Select a connection first"
-                          : kafkaTopics.length === 0
-                          ? "No topics available"
-                          : "Select a topic..."
-                      }
-                      emptyMessage={
-                        !config.connectionId
-                          ? "Select a connection first"
-                          : "No topics available"
-                      }
-                      classNames={{
-                        button:
-                          "px-4 py-2 border border-gray-300 rounded-lg bg-white focus:outline-none focus:ring-2 focus:ring-emerald-500",
-                        panel:
-                          "mt-2 rounded-lg border border-gray-200 bg-white shadow-lg",
-                        option: "rounded-lg mx-1 my-0.5 hover:bg-gray-50",
-                        optionSelected: "bg-gray-100",
-                        icon: "text-gray-500",
-                        empty: "text-gray-500",
-                      }}
-                    />
+                          : "Select a topic"}
+                      </option>
+                      {kafkaTopics.map((topic) => (
+                        <option key={topic} value={topic}>
+                          {topic}
+                        </option>
+                      ))}
+                    </select>
                     <p className="mt-1 text-xs text-gray-500">
                       Choose a topic from the connected Kafka cluster.
                     </p>
 
-                    <div className="mt-4 flex items-center justify-end gap-2">
+                    <div className="mt-4 flex items-center gap-2">
                       <button
                         type="button"
                         onClick={handleKafkaSchemaFetch}
@@ -1173,9 +1143,8 @@ export default function SourceWizard() {
                     )}
                     {!kafkaTopicsLoading &&
                       !kafkaTopicsError &&
-                      config.connectionId &&
                       kafkaTopics.length === 0 && (
-                        <p className="mt-2 text-xs text-gray-500 text-right">
+                        <p className="mt-2 text-xs text-gray-500">
                           No topics found for this connection.
                         </p>
                       )}
