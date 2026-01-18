@@ -50,7 +50,7 @@ class RedisVectorClient:
         except redis.exceptions.ResponseError:
             # 인덱스 없음 - 새로 생성
             from redis.commands.search.field import TextField, VectorField, NumericField
-            from redis.commands.search.index_definition import IndexDefinition, IndexType
+            from redis.commands.search import IndexDefinition, IndexType
 
             schema = (
                 TextField("question"),
@@ -116,9 +116,13 @@ class RedisVectorClient:
                 similarity = 1 - float(doc.score)
 
                 if similarity >= threshold:
+                    # Handle both bytes and str (depending on decode_responses setting)
+                    question = doc.question.decode('utf-8') if isinstance(doc.question, bytes) else doc.question
+                    sql_query = doc.sql_query.decode('utf-8') if isinstance(doc.sql_query, bytes) else doc.sql_query
+
                     return {
-                        "question": doc.question.decode('utf-8'),
-                        "sql_query": doc.sql_query.decode('utf-8'),
+                        "question": question,
+                        "sql_query": sql_query,
                         "similarity": similarity
                     }
 
