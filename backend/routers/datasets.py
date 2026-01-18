@@ -166,7 +166,7 @@ async def create_dataset(dataset: DatasetCreate, session_id: Optional[str] = Non
     if dataset.destination and dataset.destination.type == "s3":
         import re
 
-        safe_name = re.sub(r"[^a-z0-9_]", "_", (dataset.name or "").lower()).strip("_")
+        safe_name = re.sub(r"[^a-z0-9_]", "_", (dataset.name or "").lower())
         safe_name = re.sub(r"_+", "_", safe_name)
         if safe_name and not re.match(r"^[a-z]", safe_name):
             safe_name = f"t_{safe_name}"
