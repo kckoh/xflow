@@ -39,7 +39,7 @@ import bisect
 
 # 설정값 (튜닝 가능)
 EXECUTOR_THRESHOLDS = [1, 10, 30, 50]
-EXECUTOR_COUNTS = [1, 2, 3, 4, 5]
+EXECUTOR_COUNTS = [2, 4, 6, 8, 10]
 
 # 파티션 설정: 128MB 타겟
 PARTITION_PER_GB = 8  # 1GB / 128MB = 8 partitions
@@ -134,7 +134,7 @@ def generate_spark_application(**context):
                 "serviceAccount": "spark-sa",
                 "nodeSelector": {
                     "node-type": "spark",
-                    "lifecycle": "spot",
+                    "lifecycle": "ondemand",
                 },
                 "tolerations": [
                     {
@@ -147,12 +147,12 @@ def generate_spark_application(**context):
                 "env": [{"name": "AWS_REGION", "value": "ap-northeast-2"}],
             },
             "executor": {
-                "cores": 4,
+                "cores": 2,
                 "instances": executor_instances,
-                "memory": "20g",
+                "memory": "10g",
                 "nodeSelector": {
                     "node-type": "spark",
-                    "lifecycle": "spot",
+                    "lifecycle": "ondemand",
                 },
                 "tolerations": [
                     {

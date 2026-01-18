@@ -1009,15 +1009,15 @@ export default function SourceWizard() {
                     </label>
                     <Combobox
                       options={[
-                        { id: "log", label: "Log (.log)" },
-                        { id: "parquet", label: "Parquet (.parquet)" },
+                        { id: "log", label: "Log" },
+                        { id: "parquet", label: "Parquet" },
                       ]}
                       value={config.format || "log"}
-                      onChange={(format) => {
-                        if (!format) {
+                      onChange={(option) => {
+                        if (!option) {
                           return;
                         }
-                        setConfig((prev) => ({ ...prev, format }));
+                        setConfig((prev) => ({ ...prev, format: option.id }));
                       }}
                       getKey={(option) => option.id}
                       getLabel={(option) => option.label}
