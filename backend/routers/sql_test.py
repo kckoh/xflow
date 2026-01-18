@@ -431,9 +431,10 @@ async def _load_sample_data(
         # Spark paths like s3a:// should be converted or handled
         duck_path = path.replace("s3a://", "s3://")
         
-        # Use DuckDB to read a sample from Parquet
+        # Use DuckDB to read a sample from Parquet or Delta
         con = duckdb.connect()
         con.execute("INSTALL httpfs; LOAD httpfs;")
+        con.execute("INSTALL delta; LOAD delta;")
         
         # Configure S3 (Prioritize config, fallback to environment)
         import os
@@ -527,7 +528,13 @@ async def _load_sample_data(
                     if key.endswith('.parquet') and not key.endswith('/'):
                         parquet_files.append(f"s3://{bucket_name}/{key}")
             
-            if parquet_files:
+            # Check if this is Delta Lake format
+            is_delta = file_format == "delta"
+            
+            if is_delta:
+                # Use delta_scan for Delta Lake
+                query = f"SELECT * FROM delta_scan('{duck_path}') LIMIT {limit}"
+            elif parquet_files:
                 files_str = ", ".join([f"'{f}'" for f in parquet_files])
                 query = f"SELECT * FROM read_parquet([{files_str}]) LIMIT {limit}"
             else:
