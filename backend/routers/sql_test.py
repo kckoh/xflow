@@ -228,6 +228,7 @@ async def _load_and_union_sources(
         df = await _load_sample_data(source_dataset, connection, limit=limit)
 
         if df is None or len(df) == 0:
+            print(f"[SQL Test Debug] Empty or None data for source: {source_dataset.get('name')}")
             continue
 
         # Debug: print loaded columns vs requested columns
