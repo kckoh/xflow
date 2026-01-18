@@ -1,11 +1,6 @@
 import { useState, useEffect } from "react";
 import { useNavigate, useLocation, useSearchParams } from "react-router-dom";
-import {
-  Plus,
-  Trash2,
-  Search,
-  Database,
-} from "lucide-react";
+import { Plus, Trash2, Search, Database } from "lucide-react";
 import ConfirmationModal from "../../components/common/ConfirmationModal";
 import CreateDatasetModal from "../../components/etl/CreateDatasetModal";
 import TargetImportModal from "../../components/etl/TargetImportModal";
@@ -63,8 +58,8 @@ export default function ETLMain() {
     setIsLoading(true);
     try {
       // Get session ID for permission filtering
-      const sessionId = sessionStorage.getItem('sessionId');
-      const sessionParam = sessionId ? `?session_id=${sessionId}` : '';
+      const sessionId = sessionStorage.getItem("sessionId");
+      const sessionParam = sessionId ? `?session_id=${sessionId}` : "";
 
       // Fetch both datasets and source datasets with session_id for permission filtering
       const [etlResponse, sourceResponse] = await Promise.all([
@@ -231,9 +226,13 @@ export default function ETLMain() {
                       onClick={() => {
                         const datasetType = job.dataset_type || "source";
                         if (datasetType === "target") {
-                          navigate(`/target`, { state: { jobId: job.id, editMode: true } });
+                          navigate(`/target`, {
+                            state: { jobId: job.id, editMode: true },
+                          });
                         } else {
-                          navigate(`/source`, { state: { jobId: job.id, editMode: true } });
+                          navigate(`/source`, {
+                            state: { jobId: job.id, editMode: true },
+                          });
                         }
                       }}
                     >
@@ -244,20 +243,24 @@ export default function ETLMain() {
                     </td>
                     <td className="px-3 py-3 text-sm">
                       <span
-                        className={`px-2 py-1 text-xs font-semibold rounded-full ${(job.dataset_type || "source") === "source"
-                          ? "bg-emerald-100 text-emerald-800"
-                          : "bg-orange-100 text-orange-800"
-                          }`}
+                        className={`px-2 py-1 text-xs font-semibold rounded-full ${
+                          (job.dataset_type || "source") === "source"
+                            ? "bg-emerald-100 text-emerald-800"
+                            : "bg-orange-100 text-orange-800"
+                        }`}
                       >
-                        {(job.dataset_type || "source") === "source" ? "Source" : "Target"}
+                        {(job.dataset_type || "source") === "source"
+                          ? "Source"
+                          : "Target"}
                       </span>
                     </td>
                     <td className="px-3 py-3 text-sm">
                       <span
-                        className={`px-2 py-1 text-xs font-semibold rounded-full ${job.is_active
-                          ? "bg-green-100 text-green-800"
-                          : "bg-gray-100 text-gray-600"
-                          }`}
+                        className={`px-2 py-1 text-xs font-semibold rounded-full ${
+                          job.is_active
+                            ? "bg-green-100 text-green-800"
+                            : "bg-gray-100 text-gray-600"
+                        }`}
                       >
                         {job.is_active ? "Active" : "Inactive"}
                       </span>
@@ -265,10 +268,11 @@ export default function ETLMain() {
                     <td className="px-3 py-3 text-sm">
                       {job.job_type === "cdc" ? (
                         <span
-                          className={`px-2 py-1 text-xs font-semibold rounded-full ${job.is_active
-                            ? "bg-green-100 text-green-800"
-                            : "bg-red-100 text-red-800"
-                            }`}
+                          className={`px-2 py-1 text-xs font-semibold rounded-full ${
+                            job.is_active
+                              ? "bg-green-100 text-green-800"
+                              : "bg-red-100 text-red-800"
+                          }`}
                         >
                           {job.is_active ? "CDC Active" : "CDC Stopped"}
                         </span>
@@ -286,7 +290,15 @@ export default function ETLMain() {
                       {job.description || "-"}
                     </td>
                     <td className="px-3 py-3 text-sm text-gray-500 truncate">
-                      {new Date(job.updated_at).toLocaleString()}
+                      {new Date(job.updated_at).toLocaleString("ko-KR", {
+                        timeZone: "Asia/Seoul",
+                        year: "numeric",
+                        month: "2-digit",
+                        day: "2-digit",
+                        hour: "2-digit",
+                        minute: "2-digit",
+                        second: "2-digit",
+                      })}
                     </td>
                     <td className="px-3 py-3 text-sm text-gray-900">
                       <button
