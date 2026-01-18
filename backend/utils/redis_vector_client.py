@@ -50,7 +50,7 @@ class RedisVectorClient:
         except redis.exceptions.ResponseError:
             # 인덱스 없음 - 새로 생성
             from redis.commands.search.field import TextField, VectorField, NumericField
-            from redis.commands.search.indexDefinition import IndexDefinition, IndexType
+            from redis.commands.search.index_definition import IndexDefinition, IndexType
 
             schema = (
                 TextField("question"),
@@ -61,7 +61,7 @@ class RedisVectorClient:
                         "TYPE": "FLOAT32",
                         "DIM": self.vector_dim,
                         "DISTANCE_METRIC": "COSINE",  # 코사인 유사도
-                        "INITIAL_CAP": 10000,  # 초기 용량
+                        "INITIAL_CAP": 5000,  # 초기 용량 (메모리 제한 고려)
                     }
                 ),
                 TextField("sql_query"),
