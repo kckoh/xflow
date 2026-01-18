@@ -109,7 +109,7 @@ function App() {
             path="/target"
             element={
               <ProtectedRoute requireEtlAccess>
-                <MainLayout>
+                <MainLayout fullWidth>
                   <TargetWizard />
                 </MainLayout>
               </ProtectedRoute>

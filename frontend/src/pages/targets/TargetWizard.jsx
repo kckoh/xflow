@@ -889,7 +889,7 @@ export default function TargetWizard() {
   };
 
   return (
-    <div className="min-h-screen bg-gray-50 flex flex-col -m-6">
+    <div className="h-full bg-gray-50 flex flex-col">
       {/* Header + Progress Steps */}
       <div className="bg-white border-b border-gray-200">
         {/* Header */}
@@ -974,42 +974,39 @@ export default function TargetWizard() {
             {steps.map((step, index) => {
               const stepIndex = index + 1;
               return (
-              <div
-                key={step.id}
-                className="flex items-center flex-1 last:flex-none"
-              >
-                <div className="flex flex-col items-center">
-                  <div
-                    className={`w-10 h-10 rounded-full flex items-center justify-center transition-colors shrink-0 ${
-                      currentStep > stepIndex
-                        ? "bg-orange-500 text-white"
-                        : currentStep === stepIndex
-                        ? "bg-orange-500 text-white"
-                        : "bg-gray-200 text-gray-500"
-                      }`}
-                  >
-                    {currentStep > stepIndex ? (
-                      <Check className="w-5 h-5" />
-                    ) : (
-                      <step.icon className="w-5 h-5" />
-                    )}
+                <div
+                  key={step.id}
+                  className="flex items-center flex-1 last:flex-none"
+                >
+                  <div className="flex flex-col items-center">
+                    <div
+                      className={`w-10 h-10 rounded-full flex items-center justify-center transition-colors shrink-0 ${currentStep > stepIndex
+                          ? "bg-orange-500 text-white"
+                          : currentStep === stepIndex
+                            ? "bg-orange-500 text-white"
+                            : "bg-gray-200 text-gray-500"
+                        }`}
+                    >
+                      {currentStep > stepIndex ? (
+                        <Check className="w-5 h-5" />
+                      ) : (
+                        <step.icon className="w-5 h-5" />
+                      )}
+                    </div>
+                    <span
+                      className={`mt-2 text-xs font-medium whitespace-nowrap ${currentStep >= stepIndex ? "text-gray-900" : "text-gray-500"
+                        }`}
+                    >
+                      {step.name}
+                    </span>
                   </div>
-                  <span
-                    className={`mt-2 text-xs font-medium whitespace-nowrap ${
-                      currentStep >= stepIndex ? "text-gray-900" : "text-gray-500"
-                    }`}
-                  >
-                    {step.name}
-                  </span>
+                  {index < steps.length - 1 && (
+                    <div
+                      className={`flex-1 h-1 mx-4 rounded self-center -mt-6 ${currentStep > stepIndex ? "bg-orange-500" : "bg-gray-200"
+                        }`}
+                    />
+                  )}
                 </div>
-                {index < steps.length - 1 && (
-                  <div
-                    className={`flex-1 h-1 mx-4 rounded self-center -mt-6 ${
-                      currentStep > stepIndex ? "bg-orange-500" : "bg-gray-200"
-                    }`}
-                  />
-                )}
-              </div>
               );
             })}
           </div>
