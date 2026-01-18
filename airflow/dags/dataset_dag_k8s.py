@@ -35,18 +35,34 @@ from etl_common import (
 from airflow import DAG
 
 
+import bisect
+
+# 설정값 (튜닝 가능)
+EXECUTOR_THRESHOLDS = [1, 10, 30, 50]
+EXECUTOR_COUNTS = [1, 2, 3, 4, 5]
+
+# 파티션 설정: 128MB 타겟
+PARTITION_PER_GB = 8  # 1GB / 128MB = 8 partitions
+MIN_PARTITIONS = 10
+MAX_PARTITIONS = 500
+
+
 def get_executor_count(size_gb: float) -> int:
     """Determine executor count based on data size"""
-    if size_gb <= 1:
-        return 1
-    elif size_gb <= 10:
-        return 2
-    elif size_gb <= 30:
-        return 3
-    elif size_gb <= 50:
-        return 4
-    else:
-        return 5
+    idx = bisect.bisect_right(EXECUTOR_THRESHOLDS, size_gb)
+    return EXECUTOR_COUNTS[idx]
+
+
+def get_partition_count(size_gb: float, executor_count: int) -> int:
+    """
+    Determine partition count based on data size.
+    목표: 128MB per partition, 최소 executor * cores * 2 보장
+    """
+    data_based = int(size_gb * PARTITION_PER_GB)
+    executor_based = executor_count * 4 * 2  # cores * 2
+
+    partitions = max(MIN_PARTITIONS, data_based, executor_based)
+    return min(partitions, MAX_PARTITIONS)
 
 
 def generate_spark_application(**context):
@@ -74,8 +90,9 @@ def generate_spark_application(**context):
     config = json.loads(config_json)
     estimated_size_gb = config.get("estimated_size_gb", 1)
     executor_instances = get_executor_count(estimated_size_gb)
+    partition_count = get_partition_count(estimated_size_gb, executor_instances)
     print(
-        f"Auto-scaling: {estimated_size_gb:.2f} GB -> {executor_instances} executor(s)"
+        f"Auto-scaling: {estimated_size_gb:.2f} GB -> {executor_instances} executor(s), {partition_count} partitions"
     )
 
     # Encode config to base64 for safe passing
@@ -100,7 +117,7 @@ def generate_spark_application(**context):
             "arguments": ["--base64", encoded_config],
             "sparkVersion": "3.5.0",
             "sparkConf": {
-                "spark.sql.shuffle.partitions": "100",
+                "spark.sql.shuffle.partitions": str(partition_count),
                 "spark.memory.fraction": "0.6",
                 "spark.hadoop.fs.s3a.impl": "org.apache.hadoop.fs.s3a.S3AFileSystem",
                 "spark.hadoop.fs.s3a.aws.credentials.provider": "com.amazonaws.auth.WebIdentityTokenCredentialsProvider",
