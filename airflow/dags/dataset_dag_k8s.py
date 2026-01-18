@@ -95,8 +95,11 @@ def generate_spark_application(**context):
         f"Auto-scaling: {estimated_size_gb:.2f} GB -> {executor_instances} executor(s), {partition_count} partitions"
     )
 
+    # Add partition_count to config for etl_runner.py to use
+    config["num_partitions"] = partition_count
+
     # Encode config to base64 for safe passing
-    encoded_config = base64.b64encode(config_json.encode("utf-8")).decode("utf-8")
+    encoded_config = base64.b64encode(json.dumps(config).encode("utf-8")).decode("utf-8")
 
     spark_app_name = f"etl-{dataset_id[:8]}-{clean_run_id}"
 

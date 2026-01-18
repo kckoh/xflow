@@ -1464,6 +1464,14 @@ def run_etl(config: dict):
             # Legacy single source - wrap in list
             sources = [config.get("source")]
 
+        # Inject global num_partitions into each source_config (for JDBC partitioning)
+        global_num_partitions = config.get("num_partitions")
+        if global_num_partitions:
+            print(f"📊 Using global num_partitions: {global_num_partitions}")
+            for source_config in sources:
+                if "num_partitions" not in source_config:
+                    source_config["num_partitions"] = global_num_partitions
+
         # Track if any source is NoSQL (for VOID type handling)
         has_nosql_source = False
 

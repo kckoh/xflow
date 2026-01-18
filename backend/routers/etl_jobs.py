@@ -149,6 +149,29 @@ async def create_etl_job(job: ETLJobCreate):
                     detail=f"Invalid source connection ID: {source_item.get('connection_id')}",
                 )
 
+    # If sources is empty, try to calculate size from nodes (Target Wizard)
+    if total_size_gb == 0 and job.nodes:
+        import database
+        from bson import ObjectId
+        db = database.mongodb_client[database.DATABASE_NAME]
+        for node in job.nodes:
+            node_data = node.get("data", {}) if isinstance(node, dict) else {}
+            if node_data.get("nodeCategory") == "source":
+                source_dataset_id = node_data.get("sourceDatasetId")
+                if source_dataset_id:
+                    try:
+                        source_doc = await db.source_datasets.find_one({"_id": ObjectId(source_dataset_id)})
+                        if source_doc and source_doc.get("connection_id"):
+                            connection = await Connection.get(PydanticObjectId(source_doc["connection_id"]))
+                            if connection:
+                                table_name = source_doc.get("table") or source_doc.get("collection")
+                                if table_name and connection.type in ["postgres", "mysql", "mongodb"]:
+                                    size_gb = await get_table_size_gb(connection, table_name)
+                                    total_size_gb += size_gb
+                                    print(f"   [Size] Calculated from node: {table_name} = {size_gb:.2f} GB")
+                    except Exception as e:
+                        print(f"   [Size] Failed to calculate size from node: {e}")
+
     # Create new ETL job with estimated size for Spark auto-scaling
     schedule = None
     if job.schedule_frequency:
