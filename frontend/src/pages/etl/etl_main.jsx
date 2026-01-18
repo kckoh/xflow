@@ -161,13 +161,8 @@ export default function ETLMain() {
       {/* Datasets Table */}
       <div className="bg-white rounded-lg shadow">
         {/* Header with Actions */}
-        <div className="border-b border-gray-200 px-6 py-4 flex items-center justify-between">
-          <div className="flex items-center gap-2">
-            <h2 className="text-lg font-semibold text-gray-900">
-              Datasets ({filteredJobs.length})
-            </h2>
-          </div>
-          <div className="relative">
+        <div className="border-b border-gray-200 px-6 py-4 flex items-center">
+          <div className="relative w-1/3">
             <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 w-4 h-4 text-gray-400" />
             <input
               type="text"
@@ -177,7 +172,7 @@ export default function ETLMain() {
                 setSearchQuery(e.target.value);
                 setCurrentPage(1); // Reset to first page on search
               }}
-              className="pl-9 pr-4 py-2 border border-gray-300 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent w-64"
+              className="pl-9 pr-4 py-2 border border-gray-300 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent w-full"
             />
           </div>
         </div>

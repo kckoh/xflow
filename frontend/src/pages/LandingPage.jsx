@@ -310,7 +310,7 @@ function LandingPage() {
                             {/* Visual 2 */}
                             <div className={`absolute inset-0 transition-opacity duration-700 ease-in-out bg-[#E8F0FE] flex items-center justify-center ${activeStickySection === 1 ? 'opacity-100' : 'opacity-0'}`}>
                                 <iframe
-                                    className="w-full h-full object-cover pointer-events-none scale-[1.2]"
+                                    className="w-full h-full object-cover pointer-events-none"
                                     src="https://www.youtube.com/embed/XgOV48YeqAI?autoplay=1&mute=1&loop=1&playlist=XgOV48YeqAI&controls=0&modestbranding=1&rel=0&iv_load_policy=3&fs=0&disablekb=1"
                                     title="Data Lake Architecture Video"
                                     allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
@@ -321,7 +321,7 @@ function LandingPage() {
                             {/* Visual 3 */}
                             <div className={`absolute inset-0 transition-opacity duration-700 ease-in-out bg-[#F3E8FD] flex items-center justify-center ${activeStickySection === 2 ? 'opacity-100' : 'opacity-0'}`}>
                                 <iframe
-                                    className="w-full h-full object-cover pointer-events-none scale-[1.2]"
+                                    className="w-full h-full object-cover pointer-events-none"
                                     src="https://www.youtube.com/embed/qTa5OIDCllo?autoplay=1&mute=1&loop=1&playlist=qTa5OIDCllo&controls=0&modestbranding=1&rel=0&iv_load_policy=3&fs=0&disablekb=1"
                                     title="Catalog Interface Video"
                                     allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
@@ -331,7 +331,7 @@ function LandingPage() {
                             {/* Visual 4 */}
                             <div className={`absolute inset-0 transition-opacity duration-700 ease-in-out bg-[#E6F4EA] flex items-center justify-center ${activeStickySection === 3 ? 'opacity-100' : 'opacity-0'}`}>
                                 <iframe
-                                    className="w-full h-full object-cover pointer-events-none scale-[1.2]"
+                                    className="w-full h-full object-cover pointer-events-none"
                                     src="https://www.youtube.com/embed/zE1il50QKpg?autoplay=1&mute=1&loop=1&playlist=zE1il50QKpg&controls=0&modestbranding=1&rel=0&iv_load_policy=3&fs=0&disablekb=1"
                                     title="Query Interface Video"
                                     allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
