@@ -36,7 +36,7 @@ export default function JobDetailPage() {
   const [activeTab, setActiveTab] = useState("info");
   const [searchFilter, setSearchFilter] = useState("");
   const [statusFilter, setStatusFilter] = useState("all");
-  const [copiedId, setCopiedId] = useState(false);
+
   const [isStreamingActive, setIsStreamingActive] = useState(false);
   const [streamingGroupId, setStreamingGroupId] = useState("");
   const { showToast } = useToast();
@@ -297,11 +297,13 @@ export default function JobDetailPage() {
     }
   };
 
-  const handleCopyId = async () => {
+  const [copiedText, setCopiedText] = useState(null);
+
+  const handleCopyText = async (text) => {
     try {
-      await navigator.clipboard.writeText(job?.id || "");
-      setCopiedId(true);
-      setTimeout(() => setCopiedId(false), 2000);
+      await navigator.clipboard.writeText(text || "");
+      setCopiedText(text);
+      setTimeout(() => setCopiedText(null), 2000);
     } catch (error) {
       console.error("Failed to copy:", error);
     }
@@ -454,8 +456,8 @@ export default function JobDetailPage() {
                       : handleRun
                   }
                   className={`inline-flex items-center gap-1 px-4 py-2 text-sm font-medium text-white rounded-lg transition-colors ${job?.job_type === "streaming" && isStreamingActive
-                      ? "bg-red-600 hover:bg-red-700"
-                      : "bg-green-600 hover:bg-green-700"
+                    ? "bg-red-600 hover:bg-red-700"
+                    : "bg-green-600 hover:bg-green-700"
                     }`}
                   title={
                     job?.job_type === "streaming"
@@ -489,8 +491,8 @@ export default function JobDetailPage() {
                   key={tab.id}
                   onClick={() => setActiveTab(tab.id)}
                   className={`flex items-center gap-2 px-1 py-4 border-b-2 font-medium text-sm transition-colors ${activeTab === tab.id
-                      ? "border-blue-500 text-blue-600"
-                      : "border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300"
+                    ? "border-blue-500 text-blue-600"
+                    : "border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300"
                     }`}
                 >
                   <Icon className="w-4 h-4" />
@@ -516,17 +518,17 @@ export default function JobDetailPage() {
               <div className="p-6">
                 <dl className="grid grid-cols-2 gap-6">
                   <div>
-                    <dt className="text-sm font-medium text-gray-500">ID</dt>
+                    <dt className="text-sm font-medium text-gray-500">Job ID</dt>
                     <dd className="mt-1 text-sm text-gray-900">
                       <div className="flex items-center gap-2">
-                        <span>{job?.id || "-"}</span>
-                        {job?.id && (
+                        <span>{job?.name || "-"}</span>
+                        {job?.name && (
                           <button
-                            onClick={handleCopyId}
+                            onClick={() => handleCopyText(job.name)}
                             className="p-1 hover:bg-gray-200 rounded transition-colors"
-                            title="Copy ID"
+                            title="Copy Job ID"
                           >
-                            {copiedId ? (
+                            {copiedText === job.name ? (
                               <Check className="w-3.5 h-3.5 text-green-600" />
                             ) : (
                               <Copy className="w-3.5 h-3.5 text-gray-400" />
@@ -551,12 +553,6 @@ export default function JobDetailPage() {
                     <dt className="text-sm font-medium text-gray-500">Owner</dt>
                     <dd className="mt-1 text-sm text-gray-900">
                       {job?.owner || "-"}
-                    </dd>
-                  </div>
-                  <div>
-                    <dt className="text-sm font-medium text-gray-500">Name</dt>
-                    <dd className="mt-1 text-sm text-gray-900">
-                      {job?.name || "-"}
                     </dd>
                   </div>
                   <div>
@@ -605,8 +601,8 @@ export default function JobDetailPage() {
                     <dd className="mt-1">
                       <span
                         className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${job?.is_active
-                            ? "bg-green-100 text-green-800"
-                            : "bg-gray-100 text-gray-500"
+                          ? "bg-green-100 text-green-800"
+                          : "bg-gray-100 text-gray-500"
                           }`}
                       >
                         {job?.is_active ? "Active" : "Inactive"}
@@ -1073,10 +1069,10 @@ export default function JobDetailPage() {
                           <p className="text-sm text-gray-500">Overall Score</p>
                           <p
                             className={`text-3xl font-bold ${qualityResult.overall_score >= 90
-                                ? "text-green-600"
-                                : qualityResult.overall_score >= 70
-                                  ? "text-yellow-600"
-                                  : "text-red-600"
+                              ? "text-green-600"
+                              : qualityResult.overall_score >= 70
+                                ? "text-yellow-600"
+                                : "text-red-600"
                               }`}
                           >
                             {Math.round(qualityResult.overall_score)}
@@ -1084,10 +1080,10 @@ export default function JobDetailPage() {
                         </div>
                         <div
                           className={`p-3 rounded-xl ${qualityResult.overall_score >= 90
-                              ? "bg-green-100"
-                              : qualityResult.overall_score >= 70
-                                ? "bg-yellow-100"
-                                : "bg-red-100"
+                            ? "bg-green-100"
+                            : qualityResult.overall_score >= 70
+                              ? "bg-yellow-100"
+                              : "bg-red-100"
                             }`}
                         >
                           {qualityResult.overall_score >= 90 ? (
@@ -1164,8 +1160,8 @@ export default function JobDetailPage() {
                                 <td className="px-6 py-4">
                                   <span
                                     className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium ${check.passed
-                                        ? "bg-green-100 text-green-700"
-                                        : "bg-red-100 text-red-700"
+                                      ? "bg-green-100 text-green-700"
+                                      : "bg-red-100 text-red-700"
                                       }`}
                                   >
                                     {check.passed ? (

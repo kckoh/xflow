@@ -562,10 +562,7 @@ export default function JobsPage() {
             <thead className="bg-gray-50 border-b border-gray-200">
               <tr>
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">
-                  ID
-                </th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">
-                  Name
+                  Job ID
                 </th>
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">
                   Owner
@@ -591,28 +588,22 @@ export default function JobsPage() {
                   className="hover:bg-gray-50 cursor-pointer"
                   onClick={() => navigate(`/etl/job/${job.id}/runs`)}
                 >
-                  <td className="px-6 py-4 text-sm text-gray-500">
+                  <td className="px-6 py-4">
                     <div className="flex items-center gap-2">
-                      <span>{job.id}</span>
+                      <div className="font-medium text-gray-900">
+                        {job.name}
+                      </div>
                       <button
-                        onClick={(e) => handleCopyId(job.id, e)}
+                        onClick={(e) => handleCopyId(job.name, e)}
                         className="p-1 hover:bg-gray-200 rounded transition-colors"
-                        title="Copy ID"
+                        title="Copy Job ID"
                       >
-                        {copiedId === job.id ? (
+                        {copiedId === job.name ? (
                           <Check className="w-3.5 h-3.5 text-green-600" />
                         ) : (
                           <Copy className="w-3.5 h-3.5 text-gray-400" />
                         )}
                       </button>
-                    </div>
-                  </td>
-                  <td className="px-6 py-4">
-                    <div>
-                      <div className="font-medium text-gray-900">
-                        {job.name}
-                      </div>
-                      {/* <div className="text-sm text-gray-500">{job.description}</div> */}
                     </div>
                   </td>
                   <td className="px-6 py-4 text-sm text-gray-500">
@@ -687,8 +678,8 @@ export default function JobsPage() {
                             handleRun(job.id);
                           }}
                           className={`inline-flex items-center gap-1 px-3 py-1.5 text-sm font-medium rounded-lg transition-colors ${job.job_type === "streaming" && streamingStates[job.id]
-                              ? "text-red-600 bg-red-50 hover:bg-red-100"
-                              : "text-green-600 bg-green-50 hover:bg-green-100"
+                            ? "text-red-600 bg-red-50 hover:bg-red-100"
+                            : "text-green-600 bg-green-50 hover:bg-green-100"
                             }`}
                           title={
                             job.job_type === "streaming"
