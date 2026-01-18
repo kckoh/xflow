@@ -225,7 +225,7 @@ async def _load_and_union_sources(
         )
         
         # Load sample data
-        df = await _load_sample_data(source_dataset, connection, limit=limit)
+            df = await _load_sample_data(source_dataset, connection, limit=limit)
 
         if df is None or len(df) == 0:
             continue
@@ -538,24 +538,30 @@ async def _load_sample_data(
                 files_str = ", ".join([f"'{f}'" for f in parquet_files])
                 query = f"SELECT * FROM read_parquet([{files_str}]) LIMIT {limit}"
             else:
-                 # Fallback
+                 # Fallback - no files found
                  debug_info = f"Boto3 found 0 files. Config: endpoint={endpoint}, bucket={bucket_name}, prefix={prefix}"
                  print(f"[DEBUG] {debug_info}")
                  
-                 if not duck_path.endswith('.parquet'):
-                     if not duck_path.endswith('/'):
-                         duck_path += '/'
-                     duck_path += '**/*.parquet'
-                 query = f"SELECT * FROM read_parquet('{duck_path}') LIMIT {limit}"
+                 if is_delta:
+                     query = f"SELECT * FROM delta_scan('{duck_path}') LIMIT {limit}"
+                 else:
+                     if not duck_path.endswith('.parquet'):
+                         if not duck_path.endswith('/'):
+                             duck_path += '/'
+                         duck_path += '**/*.parquet'
+                     query = f"SELECT * FROM read_parquet('{duck_path}') LIMIT {limit}"
 
         except Exception as e:
             print(f"[DEBUG] Boto3 listing failed: {e}")
-            # Fallback on error
-            if not duck_path.endswith('.parquet'):
-                 if not duck_path.endswith('/'):
-                     duck_path += '/'
-                 duck_path += '**/*.parquet'
-            query = f"SELECT * FROM read_parquet('{duck_path}') LIMIT {limit}"
+            # Fallback on error - check if Delta format
+            if file_format == "delta":
+                query = f"SELECT * FROM delta_scan('{duck_path}') LIMIT {limit}"
+            else:
+                if not duck_path.endswith('.parquet'):
+                     if not duck_path.endswith('/'):
+                         duck_path += '/'
+                     duck_path += '**/*.parquet'
+                query = f"SELECT * FROM read_parquet('{duck_path}') LIMIT {limit}"
 
         try:
             df = con.execute(query).df()
