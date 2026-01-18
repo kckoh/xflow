@@ -204,8 +204,8 @@ async def create_dataset(dataset: DatasetCreate, session_id: Optional[str] = Non
                         status_code=status.HTTP_400_BAD_REQUEST,
                         detail=f"Source connection not found: {source_item['connection_id']}"
                     )
-                # Calculate table size if table_name exists
-                table_name = source_item.get("table_name")
+                # Calculate table size if table exists
+                table_name = source_item.get("table") or source_item.get("table_name")
                 if table_name and connection.type in ["postgres", "mysql", "mongodb"]:
                     size_gb = await get_table_size_gb(connection, table_name)
                     source_item["size_gb"] = size_gb

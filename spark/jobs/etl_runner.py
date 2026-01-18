@@ -241,24 +241,30 @@ def read_rdb_source(spark: SparkSession, source_config: dict) -> DataFrame:
 
     if query:
         reader = reader.option("dbtable", f"({query}) as subquery")
+        df = reader.load()
     elif table:
         reader = reader.option("dbtable", table)
-        # Add partitioning only if partition_column is explicitly specified
-        partition_column = source_config.get("partition_column")
-        if partition_column:
-            num_partitions = source_config.get("num_partitions", 16)
-            lower_bound = source_config.get("lower_bound", 1)
-            upper_bound = source_config.get("upper_bound", 10000000)
-            print(f"   [Partition] column='{partition_column}', partitions={num_partitions}")
-            reader = reader \
+        # Default to "id" if partition_column not specified
+        partition_column = source_config.get("partition_column") or "id"
+        num_partitions = source_config.get("num_partitions", 16)
+        lower_bound = source_config.get("lower_bound", 1)
+        upper_bound = source_config.get("upper_bound", 10000000)
+
+        # Try with partitioning first, fall back to no partitioning if column doesn't exist
+        try:
+            print(f"   [Partition] Trying column='{partition_column}', partitions={num_partitions}")
+            partitioned_reader = reader \
                 .option("numPartitions", num_partitions) \
                 .option("partitionColumn", partition_column) \
                 .option("lowerBound", str(lower_bound)) \
                 .option("upperBound", str(upper_bound))
+            df = partitioned_reader.load()
+            print(f"   [Partition] Success - using {num_partitions} partitions")
+        except Exception as e:
+            print(f"   [Partition] Failed ({e}), falling back to single partition read")
+            df = reader.load()
     else:
         raise ValueError("Either 'table' or 'query' must be specified in source config")
-
-    df = reader.load()
     
     # Apply Incremental Load Filtering (Watermark)
     incremental_config = source_config.get("incremental_config", {})
