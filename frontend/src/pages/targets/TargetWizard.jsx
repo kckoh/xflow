@@ -981,10 +981,10 @@ export default function TargetWizard() {
                   <div className="flex flex-col items-center">
                     <div
                       className={`w-10 h-10 rounded-full flex items-center justify-center transition-colors shrink-0 ${currentStep > stepIndex
+                        ? "bg-orange-500 text-white"
+                        : currentStep === stepIndex
                           ? "bg-orange-500 text-white"
-                          : currentStep === stepIndex
-                            ? "bg-orange-500 text-white"
-                            : "bg-gray-200 text-gray-500"
+                          : "bg-gray-200 text-gray-500"
                         }`}
                     >
                       {currentStep > stepIndex ? (
