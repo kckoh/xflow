@@ -247,12 +247,38 @@ def read_rdb_source(spark: SparkSession, source_config: dict) -> DataFrame:
         # Default to "id" if partition_column not specified
         partition_column = source_config.get("partition_column") or "id"
         num_partitions = source_config.get("num_partitions", 16)
-        lower_bound = source_config.get("lower_bound", 1)
-        upper_bound = source_config.get("upper_bound", 10000000)
+
+        # Query actual min/max from DB for accurate partitioning
+        try:
+            bounds_query = f"(SELECT MIN({partition_column}) as min_val, MAX({partition_column}) as max_val FROM {table}) as bounds"
+            print(f"   [Partition] Querying min/max of '{partition_column}' from {table}...")
+            bounds_df = spark.read.format("jdbc") \
+                .option("url", jdbc_url) \
+                .option("dbtable", bounds_query) \
+                .option("user", connection.get("user_name", "postgres")) \
+                .option("password", connection.get("password", "postgres")) \
+                .option("driver", driver) \
+                .load()
+
+            bounds_row = bounds_df.first()
+            if bounds_row and bounds_row["min_val"] is not None and bounds_row["max_val"] is not None:
+                lower_bound = int(bounds_row["min_val"])
+                upper_bound = int(bounds_row["max_val"])
+                print(f"   [Partition] Found bounds: {lower_bound} ~ {upper_bound}")
+            else:
+                # Fallback to defaults if table is empty or column has nulls
+                lower_bound = source_config.get("lower_bound", 1)
+                upper_bound = source_config.get("upper_bound", 10000000)
+                print(f"   [Partition] Using default bounds: {lower_bound} ~ {upper_bound}")
+        except Exception as e:
+            # Fallback to config or defaults
+            lower_bound = source_config.get("lower_bound", 1)
+            upper_bound = source_config.get("upper_bound", 10000000)
+            print(f"   [Partition] Could not query bounds ({e}), using defaults: {lower_bound} ~ {upper_bound}")
 
         # Try with partitioning first, fall back to no partitioning if column doesn't exist
         try:
-            print(f"   [Partition] Trying column='{partition_column}', partitions={num_partitions}")
+            print(f"   [Partition] Trying column='{partition_column}', partitions={num_partitions}, bounds={lower_bound}~{upper_bound}")
             partitioned_reader = reader \
                 .option("numPartitions", num_partitions) \
                 .option("partitionColumn", partition_column) \
