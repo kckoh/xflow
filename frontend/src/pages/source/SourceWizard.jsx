@@ -1106,7 +1106,7 @@ export default function SourceWizard() {
                       Choose a topic from the connected Kafka cluster.
                     </p>
 
-                    <div className="mt-4 flex items-center gap-2">
+                    <div className="mt-4 flex items-center justify-end gap-2">
                       <button
                         type="button"
                         onClick={handleKafkaSchemaFetch}
@@ -1123,8 +1123,8 @@ export default function SourceWizard() {
                     {kafkaTopicsError && (
                       <p className="mt-2 text-xs text-red-600">{kafkaTopicsError}</p>
                     )}
-                    {!kafkaTopicsLoading && !kafkaTopicsError && kafkaTopics.length === 0 && (
-                      <p className="mt-2 text-xs text-gray-500">
+                    {!kafkaTopicsLoading && !kafkaTopicsError && config.connectionId && kafkaTopics.length === 0 && (
+                      <p className="mt-2 text-xs text-gray-500 text-right">
                         No topics found for this connection.
                       </p>
                     )}
