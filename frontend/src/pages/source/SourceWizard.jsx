@@ -897,17 +897,13 @@ export default function SourceWizard() {
                     onCreate={() => setShowCreateConnectionModal(true)}
                     onDelete={handleDeleteConnection}
                     classNames={{
-                      button:
-                        "px-4 py-2.5 rounded-xl border-emerald-200/70 bg-gradient-to-r from-white via-emerald-50/50 to-emerald-100/40 shadow-sm shadow-emerald-100/70 hover:shadow-md hover:shadow-emerald-200/70 focus:ring-2 focus:ring-emerald-400/60 focus:border-emerald-300 transition-all",
-                      panel:
-                        "mt-2 rounded-xl border-emerald-100/90 bg-white/95 shadow-xl shadow-emerald-100/60 ring-1 ring-emerald-100/70 backdrop-blur",
-                      option:
-                        "rounded-lg mx-1 my-0.5 hover:bg-emerald-50/70",
-                      optionSelected: "bg-emerald-50/80",
-                      icon: "text-emerald-500",
-                      footer:
-                        "rounded-b-xl bg-gradient-to-r from-white via-emerald-50/40 to-emerald-100/30",
-                      empty: "text-emerald-500/70",
+                      button: "px-4 py-2 border border-gray-300 rounded-lg bg-white focus:outline-none focus:ring-2 focus:ring-emerald-500",
+                      panel: "mt-2 rounded-lg border border-gray-200 bg-white shadow-lg",
+                      option: "rounded-lg mx-1 my-0.5 hover:bg-gray-50",
+                      optionSelected: "bg-gray-100",
+                      icon: "text-gray-500",
+                      footer: "rounded-b-lg bg-gray-50",
+                      empty: "text-gray-500",
                     }}
                   />
                 </div>
@@ -1051,13 +1047,11 @@ export default function SourceWizard() {
                       getLabel={(option) => option.label}
                       placeholder="Select a format..."
                       classNames={{
-                        button:
-                          "px-4 py-2.5 rounded-xl border-emerald-200/70 bg-gradient-to-r from-white via-emerald-50/50 to-emerald-100/40 shadow-sm shadow-emerald-100/70 hover:shadow-md hover:shadow-emerald-200/70 focus:ring-2 focus:ring-emerald-400/60 focus:border-emerald-300 transition-all",
-                        panel:
-                          "mt-2 rounded-xl border-emerald-100/90 bg-white/95 shadow-xl shadow-emerald-100/60 ring-1 ring-emerald-100/70 backdrop-blur",
-                        option: "rounded-lg mx-1 my-0.5 hover:bg-emerald-50/70",
-                        optionSelected: "bg-emerald-50/80",
-                        icon: "text-emerald-500",
+                        button: "px-4 py-2 border border-gray-300 rounded-lg bg-white focus:outline-none focus:ring-2 focus:ring-emerald-500",
+                        panel: "mt-2 rounded-lg border border-gray-200 bg-white shadow-lg",
+                        option: "rounded-lg mx-1 my-0.5 hover:bg-gray-50",
+                        optionSelected: "bg-gray-100",
+                        icon: "text-gray-500",
                       }}
                     />
                     <p className="mt-1 text-xs text-gray-500">
@@ -1100,14 +1094,12 @@ export default function SourceWizard() {
                           : "No topics available"
                       }
                       classNames={{
-                        button:
-                          "px-4 py-2.5 rounded-xl border-emerald-200/70 bg-gradient-to-r from-white via-emerald-50/50 to-emerald-100/40 shadow-sm shadow-emerald-100/70 hover:shadow-md hover:shadow-emerald-200/70 focus:ring-2 focus:ring-emerald-400/60 focus:border-emerald-300 transition-all",
-                        panel:
-                          "mt-2 rounded-xl border-emerald-100/90 bg-white/95 shadow-xl shadow-emerald-100/60 ring-1 ring-emerald-100/70 backdrop-blur",
-                        option: "rounded-lg mx-1 my-0.5 hover:bg-emerald-50/70",
-                        optionSelected: "bg-emerald-50/80",
-                        icon: "text-emerald-500",
-                        empty: "text-emerald-500/70",
+                        button: "px-4 py-2 border border-gray-300 rounded-lg bg-white focus:outline-none focus:ring-2 focus:ring-emerald-500",
+                        panel: "mt-2 rounded-lg border border-gray-200 bg-white shadow-lg",
+                        option: "rounded-lg mx-1 my-0.5 hover:bg-gray-50",
+                        optionSelected: "bg-gray-100",
+                        icon: "text-gray-500",
+                        empty: "text-gray-500",
                       }}
                     />
                     <p className="mt-1 text-xs text-gray-500">
