@@ -6,7 +6,8 @@ USER root
 COPY --from=ghcr.io/astral-sh/uv:latest /uv /usr/local/bin/uv
 
 # Install Python dependencies with uv (10-100x faster than pip)
-RUN uv pip install --system --no-cache boto3 pymongo requests delta-spark==3.2.0
+# Note: delta-spark pulls pyspark which causes disk issues, install separately if needed
+RUN uv pip install --system --no-cache boto3 pymongo requests psycopg2-binary pyarrow pandas
 
 # Copy Spark jobs with proper permissions
 COPY --chown=spark:spark jobs/ /opt/spark/jobs/

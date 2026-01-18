@@ -61,7 +61,7 @@ class RedisVectorClient:
                         "TYPE": "FLOAT32",
                         "DIM": self.vector_dim,
                         "DISTANCE_METRIC": "COSINE",  # 코사인 유사도
-                        "INITIAL_CAP": 10000,  # 초기 용량
+                        "INITIAL_CAP": 5000,  # 초기 용량 (메모리 제한 고려)
                     }
                 ),
                 TextField("sql_query"),

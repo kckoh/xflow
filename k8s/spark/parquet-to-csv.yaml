@@ -1,0 +1,56 @@
+apiVersion: sparkoperator.k8s.io/v1beta2
+kind: SparkApplication
+metadata:
+  name: parquet-to-csv
+  namespace: spark-jobs
+spec:
+  type: Python
+  pythonVersion: "3"
+  mode: cluster
+  image: 134059028370.dkr.ecr.ap-northeast-2.amazonaws.com/xflow-spark:latest
+  imagePullPolicy: Always
+  mainApplicationFile: local:///opt/spark/jobs/parquet_to_csv.py
+  arguments:
+    - "--input"
+    - "s3a://xflow-benchmark/yellow_taxi/processed/"
+    - "--output"
+    - "s3a://xflow-benchmark/yellow_taxi/csv/"
+    - "--use-iam-role"
+    - "--resume"
+  sparkVersion: "3.5.0"
+
+  sparkConf:
+    spark.sql.adaptive.enabled: "true"
+    spark.hadoop.fs.s3a.impl: "org.apache.hadoop.fs.s3a.S3AFileSystem"
+    spark.hadoop.fs.s3a.aws.credentials.provider: "com.amazonaws.auth.WebIdentityTokenCredentialsProvider"
+    spark.hadoop.fs.s3a.endpoint: "s3.ap-northeast-2.amazonaws.com"
+
+  driver:
+    cores: 2
+    memory: "4g"
+    serviceAccount: spark-sa
+    tolerations:
+      - key: spark-only
+        operator: Exists
+        effect: NoSchedule
+    env:
+      - name: AWS_REGION
+        value: ap-northeast-2
+
+  executor:
+    cores: 1
+    instances: 4
+    memory: "8g"
+    tolerations:
+      - key: spark-only
+        operator: Exists
+        effect: NoSchedule
+    env:
+      - name: AWS_REGION
+        value: ap-northeast-2
+
+  restartPolicy:
+    type: OnFailure
+    onFailureRetries: 2
+    onFailureRetryInterval: 30
+    onSubmissionFailureRetries: 2
