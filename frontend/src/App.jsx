@@ -25,12 +25,8 @@ import JobDetailPage from "./pages/etl/JobDetailPage";
 import { ToastProvider } from "./components/common/Toast";
 
 // Placeholder components for new routes
-const GlossaryPage = () => (
-  <div className="p-4 bg-white rounded-lg shadow">Glossary Page Content</div>
-);
-const SettingsPage = () => (
-  <div className="p-4 bg-white rounded-lg shadow">Settings Page Content</div>
-);
+
+
 
 function App() {
   return (
@@ -113,7 +109,7 @@ function App() {
             path="/target"
             element={
               <ProtectedRoute requireEtlAccess>
-                <MainLayout>
+                <MainLayout fullWidth>
                   <TargetWizard />
                 </MainLayout>
               </ProtectedRoute>
@@ -142,16 +138,7 @@ function App() {
             }
           />
 
-          <Route
-            path="/glossary"
-            element={
-              <ProtectedRoute>
-                <MainLayout>
-                  <GlossaryPage />
-                </MainLayout>
-              </ProtectedRoute>
-            }
-          />
+
 
           <Route
             path="/quality"
@@ -186,16 +173,7 @@ function App() {
             }
           />
 
-          <Route
-            path="/settings"
-            element={
-              <ProtectedRoute>
-                <MainLayout>
-                  <SettingsPage />
-                </MainLayout>
-              </ProtectedRoute>
-            }
-          />
+
 
           <Route
             path="/admin"
