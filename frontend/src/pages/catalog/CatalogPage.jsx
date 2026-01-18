@@ -200,9 +200,17 @@ export default function CatalogPage() {
                   <div className="flex-1">
                     <p className="text-xs text-gray-500 mb-1">Target</p>
                     <p className="text-xs text-gray-700 font-mono truncate">
-                      {typeof item.target === "string"
-                        ? item.target
-                        : item.destination?.path || item.target?.path || "S3"}
+                      {(() => {
+                        let path = typeof item.target === "string"
+                          ? item.target
+                          : item.destination?.path || item.target?.path || "S3";
+
+                        if (path !== "S3" && item.name && !path.endsWith(item.name)) {
+                          if (!path.endsWith("/")) path += "/";
+                          path += item.name;
+                        }
+                        return path;
+                      })()}
                     </p>
                   </div>
                 </div>
