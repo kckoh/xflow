@@ -1563,8 +1563,8 @@ export default function TargetWizard() {
 
         {/* Step 3: Transform/Process */}
         {activeStepId === 3 && (
-          <div className="flex-1 flex flex-col px-4 py-4">
-            <div className="max-w-[100%] mx-auto w-full h-full flex flex-col">
+          <div className="flex-1 overflow-y-auto px-4 py-4">
+            <div className="max-w-[100%] mx-auto w-full min-h-full flex flex-col">
               <div className="flex-1">
                 {/* ================= S3 Log Source ================= */}
                 {sourceNodes[0]?.data?.customRegex &&
