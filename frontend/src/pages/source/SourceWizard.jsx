@@ -52,7 +52,7 @@ const SOURCE_OPTIONS = [
   {
     id: "s3",
     name: "Amazon S3",
-    description: "Import from S3 bucket",
+    description: "Connect to S3 bucket",
     icon: Archive,
     color: "#FF9900",
   },
