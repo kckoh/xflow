@@ -524,30 +524,37 @@ async def _load_sample_data(
                 print(f"[DEBUG] Found {len(response['Contents'])} objects")
                 for obj in response['Contents']:
                     key = obj['Key']
-                    if key.endswith('.parquet') and not key.endswith('/'):
+                    # Exclude _delta_log directory (Delta Lake metadata)
+                    if key.endswith('.parquet') and not key.endswith('/') and '_delta_log' not in key:
                         parquet_files.append(f"s3://{bucket_name}/{key}")
             
             if parquet_files:
                 files_str = ", ".join([f"'{f}'" for f in parquet_files])
                 query = f"SELECT * FROM read_parquet([{files_str}]) LIMIT {limit}"
             else:
-                 # Fallback
-                 debug_info = f"Boto3 found 0 files. Config: endpoint={endpoint}, bucket={bucket_name}, prefix={prefix}"
+                 # Fallback - read parquet files directly, excluding _delta_log
+                 debug_info = f"Boto3 found 0 parquet files (excluding _delta_log). Config: endpoint={endpoint}, bucket={bucket_name}, prefix={prefix}"
                  print(f"[DEBUG] {debug_info}")
-                 
+
                  if not duck_path.endswith('.parquet'):
+                     # Use glob pattern to match only data files (part-*.parquet), exclude _delta_log
                      if not duck_path.endswith('/'):
                          duck_path += '/'
-                     duck_path += '**/*.parquet'
+                     # Delta Lake data files start with 'part-', checkpoint files are in _delta_log/
+                     duck_path += 'part-*.parquet'
+                     print(f"[DEBUG] Reading Delta data files with pattern: {duck_path}")
                  query = f"SELECT * FROM read_parquet('{duck_path}') LIMIT {limit}"
 
         except Exception as e:
             print(f"[DEBUG] Boto3 listing failed: {e}")
-            # Fallback on error
+            # Fallback on error - read parquet files directly, excluding _delta_log
             if not duck_path.endswith('.parquet'):
-                 if not duck_path.endswith('/'):
-                     duck_path += '/'
-                 duck_path += '**/*.parquet'
+                # Use glob pattern to match only data files (part-*.parquet), exclude _delta_log
+                if not duck_path.endswith('/'):
+                    duck_path += '/'
+                # Delta Lake data files start with 'part-', checkpoint files are in _delta_log/
+                duck_path += 'part-*.parquet'
+                print(f"[DEBUG] Reading Delta data files with pattern: {duck_path}")
             query = f"SELECT * FROM read_parquet('{duck_path}') LIMIT {limit}"
 
         try:

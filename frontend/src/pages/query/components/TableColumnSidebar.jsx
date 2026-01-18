@@ -96,11 +96,17 @@ export default function TableColumnSidebar({
       response.files?.forEach((file) => {
         const path = file.file || "";
         const relativePath = path.replace(`s3://${bucket}/`, "");
-        const parts = relativePath.split("/");
+        const parts = relativePath.split("/").filter(p => p); // filter empty strings
 
-        if (parts.length > 1) {
-          // 폴더 안의 파일
+        // Handle folder response from API (is_folder flag)
+        if (file.is_folder) {
+          folderSet.add(relativePath);
+        } else if (parts.length > 1) {
+          // 폴더 안의 파일 (legacy: file path contains folder)
           folderSet.add(parts[0]);
+        } else if (parts.length === 1 && !relativePath.endsWith(".parquet")) {
+          // Single name without extension - treat as folder
+          folderSet.add(relativePath);
         } else if (relativePath.endsWith(".parquet")) {
           // 루트에 있는 parquet 파일
           rootFiles.push({
@@ -115,7 +121,7 @@ export default function TableColumnSidebar({
       // 폴더 목록
       const folderItems = Array.from(folderSet).map((name) => ({
         name,
-        path: `s3://${bucket}/${name}/**/*.parquet`,
+        path: `s3://${bucket}/${name}/part-*.parquet`,
         bucket,
         isFile: false,
       }));

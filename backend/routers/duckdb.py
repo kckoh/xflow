@@ -142,13 +142,37 @@ async def list_bucket_files(
     """특정 버킷의 파일 목록 조회 (권한 체크 포함)"""
     try:
         s3 = get_s3_client()
-        response = s3.list_objects_v2(Bucket=bucket, Prefix=prefix)
+
+        # Use Delimiter to get folder-level listing (much faster, avoids 1000 file limit issue)
+        # This returns CommonPrefixes (folders) instead of individual files
+        response = s3.list_objects_v2(Bucket=bucket, Prefix=prefix, Delimiter='/')
+
         files = []
+
+        # Add folders (CommonPrefixes)
+        for prefix_obj in response.get("CommonPrefixes", []):
+            folder_name = prefix_obj["Prefix"].rstrip("/")
+            # Skip internal folders like _checkpoints, _delta_log
+            if folder_name.startswith("_"):
+                continue
+            files.append(
+                {
+                    "file": f"s3://{bucket}/{folder_name}",
+                    "size": 0,  # Folder size not available directly
+                    "is_folder": True,
+                }
+            )
+
+        # Also add files at this level (not in subfolders)
         for obj in response.get("Contents", []):
+            # Skip if it's a folder marker
+            if obj["Key"].endswith("/"):
+                continue
             files.append(
                 {
                     "file": f"s3://{bucket}/{obj['Key']}",
                     "size": obj["Size"],
+                    "is_folder": False,
                 }
             )
 
