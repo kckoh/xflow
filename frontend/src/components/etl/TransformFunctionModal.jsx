@@ -70,7 +70,7 @@ export default function TransformFunctionModal({ column, onApply, onClose }) {
     };
 
     return (
-        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-[1002]">
             <div className="bg-white rounded-2xl shadow-xl border border-slate-200 w-[550px] max-h-[85vh] overflow-hidden">
                 {/* Header */}
                 <div className="px-6 py-4 border-b border-slate-100 bg-slate-50/50">
