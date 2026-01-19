@@ -490,24 +490,32 @@ export default function JobsPage() {
   };
 
   const getJobStatus = (job, runs) => {
-    // CDC job: running if active, otherwise -
+    // CDC job
     if (job.job_type === "cdc") {
-      return job.is_active
+      if (!job.is_active) {
+        return { label: "Stopped", color: "yellow" };
+      }
+      // Check if there's an active run
+      const hasActiveRun =
+        runs &&
+        runs.length > 0 &&
+        (runs[0].status === "running" || runs[0].status === "pending");
+      return hasActiveRun
         ? { label: "Running", color: "green" }
-        : { label: "-", color: "gray" };
+        : { label: "Scheduled", color: "blue" };
     }
 
+    // Streaming job
     if (job.job_type === "streaming") {
       return streamingStates[job.id]
         ? { label: "Running", color: "green" }
-        : { label: "Stopped", color: "gray" };
+        : { label: "Stopped", color: "yellow" };
     }
 
     // Batch job with schedule
     if (job.schedule) {
-      // If toggle is OFF, show -
       if (!job.is_active) {
-        return { label: "-", color: "gray" };
+        return { label: "Stopped", color: "yellow" };
       }
 
       // Toggle is ON - check if there's an active run
@@ -517,12 +525,12 @@ export default function JobsPage() {
         (runs[0].status === "running" || runs[0].status === "pending");
 
       return hasActiveRun
-        ? { label: "Running", color: "green" } // DAG is executing
-        : { label: "Ready", color: "blue" }; // Waiting for next schedule
+        ? { label: "Running", color: "green" }
+        : { label: "Scheduled", color: "blue" };
     }
 
     // No schedule (manual job)
-    return { label: "-", color: "gray" };
+    return { label: "Unscheduled", color: "gray" };
   };
 
   const filteredJobs = jobs.filter((job) => {
@@ -543,9 +551,9 @@ export default function JobsPage() {
     const matchesStatus =
       statusFilter === "all" ||
       (statusFilter === "running" && jobStatus.label === "Running") ||
-      (statusFilter === "ready" && jobStatus.label === "Ready") ||
-      (statusFilter === "stopped" &&
-        (jobStatus.label === "Stopped" || jobStatus.label === "-"));
+      (statusFilter === "scheduled" && jobStatus.label === "Scheduled") ||
+      (statusFilter === "unscheduled" && jobStatus.label === "Unscheduled") ||
+      (statusFilter === "stopped" && jobStatus.label === "Stopped");
 
     // Active filter
     const matchesActive =
@@ -615,12 +623,13 @@ export default function JobsPage() {
               </div>
 
               {/* Status Filter */}
-              <div className="w-40">
+              <div className="w-44">
                 <Combobox
                   options={[
                     { id: "all", name: "All Status" },
                     { id: "running", name: "Running" },
-                    { id: "ready", name: "Ready" },
+                    { id: "scheduled", name: "Scheduled" },
+                    { id: "unscheduled", name: "Unscheduled" },
                     { id: "stopped", name: "Stopped" },
                   ]}
                   value={statusFilter}
@@ -776,7 +785,9 @@ export default function JobsPage() {
                           ? "bg-green-100 text-green-800"
                           : status.color === "blue"
                             ? "bg-blue-100 text-blue-800"
-                            : "bg-gray-100 text-gray-500";
+                            : status.color === "yellow"
+                              ? "bg-yellow-100 text-yellow-800"
+                              : "bg-gray-100 text-gray-500";
 
                       return (
                         <span
