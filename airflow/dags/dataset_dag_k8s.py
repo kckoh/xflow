@@ -16,7 +16,8 @@ import base64
 import json
 from datetime import datetime
 
-from airflow.operators.python import PythonOperator
+from airflow.operators.python import BranchPythonOperator, PythonOperator
+from airflow.operators.empty import EmptyOperator
 from airflow.providers.cncf.kubernetes.operators.spark_kubernetes import (
     SparkKubernetesOperator,
 )
@@ -30,6 +31,12 @@ from etl_common import (
     on_success_callback,
     register_trino_table,
     run_quality_check,
+)
+from snapshot_export_common import (
+    should_use_snapshot_export,
+    start_snapshot_export,
+    wait_for_export_complete,
+    cleanup_snapshot,
 )
 
 from airflow import DAG
@@ -65,9 +72,45 @@ def get_partition_count(size_gb: float, executor_count: int) -> int:
     return min(partitions, MAX_PARTITIONS)
 
 
+def generate_spark_application_with_snapshot(**context):
+    """Generate SparkApplication YAML with snapshot export paths injected"""
+    from snapshot_export_common import build_snapshot_path_for_source
+
+    config_json = context["ti"].xcom_pull(task_ids="fetch_dataset_config")
+    config = json.loads(config_json)
+
+    # Get export info from wait_for_export task
+    export_info = context["ti"].xcom_pull(task_ids="wait_for_export")
+
+    if export_info:
+        print(f"[Snapshot Mode] Injecting snapshot export paths into sources")
+        for source in config.get("sources", []):
+            if source.get("type") in ["rdb", "postgres", "mysql", "postgresql"]:
+                snapshot_path = build_snapshot_path_for_source(export_info, source)
+                if snapshot_path:
+                    source["snapshot_export_path"] = snapshot_path
+                    print(f"   [{source.get('nodeId')}] snapshot_export_path: {snapshot_path}")
+
+    # Re-encode config with snapshot paths
+    config_json = json.dumps(config)
+
+    # Store for downstream and call common generation logic
+    context["ti"].xcom_push(key="config_with_snapshot", value=config_json)
+
+    # Call the common generation function with modified config
+    return _generate_spark_application_common(config_json, context)
+
+
 def generate_spark_application(**context):
     """Generate SparkApplication YAML from dataset config"""
     config_json = context["ti"].xcom_pull(task_ids="fetch_dataset_config")
+    return _generate_spark_application_common(config_json, context)
+
+
+def _generate_spark_application_common(config_json: str, context):
+    """Common logic for generating SparkApplication YAML"""
+    import re
+
     # Support both dataset_id (direct run) and job_id (scheduled run)
     dataset_id = context["dag_run"].conf.get("dataset_id") or context[
         "dag_run"
@@ -76,8 +119,6 @@ def generate_spark_application(**context):
     # Extract run_id from dag_run_id for unique naming
     dag_run_id = context["dag_run"].run_id
     # Use last segment after underscore for uniqueness (e.g., dataset_xxx_yyy -> yyy)
-    import re
-
     parts = dag_run_id.split("_")
     if len(parts) >= 2:
         clean_run_id = re.sub(r"[^a-z0-9]", "", parts[-1].lower())[:16]
@@ -196,55 +237,122 @@ with DAG(
         python_callable=fetch_dataset_config,
     )
 
-    # Task 2: Generate SparkApplication spec
-    generate_spark_spec = PythonOperator(
-        task_id="generate_spark_spec",
+    # Task 2: Decide mode (snapshot_export or jdbc)
+    decide_mode = BranchPythonOperator(
+        task_id="decide_mode",
+        python_callable=should_use_snapshot_export,
+    )
+
+    # === SNAPSHOT EXPORT PATH ===
+    # Task 3a: Start RDS Snapshot Export
+    start_export = PythonOperator(
+        task_id="start_snapshot_export",
+        python_callable=start_snapshot_export,
+    )
+
+    # Task 3b: Wait for Export Complete
+    wait_export = PythonOperator(
+        task_id="wait_for_export",
+        python_callable=wait_for_export_complete,
+    )
+
+    # Task 3c: Generate Spark spec with snapshot paths
+    generate_spark_spec_snapshot = PythonOperator(
+        task_id="generate_spark_spec_snapshot",
+        python_callable=generate_spark_application_with_snapshot,
+    )
+
+    # === JDBC PATH ===
+    # Task 4: Generate SparkApplication spec (standard JDBC)
+    generate_spark_spec_jdbc = PythonOperator(
+        task_id="generate_spark_spec_jdbc",
         python_callable=generate_spark_application,
     )
 
-    # Task 3: Submit Spark job (no watch - just submit)
+    # Task 5: Join paths after branching
+    join_paths = EmptyOperator(
+        task_id="join_paths",
+        trigger_rule="none_failed_min_one_success",
+    )
+
+    # Task 6: Submit Spark job (reads from whichever generate_spark_spec ran)
     submit_spark_job = SparkKubernetesOperator(
         task_id="submit_spark_job",
         namespace="spark-jobs",
-        application_file="{{ ti.xcom_pull(task_ids='generate_spark_spec') }}",
+        application_file="{{ ti.xcom_pull(task_ids='generate_spark_spec_snapshot', default=None) or ti.xcom_pull(task_ids='generate_spark_spec_jdbc', default=None) }}",
         kubernetes_conn_id="kubernetes_default",
         do_xcom_push=True,
         watch=False,  # Don't watch - use sensor instead
     )
 
-    # Task 4: Wait for Spark job completion (polling)
+    # Task 7: Wait for Spark job completion (polling)
     wait_for_spark = SparkKubernetesSensor(
         task_id="wait_for_spark",
         namespace="spark-jobs",
-        application_name="{{ ti.xcom_pull(task_ids='generate_spark_spec', key='spark_app_name') }}",
+        application_name="{{ ti.xcom_pull(task_ids='generate_spark_spec_snapshot', key='spark_app_name', default=None) or ti.xcom_pull(task_ids='generate_spark_spec_jdbc', key='spark_app_name', default=None) }}",
         kubernetes_conn_id="kubernetes_default",
         poke_interval=30,  # Check every 30 seconds
         timeout=3600,  # 1 hour timeout
     )
 
-    # Task 5: Register Delta Lake table in Trino
+    # Task 8: Cleanup snapshot (only runs if snapshot export was used)
+    cleanup_snap = PythonOperator(
+        task_id="cleanup_snapshot",
+        python_callable=cleanup_snapshot,
+        trigger_rule="none_failed",  # Run even if snapshot export wasn't used
+    )
+
+    # Task 9: Register Delta Lake table in Trino
     register_table = PythonOperator(
         task_id="register_trino_table",
         python_callable=register_trino_table,
     )
 
-    # Task 6: Run Quality Check
+    # Task 10: Run Quality Check
     quality_check = PythonOperator(
         task_id="run_quality_check",
         python_callable=run_quality_check,
     )
 
-    # Task 7: Finalize import
+    # Task 11: Finalize import
     finalize = PythonOperator(
         task_id="finalize_import",
         python_callable=finalize_import,
     )
 
+    # DAG Flow:
+    # fetch_config → decide_mode
+    #                    ├── [snapshot_export] → start_export → wait_export → generate_spark_spec_snapshot ─┐
+    #                    └── [jdbc] → generate_spark_spec_jdbc ───────────────────────────────────────────────┤
+    #                                                                                                         ↓
+    #                                                                                                     join_paths
+    #                                                                                                         ↓
+    #                                                                                                   submit_spark_job
+    #                                                                                                         ↓
+    #                                                                                                   wait_for_spark
+    #                                                                                                         ↓
+    #                                                                                                   cleanup_snapshot
+    #                                                                                                         ↓
+    #                                                                                                   register_table
+    #                                                                                                         ↓
+    #                                                                                                   quality_check
+    #                                                                                                         ↓
+    #                                                                                                     finalize
+
+    fetch_config >> decide_mode
+
+    # Snapshot Export path
+    decide_mode >> start_export >> wait_export >> generate_spark_spec_snapshot >> join_paths
+
+    # JDBC path
+    decide_mode >> generate_spark_spec_jdbc >> join_paths
+
+    # Common path after join
     (
-        fetch_config
-        >> generate_spark_spec
+        join_paths
         >> submit_spark_job
         >> wait_for_spark
+        >> cleanup_snap
         >> register_table
         >> quality_check
         >> finalize
