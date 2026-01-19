@@ -39,7 +39,7 @@ import bisect
 
 # 설정값 (튜닝 가능)
 # 50GB 이하는 4개 executor면 충분
-EXECUTOR_THRESHOLDS = [1, 10, 50, 100]
+EXECUTOR_THRESHOLDS = [1, 10, 51, 100]  # 50GB → 4 executors
 EXECUTOR_COUNTS = [2, 3, 4, 6, 8]
 
 # 파티션 설정: 128MB 타겟
