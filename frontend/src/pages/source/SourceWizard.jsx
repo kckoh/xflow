@@ -1016,7 +1016,7 @@ export default function SourceWizard() {
                         if (!format) {
                           return;
                         }
-                        setConfig((prev) => ({ ...prev, format }));
+                        setConfig((prev) => ({ ...prev, format: format.id }));
                       }}
                       getKey={(option) => option.id}
                       getLabel={(option) => option.label}
