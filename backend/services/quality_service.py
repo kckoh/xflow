@@ -313,13 +313,6 @@ class QualityService:
                     message=f"{null_ratio:.2f}% nulls (-{penalty:.1f} pts)" if penalty > 0 else None
                 ))
                 
-                if not null_deducted:
-                     # Accumulate max penalty across columns, but cap at 25
-                     # For simplicity, we just take the penalty of the worst column
-                     # Or sum them? Let's take the worst column's penalty for now to be safe
-                     # Logic: Score = Score - Penalty
-                     pass 
-            
             # Find max null penalty
             max_null_ratio = 0.0
             if null_counts:
