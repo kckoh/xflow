@@ -433,49 +433,54 @@ export default function JobDetailPage() {
           </div>
 
           <div className="flex items-center gap-3">
-            {/* Toggle with label */}
-            <div className="flex items-center gap-2">
-              {job?.job_type !== "streaming" && (
-                <button
-                  onClick={handleToggle}
-                  className={`relative inline-flex h-6 w-11 flex-shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none ${job?.is_active ? "bg-green-500" : "bg-gray-300"
-                    }`}
-                >
-                  <span
-                    className={`pointer-events-none inline-block h-5 w-5 transform rounded-full bg-white shadow ring-0 transition duration-200 ease-in-out ${job?.is_active ? "translate-x-5" : "translate-x-0"
-                      }`}
-                  />
-                </button>
-              )}
-              {/* Action Buttons */}
-              {job?.job_type !== "cdc" && (
-                <button
-                  onClick={
-                    job?.job_type === "streaming" && isStreamingActive
-                      ? handleStop
-                      : handleRun
-                  }
-                  className={`inline-flex items-center gap-1 px-4 py-2 text-sm font-medium text-white rounded-lg transition-colors ${job?.job_type === "streaming" && isStreamingActive
-                    ? "bg-red-600 hover:bg-red-700"
-                    : "bg-green-600 hover:bg-green-700"
-                    }`}
-                  title={
-                    job?.job_type === "streaming"
-                      ? (isStreamingActive ? "Stop" : "Start")
-                      : "Run"
-                  }
-                >
-                  {job?.job_type === "streaming" && isStreamingActive ? (
-                    <Pause className="w-4 h-4" />
-                  ) : (
-                    <Play className="w-4 h-4" />
-                  )}
-                  {job?.job_type === "streaming"
-                    ? (isStreamingActive ? "Stop" : "Start")
-                    : "Run"}
-                </button>
-              )}
-            </div>
+            {/* Action Buttons */}
+            {job?.job_type !== "cdc" && (
+              <button
+                onClick={
+                  job?.job_type === "streaming" && isStreamingActive
+                    ? handleStop
+                    : handleRun
+                }
+                className={`inline-flex items-center justify-center p-2 rounded-lg transition-colors ${
+                  job?.job_type === "streaming" && isStreamingActive
+                    ? "text-orange-600 bg-orange-50 hover:bg-orange-100"
+                    : job?.job_type === "streaming"
+                      ? "text-green-600 bg-green-50 hover:bg-green-100"
+                      : "text-purple-600 bg-purple-50 hover:bg-purple-100"
+                }`}
+                title={
+                  job?.job_type === "streaming"
+                    ? (isStreamingActive ? "Pause" : "Start")
+                    : "Instant Run"
+                }
+              >
+                {job?.job_type === "streaming" && isStreamingActive ? (
+                  <Pause className="w-4 h-4" />
+                ) : job?.job_type === "streaming" ? (
+                  <Play className="w-4 h-4" />
+                ) : (
+                  <Zap className="w-4 h-4" />
+                )}
+              </button>
+            )}
+            {/* Run/Pause button for scheduled jobs */}
+            {job?.job_type !== "streaming" && (
+              <button
+                onClick={handleToggle}
+                className={`inline-flex items-center justify-center p-2 rounded-lg transition-colors ${
+                  job?.is_active
+                    ? "text-orange-600 bg-orange-50 hover:bg-orange-100"
+                    : "text-green-600 bg-green-50 hover:bg-green-100"
+                }`}
+                title={job?.is_active ? "Pause Schedule" : "Run Schedule"}
+              >
+                {job?.is_active ? (
+                  <Pause className="w-4 h-4" />
+                ) : (
+                  <Play className="w-4 h-4" />
+                )}
+              </button>
+            )}
           </div>
         </div>
       </div>
