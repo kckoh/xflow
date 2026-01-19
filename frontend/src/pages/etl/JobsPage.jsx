@@ -13,6 +13,7 @@ import {
   Check,
   Filter,
   XCircle,
+  Pause,
 } from "lucide-react";
 import { API_BASE_URL } from "../../config/api";
 import SchedulesPanel from "../../components/etl/SchedulesPanel";
@@ -446,7 +447,7 @@ export default function JobsPage() {
         if (response.ok) {
           setStreamingStates((prev) => ({ ...prev, [jobId]: !isActive }));
           showToast(
-            isActive ? "Streaming job stopped." : "Streaming job started.",
+            isActive ? "Streaming job paused." : "Streaming job started.",
             "success"
           );
         } else {
@@ -493,7 +494,7 @@ export default function JobsPage() {
     // CDC job
     if (job.job_type === "cdc") {
       if (!job.is_active) {
-        return { label: "Stopped", color: "yellow" };
+        return { label: "Paused", color: "yellow" };
       }
       // Check if there's an active run
       const hasActiveRun =
@@ -509,13 +510,13 @@ export default function JobsPage() {
     if (job.job_type === "streaming") {
       return streamingStates[job.id]
         ? { label: "Running", color: "green" }
-        : { label: "Stopped", color: "yellow" };
+        : { label: "Paused", color: "yellow" };
     }
 
     // Batch job with schedule
     if (job.schedule) {
       if (!job.is_active) {
-        return { label: "Stopped", color: "yellow" };
+        return { label: "Paused", color: "yellow" };
       }
 
       // Toggle is ON - check if there's an active run
@@ -553,7 +554,7 @@ export default function JobsPage() {
       (statusFilter === "running" && jobStatus.label === "Running") ||
       (statusFilter === "scheduled" && jobStatus.label === "Scheduled") ||
       (statusFilter === "unscheduled" && jobStatus.label === "Unscheduled") ||
-      (statusFilter === "stopped" && jobStatus.label === "Stopped");
+      (statusFilter === "paused" && jobStatus.label === "Paused");
 
     // Active filter
     const matchesActive =
@@ -630,7 +631,7 @@ export default function JobsPage() {
                     { id: "running", name: "Running" },
                     { id: "scheduled", name: "Scheduled" },
                     { id: "unscheduled", name: "Unscheduled" },
-                    { id: "stopped", name: "Stopped" },
+                    { id: "paused", name: "Paused" },
                   ]}
                   value={statusFilter}
                   onChange={(option) => setStatusFilter(option.id)}
@@ -701,18 +702,18 @@ export default function JobsPage() {
             {(jobTypeFilter !== "all" ||
               statusFilter !== "all" ||
               activeFilter !== "all") && (
-              <button
-                onClick={() => {
-                  setJobTypeFilter("all");
-                  setStatusFilter("all");
-                  setActiveFilter("all");
-                }}
-                className="flex items-center gap-1 px-3 py-1.5 text-xs font-medium text-gray-600 hover:text-gray-900 hover:bg-gray-100 rounded-lg transition-colors"
-              >
-                <XCircle className="w-3.5 h-3.5" />
-                Clear All
-              </button>
-            )}
+                <button
+                  onClick={() => {
+                    setJobTypeFilter("all");
+                    setStatusFilter("all");
+                    setActiveFilter("all");
+                  }}
+                  className="flex items-center gap-1 px-3 py-1.5 text-xs font-medium text-gray-600 hover:text-gray-900 hover:bg-gray-100 rounded-lg transition-colors"
+                >
+                  <XCircle className="w-3.5 h-3.5" />
+                  Clear All
+                </button>
+              )}
           </div>
         </div>
       </div>
@@ -744,7 +745,7 @@ export default function JobsPage() {
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">
                   Last Run
                 </th>
-                <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase">
+                <th className="px-6 py-3 text-center text-xs font-medium text-gray-500 uppercase w-px whitespace-nowrap">
                   Actions
                 </th>
               </tr>
@@ -847,36 +848,62 @@ export default function JobsPage() {
                             e.stopPropagation();
                             handleRun(job.id);
                           }}
-                          className={`inline-flex items-center gap-1 px-3 py-1.5 text-sm font-medium rounded-lg transition-colors ${job.job_type === "streaming" && streamingStates[job.id]
-                            ? "text-red-600 bg-red-50 hover:bg-red-100"
-                            : "text-green-600 bg-green-50 hover:bg-green-100"
+                          className={`inline-flex items-center justify-center gap-1.5 px-3 py-1.5 text-sm font-medium rounded-lg transition-colors ${job.job_type === "streaming"
+                            ? "w-28"
+                            : "w-32"
+                            } ${job.job_type === "streaming" && streamingStates[job.id]
+                              ? "text-orange-600 bg-orange-50 hover:bg-orange-100"
+                              : job.job_type === "streaming"
+                                ? "text-green-600 bg-green-50 hover:bg-green-100"
+                                : "text-purple-600 bg-purple-50 hover:bg-purple-100"
                             }`}
                           title={
                             job.job_type === "streaming"
-                              ? (streamingStates[job.id] ? "Stop" : "Start")
-                              : "Run"
+                              ? (streamingStates[job.id] ? "Pause" : "Start")
+                              : "Instance Run"
                           }
                         >
-                          <Play className="w-4 h-4" />
-                          {job.job_type === "streaming"
-                            ? (streamingStates[job.id] ? "Stop" : "Start")
-                            : "Run"}
+                          {job.job_type === "streaming" ? (
+                            <>
+                              {streamingStates[job.id] ? (
+                                <Pause className="w-4 h-4" />
+                              ) : (
+                                <Play className="w-4 h-4" />
+                              )}
+                              {streamingStates[job.id] ? "Pause" : "Start"}
+                            </>
+                          ) : (
+                            <>
+                              <Zap className="w-4 h-4" />
+                              Instance Run
+                            </>
+                          )}
                         </button>
                       )}
-                      {/* Toggle button for scheduled jobs */}
+                      {/* Run/Pause button for scheduled jobs */}
                       {job.job_type !== "streaming" && (
                         <button
                           onClick={(e) => {
                             e.stopPropagation();
                             handleToggle(job.id);
                           }}
-                          className={`relative inline-flex h-5 w-9 flex-shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none ${job.is_active ? "bg-green-500" : "bg-gray-300"
+                          className={`inline-flex items-center justify-center gap-1.5 w-24 px-3 py-1.5 text-sm font-medium rounded-lg transition-colors ${job.is_active
+                            ? "text-orange-600 bg-orange-50 hover:bg-orange-100"
+                            : "text-green-600 bg-green-50 hover:bg-green-100"
                             }`}
+                          title={job.is_active ? "Pause Schedule" : "Run Schedule"}
                         >
-                          <span
-                            className={`pointer-events-none inline-block h-4 w-4 transform rounded-full bg-white shadow ring-0 transition duration-200 ease-in-out ${job.is_active ? "translate-x-4" : "translate-x-0"
-                              }`}
-                          />
+                          {job.is_active ? (
+                            <>
+                              <Pause className="w-4 h-4" />
+                              Pause
+                            </>
+                          ) : (
+                            <>
+                              <Play className="w-4 h-4" />
+                              Run
+                            </>
+                          )}
                         </button>
                       )}
                     </div>
