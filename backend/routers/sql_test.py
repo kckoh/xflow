@@ -28,6 +28,86 @@ router = APIRouter()
 
 
 # ============================================================================
+# Helper Functions for Smart JOIN Sampling
+# ============================================================================
+
+import re
+
+def _detect_join_info(sql: str) -> Optional[Dict[str, Any]]:
+    """
+    Detect if SQL contains JOIN and extract join information.
+    
+    Returns:
+        Dict with join info if JOIN detected, None otherwise.
+        Example: {
+            'tables': {'t': 'yellow_taxi_trip_records', 'l': 'yellow_taxi_logs_target'},
+            'join_columns': [('t', 'id'), ('l', 'trip_id')]
+        }
+    """
+    if not sql:
+        return None
+    
+    sql_upper = sql.upper()
+    
+    # Check if JOIN exists
+    if ' JOIN ' not in sql_upper:
+        return None
+    
+    try:
+        # Extract table aliases: "FROM table1 t JOIN table2 l" or "FROM table1 AS t JOIN table2 AS l"
+        # Pattern: FROM table_name [AS] alias ... JOIN table_name [AS] alias
+        table_pattern = r'(?:FROM|JOIN)\s+([a-zA-Z_][a-zA-Z0-9_]*)\s+(?:AS\s+)?([a-zA-Z_][a-zA-Z0-9_]*)?'
+        table_matches = re.findall(table_pattern, sql, re.IGNORECASE)
+        
+        tables = {}
+        for match in table_matches:
+            table_name = match[0]
+            alias = match[1] if match[1] else table_name
+            tables[alias] = table_name
+        
+        if len(tables) < 2:
+            return None
+        
+        # Extract ON clause: "ON t.id = l.trip_id" or "ON CAST(t.id AS STRING) = l.trip_id"
+        on_pattern = r'ON\s+(.+?)(?:\s+WHERE|\s+GROUP|\s+ORDER|\s+LIMIT|\s*$)'
+        on_match = re.search(on_pattern, sql, re.IGNORECASE | re.DOTALL)
+        
+        if not on_match:
+            return None
+        
+        on_clause = on_match.group(1).strip()
+        
+        # Extract column references: "alias.column" pattern
+        # Handle CAST expressions: extract the column from CAST(alias.column AS type)
+        col_pattern = r'(?:CAST\s*\(\s*)?([a-zA-Z_][a-zA-Z0-9_]*)\.([a-zA-Z_][a-zA-Z0-9_]*)'
+        col_matches = re.findall(col_pattern, on_clause, re.IGNORECASE)
+        
+        if len(col_matches) < 2:
+            return None
+        
+        join_columns = [(m[0], m[1]) for m in col_matches[:2]]  # Take first two (left = right)
+        
+        return {
+            'tables': tables,
+            'join_columns': join_columns
+        }
+    except Exception as e:
+        print(f"[Smart JOIN] Failed to parse JOIN: {e}")
+        return None
+
+
+def _get_join_column_values(df: pd.DataFrame, column_name: str, limit: int = 100) -> List[Any]:
+    """
+    Get unique values from a DataFrame column for JOIN filtering.
+    """
+    if column_name not in df.columns:
+        return []
+    
+    values = df[column_name].dropna().unique().tolist()
+    return values[:limit]
+
+
+# ============================================================================
 # Helper Functions for JSON Serialization
 # ============================================================================
 
@@ -77,7 +157,10 @@ async def test_sql_query(request: SQLTestRequest):
         
         # Load and combine data from all sources
         # Load 'limit' rows from each source so all sources appear in preview
-        sample_df, source_samples, individual_sources = await _load_and_union_sources(request.sources, db, limit=limit)
+        # Pass SQL for smart JOIN sampling detection
+        sample_df, source_samples, individual_sources = await _load_and_union_sources(
+            request.sources, db, limit=limit, sql=request.sql
+        )
         
         if sample_df is None or len(sample_df) == 0:
             raise HTTPException(
@@ -192,19 +275,23 @@ async def test_sql_query(request: SQLTestRequest):
 async def _load_and_union_sources(
     sources_info: List[SourceInfo],
     db,
-    limit: int = 100
+    limit: int = 100,
+    sql: str = None
 ) -> Tuple[pd.DataFrame, List[Dict[str, Any]]]:
     """
     Load data from multiple sources and combine with UNION ALL.
     Aligns schemas by adding NULL columns where needed.
     
+    For JOIN queries, uses smart sampling to ensure join columns have matching values.
+    
     Args:
         sources_info: List of source information (dataset_id and columns)
         db: MongoDB database instance
         limit: Max rows to load from each source
+        sql: SQL query (used for JOIN detection and smart sampling)
         
     Returns:
-        Tuple of (combined DataFrame, list of per-source samples)
+        Tuple of (combined DataFrame, list of per-source samples, individual sources)
     """
     # Collect all unique columns across all sources
     all_columns = []
@@ -217,15 +304,45 @@ async def _load_and_union_sources(
     source_samples = []  # Store individual source samples
     individual_sources = []  # Store individual source DataFrames for separate table registration
     
-    for source in sources_info:
+    # Detect JOIN and extract join info for smart sampling
+    join_info = _detect_join_info(sql) if sql else None
+    join_filter_values = None  # Will store values from first table's join column
+    first_table_join_column = None
+    second_table_join_column = None
+    
+    if join_info:
+        print(f"[Smart JOIN] Detected JOIN: {join_info}")
+        # Get join column info
+        join_columns = join_info.get('join_columns', [])
+        if len(join_columns) >= 2:
+            first_table_join_column = join_columns[0][1]  # (alias, column) -> column
+            second_table_join_column = join_columns[1][1]
+            print(f"[Smart JOIN] Join columns: {first_table_join_column} = {second_table_join_column}")
+    
+    for idx, source in enumerate(sources_info):
         # Get source dataset and connection
         source_dataset, connection = await _get_source_dataset_and_connection(
             source.source_dataset_id,
             db
         )
         
-        # Load sample data
-        df = await _load_sample_data(source_dataset, connection, limit=limit)
+        # Smart JOIN sampling: for second+ sources, filter by first source's join column values
+        filter_column = None
+        filter_values = None
+        
+        if join_info and idx > 0 and join_filter_values and second_table_join_column:
+            filter_column = second_table_join_column
+            filter_values = join_filter_values
+            print(f"[Smart JOIN] Filtering {source_dataset.get('name')} where {filter_column} IN {filter_values[:5]}...")
+        
+        # Load sample data (with optional JOIN filtering)
+        df = await _load_sample_data(
+            source_dataset, 
+            connection, 
+            limit=limit,
+            filter_column=filter_column,
+            filter_values=filter_values
+        )
 
         if df is None or len(df) == 0:
             print(f"[SQL Test Debug] Empty or None data for source: {source_dataset.get('name')}")
@@ -243,6 +360,11 @@ async def _load_and_union_sources(
         else:
             # If none of the requested columns exist, skip this source
             continue
+        
+        # For first source with JOIN, extract join column values for filtering subsequent sources
+        if join_info and idx == 0 and first_table_join_column and first_table_join_column in df_original.columns:
+            join_filter_values = _get_join_column_values(df_original, first_table_join_column, limit=100)
+            print(f"[Smart JOIN] Extracted {len(join_filter_values)} values from {first_table_join_column}: {join_filter_values[:5]}...")
         
         # Store individual source sample (before adding NULL columns)
         source_sample_rows = df_original.head(5).to_dict('records')
@@ -287,11 +409,20 @@ async def _load_and_union_sources(
 async def _load_sample_data(
     source_dataset: dict,
     connection: dict,
-    limit: int = 1000
+    limit: int = 1000,
+    filter_column: str = None,
+    filter_values: List[Any] = None
 ) -> pd.DataFrame:
     """
     Load sample data from source (default 1000 rows)
     Supports: PostgreSQL, MySQL, MongoDB, S3/Parquet
+    
+    Args:
+        source_dataset: Dataset configuration
+        connection: Connection configuration
+        limit: Max rows to load
+        filter_column: Column to filter on (for smart JOIN sampling)
+        filter_values: Values to filter by (for smart JOIN sampling)
     """
     source_type = source_dataset.get("source_type")
     config = connection.get("config", {}) if connection else {}
@@ -305,7 +436,14 @@ async def _load_sample_data(
                    f"user={config.get('user_name')} password={config.get('password')}"
         
         with psycopg2.connect(conn_str) as conn:
-            query = f"SELECT * FROM {source_dataset.get('table')} LIMIT 1000"
+            table_name = source_dataset.get('table')
+            # Smart JOIN filtering
+            if filter_column and filter_values:
+                values_str = ", ".join([f"'{v}'" if isinstance(v, str) else str(v) for v in filter_values])
+                query = f"SELECT * FROM {table_name} WHERE {filter_column} IN ({values_str}) LIMIT {limit}"
+                print(f"[Smart JOIN] PostgreSQL query: {query[:200]}...")
+            else:
+                query = f"SELECT * FROM {table_name} LIMIT {limit}"
             df = pd.read_sql(query, conn)
         
         return df
@@ -322,7 +460,14 @@ async def _load_sample_data(
             database=config.get('database_name')
         )
         
-        query = f"SELECT * FROM {source_dataset.get('table')} LIMIT 1000"
+        table_name = source_dataset.get('table')
+        # Smart JOIN filtering
+        if filter_column and filter_values:
+            values_str = ", ".join([f"'{v}'" if isinstance(v, str) else str(v) for v in filter_values])
+            query = f"SELECT * FROM {table_name} WHERE {filter_column} IN ({values_str}) LIMIT {limit}"
+            print(f"[Smart JOIN] MySQL query: {query[:200]}...")
+        else:
+            query = f"SELECT * FROM {table_name} LIMIT {limit}"
         df = pd.read_sql(query, conn)
         conn.close()
         
@@ -559,7 +704,19 @@ async def _load_sample_data(
             query = f"SELECT * FROM read_parquet('{duck_path}') LIMIT {limit}"
 
         try:
+            # Build filter clause for smart JOIN sampling
+            filter_clause = ""
+            if filter_column and filter_values:
+                values_str = ", ".join([f"'{v}'" if isinstance(v, str) else str(v) for v in filter_values])
+                filter_clause = f" WHERE {filter_column} IN ({values_str})"
+                print(f"[Smart JOIN] S3 filter: {filter_clause[:100]}...")
+            
             df = con.execute(query).df()
+            
+            # Apply filter after loading if filter was specified
+            if filter_clause and filter_column and filter_column in df.columns:
+                df = df[df[filter_column].isin(filter_values)].head(limit)
+                print(f"[Smart JOIN] Filtered S3 data: {len(df)} rows")
         except Exception as e:
              extra_info = f" | {debug_info}" if 'debug_info' in locals() else ""
              raise HTTPException(status_code=500, detail=f"DuckDB Read Error: {str(e)}. Path: {duck_path}{extra_info}")

@@ -90,7 +90,13 @@ def _build_output_path(destination: dict, job_name: str) -> str:
         path += "/"
 
     glue_table_name = destination.get("glue_table_name")
-    return path + (glue_table_name or job_name)
+    suffix = glue_table_name or job_name
+    
+    # Prevent path duplication (e.g., .../table_name/table_name)
+    if path.rstrip("/").endswith(suffix):
+        return path.rstrip("/")
+    
+    return path + suffix
 
 
 def _write_batch(batch_df, batch_id: int, output_path: str) -> None:
