@@ -136,19 +136,7 @@ class Dataset(Document):
     # Incremental Load Support
     last_sync_timestamp: Optional[datetime] = None
     incremental_config: Optional[dict] = None
-    # Example: {"enabled": true, "timestamp_column": "updated_at", "mode": "append", "initial_load_mode": "snapshot"}
-    # initial_load_mode: "snapshot" (use RDS Snapshot Export) or "jdbc" (use direct JDBC read)
-
-    # RDS Snapshot Export Configuration (for initial load of large RDB datasets)
-    snapshot_export_config: Optional[dict] = None
-    # Example: {
-    #     "db_instance_identifier": "mydb-prod",
-    #     "s3_bucket": "xflow-data-lake",
-    #     "s3_prefix": "raw/snapshot-exports",
-    #     "iam_role_arn": "arn:aws:iam::xxx:role/rds-s3-export-role",
-    #     "kms_key_id": "arn:aws:kms:...",  # Optional: for encrypted snapshots
-    #     "auto_cleanup_snapshot": True  # Whether to delete snapshot after export
-    # }
+    # Example: {"enabled": true, "timestamp_column": "updated_at", "mode": "append"}
 
     # Import ready flag - true when job execution is complete and ready to import
     import_ready: bool = False

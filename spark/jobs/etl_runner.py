@@ -7,13 +7,14 @@ Usage:
     spark-submit etl_runner.py --config-file /path/to/config.json
 """
 
-import sys
 import json
 import re
-from pyspark.sql import SparkSession, DataFrame
+import sys
 
+from pyspark.sql import DataFrame, SparkSession
 
 # ============ Transform Registry ============
+
 
 def transform_select_fields(df: DataFrame, config: dict) -> DataFrame:
     """Select specific columns from DataFrame.
@@ -53,7 +54,9 @@ def transform_s3_select_fields(df: DataFrame, config: dict) -> DataFrame:
         available_fields = df.columns
         invalid_fields = [f for f in selected_fields if f not in available_fields]
         if invalid_fields:
-            raise ValueError(f"Invalid fields: {invalid_fields}. Available: {available_fields}")
+            raise ValueError(
+                f"Invalid fields: {invalid_fields}. Available: {available_fields}"
+            )
         return df.select(*selected_fields)
     return df
 
@@ -106,12 +109,14 @@ def transform_s3_filter(df: DataFrame, config: dict) -> DataFrame:
             parsed_ts = F.to_timestamp(F.col(timestamp_field), "dd/MMM/yyyy:HH:mm:ss Z")
             if timestamp_from:
                 filtered_df = filtered_df.filter(
-                    parsed_ts >= F.to_timestamp(F.lit(timestamp_from), "yyyy-MM-dd'T'HH:mm")
+                    parsed_ts
+                    >= F.to_timestamp(F.lit(timestamp_from), "yyyy-MM-dd'T'HH:mm")
                 )
                 print(f"   Filter: {timestamp_field} >= {timestamp_from}")
             if timestamp_to:
                 filtered_df = filtered_df.filter(
-                    parsed_ts <= F.to_timestamp(F.lit(timestamp_to), "yyyy-MM-dd'T'HH:mm")
+                    parsed_ts
+                    <= F.to_timestamp(F.lit(timestamp_to), "yyyy-MM-dd'T'HH:mm")
                 )
                 print(f"   Filter: {timestamp_field} <= {timestamp_to}")
 
@@ -126,7 +131,9 @@ def transform_s3_filter(df: DataFrame, config: dict) -> DataFrame:
     return filtered_df
 
 
-def transform_sql(df: DataFrame, config: dict, additional_tables: dict = None) -> DataFrame:
+def transform_sql(
+    df: DataFrame, config: dict, additional_tables: dict = None
+) -> DataFrame:
     """
     Execute SQL query on DataFrame using temp view.
 
@@ -177,6 +184,7 @@ TRANSFORMS = {
 
 # ============ Multi-Input Transforms ============
 
+
 def transform_union(dfs: list, config: dict) -> DataFrame:
     """
     Union multiple DataFrames.
@@ -209,43 +217,6 @@ MULTI_INPUT_TRANSFORMS = {
 
 # ============ Source Readers ============
 
-def read_snapshot_export_source(spark: SparkSession, source_config: dict) -> DataFrame:
-    """
-    Read data from RDS Snapshot Export (Parquet files in S3).
-
-    RDS Export creates Parquet files in format:
-    s3://{bucket}/{prefix}/{export_task_id}/{database}.{schema}.{table}/*.parquet
-
-    This is used for initial load of large RDB datasets to avoid JDBC bottleneck.
-
-    Args:
-        spark: SparkSession
-        source_config: Source configuration with snapshot_export_path
-
-    Returns:
-        DataFrame with table data from exported Parquet files
-    """
-    snapshot_path = source_config.get("snapshot_export_path")
-    if not snapshot_path:
-        raise ValueError("snapshot_export_path is required for snapshot export source")
-
-    # Ensure s3a:// scheme
-    if snapshot_path.startswith("s3://"):
-        snapshot_path = snapshot_path.replace("s3://", "s3a://", 1)
-
-    print(f"   [Snapshot Export] Reading from: {snapshot_path}")
-
-    # Read Parquet files from snapshot export
-    df = spark.read.parquet(snapshot_path)
-
-    # Note: Skipping count() to avoid triggering expensive action on large datasets
-    # Record count will be available after write operation
-    print(f"   [Snapshot Export] DataFrame loaded from Parquet files")
-    print(f"   Schema:")
-    df.printSchema()
-
-    return df
-
 
 def read_rdb_source(spark: SparkSession, source_config: dict) -> DataFrame:
     """Read data from relational database using JDBC"""
@@ -270,12 +241,14 @@ def read_rdb_source(spark: SparkSession, source_config: dict) -> DataFrame:
     table = source_config.get("table")
     query = source_config.get("query")
 
-    reader = spark.read.format("jdbc") \
-        .option("url", jdbc_url) \
-        .option("user", connection.get("user_name", "postgres")) \
-        .option("password", connection.get("password", "postgres")) \
-        .option("driver", driver) \
+    reader = (
+        spark.read.format("jdbc")
+        .option("url", jdbc_url)
+        .option("user", connection.get("user_name", "postgres"))
+        .option("password", connection.get("password", "postgres"))
+        .option("driver", driver)
         .option("fetchsize", "50000")
+    )
 
     if query:
         reader = reader.option("dbtable", f"({query}) as subquery")
@@ -289,17 +262,25 @@ def read_rdb_source(spark: SparkSession, source_config: dict) -> DataFrame:
         # Query actual min/max from DB for accurate partitioning
         try:
             bounds_query = f"(SELECT MIN({partition_column}) as min_val, MAX({partition_column}) as max_val FROM {table}) as bounds"
-            print(f"   [Partition] Querying min/max of '{partition_column}' from {table}...")
-            bounds_df = spark.read.format("jdbc") \
-                .option("url", jdbc_url) \
-                .option("dbtable", bounds_query) \
-                .option("user", connection.get("user_name", "postgres")) \
-                .option("password", connection.get("password", "postgres")) \
-                .option("driver", driver) \
+            print(
+                f"   [Partition] Querying min/max of '{partition_column}' from {table}..."
+            )
+            bounds_df = (
+                spark.read.format("jdbc")
+                .option("url", jdbc_url)
+                .option("dbtable", bounds_query)
+                .option("user", connection.get("user_name", "postgres"))
+                .option("password", connection.get("password", "postgres"))
+                .option("driver", driver)
                 .load()
+            )
 
             bounds_row = bounds_df.first()
-            if bounds_row and bounds_row["min_val"] is not None and bounds_row["max_val"] is not None:
+            if (
+                bounds_row
+                and bounds_row["min_val"] is not None
+                and bounds_row["max_val"] is not None
+            ):
                 lower_bound = int(bounds_row["min_val"])
                 upper_bound = int(bounds_row["max_val"])
                 print(f"   [Partition] Found bounds: {lower_bound} ~ {upper_bound}")
@@ -307,21 +288,28 @@ def read_rdb_source(spark: SparkSession, source_config: dict) -> DataFrame:
                 # Fallback to defaults if table is empty or column has nulls
                 lower_bound = source_config.get("lower_bound", 1)
                 upper_bound = source_config.get("upper_bound", 10000000)
-                print(f"   [Partition] Using default bounds: {lower_bound} ~ {upper_bound}")
+                print(
+                    f"   [Partition] Using default bounds: {lower_bound} ~ {upper_bound}"
+                )
         except Exception as e:
             # Fallback to config or defaults
             lower_bound = source_config.get("lower_bound", 1)
             upper_bound = source_config.get("upper_bound", 10000000)
-            print(f"   [Partition] Could not query bounds ({e}), using defaults: {lower_bound} ~ {upper_bound}")
+            print(
+                f"   [Partition] Could not query bounds ({e}), using defaults: {lower_bound} ~ {upper_bound}"
+            )
 
         # Try with partitioning first, fall back to no partitioning if column doesn't exist
         try:
-            print(f"   [Partition] Trying column='{partition_column}', partitions={num_partitions}, bounds={lower_bound}~{upper_bound}")
-            partitioned_reader = reader \
-                .option("numPartitions", num_partitions) \
-                .option("partitionColumn", partition_column) \
-                .option("lowerBound", str(lower_bound)) \
+            print(
+                f"   [Partition] Trying column='{partition_column}', partitions={num_partitions}, bounds={lower_bound}~{upper_bound}"
+            )
+            partitioned_reader = (
+                reader.option("numPartitions", num_partitions)
+                .option("partitionColumn", partition_column)
+                .option("lowerBound", str(lower_bound))
                 .option("upperBound", str(upper_bound))
+            )
             df = partitioned_reader.load()
             print(f"   [Partition] Success - using {num_partitions} partitions")
         except Exception as e:
@@ -329,17 +317,17 @@ def read_rdb_source(spark: SparkSession, source_config: dict) -> DataFrame:
             df = reader.load()
     else:
         raise ValueError("Either 'table' or 'query' must be specified in source config")
-    
+
     # Apply Incremental Load Filtering (Watermark)
     incremental_config = source_config.get("incremental_config", {})
     if incremental_config.get("enabled"):
         timestamp_col = incremental_config.get("timestamp_column")
         last_sync = incremental_config.get("last_sync_timestamp")
-        
+
         if timestamp_col and last_sync:
             print(f"   [Incremental] Filtering data: {timestamp_col} > '{last_sync}'")
             df = df.filter(f"{timestamp_col} > '{last_sync}'")
-            
+
     return df
 
 
@@ -347,55 +335,57 @@ def read_nosql_source(spark: SparkSession, source_config: dict) -> DataFrame:
     """
     Read data from NoSQL databases using appropriate Spark connectors.
     Currently supports: MongoDB
-    
+
     Nested struct fields are flattened with underscore naming (address.city → address_city)
     to match the Preview behavior and Visual Transform expectations.
     """
     from pyspark.sql import functions as F
-    from pyspark.sql.types import StructType, ArrayType
-    
+    from pyspark.sql.types import ArrayType, StructType
+
     connection = source_config.get("connection", {})
     collection = source_config.get("collection")
-    
+
     if not collection:
         raise ValueError("Collection name is required for NoSQL source")
-    
+
     # NoSQL type (default: mongodb, future: cassandra, dynamodb, etc.)
     db_type = connection.get("type", "mongodb")
-    
+
     # MongoDB connection details (from DAG enrichment)
     uri = connection.get("uri")
     database = connection.get("database")
-    
+
     if not uri or not database:
-        raise ValueError(f"{db_type} uri and database are required in connection config")
-    
+        raise ValueError(
+            f"{db_type} uri and database are required in connection config"
+        )
+
     print(f"   Reading from {db_type}: {database}.{collection}")
-    
+
     if db_type == "mongodb":
         # Use base URI with authSource, then set database/collection via options
         # This ensures authSource is properly handled
         base_uri = uri  # e.g., mongodb://mongo:mongo@mongodb:27017/?authSource=admin
-        
+
         # Read using MongoDB Spark Connector with separate database/collection options
-        df = spark.read \
-            .format("mongodb") \
-            .option("spark.mongodb.read.connection.uri", base_uri) \
-            .option("spark.mongodb.read.database", database) \
-            .option("spark.mongodb.read.collection", collection) \
+        df = (
+            spark.read.format("mongodb")
+            .option("spark.mongodb.read.connection.uri", base_uri)
+            .option("spark.mongodb.read.database", database)
+            .option("spark.mongodb.read.collection", collection)
             .load()
-        
+        )
+
         # Flatten nested structures to match pandas json_normalize behavior
         df = flatten_mongodb_schema(df)
-        
-    
+
     # Future NoSQL support
     # elif db_type == "dynamodb":
     #     df = spark.read \
     #         .format("dynamodb") \
     #         .option("tableName", collection) \
     #         .load()
-    
+
     else:
         raise ValueError(f"Unsupported NoSQL database type: {db_type}")
 
@@ -406,34 +396,36 @@ def flatten_mongodb_schema(df: DataFrame, sep: str = "_") -> DataFrame:
     """
     Recursively flatten MongoDB schema to match pandas json_normalize behavior.
     Converts nested structs and arrays to flat columns with underscore naming.
-    
+
     Examples:
     - {"address": {"city": "Seoul"}} → address_city column
     - {"address": {"geo": {"lat": 37.5}}} → address_geo_lat column (fully recursive)
     - {"projects": [{"name": "A"}]} → projects_name: ["A"] (array extraction)
-    
+
     Args:
         df: Input DataFrame
         sep: Separator for nested field names (default: "_")
-    
+
     Returns:
         Flattened DataFrame
     """
     from pyspark.sql import functions as F
-    from pyspark.sql.types import StructType, ArrayType
-    
-    def flatten_struct_recursive(col_name: str, col_type: StructType, prefix: str = "", path_prefix: str = "") -> list:
+    from pyspark.sql.types import ArrayType, StructType
+
+    def flatten_struct_recursive(
+        col_name: str, col_type: StructType, prefix: str = "", path_prefix: str = ""
+    ) -> list:
         """Recursively flatten struct type fields
-        
+
         Args:
             col_name: Current column name
             col_type: StructType to flatten
             prefix: Prefix for flattened column names (with separator)
             path_prefix: Dot-notation path prefix for Spark column access
-        
+
         Returns:
             List of (full_path, flat_name, field_type) tuples
-        
+
         Base cases:
             1. Return empty list if StructType has no fields
             2. Append to result and terminate if field is primitive type
@@ -441,70 +433,73 @@ def flatten_mongodb_schema(df: DataFrame, sep: str = "_") -> DataFrame:
         # Base case 1: Return empty list for empty struct
         if not col_type.fields:
             return []
-        
+
         flattened = []
         current_prefix = f"{prefix}{col_name}{sep}" if prefix else f"{col_name}{sep}"
         current_path = f"{path_prefix}{col_name}." if path_prefix else f"{col_name}."
-        
+
         for field in col_type.fields:
             field_name = field.name
             field_type = field.dataType
-            
+
             if isinstance(field_type, StructType):
                 # Recursive case: Recurse into nested struct
-                nested_flattened = flatten_struct_recursive(field_name, field_type, current_prefix, current_path)
+                nested_flattened = flatten_struct_recursive(
+                    field_name, field_type, current_prefix, current_path
+                )
                 flattened.extend(nested_flattened)
             else:
                 # Base case 2: Leaf node (primitive type) - append to result
                 full_path = f"{current_path}{field_name}"
                 flat_name = f"{current_prefix}{field_name}"
                 flattened.append((full_path, flat_name, field_type))
-        
+
         return flattened
-    
+
     flattened_cols = []
-    
+
     for field in df.schema.fields:
         col_name = field.name
         col_type = field.dataType
-        
+
         if isinstance(col_type, StructType):
             # Struct field: flatten recursively
             struct_fields = flatten_struct_recursive(col_name, col_type)
             for path, alias, _ in struct_fields:
                 # Build nested column access: col("address.geo.lat")
                 flattened_cols.append(F.col(path).alias(alias))
-        
+
         elif isinstance(col_type, ArrayType):
             # Array field: check if it's array of structs or primitives
             element_type = col_type.elementType
-            
+
             if isinstance(element_type, StructType):
                 # Array of structs: extract each field as a separate array column
-                # Example: projects: [{"name": "A", "budget": 100}] 
+                # Example: projects: [{"name": "A", "budget": 100}]
                 # → projects_name: ["A"], projects_budget: [100]
                 for struct_field in element_type.fields:
                     field_name = struct_field.name
                     flattened_name = f"{col_name}{sep}{field_name}"
                     # Use transform to extract specific field from each array element
                     flattened_cols.append(
-                        F.transform(
-                            F.col(col_name),
-                            lambda x: x[field_name]
-                        ).alias(flattened_name)
+                        F.transform(F.col(col_name), lambda x: x[field_name]).alias(
+                            flattened_name
+                        )
                     )
             else:
                 # Array of primitives: keep as-is
                 flattened_cols.append(F.col(col_name))
-        
+
         else:
             # Primitive field: keep as-is
             flattened_cols.append(F.col(col_name))
-    
+
     return df.select(*flattened_cols)
 
 
-def parse_log_files_with_regex(spark: SparkSession, s3_path: str, custom_regex: str) -> DataFrame:
+def parse_log_files_with_regex(
+    spark: SparkSession, s3_path: str, custom_regex: str
+) -> DataFrame:
     """
     Parse log files from S3 using custom regex pattern with named groups
 
@@ -517,6 +512,7 @@ def parse_log_files_with_regex(spark: SparkSession, s3_path: str, custom_regex: 
         DataFrame with fields matching regex named groups
     """
     import re
+
     from pyspark.sql import functions as F
 
     print(f"   Parsing logs from: {s3_path}")
@@ -530,19 +526,21 @@ def parse_log_files_with_regex(spark: SparkSession, s3_path: str, custom_regex: 
         compiled_pattern = re.compile(custom_regex)
         named_groups = list(compiled_pattern.groupindex.keys())
         if not named_groups:
-            raise ValueError("Regex pattern must contain at least one named group (?P<field_name>pattern)")
+            raise ValueError(
+                "Regex pattern must contain at least one named group (?P<field_name>pattern)"
+            )
         print(f"   Detected fields from regex: {named_groups}")
     except re.error as e:
         raise ValueError(f"Invalid regex pattern: {str(e)}")
 
     # Convert Python named group regex to Spark regex (remove ?P<name>)
-    spark_regex = re.sub(r'\?P<[^>]+>', '', custom_regex)
+    spark_regex = re.sub(r"\?P<[^>]+>", "", custom_regex)
 
     # Build select expressions for each named group
     select_exprs = []
     for idx, field_name in enumerate(named_groups, start=1):
         select_exprs.append(
-            F.regexp_extract('value', spark_regex, idx).alias(field_name)
+            F.regexp_extract("value", spark_regex, idx).alias(field_name)
         )
 
     # Extract fields using regex
@@ -551,7 +549,7 @@ def parse_log_files_with_regex(spark: SparkSession, s3_path: str, custom_regex: 
     # Filter out failed parsing (if first field is empty, parsing likely failed)
     if named_groups:
         first_field = named_groups[0]
-        parsed_df = parsed_df.filter(F.col(first_field) != '')
+        parsed_df = parsed_df.filter(F.col(first_field) != "")
 
     return parsed_df
 
@@ -575,6 +573,7 @@ def read_s3_logs_source(spark: SparkSession, source_config: dict) -> DataFrame:
         DataFrame with fields matching regex named groups
     """
     import re
+
     from pyspark.sql import functions as F
 
     connection = source_config.get("connection", {})
@@ -587,7 +586,9 @@ def read_s3_logs_source(spark: SparkSession, source_config: dict) -> DataFrame:
         raise ValueError("S3 bucket and path are required for S3 log source")
 
     if not custom_regex:
-        raise ValueError("Custom regex pattern is required for parsing logs. Please define a pattern with named groups.")
+        raise ValueError(
+            "Custom regex pattern is required for parsing logs. Please define a pattern with named groups."
+        )
 
     # Configure S3 access
     # Support both old field names (access_key, secret_key, endpoint) and new (access_key_id, secret_access_key, region)
@@ -625,12 +626,15 @@ def read_s3_logs_source(spark: SparkSession, source_config: dict) -> DataFrame:
     # Check for incremental load (hybrid file + record filtering)
     incremental_config = source_config.get("incremental_config", {})
 
-    if incremental_config.get("enabled") and incremental_config.get("last_sync_timestamp"):
-        import boto3
+    if incremental_config.get("enabled") and incremental_config.get(
+        "last_sync_timestamp"
+    ):
         from datetime import datetime, timedelta
 
+        import boto3
+
         last_sync_str = incremental_config.get("last_sync_timestamp")
-        last_sync = datetime.fromisoformat(last_sync_str.replace('Z', '+00:00'))
+        last_sync = datetime.fromisoformat(last_sync_str.replace("Z", "+00:00"))
 
         # Grace period: files that might still be updated
         grace_period = timedelta(hours=1)
@@ -645,29 +649,29 @@ def read_s3_logs_source(spark: SparkSession, source_config: dict) -> DataFrame:
 
         # Only add credentials if explicitly provided
         if access_key and secret_key:
-            boto3_kwargs['aws_access_key_id'] = access_key
-            boto3_kwargs['aws_secret_access_key'] = secret_key
+            boto3_kwargs["aws_access_key_id"] = access_key
+            boto3_kwargs["aws_secret_access_key"] = secret_key
 
             # Only add endpoint_url for LocalStack (not for real AWS)
             if endpoint and endpoint.startswith("http://"):
-                boto3_kwargs['endpoint_url'] = endpoint
+                boto3_kwargs["endpoint_url"] = endpoint
 
         # If no credentials, boto3 will use default credential chain (IRSA)
-        s3_client = boto3.client('s3', **boto3_kwargs)
+        s3_client = boto3.client("s3", **boto3_kwargs)
 
         # List all files in the path
         response = s3_client.list_objects_v2(Bucket=bucket, Prefix=path)
 
-        new_files = []      # Files created after last_sync (read all records)
-        recent_files = []   # Files within grace period (read with timestamp filter)
+        new_files = []  # Files created after last_sync (read all records)
+        recent_files = []  # Files within grace period (read with timestamp filter)
 
-        if 'Contents' in response:
-            for obj in response['Contents']:
+        if "Contents" in response:
+            for obj in response["Contents"]:
                 # Skip directories
-                if obj['Key'].endswith('/'):
+                if obj["Key"].endswith("/"):
                     continue
 
-                file_modified = obj['LastModified'].replace(tzinfo=None)
+                file_modified = obj["LastModified"].replace(tzinfo=None)
                 file_path = f"s3a://{bucket}/{obj['Key']}"
 
                 if file_modified > last_sync:
@@ -677,7 +681,9 @@ def read_s3_logs_source(spark: SparkSession, source_config: dict) -> DataFrame:
                 elif file_modified > grace_cutoff:
                     # Case 2: Recent file (might still be updated) - read with timestamp filter
                     recent_files.append(file_path)
-                    print(f"      → [RECENT] {obj['Key']} (modified: {file_modified}) - will filter by timestamp")
+                    print(
+                        f"      → [RECENT] {obj['Key']} (modified: {file_modified}) - will filter by timestamp"
+                    )
                 # Case 3: Old file - skip
                 # else:
                 #     print(f"      → [SKIP] {obj['Key']} (modified: {file_modified})")
@@ -690,18 +696,20 @@ def read_s3_logs_source(spark: SparkSession, source_config: dict) -> DataFrame:
                 compiled_pattern = re.compile(custom_regex)
                 named_groups = list(compiled_pattern.groupindex.keys())
                 if not named_groups:
-                    raise ValueError("Regex pattern must contain at least one named group (?P<field_name>pattern)")
+                    raise ValueError(
+                        "Regex pattern must contain at least one named group (?P<field_name>pattern)"
+                    )
             except re.error as e:
                 raise ValueError(f"Invalid regex pattern: {str(e)}")
 
             # Convert Python named group regex to Spark regex (remove ?P<name>)
-            spark_regex = re.sub(r'\?P<[^>]+>', '', custom_regex)
+            spark_regex = re.sub(r"\?P<[^>]+>", "", custom_regex)
 
             # Build select expressions for each named group
             select_exprs = []
             for idx, field_name in enumerate(named_groups, start=1):
                 select_exprs.append(
-                    F.regexp_extract('value', spark_regex, idx).alias(field_name)
+                    F.regexp_extract("value", spark_regex, idx).alias(field_name)
                 )
 
             # Extract fields using regex
@@ -710,7 +718,7 @@ def read_s3_logs_source(spark: SparkSession, source_config: dict) -> DataFrame:
             # Filter out failed parsing (if first field is empty, parsing likely failed)
             if named_groups:
                 first_field = named_groups[0]
-                parsed = parsed.filter(F.col(first_field) != '')
+                parsed = parsed.filter(F.col(first_field) != "")
 
             return parsed, named_groups
 
@@ -725,7 +733,9 @@ def read_s3_logs_source(spark: SparkSession, source_config: dict) -> DataFrame:
             print(f"      → Parsed {parsed_new.count()} records from new files")
 
         if recent_files:
-            print(f"   [Incremental] Reading {len(recent_files)} recent files (with timestamp filter)")
+            print(
+                f"   [Incremental] Reading {len(recent_files)} recent files (with timestamp filter)"
+            )
             df_recent = spark.read.text(recent_files)
             parsed_recent, named_groups = parse_logs(df_recent)
 
@@ -735,22 +745,32 @@ def read_s3_logs_source(spark: SparkSession, source_config: dict) -> DataFrame:
             if timestamp_field in parsed_recent.columns:
                 # Convert timestamp string to comparable format and filter
                 # Assuming timestamp is in format like "02/Jan/2026:10:56:00 +0900"
-                parsed_ts = F.to_timestamp(F.col(timestamp_field), "dd/MMM/yyyy:HH:mm:ss Z")
-                last_sync_ts = F.to_timestamp(F.lit(last_sync_str), "yyyy-MM-dd'T'HH:mm:ss.SSSSSS")
+                parsed_ts = F.to_timestamp(
+                    F.col(timestamp_field), "dd/MMM/yyyy:HH:mm:ss Z"
+                )
+                last_sync_ts = F.to_timestamp(
+                    F.lit(last_sync_str), "yyyy-MM-dd'T'HH:mm:ss.SSSSSS"
+                )
 
                 before_filter = parsed_recent.count()
                 parsed_recent = parsed_recent.filter(parsed_ts > last_sync_ts)
                 after_filter = parsed_recent.count()
 
-                print(f"      → Parsed {before_filter} records, filtered to {after_filter} records (timestamp > {last_sync})")
+                print(
+                    f"      → Parsed {before_filter} records, filtered to {after_filter} records (timestamp > {last_sync})"
+                )
             else:
-                print(f"      ⚠️ Warning: timestamp field '{timestamp_field}' not found in parsed schema, skipping record-level filter")
+                print(
+                    f"      ⚠️ Warning: timestamp field '{timestamp_field}' not found in parsed schema, skipping record-level filter"
+                )
                 print(f"      → Available fields: {parsed_recent.columns}")
 
             parsed_dfs_to_union.append(parsed_recent)
 
         if not parsed_dfs_to_union:
-            print(f"   [Incremental] No new or recent files - returning empty DataFrame")
+            print(
+                f"   [Incremental] No new or recent files - returning empty DataFrame"
+            )
             # Need to get named_groups for empty schema
             try:
                 compiled_pattern = re.compile(custom_regex)
@@ -758,8 +778,11 @@ def read_s3_logs_source(spark: SparkSession, source_config: dict) -> DataFrame:
             except:
                 named_groups = ["value"]
 
-            from pyspark.sql.types import StructType, StructField, StringType
-            schema = StructType([StructField(name, StringType(), True) for name in named_groups])
+            from pyspark.sql.types import StringType, StructField, StructType
+
+            schema = StructType(
+                [StructField(name, StringType(), True) for name in named_groups]
+            )
             return spark.createDataFrame([], schema)
 
         # Union all parsed DataFrames
@@ -777,19 +800,21 @@ def read_s3_logs_source(spark: SparkSession, source_config: dict) -> DataFrame:
             compiled_pattern = re.compile(custom_regex)
             named_groups = list(compiled_pattern.groupindex.keys())
             if not named_groups:
-                raise ValueError("Regex pattern must contain at least one named group (?P<field_name>pattern)")
+                raise ValueError(
+                    "Regex pattern must contain at least one named group (?P<field_name>pattern)"
+                )
             print(f"   Detected fields from regex: {named_groups}")
         except re.error as e:
             raise ValueError(f"Invalid regex pattern: {str(e)}")
 
         # Convert Python named group regex to Spark regex (remove ?P<name>)
-        spark_regex = re.sub(r'\?P<[^>]+>', '', custom_regex)
+        spark_regex = re.sub(r"\?P<[^>]+>", "", custom_regex)
 
         # Build select expressions for each named group
         select_exprs = []
         for idx, field_name in enumerate(named_groups, start=1):
             select_exprs.append(
-                F.regexp_extract('value', spark_regex, idx).alias(field_name)
+                F.regexp_extract("value", spark_regex, idx).alias(field_name)
             )
 
         # Extract fields using regex
@@ -798,7 +823,7 @@ def read_s3_logs_source(spark: SparkSession, source_config: dict) -> DataFrame:
         # Filter out failed parsing (if first field is empty, parsing likely failed)
         if named_groups:
             first_field = named_groups[0]
-            parsed_df = parsed_df.filter(F.col(first_field) != '')
+            parsed_df = parsed_df.filter(F.col(first_field) != "")
 
     record_count = parsed_df.count()
     print(f"   ✅ Parsed {record_count} log records")
@@ -812,14 +837,14 @@ def read_s3_file_source(spark: SparkSession, source_config: dict) -> DataFrame:
     """
     Read structured files (Parquet, CSV, JSON) from S3
     Used for reading processed datasets from catalog (Target → Target chaining)
-    
+
     Args:
         spark: SparkSession
         source_config: Source configuration
             - path: S3 path (s3a://bucket/path/)
             - format: File format (parquet, csv, json)
             - s3_config: S3 credentials (optional, IRSA will be used if not provided)
-    
+
     Returns:
         DataFrame with file contents
     """
@@ -846,40 +871,37 @@ def read_s3_file_source(spark: SparkSession, source_config: dict) -> DataFrame:
         path = path.replace("s3://", "s3a://", 1)
 
     print(f"   Reading {file_format} files from: {path}")
-    
+
     # Configure S3 credentials if provided (LocalStack or explicit AWS)
     s3_config = source_config.get("s3_config", {})
-    
+
     access_key = s3_config.get("access_key_id") or s3_config.get("access_key")
     secret_key = s3_config.get("secret_access_key") or s3_config.get("secret_key")
     endpoint = s3_config.get("endpoint")
-    
+
     if access_key and secret_key:
         # Explicit credentials provided
         spark.conf.set("spark.hadoop.fs.s3a.access.key", access_key)
         spark.conf.set("spark.hadoop.fs.s3a.secret.key", secret_key)
-        
+
         if endpoint:
             spark.conf.set("spark.hadoop.fs.s3a.endpoint", endpoint)
         else:
             region = s3_config.get("region", "ap-northeast-2")
             spark.conf.set("spark.hadoop.fs.s3a.endpoint", f"s3.{region}.amazonaws.com")
-        
+
         # Path-style access for LocalStack
         if endpoint and endpoint.startswith("http://"):
             spark.conf.set("spark.hadoop.fs.s3a.path.style.access", "true")
     else:
         # No credentials - use Spark's global credentials (IRSA)
         print("   Using Spark's global S3 credentials (IRSA)")
-    
+
     # Read based on format
     if file_format.lower() == "parquet":
         df = spark.read.parquet(path)
     elif file_format.lower() == "csv":
-        df = spark.read \
-            .option("header", "true") \
-            .option("inferSchema", "true") \
-            .csv(path)
+        df = spark.read.option("header", "true").option("inferSchema", "true").csv(path)
     elif file_format.lower() == "json":
         df = spark.read.json(path)
     elif file_format.lower() == "log":
@@ -891,12 +913,12 @@ def read_s3_file_source(spark: SparkSession, source_config: dict) -> DataFrame:
         df = parse_log_files_with_regex(spark, path, custom_regex)
     else:
         raise ValueError(f"Unsupported file format: {file_format}")
-    
+
     record_count = df.count()
     print(f"   ✅ Read {record_count} records from {file_format.upper()} files")
     print(f"   Schema:")
     df.printSchema()
-    
+
     return df
 
 
@@ -942,7 +964,7 @@ def _extract_json_path(data: object, path: str):
                     return None
 
                 # Check if there are more tokens after this wildcard
-                remaining_tokens = tokens[token_idx + 1:]
+                remaining_tokens = tokens[token_idx + 1 :]
 
                 if remaining_tokens:
                     # Recursively apply remaining path to each element
@@ -984,13 +1006,18 @@ def read_api_source(spark: SparkSession, source_config: dict) -> DataFrame:
     """Read data from a RESTful API with basic pagination and JSON parsing."""
     import json
     import time
+
     import requests
     from pyspark.sql.types import StructType
 
     connection = source_config.get("connection", {})
     connection_config = connection.get("config", {})
 
-    base_url = connection.get("base_url") or connection_config.get("base_url") or source_config.get("base_url")
+    base_url = (
+        connection.get("base_url")
+        or connection_config.get("base_url")
+        or source_config.get("base_url")
+    )
     endpoint = source_config.get("endpoint") or ""
     method = (source_config.get("method") or "GET").upper()
 
@@ -1054,7 +1081,9 @@ def read_api_source(spark: SparkSession, source_config: dict) -> DataFrame:
     all_data = []
 
     # Build full URL with proper formatting
-    full_url = base_url.rstrip("/") + "/" + endpoint.lstrip("/") if endpoint else base_url
+    full_url = (
+        base_url.rstrip("/") + "/" + endpoint.lstrip("/") if endpoint else base_url
+    )
     print(f"   API URL: {full_url}")
     print(f"   Auth type: {auth_type}")
     print(f"   Pagination: {pagination_type}")
@@ -1067,8 +1096,12 @@ def read_api_source(spark: SparkSession, source_config: dict) -> DataFrame:
         while True:
             attempt += 1
             print(f"   Making API request: {full_url} with params={request_params}")
-            response = requests.get(full_url, headers=headers, params=request_params, timeout=30)
-            print(f"   Response status: {response.status_code}, Content-Type: {response.headers.get('Content-Type')}")
+            response = requests.get(
+                full_url, headers=headers, params=request_params, timeout=30
+            )
+            print(
+                f"   Response status: {response.status_code}, Content-Type: {response.headers.get('Content-Type')}"
+            )
 
             # Handle rate limiting (429)
             if response.status_code == 429 and attempt <= max_retries:
@@ -1078,7 +1111,9 @@ def read_api_source(spark: SparkSession, source_config: dict) -> DataFrame:
 
             # Handle pagination limit errors (422, 404) - treat as end of data
             if response.status_code in [422, 404]:
-                print(f"   API pagination limit reached (status={response.status_code}), stopping pagination")
+                print(
+                    f"   API pagination limit reached (status={response.status_code}), stopping pagination"
+                )
                 return None  # Signal no more data
 
             response.raise_for_status()
@@ -1192,44 +1227,59 @@ def read_api_source(spark: SparkSession, source_config: dict) -> DataFrame:
 
 # ============ SCD Type 2 Helper Functions ============
 
+
 def detect_primary_keys(df: DataFrame) -> list:
     """Auto-detect primary key column(s) from DataFrame schema"""
     columns = df.columns
 
     # Priority 1: Exact matches
-    exact_matches = ['id', 'pk', 'primary_key', 'uid', 'uuid']
+    exact_matches = ["id", "pk", "primary_key", "uid", "uuid"]
     for col in columns:
         if col.lower() in exact_matches:
             print(f"   [SCD2] Detected primary key: {col}")
             return [col]
 
     # Priority 2: Columns ending with _id
-    id_columns = [col for col in columns if col.lower().endswith('_id')]
+    id_columns = [col for col in columns if col.lower().endswith("_id")]
     if id_columns:
         print(f"   [SCD2] Detected primary key: {id_columns[0]}")
         return [id_columns[0]]
 
     # Priority 3: First column as fallback
     if columns:
-        print(f"   [SCD2] No obvious primary key found, using first column: {columns[0]}")
+        print(
+            f"   [SCD2] No obvious primary key found, using first column: {columns[0]}"
+        )
         return [columns[0]]
 
     raise ValueError("DataFrame has no columns, cannot detect primary key")
 
 
-def write_scd2_merge(spark: SparkSession, df: DataFrame, path: str, primary_keys: list = None, timestamp_col: str = None, source_types: list = None):
+def write_scd2_merge(
+    spark: SparkSession,
+    df: DataFrame,
+    path: str,
+    primary_keys: list = None,
+    timestamp_col: str = None,
+    source_types: list = None,
+):
     """Write DataFrame using SCD Type 2 (Slowly Changing Dimension) pattern"""
-    from pyspark.sql import functions as F
-    from delta.tables import DeltaTable
     from datetime import datetime
 
+    from delta.tables import DeltaTable
+    from pyspark.sql import functions as F
+
     # Check if source is immutable (S3 logs, API responses)
-    is_immutable_source = source_types and any(st in ['s3', 's3_logs', 'api'] for st in source_types)
+    is_immutable_source = source_types and any(
+        st in ["s3", "s3_logs", "api"] for st in source_types
+    )
 
     if is_immutable_source:
         # Immutable data sources: use simple append instead of SCD Type 2
-        source_name = "API" if 'api' in source_types else "S3 Logs"
-        print(f"   [{source_name}] Using append mode (immutable data, no SCD Type 2 needed)")
+        source_name = "API" if "api" in source_types else "S3 Logs"
+        print(
+            f"   [{source_name}] Using append mode (immutable data, no SCD Type 2 needed)"
+        )
         df.write.format("delta").mode("append").save(path)
         record_count = df.count()
         print(f"   [{source_name}] ✅ Appended {record_count} records to {path}")
@@ -1253,9 +1303,11 @@ def write_scd2_merge(spark: SparkSession, df: DataFrame, path: str, primary_keys
         raise ValueError(f"Primary key columns not found in DataFrame: {missing_keys}")
 
     # Add SCD Type 2 metadata columns to new data
-    new_data = df.withColumn("valid_from", F.lit(current_time_str)) \
-                 .withColumn("valid_to", F.lit(None).cast("string")) \
-                 .withColumn("is_current", F.lit(True))
+    new_data = (
+        df.withColumn("valid_from", F.lit(current_time_str))
+        .withColumn("valid_to", F.lit(None).cast("string"))
+        .withColumn("is_current", F.lit(True))
+    )
 
     # Check if Delta table exists
     try:
@@ -1279,8 +1331,10 @@ def write_scd2_merge(spark: SparkSession, df: DataFrame, path: str, primary_keys
     merge_condition = " AND ".join(merge_condition_parts)
 
     # Build change detection condition (any non-key column changed)
-    metadata_cols = ['valid_from', 'valid_to', 'is_current']
-    data_columns = [col for col in df.columns if col not in primary_keys + metadata_cols]
+    metadata_cols = ["valid_from", "valid_to", "is_current"]
+    data_columns = [
+        col for col in df.columns if col not in primary_keys + metadata_cols
+    ]
 
     change_conditions = []
     for col in data_columns:
@@ -1297,16 +1351,12 @@ def write_scd2_merge(spark: SparkSession, df: DataFrame, path: str, primary_keys
 
     # Step 1: MERGE to expire changed records and insert truly new records
     merge_builder = delta_table.alias("target").merge(
-        new_data.alias("source"),
-        merge_condition
+        new_data.alias("source"), merge_condition
     )
 
     merge_builder = merge_builder.whenMatchedUpdate(
         condition=change_condition,
-        set={
-            "valid_to": F.lit(current_time_str),
-            "is_current": F.lit(False)
-        }
+        set={"valid_to": F.lit(current_time_str), "is_current": F.lit(False)},
     )
 
     merge_builder = merge_builder.whenNotMatchedInsertAll()
@@ -1323,7 +1373,9 @@ def write_scd2_merge(spark: SparkSession, df: DataFrame, path: str, primary_keys
     expired_count = expired_df.count()
 
     if expired_count > 0:
-        print(f"   [SCD2] Found {expired_count} changed records, inserting new versions")
+        print(
+            f"   [SCD2] Found {expired_count} changed records, inserting new versions"
+        )
         expired_keys = expired_df.select(primary_keys)
         updated_records = new_data.join(expired_keys, primary_keys, "inner")
         updated_records.write.format("delta").mode("append").save(path)
@@ -1343,7 +1395,14 @@ def write_scd2_merge(spark: SparkSession, df: DataFrame, path: str, primary_keys
 
 # ============ Destination Writers ============
 
-def write_s3_destination(df: DataFrame, dest_config: dict, job_name: str = "output", has_nosql_source: bool = False, source_types: list = None):
+
+def write_s3_destination(
+    df: DataFrame,
+    dest_config: dict,
+    job_name: str = "output",
+    has_nosql_source: bool = False,
+    source_types: list = None,
+):
     """
     Write DataFrame to S3 as Delta Lake format
 
@@ -1388,12 +1447,14 @@ def write_s3_destination(df: DataFrame, dest_config: dict, job_name: str = "outp
     # Parquet doesn't support VOID type, convert to STRING
     if has_nosql_source:
         from pyspark.sql.types import StringType
-        
+
         for field in writer_df.schema.fields:
             dtype_str = str(field.dataType)
             if "VoidType" in dtype_str or "void" in dtype_str.lower():
                 print(f"   Converting VOID column to STRING: {field.name}")
-                writer_df = writer_df.withColumn(field.name, writer_df[field.name].cast(StringType()))
+                writer_df = writer_df.withColumn(
+                    field.name, writer_df[field.name].cast(StringType())
+                )
 
     # Use SCD Type 2 for incremental loads to track full history
     # (S3 logs will use simple append inside write_scd2_merge)
@@ -1411,17 +1472,18 @@ def write_s3_destination(df: DataFrame, dest_config: dict, job_name: str = "outp
             path=path,
             primary_keys=None,  # Auto-detect
             timestamp_col=timestamp_col,
-            source_types=source_types  # Pass source types for S3 detection
+            source_types=source_types,  # Pass source types for S3 detection
         )
     else:
         # Full load: overwrite mode
         print(f"📊 Writing with overwrite mode (full load)")
         mode = options.get("mode", "overwrite")
 
-        writer = writer_df.write \
-            .format("delta") \
-            .mode(mode) \
+        writer = (
+            writer_df.write.format("delta")
+            .mode(mode)
             .option("compression", compression)
+        )
 
         if partition_by:
             writer = writer.partitionBy(*partition_by)
@@ -1435,13 +1497,19 @@ def write_s3_destination(df: DataFrame, dest_config: dict, job_name: str = "outp
 
 # ============ Main ETL Runner ============
 
+
 def create_spark_session(config: dict) -> SparkSession:
     """Create SparkSession with S3 and Delta Lake configuration"""
     dest = config.get("destination", {})
 
-    builder = SparkSession.builder.appName(f"ETL: {config.get('name', 'Unknown')}") \
-        .config("spark.sql.extensions", "io.delta.sql.DeltaSparkSessionExtension") \
-        .config("spark.sql.catalog.spark_catalog", "org.apache.spark.sql.delta.catalog.DeltaCatalog")
+    builder = (
+        SparkSession.builder.appName(f"ETL: {config.get('name', 'Unknown')}")
+        .config("spark.sql.extensions", "io.delta.sql.DeltaSparkSessionExtension")
+        .config(
+            "spark.sql.catalog.spark_catalog",
+            "org.apache.spark.sql.delta.catalog.DeltaCatalog",
+        )
+    )
 
     # S3 configuration
     if dest.get("type") == "s3":
@@ -1451,41 +1519,55 @@ def create_spark_session(config: dict) -> SparkSession:
         if s3_config.get("use_iam_role"):
             # Production: Use IAM role from ServiceAccount (IRSA)
             region = s3_config.get("region", "ap-northeast-2")
-            builder = builder \
-                .config("spark.hadoop.fs.s3a.impl", "org.apache.hadoop.fs.s3a.S3AFileSystem") \
-                .config("spark.hadoop.fs.s3a.aws.credentials.provider",
-                       "com.amazonaws.auth.WebIdentityTokenCredentialsProvider") \
-                .config("spark.hadoop.fs.s3a.endpoint", f"s3.{region}.amazonaws.com") \
+            builder = (
+                builder.config(
+                    "spark.hadoop.fs.s3a.impl", "org.apache.hadoop.fs.s3a.S3AFileSystem"
+                )
+                .config(
+                    "spark.hadoop.fs.s3a.aws.credentials.provider",
+                    "com.amazonaws.auth.WebIdentityTokenCredentialsProvider",
+                )
+                .config("spark.hadoop.fs.s3a.endpoint", f"s3.{region}.amazonaws.com")
                 .config("spark.hadoop.fs.s3a.fast.upload", "true")
+            )
         else:
             # Non-IAM: Use explicit credentials (LocalStack or user-provided)
             # Support both old field names (access_key, secret_key, endpoint) and new (access_key_id, secret_access_key, region)
             access_key = s3_config.get("access_key_id") or s3_config.get("access_key")
-            secret_key = s3_config.get("secret_access_key") or s3_config.get("secret_key")
+            secret_key = s3_config.get("secret_access_key") or s3_config.get(
+                "secret_key"
+            )
             endpoint = s3_config.get("endpoint")
 
-            builder = builder \
-                .config("spark.hadoop.fs.s3a.impl", "org.apache.hadoop.fs.s3a.S3AFileSystem") \
-                .config("spark.hadoop.fs.s3a.fast.upload", "true") \
-                .config("spark.hadoop.fs.s3a.fast.upload.buffer", "disk") \
+            builder = (
+                builder.config(
+                    "spark.hadoop.fs.s3a.impl", "org.apache.hadoop.fs.s3a.S3AFileSystem"
+                )
+                .config("spark.hadoop.fs.s3a.fast.upload", "true")
+                .config("spark.hadoop.fs.s3a.fast.upload.buffer", "disk")
                 .config("spark.hadoop.fs.s3a.multipart.size", "5M")
+            )
 
             # Only configure credentials if explicitly provided
             if access_key and secret_key:
-                builder = builder \
-                    .config("spark.hadoop.fs.s3a.access.key", access_key) \
-                    .config("spark.hadoop.fs.s3a.secret.key", secret_key)
+                builder = builder.config(
+                    "spark.hadoop.fs.s3a.access.key", access_key
+                ).config("spark.hadoop.fs.s3a.secret.key", secret_key)
 
                 # Handle endpoint
                 if endpoint:
                     builder = builder.config("spark.hadoop.fs.s3a.endpoint", endpoint)
                 else:
                     region = s3_config.get("region", "ap-northeast-2")
-                    builder = builder.config("spark.hadoop.fs.s3a.endpoint", f"s3.{region}.amazonaws.com")
+                    builder = builder.config(
+                        "spark.hadoop.fs.s3a.endpoint", f"s3.{region}.amazonaws.com"
+                    )
 
                 # Path-style access for LocalStack
                 if endpoint and endpoint.startswith("http://"):
-                    builder = builder.config("spark.hadoop.fs.s3a.path.style.access", "true")
+                    builder = builder.config(
+                        "spark.hadoop.fs.s3a.path.style.access", "true"
+                    )
             else:
                 # No explicit credentials - will use Spark's global credentials (IRSA)
                 print("Using Spark's global S3 credentials for destination (IRSA)")
@@ -1549,20 +1631,23 @@ def run_etl(config: dict):
             if source_type == "api":
                 connection = source_config.get("connection", {})
                 connection_config = connection.get("config", {})
-                base_url = connection.get("base_url") or connection_config.get("base_url") or source_config.get("base_url")
+                base_url = (
+                    connection.get("base_url")
+                    or connection_config.get("base_url")
+                    or source_config.get("base_url")
+                )
                 endpoint = source_config.get("endpoint", "")
                 source_desc = f"{base_url}/{endpoint}" if endpoint else base_url
             else:
-                source_desc = source_config.get('table') or source_config.get('collection') or source_config.get('connection', {}).get('bucket', 'unknown')
+                source_desc = (
+                    source_config.get("table")
+                    or source_config.get("collection")
+                    or source_config.get("connection", {}).get("bucket", "unknown")
+                )
 
             print(f"   [{node_id}] Reading from {source_type}: {source_desc}")
             if source_type in ["rdb", "postgres"]:
-                # Check if snapshot export path is available (initial load via RDS Snapshot Export)
-                if source_config.get("snapshot_export_path"):
-                    print(f"   [{node_id}] Using snapshot export mode (S3 Parquet)")
-                    df = read_snapshot_export_source(spark, source_config)
-                else:
-                    df = read_rdb_source(spark, source_config)
+                df = read_rdb_source(spark, source_config)
             elif source_type in ["mongodb", "nosql"]:
                 df = read_nosql_source(spark, source_config)
                 has_nosql_source = True  # Mark that we have NoSQL source
@@ -1581,7 +1666,12 @@ def run_etl(config: dict):
 
             dataframes[node_id] = df
             # Store source name for SQL JOIN support (use name from config, fallback to node_id)
-            source_name = source_config.get("name") or source_config.get("table") or source_config.get("collection") or node_id
+            source_name = (
+                source_config.get("name")
+                or source_config.get("table")
+                or source_config.get("collection")
+                or node_id
+            )
             source_names[node_id] = source_name
             print(f"   [{node_id}] Schema (name: {source_name}):")
             df.printSchema()
@@ -1601,48 +1691,64 @@ def run_etl(config: dict):
             if transform_type in MULTI_INPUT_TRANSFORMS:
                 # Multi-input transform (like union)
                 if not input_node_ids:
-                    raise ValueError(f"Transform {transform_type} requires inputNodeIds")
+                    raise ValueError(
+                        f"Transform {transform_type} requires inputNodeIds"
+                    )
 
                 input_dfs = []
                 for input_id in input_node_ids:
                     if input_id not in dataframes:
-                        raise ValueError(f"Input node {input_id} not found for transform {node_id}")
+                        raise ValueError(
+                            f"Input node {input_id} not found for transform {node_id}"
+                        )
                     input_dfs.append(dataframes[input_id])
 
                 if len(input_dfs) < 2:
-                    raise ValueError(f"Transform {transform_type} requires at least 2 inputs, got {len(input_dfs)}")
+                    raise ValueError(
+                        f"Transform {transform_type} requires at least 2 inputs, got {len(input_dfs)}"
+                    )
 
-                result_df = MULTI_INPUT_TRANSFORMS[transform_type](input_dfs, transform_config)
+                result_df = MULTI_INPUT_TRANSFORMS[transform_type](
+                    input_dfs, transform_config
+                )
 
             elif transform_type in TRANSFORMS:
                 # Single-input transform (or multi-input for SQL with UNION ALL)
                 additional_tables = None  # For SQL transforms with multiple inputs
-                
+
                 if input_node_ids:
                     # Special handling for SQL transform with multiple inputs
                     if transform_type == "sql" and len(input_node_ids) > 1:
                         # UNION ALL multiple sources before SQL execution
-                        print(f"   Combining {len(input_node_ids)} sources with UNION ALL...")
+                        print(
+                            f"   Combining {len(input_node_ids)} sources with UNION ALL..."
+                        )
                         input_dfs = []
                         additional_tables = {}  # Build named tables for JOIN support
-                        
+
                         for input_id in input_node_ids:
                             if input_id not in dataframes:
-                                raise ValueError(f"Input node {input_id} not found for transform {node_id}")
+                                raise ValueError(
+                                    f"Input node {input_id} not found for transform {node_id}"
+                                )
                             df = dataframes[input_id]
                             input_dfs.append(df)
-                            
+
                             # Add to additional_tables using source name
                             table_name = source_names.get(input_id, input_id)
                             additional_tables[table_name] = df
                             print(f"   → Table '{table_name}' prepared for SQL access")
-                        
+
                         # Use unionByName with allowMissingColumns for schema alignment
                         input_df = input_dfs[0]
                         for df in input_dfs[1:]:
-                            input_df = input_df.unionByName(df, allowMissingColumns=True)
-                        
-                        print(f"   UNION ALL complete. Combined schema has {len(input_df.columns)} columns")
+                            input_df = input_df.unionByName(
+                                df, allowMissingColumns=True
+                            )
+
+                        print(
+                            f"   UNION ALL complete. Combined schema has {len(input_df.columns)} columns"
+                        )
                     else:
                         # Regular single input
                         input_df = dataframes[input_node_ids[0]]
@@ -1653,7 +1759,9 @@ def run_etl(config: dict):
 
                 # Call transform function with additional_tables for SQL
                 if transform_type == "sql" and additional_tables:
-                    result_df = transform_sql(input_df, transform_config, additional_tables)
+                    result_df = transform_sql(
+                        input_df, transform_config, additional_tables
+                    )
                 else:
                     result_df = TRANSFORMS[transform_type](input_df, transform_config)
 
@@ -1675,11 +1783,19 @@ def run_etl(config: dict):
         dest_type = dest_config.get("type", "s3")
 
         # Extract source types for SCD Type 2 logic
-        source_types = [s.get("type") or s.get("source_type") for s in config.get("sources", [])]
+        source_types = [
+            s.get("type") or s.get("source_type") for s in config.get("sources", [])
+        ]
 
         print(f"💾 Writing to destination: {dest_type}")
         if dest_type == "s3":
-            write_s3_destination(final_df, dest_config, config.get("name", "output"), has_nosql_source, source_types)
+            write_s3_destination(
+                final_df,
+                dest_config,
+                config.get("name", "output"),
+                has_nosql_source,
+                source_types,
+            )
         else:
             raise ValueError(f"Unsupported destination type: {dest_type}")
 
@@ -1696,8 +1812,8 @@ def run_etl(config: dict):
 if __name__ == "__main__":
     if len(sys.argv) < 2:
         print("Usage: spark-submit etl_runner.py '<json_config>'")
-    import sys
     import json
+    import sys
 
     # Parse config from command line
     if len(sys.argv) > 1:
@@ -1706,6 +1822,7 @@ if __name__ == "__main__":
                 config = json.load(f)
         elif sys.argv[1] == "--base64":
             import base64
+
             # Decode base64 config string
             decoded_bytes = base64.b64decode(sys.argv[2])
             decoded_str = decoded_bytes.decode("utf-8")
@@ -1713,8 +1830,10 @@ if __name__ == "__main__":
         else:
             # Assume raw JSON string
             config = json.loads(sys.argv[1])
-            
+
         run_etl(config)
     else:
-        print("Usage: etl_runner.py <json_config> OR --base64 <b64_config> OR --config-file <path>")
+        print(
+            "Usage: etl_runner.py <json_config> OR --base64 <b64_config> OR --config-file <path>"
+        )
         sys.exit(1)
