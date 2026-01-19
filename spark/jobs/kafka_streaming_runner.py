@@ -335,7 +335,7 @@ def run_streaming_job(config: dict):
         .format("kafka") \
         .option("kafka.bootstrap.servers", bootstrap_servers) \
         .option("subscribe", topic) \
-        .option("startingOffsets", "latest")
+        .option("startingOffsets", "earliest")
     if group_id:
         reader = reader.option("kafka.group.id", group_id)
     kafka_df = reader.load()
