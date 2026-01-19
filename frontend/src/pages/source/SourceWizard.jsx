@@ -19,7 +19,11 @@ import {
   X,
   Zap,
 } from "lucide-react";
-import { SiPostgresql, SiMongodb, SiApachekafka } from "@icons-pack/react-simple-icons";
+import {
+  SiPostgresql,
+  SiMongodb,
+  SiApachekafka,
+} from "@icons-pack/react-simple-icons";
 import SchedulesPanel from "../../components/etl/SchedulesPanel";
 import { connectionApi } from "../../services/connectionApi";
 import ConnectionForm from "../../components/sources/ConnectionForm";
@@ -340,15 +344,18 @@ export default function SourceWizard() {
     try {
       setKafkaSchemaLoading(true);
       setKafkaSchemaError("");
-      const response = await fetch(`${API_BASE_URL}/api/source-datasets/kafka/schema`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          connection_id: config.connectionId,
-          topic: config.topic,
-          sample_size: 1,
-        }),
-      });
+      const response = await fetch(
+        `${API_BASE_URL}/api/source-datasets/kafka/schema`,
+        {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            connection_id: config.connectionId,
+            topic: config.topic,
+            sample_size: 1,
+          }),
+        }
+      );
 
       if (!response.ok) {
         const error = await response.json();
@@ -451,7 +458,7 @@ export default function SourceWizard() {
         ...config,
         collection: collectionName,
         columns: columns.map((col) => ({
-          name: col.field,  // MongoDB uses 'field', not 'name'
+          name: col.field, // MongoDB uses 'field', not 'name'
           type: col.type,
           description: "",
         })),
@@ -582,7 +589,9 @@ export default function SourceWizard() {
       // API call to create/update source dataset
       const url = isEditMode
         ? `${API_BASE_URL}/api/source-datasets/${config.id}`
-        : `${API_BASE_URL}/api/source-datasets${sessionId ? `?session_id=${sessionId}` : ''}`;
+        : `${API_BASE_URL}/api/source-datasets${
+            sessionId ? `?session_id=${sessionId}` : ""
+          }`;
 
       console.log("Sending data:", sourceData);
       console.log("URL:", url);
@@ -689,10 +698,11 @@ export default function SourceWizard() {
               <button
                 onClick={handleBack}
                 disabled={currentStep === 1}
-                className={`flex items-center gap-2 px-4 py-2 rounded-lg transition-colors ${currentStep === 1
-                  ? "text-gray-300 cursor-not-allowed"
-                  : "text-gray-600 hover:bg-gray-100"
-                  }`}
+                className={`flex items-center gap-2 px-4 py-2 rounded-lg transition-colors ${
+                  currentStep === 1
+                    ? "text-gray-300 cursor-not-allowed"
+                    : "text-gray-600 hover:bg-gray-100"
+                }`}
               >
                 <ArrowLeft className="w-4 h-4" />
                 Back
@@ -702,10 +712,11 @@ export default function SourceWizard() {
                 <button
                   onClick={handleNext}
                   disabled={!canProceed() || isLoading}
-                  className={`flex items-center gap-2 px-5 py-2 rounded-lg transition-colors ${canProceed() && !isLoading
-                    ? "bg-emerald-600 text-white hover:bg-emerald-700"
-                    : "bg-gray-200 text-gray-400 cursor-not-allowed"
-                    }`}
+                  className={`flex items-center gap-2 px-5 py-2 rounded-lg transition-colors ${
+                    canProceed() && !isLoading
+                      ? "bg-emerald-600 text-white hover:bg-emerald-700"
+                      : "bg-gray-200 text-gray-400 cursor-not-allowed"
+                  }`}
                 >
                   {isLoading ? (
                     <>
@@ -723,13 +734,18 @@ export default function SourceWizard() {
                 <button
                   onClick={handleCreate}
                   disabled={isLoading}
-                  className={`flex items-center gap-2 px-5 py-2 rounded-lg transition-colors ${isLoading
-                    ? "bg-gray-400 cursor-not-allowed"
-                    : "bg-emerald-600 hover:bg-emerald-700"
-                    } text-white`}
+                  className={`flex items-center gap-2 px-5 py-2 rounded-lg transition-colors ${
+                    isLoading
+                      ? "bg-gray-400 cursor-not-allowed"
+                      : "bg-emerald-600 hover:bg-emerald-700"
+                  } text-white`}
                 >
                   <Check className="w-4 h-4" />
-                  {isLoading ? "Saving..." : isEditMode ? "Save Changes" : "Create"}
+                  {isLoading
+                    ? "Saving..."
+                    : isEditMode
+                    ? "Save Changes"
+                    : "Create"}
                 </button>
               )}
             </div>
@@ -746,12 +762,13 @@ export default function SourceWizard() {
               >
                 <div className="flex flex-col items-center">
                   <div
-                    className={`w-10 h-10 rounded-full flex items-center justify-center transition-colors shrink-0 ${currentStep > step.id
-                      ? "bg-emerald-500 text-white"
-                      : currentStep === step.id
+                    className={`w-10 h-10 rounded-full flex items-center justify-center transition-colors shrink-0 ${
+                      currentStep > step.id
+                        ? "bg-emerald-500 text-white"
+                        : currentStep === step.id
                         ? "bg-emerald-500 text-white"
                         : "bg-gray-200 text-gray-500"
-                      }`}
+                    }`}
                   >
                     {currentStep > step.id ? (
                       <Check className="w-5 h-5" />
@@ -760,16 +777,18 @@ export default function SourceWizard() {
                     )}
                   </div>
                   <span
-                    className={`mt-2 text-xs font-medium whitespace-nowrap ${currentStep >= step.id ? "text-gray-900" : "text-gray-500"
-                      }`}
+                    className={`mt-2 text-xs font-medium whitespace-nowrap ${
+                      currentStep >= step.id ? "text-gray-900" : "text-gray-500"
+                    }`}
                   >
                     {step.name}
                   </span>
                 </div>
                 {index < STEPS.length - 1 && (
                   <div
-                    className={`flex-1 h-1 mx-4 rounded self-center -mt-6 ${currentStep > step.id ? "bg-emerald-500" : "bg-gray-200"
-                      }`}
+                    className={`flex-1 h-1 mx-4 rounded self-center -mt-6 ${
+                      currentStep > step.id ? "bg-emerald-500" : "bg-gray-200"
+                    }`}
                   />
                 )}
               </div>
@@ -795,14 +814,17 @@ export default function SourceWizard() {
                 {SOURCE_OPTIONS.map((source) => (
                   <button
                     key={source.id}
-                    onClick={() => !source.disabled && setSelectedSource(source)}
+                    onClick={() =>
+                      !source.disabled && setSelectedSource(source)
+                    }
                     disabled={source.disabled}
-                    className={`relative p-8 rounded-xl border-2 text-left transition-all ${source.disabled
-                      ? "border-gray-200 bg-gray-50 cursor-not-allowed opacity-60"
-                      : selectedSource?.id === source.id
+                    className={`relative p-8 rounded-xl border-2 text-left transition-all ${
+                      source.disabled
+                        ? "border-gray-200 bg-gray-50 cursor-not-allowed opacity-60"
+                        : selectedSource?.id === source.id
                         ? "border-emerald-500 bg-emerald-50"
                         : "border-gray-200 hover:border-gray-300 hover:bg-gray-50"
-                      }`}
+                    }`}
                   >
                     {source.comingSoon && (
                       <span className="absolute top-4 right-4 text-sm font-medium text-gray-500 bg-gray-200 px-3 py-1 rounded-full">
@@ -811,12 +833,22 @@ export default function SourceWizard() {
                     )}
                     <source.icon
                       className="w-14 h-14 mb-5"
-                      style={{ color: source.disabled ? "#9CA3AF" : source.color }}
+                      style={{
+                        color: source.disabled ? "#9CA3AF" : source.color,
+                      }}
                     />
-                    <h3 className={`text-lg font-semibold ${source.disabled ? "text-gray-400" : "text-gray-900"}`}>
+                    <h3
+                      className={`text-lg font-semibold ${
+                        source.disabled ? "text-gray-400" : "text-gray-900"
+                      }`}
+                    >
                       {source.name}
                     </h3>
-                    <p className={`text-base mt-2 ${source.disabled ? "text-gray-400" : "text-gray-500"}`}>
+                    <p
+                      className={`text-base mt-2 ${
+                        source.disabled ? "text-gray-400" : "text-gray-500"
+                      }`}
+                    >
                       {source.description}
                     </p>
                     {selectedSource?.id === source.id && !source.disabled && (
@@ -897,8 +929,10 @@ export default function SourceWizard() {
                     onCreate={() => setShowCreateConnectionModal(true)}
                     onDelete={handleDeleteConnection}
                     classNames={{
-                      button: "px-4 py-2 border border-gray-300 rounded-lg bg-white focus:outline-none focus:ring-2 focus:ring-emerald-500",
-                      panel: "mt-2 rounded-lg border border-gray-200 bg-white shadow-lg",
+                      button:
+                        "px-4 py-2 border border-gray-300 rounded-lg bg-white focus:outline-none focus:ring-2 focus:ring-emerald-500",
+                      panel:
+                        "mt-2 rounded-lg border border-gray-200 bg-white shadow-lg",
                       option: "rounded-lg mx-1 my-0.5 hover:bg-gray-50",
                       optionSelected: "bg-gray-100",
                       icon: "text-gray-500",
@@ -931,10 +965,10 @@ export default function SourceWizard() {
                         loadingTables
                           ? "Loading tables..."
                           : !config.connectionId
-                            ? "Select a connection first"
-                            : tables.length === 0
-                              ? "No tables available"
-                              : "Select a table..."
+                          ? "Select a connection first"
+                          : tables.length === 0
+                          ? "No tables available"
+                          : "Select a table..."
                       }
                       emptyMessage={
                         !config.connectionId
@@ -946,8 +980,7 @@ export default function SourceWizard() {
                           "px-4 py-2.5 rounded-xl border-emerald-200/70 bg-gradient-to-r from-white via-emerald-50/50 to-emerald-100/40 shadow-sm shadow-emerald-100/70 hover:shadow-md hover:shadow-emerald-200/70 focus:ring-2 focus:ring-emerald-400/60 focus:border-emerald-300 transition-all",
                         panel:
                           "mt-2 rounded-xl border-emerald-100/90 bg-white/95 shadow-xl shadow-emerald-100/60 ring-1 ring-emerald-100/70 backdrop-blur",
-                        option:
-                          "rounded-lg mx-1 my-0.5 hover:bg-emerald-50/70",
+                        option: "rounded-lg mx-1 my-0.5 hover:bg-emerald-50/70",
                         optionSelected: "bg-emerald-50/80",
                         icon: "text-emerald-500",
                         empty: "text-emerald-500/70",
@@ -975,8 +1008,8 @@ export default function SourceWizard() {
                     </label>
                     <Combobox
                       options={[
-                        { id: "log", label: "Log (.log)" },
-                        { id: "parquet", label: "Parquet (.parquet)" }
+                        { id: "log", label: "Log" },
+                        { id: "parquet", label: "Parquet" },
                       ]}
                       value={config.format || "log"}
                       onChange={(format) => {
@@ -999,7 +1032,8 @@ export default function SourceWizard() {
                       }}
                     />
                     <p className="mt-1 text-xs text-gray-500">
-                      Log는 정규식 파싱(타겟 위자드에서), Parquet는 파일 스키마를 자동 추론합니다.
+                      Log는 정규식 파싱(타겟 위자드에서), Parquet는 파일
+                      스키마를 자동 추론합니다.
                     </p>
 
                     <div className="mt-4" />
@@ -1020,7 +1054,8 @@ export default function SourceWizard() {
                       className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-emerald-500"
                     />
                     <p className="mt-1 text-xs text-gray-500">
-                      The folder path within the bucket (bucket is defined in the connection)
+                      The folder path within the bucket (bucket is defined in
+                      the connection)
                     </p>
                   </div>
                 )}
@@ -1034,7 +1069,7 @@ export default function SourceWizard() {
                     <Combobox
                       options={[
                         { id: "json", label: "JSON" },
-                        { id: "raw", label: "Raw String" }
+                        { id: "raw", label: "Raw String" },
                       ]}
                       value={config.format || "json"}
                       onChange={(format) => {
@@ -1047,15 +1082,18 @@ export default function SourceWizard() {
                       getLabel={(option) => option.label}
                       placeholder="Select a format..."
                       classNames={{
-                        button: "px-4 py-2 border border-gray-300 rounded-lg bg-white focus:outline-none focus:ring-2 focus:ring-emerald-500",
-                        panel: "mt-2 rounded-lg border border-gray-200 bg-white shadow-lg",
+                        button:
+                          "px-4 py-2 border border-gray-300 rounded-lg bg-white focus:outline-none focus:ring-2 focus:ring-emerald-500",
+                        panel:
+                          "mt-2 rounded-lg border border-gray-200 bg-white shadow-lg",
                         option: "rounded-lg mx-1 my-0.5 hover:bg-gray-50",
                         optionSelected: "bg-gray-100",
                         icon: "text-gray-500",
                       }}
                     />
                     <p className="mt-1 text-xs text-gray-500">
-                      JSON supports schema inference and columns, Raw stores as string.
+                      JSON supports schema inference and columns, Raw stores as
+                      string.
                     </p>
 
                     <div className="mt-4" />
@@ -1083,10 +1121,10 @@ export default function SourceWizard() {
                         kafkaTopicsLoading
                           ? "Loading topics..."
                           : !config.connectionId
-                            ? "Select a connection first"
-                            : kafkaTopics.length === 0
-                              ? "No topics available"
-                              : "Select a topic..."
+                          ? "Select a connection first"
+                          : kafkaTopics.length === 0
+                          ? "No topics available"
+                          : "Select a topic..."
                       }
                       emptyMessage={
                         !config.connectionId
@@ -1094,8 +1132,10 @@ export default function SourceWizard() {
                           : "No topics available"
                       }
                       classNames={{
-                        button: "px-4 py-2 border border-gray-300 rounded-lg bg-white focus:outline-none focus:ring-2 focus:ring-emerald-500",
-                        panel: "mt-2 rounded-lg border border-gray-200 bg-white shadow-lg",
+                        button:
+                          "px-4 py-2 border border-gray-300 rounded-lg bg-white focus:outline-none focus:ring-2 focus:ring-emerald-500",
+                        panel:
+                          "mt-2 rounded-lg border border-gray-200 bg-white shadow-lg",
                         option: "rounded-lg mx-1 my-0.5 hover:bg-gray-50",
                         optionSelected: "bg-gray-100",
                         icon: "text-gray-500",
@@ -1110,7 +1150,11 @@ export default function SourceWizard() {
                       <button
                         type="button"
                         onClick={handleKafkaSchemaFetch}
-                        disabled={!config.connectionId || !config.topic || kafkaSchemaLoading}
+                        disabled={
+                          !config.connectionId ||
+                          !config.topic ||
+                          kafkaSchemaLoading
+                        }
                         className="px-3 py-1.5 text-sm rounded-md border border-gray-300 bg-white hover:bg-gray-50 disabled:opacity-50"
                       >
                         {kafkaSchemaLoading ? "Loading..." : "Fetch Schema"}
@@ -1118,21 +1162,31 @@ export default function SourceWizard() {
                     </div>
 
                     {kafkaSchemaError && (
-                      <p className="mt-2 text-xs text-red-600">{kafkaSchemaError}</p>
+                      <p className="mt-2 text-xs text-red-600">
+                        {kafkaSchemaError}
+                      </p>
                     )}
                     {kafkaTopicsError && (
-                      <p className="mt-2 text-xs text-red-600">{kafkaTopicsError}</p>
-                    )}
-                    {!kafkaTopicsLoading && !kafkaTopicsError && config.connectionId && kafkaTopics.length === 0 && (
-                      <p className="mt-2 text-xs text-gray-500 text-right">
-                        No topics found for this connection.
+                      <p className="mt-2 text-xs text-red-600">
+                        {kafkaTopicsError}
                       </p>
                     )}
-                    {config.topic && !config.columns.length && !kafkaSchemaLoading && !kafkaSchemaError && (
-                      <p className="mt-2 text-xs text-gray-500">
-                        Fetch schema to preview fields from this topic.
-                      </p>
-                    )}
+                    {!kafkaTopicsLoading &&
+                      !kafkaTopicsError &&
+                      config.connectionId &&
+                      kafkaTopics.length === 0 && (
+                        <p className="mt-2 text-xs text-gray-500 text-right">
+                          No topics found for this connection.
+                        </p>
+                      )}
+                    {config.topic &&
+                      !config.columns.length &&
+                      !kafkaSchemaLoading &&
+                      !kafkaSchemaError && (
+                        <p className="mt-2 text-xs text-gray-500">
+                          Fetch schema to preview fields from this topic.
+                        </p>
+                      )}
                   </div>
                 )}
 
@@ -1164,82 +1218,87 @@ export default function SourceWizard() {
                     onResponsePathChange={(responsePath) =>
                       setConfig({ ...config, responsePath })
                     }
-                    onIncrementalChange={({ enabled, timestampParam, startFromDate }) =>
+                    onIncrementalChange={({
+                      enabled,
+                      timestampParam,
+                      startFromDate,
+                    }) =>
                       setConfig({
                         ...config,
                         incrementalEnabled: enabled,
                         timestampParam: timestampParam,
-                        startFromDate: startFromDate
+                        startFromDate: startFromDate,
                       })
                     }
                   />
                 )}
 
                 {/* Columns Section - Only for PostgreSQL (MongoDB has its own in MongoDBSourceConfig) */}
-                {config.columns.length > 0 && selectedSource?.id !== "mongodb" && (
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-3">
-                      Columns ({config.columns.length})
-                    </label>
-                    <div className="space-y-3">
-                      {config.columns.map((column, index) => (
-                        <div
-                          key={index}
-                          className="border border-gray-200 rounded-lg bg-gray-50 overflow-hidden"
-                        >
-                          <div className="flex items-center justify-between p-4">
-                            <div className="flex items-center gap-2">
-                              <span className="font-medium text-gray-900">
-                                {column.name}
-                              </span>
-                              <span className="text-xs text-gray-500 bg-white px-2 py-1 rounded border border-gray-200">
-                                {column.type}
-                              </span>
-                            </div>
-                            <button
-                              onClick={() => toggleColumnExpansion(index)}
-                              className="p-1 hover:bg-gray-200 rounded transition-colors"
-                              title={
-                                expandedColumns[index]
-                                  ? "Hide description"
-                                  : "Show description"
-                              }
-                            >
-                              {expandedColumns[index] ? (
-                                <ChevronUp className="w-4 h-4 text-gray-600" />
-                              ) : (
-                                <ChevronDown className="w-4 h-4 text-gray-600" />
-                              )}
-                            </button>
-                          </div>
-
-                          {expandedColumns[index] && (
-                            <div className="px-4 pb-4 pt-0">
-                              <div>
-                                <label className="block text-xs font-medium text-gray-600 mb-1">
-                                  Description
-                                </label>
-                                <input
-                                  type="text"
-                                  value={column.description}
-                                  onChange={(e) =>
-                                    updateColumnMetadata(
-                                      index,
-                                      "description",
-                                      e.target.value
-                                    )
-                                  }
-                                  placeholder="Enter column description"
-                                  className="w-full px-3 py-2 text-sm border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-emerald-500 bg-white"
-                                />
+                {config.columns.length > 0 &&
+                  selectedSource?.id !== "mongodb" && (
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-3">
+                        Columns ({config.columns.length})
+                      </label>
+                      <div className="space-y-3">
+                        {config.columns.map((column, index) => (
+                          <div
+                            key={index}
+                            className="border border-gray-200 rounded-lg bg-gray-50 overflow-hidden"
+                          >
+                            <div className="flex items-center justify-between p-4">
+                              <div className="flex items-center gap-2">
+                                <span className="font-medium text-gray-900">
+                                  {column.name}
+                                </span>
+                                <span className="text-xs text-gray-500 bg-white px-2 py-1 rounded border border-gray-200">
+                                  {column.type}
+                                </span>
                               </div>
+                              <button
+                                onClick={() => toggleColumnExpansion(index)}
+                                className="p-1 hover:bg-gray-200 rounded transition-colors"
+                                title={
+                                  expandedColumns[index]
+                                    ? "Hide description"
+                                    : "Show description"
+                                }
+                              >
+                                {expandedColumns[index] ? (
+                                  <ChevronUp className="w-4 h-4 text-gray-600" />
+                                ) : (
+                                  <ChevronDown className="w-4 h-4 text-gray-600" />
+                                )}
+                              </button>
                             </div>
-                          )}
-                        </div>
-                      ))}
+
+                            {expandedColumns[index] && (
+                              <div className="px-4 pb-4 pt-0">
+                                <div>
+                                  <label className="block text-xs font-medium text-gray-600 mb-1">
+                                    Description
+                                  </label>
+                                  <input
+                                    type="text"
+                                    value={column.description}
+                                    onChange={(e) =>
+                                      updateColumnMetadata(
+                                        index,
+                                        "description",
+                                        e.target.value
+                                      )
+                                    }
+                                    placeholder="Enter column description"
+                                    className="w-full px-3 py-2 text-sm border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-emerald-500 bg-white"
+                                  />
+                                </div>
+                              </div>
+                            )}
+                          </div>
+                        ))}
+                      </div>
                     </div>
-                  </div>
-                )}
+                  )}
               </div>
             </div>
           )}
@@ -1384,10 +1443,10 @@ export default function SourceWizard() {
                               {config.pagination?.type === "none"
                                 ? "No Pagination"
                                 : config.pagination?.type === "offset_limit"
-                                  ? "Offset/Limit"
-                                  : config.pagination?.type === "page"
-                                    ? "Page Number"
-                                    : "Cursor-based"}
+                                ? "Offset/Limit"
+                                : config.pagination?.type === "page"
+                                ? "Page Number"
+                                : "Cursor-based"}
                             </p>
                           </div>
                           {config.responsePath && (
@@ -1455,7 +1514,6 @@ export default function SourceWizard() {
           )}
         </div>
       </div>
-
 
       {/* Create Connection Modal */}
       {showCreateConnectionModal && (
