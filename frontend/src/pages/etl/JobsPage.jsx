@@ -11,10 +11,13 @@ import {
   Play,
   Copy,
   Check,
+  Filter,
+  XCircle,
 } from "lucide-react";
 import { API_BASE_URL } from "../../config/api";
 import SchedulesPanel from "../../components/etl/SchedulesPanel";
 import { useToast } from "../../components/common/Toast/ToastContext";
+import Combobox from "../../components/common/Combobox";
 
 // Schedule Edit Modal Component
 function ScheduleModal({ isOpen, onClose, job, onSave }) {
@@ -231,6 +234,12 @@ export default function JobsPage() {
     job: null,
   });
   const [copiedId, setCopiedId] = useState(null);
+
+  // Filter states
+  const [jobTypeFilter, setJobTypeFilter] = useState("all");
+  const [statusFilter, setStatusFilter] = useState("all");
+  const [activeFilter, setActiveFilter] = useState("all");
+
   const { showToast } = useToast();
   const navigate = useNavigate();
 
@@ -480,12 +489,6 @@ export default function JobsPage() {
     }
   };
 
-  const filteredJobs = jobs.filter(
-    (job) =>
-      job.name?.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      job.description?.toLowerCase().includes(searchQuery.toLowerCase())
-  );
-
   const getJobStatus = (job, runs) => {
     // CDC job: running if active, otherwise -
     if (job.job_type === "cdc") {
@@ -522,6 +525,37 @@ export default function JobsPage() {
     return { label: "-", color: "gray" };
   };
 
+  const filteredJobs = jobs.filter((job) => {
+    // Search filter
+    const matchesSearch =
+      job.name?.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      job.description?.toLowerCase().includes(searchQuery.toLowerCase());
+
+    // Job type filter
+    const matchesJobType =
+      jobTypeFilter === "all" ||
+      (jobTypeFilter === "batch" && job.job_type === "batch") ||
+      (jobTypeFilter === "cdc" && job.job_type === "cdc") ||
+      (jobTypeFilter === "streaming" && job.job_type === "streaming");
+
+    // Status filter
+    const jobStatus = getJobStatus(job, jobRuns[job.id]);
+    const matchesStatus =
+      statusFilter === "all" ||
+      (statusFilter === "running" && jobStatus.label === "Running") ||
+      (statusFilter === "ready" && jobStatus.label === "Ready") ||
+      (statusFilter === "stopped" &&
+        (jobStatus.label === "Stopped" || jobStatus.label === "-"));
+
+    // Active filter
+    const matchesActive =
+      activeFilter === "all" ||
+      (activeFilter === "active" && job.is_active) ||
+      (activeFilter === "inactive" && !job.is_active);
+
+    return matchesSearch && matchesJobType && matchesStatus && matchesActive;
+  });
+
   return (
     <div className="p-6">
       <div className="mb-6">
@@ -547,6 +581,131 @@ export default function JobsPage() {
           <RefreshCw className={`w-4 h-4 ${isLoading ? "animate-spin" : ""}`} />
           Refresh
         </button>
+      </div>
+
+      {/* Filters */}
+      <div className="mb-6 bg-white rounded-lg border border-gray-200 p-4">
+        <div className="flex items-center justify-between gap-4 flex-wrap">
+          <div className="flex items-center gap-3">
+            <div className="flex items-center gap-2">
+              <Filter className="w-4 h-4 text-gray-400" />
+              <span className="text-sm font-medium text-gray-700">Filters</span>
+            </div>
+
+            <div className="h-5 w-px bg-gray-300" />
+
+            <div className="flex items-center gap-3">
+              {/* Job Type Filter */}
+              <div className="w-40">
+                <Combobox
+                  options={[
+                    { id: "all", name: "All Types" },
+                    { id: "batch", name: "Batch" },
+                    { id: "cdc", name: "CDC" },
+                    { id: "streaming", name: "Streaming" },
+                  ]}
+                  value={jobTypeFilter}
+                  onChange={(option) => setJobTypeFilter(option.id)}
+                  placeholder="Select type"
+                  classNames={{
+                    button: "text-sm py-1.5",
+                    label: "text-sm",
+                  }}
+                />
+              </div>
+
+              {/* Status Filter */}
+              <div className="w-40">
+                <Combobox
+                  options={[
+                    { id: "all", name: "All Status" },
+                    { id: "running", name: "Running" },
+                    { id: "ready", name: "Ready" },
+                    { id: "stopped", name: "Stopped" },
+                  ]}
+                  value={statusFilter}
+                  onChange={(option) => setStatusFilter(option.id)}
+                  placeholder="Select status"
+                  classNames={{
+                    button: "text-sm py-1.5",
+                    label: "text-sm",
+                  }}
+                />
+              </div>
+
+              {/* Active Filter */}
+              <div className="w-40">
+                <Combobox
+                  options={[
+                    { id: "all", name: "All States" },
+                    { id: "active", name: "Active" },
+                    { id: "inactive", name: "Inactive" },
+                  ]}
+                  value={activeFilter}
+                  onChange={(option) => setActiveFilter(option.id)}
+                  placeholder="Select state"
+                  classNames={{
+                    button: "text-sm py-1.5",
+                    label: "text-sm",
+                  }}
+                />
+              </div>
+            </div>
+          </div>
+
+          {/* Active Filters & Clear Button */}
+          <div className="flex items-center gap-2">
+            {jobTypeFilter !== "all" && (
+              <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md text-xs font-medium bg-blue-50 text-blue-700 border border-blue-200">
+                Type: {jobTypeFilter.charAt(0).toUpperCase() + jobTypeFilter.slice(1)}
+                <button
+                  onClick={() => setJobTypeFilter("all")}
+                  className="hover:bg-blue-100 rounded-full p-0.5"
+                >
+                  <X className="w-3 h-3" />
+                </button>
+              </span>
+            )}
+            {statusFilter !== "all" && (
+              <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md text-xs font-medium bg-green-50 text-green-700 border border-green-200">
+                Status: {statusFilter.charAt(0).toUpperCase() + statusFilter.slice(1)}
+                <button
+                  onClick={() => setStatusFilter("all")}
+                  className="hover:bg-green-100 rounded-full p-0.5"
+                >
+                  <X className="w-3 h-3" />
+                </button>
+              </span>
+            )}
+            {activeFilter !== "all" && (
+              <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md text-xs font-medium bg-purple-50 text-purple-700 border border-purple-200">
+                State: {activeFilter.charAt(0).toUpperCase() + activeFilter.slice(1)}
+                <button
+                  onClick={() => setActiveFilter("all")}
+                  className="hover:bg-purple-100 rounded-full p-0.5"
+                >
+                  <X className="w-3 h-3" />
+                </button>
+              </span>
+            )}
+
+            {(jobTypeFilter !== "all" ||
+              statusFilter !== "all" ||
+              activeFilter !== "all") && (
+              <button
+                onClick={() => {
+                  setJobTypeFilter("all");
+                  setStatusFilter("all");
+                  setActiveFilter("all");
+                }}
+                className="flex items-center gap-1 px-3 py-1.5 text-xs font-medium text-gray-600 hover:text-gray-900 hover:bg-gray-100 rounded-lg transition-colors"
+              >
+                <XCircle className="w-3.5 h-3.5" />
+                Clear All
+              </button>
+            )}
+          </div>
+        </div>
       </div>
 
       <div className="bg-white rounded-lg shadow border border-gray-200">
