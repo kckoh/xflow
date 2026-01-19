@@ -209,44 +209,6 @@ MULTI_INPUT_TRANSFORMS = {
 
 # ============ Source Readers ============
 
-def read_snapshot_export_source(spark: SparkSession, source_config: dict) -> DataFrame:
-    """
-    Read data from RDS Snapshot Export (Parquet files in S3).
-
-    RDS Export creates Parquet files in format:
-    s3://{bucket}/{prefix}/{export_task_id}/{database}.{schema}.{table}/*.parquet
-
-    This is used for initial load of large RDB datasets to avoid JDBC bottleneck.
-
-    Args:
-        spark: SparkSession
-        source_config: Source configuration with snapshot_export_path
-
-    Returns:
-        DataFrame with table data from exported Parquet files
-    """
-    snapshot_path = source_config.get("snapshot_export_path")
-    if not snapshot_path:
-        raise ValueError("snapshot_export_path is required for snapshot export source")
-
-    # Ensure s3a:// scheme
-    if snapshot_path.startswith("s3://"):
-        snapshot_path = snapshot_path.replace("s3://", "s3a://", 1)
-
-    print(f"   [Snapshot Export] Reading from: {snapshot_path}")
-
-    # Read Parquet files from snapshot export
-    df = spark.read.parquet(snapshot_path)
-
-    # Note: Skipping count() to avoid triggering expensive action on large datasets
-    # Record count will be available after write operation
-    print(f"   [Snapshot Export] DataFrame loaded from Parquet files")
-    print(f"   Schema:")
-    df.printSchema()
-
-    return df
-
-
 def read_rdb_source(spark: SparkSession, source_config: dict) -> DataFrame:
     """Read data from relational database using JDBC"""
     connection = source_config.get("connection", {})
@@ -275,7 +237,7 @@ def read_rdb_source(spark: SparkSession, source_config: dict) -> DataFrame:
         .option("user", connection.get("user_name", "postgres")) \
         .option("password", connection.get("password", "postgres")) \
         .option("driver", driver) \
-        .option("fetchsize", "50000")
+        .option("fetchsize", "10000")
 
     if query:
         reader = reader.option("dbtable", f"({query}) as subquery")
@@ -284,7 +246,7 @@ def read_rdb_source(spark: SparkSession, source_config: dict) -> DataFrame:
         reader = reader.option("dbtable", table)
         # Default to "id" if partition_column not specified
         partition_column = source_config.get("partition_column") or "id"
-        num_partitions = source_config.get("num_partitions", 64)
+        num_partitions = source_config.get("num_partitions", 16)
 
         # Query actual min/max from DB for accurate partitioning
         try:
@@ -1557,12 +1519,7 @@ def run_etl(config: dict):
 
             print(f"   [{node_id}] Reading from {source_type}: {source_desc}")
             if source_type in ["rdb", "postgres"]:
-                # Check if snapshot export path is available (initial load via RDS Snapshot Export)
-                if source_config.get("snapshot_export_path"):
-                    print(f"   [{node_id}] Using snapshot export mode (S3 Parquet)")
-                    df = read_snapshot_export_source(spark, source_config)
-                else:
-                    df = read_rdb_source(spark, source_config)
+                df = read_rdb_source(spark, source_config)
             elif source_type in ["mongodb", "nosql"]:
                 df = read_nosql_source(spark, source_config)
                 has_nosql_source = True  # Mark that we have NoSQL source
