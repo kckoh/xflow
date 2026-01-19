@@ -235,7 +235,6 @@ export default function JobsPage() {
     job: null,
   });
   const [copiedId, setCopiedId] = useState(null);
-  const [tick, setTick] = useState(0); // For real-time duration updates
 
   // Filter states
   const [jobTypeFilter, setJobTypeFilter] = useState("all");
@@ -247,33 +246,6 @@ export default function JobsPage() {
 
   useEffect(() => {
     fetchJobs();
-  }, []);
-
-  // Real-time duration update for running jobs
-  useEffect(() => {
-    const hasRunningJobs = Object.values(jobRuns).some(
-      (runs) =>
-        runs &&
-        runs.length > 0 &&
-        (runs[0].status === "running" || runs[0].status === "pending")
-    );
-
-    if (hasRunningJobs) {
-      const interval = setInterval(() => {
-        setTick((prev) => prev + 1);
-      }, 1000);
-
-      return () => clearInterval(interval);
-    }
-  }, [jobRuns]);
-
-  // Polling to refresh job data periodically
-  useEffect(() => {
-    const interval = setInterval(() => {
-      fetchJobs();
-    }, 30000); // Refresh every 30 seconds
-
-    return () => clearInterval(interval);
   }, []);
 
   useEffect(() => {
@@ -898,7 +870,7 @@ export default function JobsPage() {
                                 return formatDuration(run.duration_seconds);
                               }
 
-                              // Fallback: calculate from timestamps
+                              // Calculate from timestamps
                               if (!run.started_at) return "-";
 
                               const startTime = new Date(
@@ -907,7 +879,7 @@ export default function JobsPage() {
 
                               let endTime;
                               if (run.status === "running" || run.status === "pending") {
-                                endTime = new Date();
+                                endTime = new Date(); // Current time for running jobs
                               } else if (run.ended_at || run.finished_at) {
                                 const endStr = run.ended_at || run.finished_at;
                                 endTime = new Date(
