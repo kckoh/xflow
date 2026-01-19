@@ -78,14 +78,18 @@ def _detect_join_info(sql: str) -> Optional[Dict[str, Any]]:
         on_clause = on_match.group(1).strip()
         
         # Extract column references: "alias.column" pattern
-        # Handle CAST expressions: extract the column from CAST(alias.column AS type)
-        col_pattern = r'(?:CAST\s*\(\s*)?([a-zA-Z_][a-zA-Z0-9_]*)\.([a-zA-Z_][a-zA-Z0-9_]*)'
+        # Updated to capture CAST presence: (CAST...)? alias.column
+        col_pattern = r'(CAST\s*\(\s*)?([a-zA-Z_][a-zA-Z0-9_]*)\.([a-zA-Z_][a-zA-Z0-9_]*)'
         col_matches = re.findall(col_pattern, on_clause, re.IGNORECASE)
         
         if len(col_matches) < 2:
             return None
         
-        join_columns = [(m[0], m[1]) for m in col_matches[:2]]  # Take first two (left = right)
+        # (is_casted_str, alias, column) -> (alias, column, is_casted)
+        join_columns = []
+        for m in col_matches[:2]:
+            is_casted = bool(m[0])  # If group 1 (CAST...) is not empty
+            join_columns.append((m[1], m[2], is_casted))
         
         return {
             'tables': tables,
@@ -96,7 +100,7 @@ def _detect_join_info(sql: str) -> Optional[Dict[str, Any]]:
         return None
 
 
-def _get_join_column_values(df: pd.DataFrame, column_name: str, limit: int = 100) -> List[Any]:
+def _get_join_column_values(df: pd.DataFrame, column_name: str, limit: int = 100, cast_to_string: bool = False) -> List[Any]:
     """
     Get unique values from a DataFrame column for JOIN filtering.
     """
@@ -104,6 +108,8 @@ def _get_join_column_values(df: pd.DataFrame, column_name: str, limit: int = 100
         return []
     
     values = df[column_name].dropna().unique().tolist()
+    if cast_to_string:
+        values = [str(v) for v in values]
     return values[:limit]
 
 
@@ -315,9 +321,10 @@ async def _load_and_union_sources(
         # Get join column info
         join_columns = join_info.get('join_columns', [])
         if len(join_columns) >= 2:
-            first_table_join_column = join_columns[0][1]  # (alias, column) -> column
+            first_table_join_column = join_columns[0][1]  # (alias, column, is_casted) -> column
+            first_table_is_casted = join_columns[0][2]
             second_table_join_column = join_columns[1][1]
-            print(f"[Smart JOIN] Join columns: {first_table_join_column} = {second_table_join_column}")
+            print(f"[Smart JOIN] Join columns: {first_table_join_column} (casted={first_table_is_casted}) = {second_table_join_column}")
     
     for idx, source in enumerate(sources_info):
         # Get source dataset and connection
@@ -363,7 +370,12 @@ async def _load_and_union_sources(
         
         # For first source with JOIN, extract join column values for filtering subsequent sources
         if join_info and idx == 0 and first_table_join_column and first_table_join_column in df_original.columns:
-            join_filter_values = _get_join_column_values(df_original, first_table_join_column, limit=100)
+            join_filter_values = _get_join_column_values(
+                df_original, 
+                first_table_join_column, 
+                limit=100, 
+                cast_to_string=first_table_is_casted
+            )
             print(f"[Smart JOIN] Extracted {len(join_filter_values)} values from {first_table_join_column}: {join_filter_values[:5]}...")
         
         # Store individual source sample (before adding NULL columns)
@@ -639,6 +651,14 @@ async def _load_sample_data(
         from botocore.client import Config
         from urllib.parse import urlparse
 
+        # Build filter clause for smart JOIN sampling (before query construction)
+        filter_clause = ""
+        if filter_column and filter_values:
+            # Handle string vs non-string values safely for SQL
+            values_str = ", ".join([f"'{v}'" if isinstance(v, str) else str(v) for v in filter_values])
+            filter_clause = f" WHERE {filter_column} IN ({values_str})"
+            print(f"[Smart JOIN] S3 filter: {filter_clause[:100]}...")
+
         try:
             # Parse bucket and prefix from path
             parsed = urlparse(duck_path)
@@ -676,7 +696,7 @@ async def _load_sample_data(
             
             if parquet_files:
                 files_str = ", ".join([f"'{f}'" for f in parquet_files])
-                query = f"SELECT * FROM read_parquet([{files_str}]) LIMIT {limit}"
+                query = f"SELECT * FROM read_parquet([{files_str}]) {filter_clause} LIMIT {limit}"
             else:
                  # Fallback - read parquet files directly, excluding _delta_log
                  debug_info = f"Boto3 found 0 parquet files (excluding _delta_log). Config: endpoint={endpoint}, bucket={bucket_name}, prefix={prefix}"
@@ -689,7 +709,7 @@ async def _load_sample_data(
                      # Delta Lake data files start with 'part-', checkpoint files are in _delta_log/
                      duck_path += 'part-*.parquet'
                      print(f"[DEBUG] Reading Delta data files with pattern: {duck_path}")
-                 query = f"SELECT * FROM read_parquet('{duck_path}') LIMIT {limit}"
+                 query = f"SELECT * FROM read_parquet('{duck_path}') {filter_clause} LIMIT {limit}"
 
         except Exception as e:
             print(f"[DEBUG] Boto3 listing failed: {e}")
@@ -701,16 +721,11 @@ async def _load_sample_data(
                 # Delta Lake data files start with 'part-', checkpoint files are in _delta_log/
                 duck_path += 'part-*.parquet'
                 print(f"[DEBUG] Reading Delta data files with pattern: {duck_path}")
-            query = f"SELECT * FROM read_parquet('{duck_path}') LIMIT {limit}"
+            query = f"SELECT * FROM read_parquet('{duck_path}') {filter_clause} LIMIT {limit}"
 
         try:
-            # Build filter clause for smart JOIN sampling
-            filter_clause = ""
-            if filter_column and filter_values:
-                values_str = ", ".join([f"'{v}'" if isinstance(v, str) else str(v) for v in filter_values])
-                filter_clause = f" WHERE {filter_column} IN ({values_str})"
-                print(f"[Smart JOIN] S3 filter: {filter_clause[:100]}...")
-            
+            # Execute query
+             
             df = con.execute(query).df()
             
             # Apply filter after loading if filter was specified
