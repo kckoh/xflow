@@ -38,8 +38,9 @@ from airflow import DAG
 import bisect
 
 # 설정값 (튜닝 가능)
-EXECUTOR_THRESHOLDS = [1, 10, 30, 50]
-EXECUTOR_COUNTS = [2, 4, 6, 8, 10]
+# 50GB 이하는 4개 executor면 충분
+EXECUTOR_THRESHOLDS = [1, 10, 50, 100]
+EXECUTOR_COUNTS = [2, 3, 4, 6, 8]
 
 # 파티션 설정: 128MB 타겟
 PARTITION_PER_GB = 8  # 1GB / 128MB = 8 partitions
