@@ -235,6 +235,7 @@ export default function JobsPage() {
     job: null,
   });
   const [copiedId, setCopiedId] = useState(null);
+  const [tick, setTick] = useState(0); // For real-time duration updates
 
   // Filter states
   const [jobTypeFilter, setJobTypeFilter] = useState("all");
@@ -246,6 +247,33 @@ export default function JobsPage() {
 
   useEffect(() => {
     fetchJobs();
+  }, []);
+
+  // Real-time duration update for running jobs
+  useEffect(() => {
+    const hasRunningJobs = Object.values(jobRuns).some(
+      (runs) =>
+        runs &&
+        runs.length > 0 &&
+        (runs[0].status === "running" || runs[0].status === "pending")
+    );
+
+    if (hasRunningJobs) {
+      const interval = setInterval(() => {
+        setTick((prev) => prev + 1);
+      }, 1000);
+
+      return () => clearInterval(interval);
+    }
+  }, [jobRuns]);
+
+  // Polling to refresh job data periodically
+  useEffect(() => {
+    const interval = setInterval(() => {
+      fetchJobs();
+    }, 30000); // Refresh every 30 seconds
+
+    return () => clearInterval(interval);
   }, []);
 
   useEffect(() => {
@@ -488,6 +516,20 @@ export default function JobsPage() {
     } catch (error) {
       console.error("Failed to copy:", error);
     }
+  };
+
+  const formatDuration = (seconds) => {
+    if (!seconds && seconds !== 0) return "-";
+    const hrs = Math.floor(seconds / 3600);
+    const mins = Math.floor((seconds % 3600) / 60);
+    const secs = Math.floor(seconds % 60);
+
+    if (hrs > 0) {
+      return `${hrs}h ${mins}m`;
+    } else if (mins > 0) {
+      return `${mins}m ${secs}s`;
+    }
+    return `${secs}s`;
   };
 
   const getJobStatus = (job, runs) => {
@@ -827,13 +869,59 @@ export default function JobsPage() {
                             });
                           })()}
                         </div>
-                        <div className="text-xs text-gray-500">
-                          {jobRuns[job.id][0].status === "success"
-                            ? "Succeeded"
-                            : jobRuns[job.id][0].status
-                              .charAt(0)
-                              .toUpperCase() +
-                            jobRuns[job.id][0].status.slice(1)}
+                        <div className="flex items-center gap-2">
+                          <span className={`text-xs font-medium ${
+                            jobRuns[job.id][0].status === "success"
+                              ? "text-green-600"
+                              : jobRuns[job.id][0].status === "failed" || jobRuns[job.id][0].status === "failure"
+                                ? "text-red-600"
+                                : jobRuns[job.id][0].status === "running"
+                                  ? "text-blue-600"
+                                  : jobRuns[job.id][0].status === "pending"
+                                    ? "text-yellow-600"
+                                    : "text-gray-500"
+                          }`}>
+                            {jobRuns[job.id][0].status === "success"
+                              ? "Succeeded"
+                              : jobRuns[job.id][0].status
+                                .charAt(0)
+                                .toUpperCase() +
+                              jobRuns[job.id][0].status.slice(1)}
+                          </span>
+                          <span className="text-xs text-gray-400">·</span>
+                          <span className="text-xs text-gray-500">
+                            {(() => {
+                              const run = jobRuns[job.id][0];
+
+                              // Use duration_seconds if available
+                              if (run.duration_seconds !== undefined && run.duration_seconds !== null) {
+                                return formatDuration(run.duration_seconds);
+                              }
+
+                              // Fallback: calculate from timestamps
+                              if (!run.started_at) return "-";
+
+                              const startTime = new Date(
+                                run.started_at + (run.started_at.endsWith("Z") ? "" : "Z")
+                              );
+
+                              let endTime;
+                              if (run.status === "running" || run.status === "pending") {
+                                endTime = new Date();
+                              } else if (run.ended_at || run.finished_at) {
+                                const endStr = run.ended_at || run.finished_at;
+                                endTime = new Date(
+                                  endStr + (endStr.endsWith("Z") ? "" : "Z")
+                                );
+                              } else {
+                                return "-";
+                              }
+
+                              const diffMs = endTime - startTime;
+                              const diffSec = Math.floor(diffMs / 1000);
+                              return formatDuration(diffSec);
+                            })()}
+                          </span>
                         </div>
                       </div>
                     ) : (
@@ -848,10 +936,7 @@ export default function JobsPage() {
                             e.stopPropagation();
                             handleRun(job.id);
                           }}
-                          className={`inline-flex items-center justify-center gap-1.5 px-3 py-1.5 text-sm font-medium rounded-lg transition-colors ${job.job_type === "streaming"
-                            ? "w-28"
-                            : "w-32"
-                            } ${job.job_type === "streaming" && streamingStates[job.id]
+                          className={`inline-flex items-center justify-center p-2 rounded-lg transition-colors ${job.job_type === "streaming" && streamingStates[job.id]
                               ? "text-orange-600 bg-orange-50 hover:bg-orange-100"
                               : job.job_type === "streaming"
                                 ? "text-green-600 bg-green-50 hover:bg-green-100"
@@ -860,23 +945,17 @@ export default function JobsPage() {
                           title={
                             job.job_type === "streaming"
                               ? (streamingStates[job.id] ? "Pause" : "Start")
-                              : "Instance Run"
+                              : "Instant Run"
                           }
                         >
                           {job.job_type === "streaming" ? (
-                            <>
-                              {streamingStates[job.id] ? (
-                                <Pause className="w-4 h-4" />
-                              ) : (
-                                <Play className="w-4 h-4" />
-                              )}
-                              {streamingStates[job.id] ? "Pause" : "Start"}
-                            </>
+                            streamingStates[job.id] ? (
+                              <Pause className="w-4 h-4" />
+                            ) : (
+                              <Play className="w-4 h-4" />
+                            )
                           ) : (
-                            <>
-                              <Zap className="w-4 h-4" />
-                              Instance Run
-                            </>
+                            <Zap className="w-4 h-4" />
                           )}
                         </button>
                       )}
@@ -887,22 +966,16 @@ export default function JobsPage() {
                             e.stopPropagation();
                             handleToggle(job.id);
                           }}
-                          className={`inline-flex items-center justify-center gap-1.5 w-24 px-3 py-1.5 text-sm font-medium rounded-lg transition-colors ${job.is_active
+                          className={`inline-flex items-center justify-center p-2 rounded-lg transition-colors ${job.is_active
                             ? "text-orange-600 bg-orange-50 hover:bg-orange-100"
                             : "text-green-600 bg-green-50 hover:bg-green-100"
                             }`}
                           title={job.is_active ? "Pause Schedule" : "Run Schedule"}
                         >
                           {job.is_active ? (
-                            <>
-                              <Pause className="w-4 h-4" />
-                              Pause
-                            </>
+                            <Pause className="w-4 h-4" />
                           ) : (
-                            <>
-                              <Play className="w-4 h-4" />
-                              Run
-                            </>
+                            <Play className="w-4 h-4" />
                           )}
                         </button>
                       )}
