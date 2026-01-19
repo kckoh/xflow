@@ -214,6 +214,7 @@ with DAG(
     )
 
     # Task 4: Wait for Spark job completion (polling)
+    # Use reschedule mode to prevent scheduler heartbeat issues
     wait_for_spark = SparkKubernetesSensor(
         task_id="wait_for_spark",
         namespace="spark-jobs",
@@ -221,6 +222,7 @@ with DAG(
         kubernetes_conn_id="kubernetes_default",
         poke_interval=30,  # Check every 30 seconds
         timeout=3600,  # 1 hour timeout
+        mode="reschedule",  # Release worker between pokes
     )
 
     # Task 5: Register Delta Lake table in Trino
