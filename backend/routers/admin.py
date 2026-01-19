@@ -8,7 +8,7 @@ from typing import List
 from fastapi import APIRouter, HTTPException, status, Depends
 from models import User, Role
 from schemas.user import UserCreateAdmin, UserUpdateAdmin, UserResponseAdmin, RoleCreate, RoleUpdate, RoleResponse, BulkAddDataset
-from dependencies import sessions
+from dependencies import get_session_data
 
 router = APIRouter()
 
@@ -16,19 +16,19 @@ router = APIRouter()
 # Dependency to require admin access
 async def require_admin(session_id: str):
     """Check if the current user is an admin"""
-    if session_id not in sessions:
+    user_session = await get_session_data(session_id)
+    if not user_session:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Not authenticated"
         )
-    
-    user_session = sessions[session_id]
+
     if not user_session.get("is_admin", False):
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="Admin access required"
         )
-    
+
     return user_session
 
 
