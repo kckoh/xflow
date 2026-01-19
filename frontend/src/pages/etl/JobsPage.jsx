@@ -13,6 +13,7 @@ import {
   Check,
   Filter,
   XCircle,
+  Pause,
 } from "lucide-react";
 import { API_BASE_URL } from "../../config/api";
 import SchedulesPanel from "../../components/etl/SchedulesPanel";
@@ -446,7 +447,7 @@ export default function JobsPage() {
         if (response.ok) {
           setStreamingStates((prev) => ({ ...prev, [jobId]: !isActive }));
           showToast(
-            isActive ? "Streaming job stopped." : "Streaming job started.",
+            isActive ? "Streaming job paused." : "Streaming job started.",
             "success"
           );
         } else {
@@ -490,24 +491,32 @@ export default function JobsPage() {
   };
 
   const getJobStatus = (job, runs) => {
-    // CDC job: running if active, otherwise -
+    // CDC job
     if (job.job_type === "cdc") {
-      return job.is_active
+      if (!job.is_active) {
+        return { label: "Paused", color: "yellow" };
+      }
+      // Check if there's an active run
+      const hasActiveRun =
+        runs &&
+        runs.length > 0 &&
+        (runs[0].status === "running" || runs[0].status === "pending");
+      return hasActiveRun
         ? { label: "Running", color: "green" }
-        : { label: "-", color: "gray" };
+        : { label: "Scheduled", color: "blue" };
     }
 
+    // Streaming job
     if (job.job_type === "streaming") {
       return streamingStates[job.id]
         ? { label: "Running", color: "green" }
-        : { label: "Stopped", color: "gray" };
+        : { label: "Paused", color: "yellow" };
     }
 
     // Batch job with schedule
     if (job.schedule) {
-      // If toggle is OFF, show -
       if (!job.is_active) {
-        return { label: "-", color: "gray" };
+        return { label: "Paused", color: "yellow" };
       }
 
       // Toggle is ON - check if there's an active run
@@ -517,12 +526,12 @@ export default function JobsPage() {
         (runs[0].status === "running" || runs[0].status === "pending");
 
       return hasActiveRun
-        ? { label: "Running", color: "green" } // DAG is executing
-        : { label: "Ready", color: "blue" }; // Waiting for next schedule
+        ? { label: "Running", color: "green" }
+        : { label: "Scheduled", color: "blue" };
     }
 
     // No schedule (manual job)
-    return { label: "-", color: "gray" };
+    return { label: "Unscheduled", color: "gray" };
   };
 
   const filteredJobs = jobs.filter((job) => {
@@ -543,9 +552,9 @@ export default function JobsPage() {
     const matchesStatus =
       statusFilter === "all" ||
       (statusFilter === "running" && jobStatus.label === "Running") ||
-      (statusFilter === "ready" && jobStatus.label === "Ready") ||
-      (statusFilter === "stopped" &&
-        (jobStatus.label === "Stopped" || jobStatus.label === "-"));
+      (statusFilter === "scheduled" && jobStatus.label === "Scheduled") ||
+      (statusFilter === "unscheduled" && jobStatus.label === "Unscheduled") ||
+      (statusFilter === "paused" && jobStatus.label === "Paused");
 
     // Active filter
     const matchesActive =
@@ -615,13 +624,14 @@ export default function JobsPage() {
               </div>
 
               {/* Status Filter */}
-              <div className="w-40">
+              <div className="w-44">
                 <Combobox
                   options={[
                     { id: "all", name: "All Status" },
                     { id: "running", name: "Running" },
-                    { id: "ready", name: "Ready" },
-                    { id: "stopped", name: "Stopped" },
+                    { id: "scheduled", name: "Scheduled" },
+                    { id: "unscheduled", name: "Unscheduled" },
+                    { id: "paused", name: "Paused" },
                   ]}
                   value={statusFilter}
                   onChange={(option) => setStatusFilter(option.id)}
@@ -692,18 +702,18 @@ export default function JobsPage() {
             {(jobTypeFilter !== "all" ||
               statusFilter !== "all" ||
               activeFilter !== "all") && (
-              <button
-                onClick={() => {
-                  setJobTypeFilter("all");
-                  setStatusFilter("all");
-                  setActiveFilter("all");
-                }}
-                className="flex items-center gap-1 px-3 py-1.5 text-xs font-medium text-gray-600 hover:text-gray-900 hover:bg-gray-100 rounded-lg transition-colors"
-              >
-                <XCircle className="w-3.5 h-3.5" />
-                Clear All
-              </button>
-            )}
+                <button
+                  onClick={() => {
+                    setJobTypeFilter("all");
+                    setStatusFilter("all");
+                    setActiveFilter("all");
+                  }}
+                  className="flex items-center gap-1 px-3 py-1.5 text-xs font-medium text-gray-600 hover:text-gray-900 hover:bg-gray-100 rounded-lg transition-colors"
+                >
+                  <XCircle className="w-3.5 h-3.5" />
+                  Clear All
+                </button>
+              )}
           </div>
         </div>
       </div>
@@ -735,7 +745,7 @@ export default function JobsPage() {
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">
                   Last Run
                 </th>
-                <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase">
+                <th className="px-6 py-3 text-center text-xs font-medium text-gray-500 uppercase w-px whitespace-nowrap">
                   Actions
                 </th>
               </tr>
@@ -776,7 +786,9 @@ export default function JobsPage() {
                           ? "bg-green-100 text-green-800"
                           : status.color === "blue"
                             ? "bg-blue-100 text-blue-800"
-                            : "bg-gray-100 text-gray-500";
+                            : status.color === "yellow"
+                              ? "bg-yellow-100 text-yellow-800"
+                              : "bg-gray-100 text-gray-500";
 
                       return (
                         <span
@@ -836,36 +848,62 @@ export default function JobsPage() {
                             e.stopPropagation();
                             handleRun(job.id);
                           }}
-                          className={`inline-flex items-center gap-1 px-3 py-1.5 text-sm font-medium rounded-lg transition-colors ${job.job_type === "streaming" && streamingStates[job.id]
-                            ? "text-red-600 bg-red-50 hover:bg-red-100"
-                            : "text-green-600 bg-green-50 hover:bg-green-100"
+                          className={`inline-flex items-center justify-center gap-1.5 px-3 py-1.5 text-sm font-medium rounded-lg transition-colors ${job.job_type === "streaming"
+                            ? "w-28"
+                            : "w-32"
+                            } ${job.job_type === "streaming" && streamingStates[job.id]
+                              ? "text-orange-600 bg-orange-50 hover:bg-orange-100"
+                              : job.job_type === "streaming"
+                                ? "text-green-600 bg-green-50 hover:bg-green-100"
+                                : "text-purple-600 bg-purple-50 hover:bg-purple-100"
                             }`}
                           title={
                             job.job_type === "streaming"
-                              ? (streamingStates[job.id] ? "Stop" : "Start")
-                              : "Run"
+                              ? (streamingStates[job.id] ? "Pause" : "Start")
+                              : "Instance Run"
                           }
                         >
-                          <Play className="w-4 h-4" />
-                          {job.job_type === "streaming"
-                            ? (streamingStates[job.id] ? "Stop" : "Start")
-                            : "Run"}
+                          {job.job_type === "streaming" ? (
+                            <>
+                              {streamingStates[job.id] ? (
+                                <Pause className="w-4 h-4" />
+                              ) : (
+                                <Play className="w-4 h-4" />
+                              )}
+                              {streamingStates[job.id] ? "Pause" : "Start"}
+                            </>
+                          ) : (
+                            <>
+                              <Zap className="w-4 h-4" />
+                              Instance Run
+                            </>
+                          )}
                         </button>
                       )}
-                      {/* Toggle button for scheduled jobs */}
+                      {/* Run/Pause button for scheduled jobs */}
                       {job.job_type !== "streaming" && (
                         <button
                           onClick={(e) => {
                             e.stopPropagation();
                             handleToggle(job.id);
                           }}
-                          className={`relative inline-flex h-5 w-9 flex-shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none ${job.is_active ? "bg-green-500" : "bg-gray-300"
+                          className={`inline-flex items-center justify-center gap-1.5 w-24 px-3 py-1.5 text-sm font-medium rounded-lg transition-colors ${job.is_active
+                            ? "text-orange-600 bg-orange-50 hover:bg-orange-100"
+                            : "text-green-600 bg-green-50 hover:bg-green-100"
                             }`}
+                          title={job.is_active ? "Pause Schedule" : "Run Schedule"}
                         >
-                          <span
-                            className={`pointer-events-none inline-block h-4 w-4 transform rounded-full bg-white shadow ring-0 transition duration-200 ease-in-out ${job.is_active ? "translate-x-4" : "translate-x-0"
-                              }`}
-                          />
+                          {job.is_active ? (
+                            <>
+                              <Pause className="w-4 h-4" />
+                              Pause
+                            </>
+                          ) : (
+                            <>
+                              <Play className="w-4 h-4" />
+                              Run
+                            </>
+                          )}
                         </button>
                       )}
                     </div>
