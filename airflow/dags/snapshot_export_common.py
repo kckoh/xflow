@@ -39,7 +39,7 @@ def should_use_snapshot_export(**context) -> str:
     config = json.loads(config_json)
 
     sources = config.get("sources", [])
-    incremental_config = config.get("destination", {}).get("incremental_config", {})
+    incremental_config = config.get("incremental_config", {})
 
     # Check if any source is RDB type
     has_rdb_source = any(
