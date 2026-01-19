@@ -321,12 +321,20 @@ def read_rdb_source(spark: SparkSession, source_config: dict) -> DataFrame:
     # Apply Incremental Load Filtering (Watermark)
     incremental_config = source_config.get("incremental_config", {})
     if incremental_config.get("enabled"):
+        # Check for updated_at first (for SCD Type 2)
+        updated_at_col = incremental_config.get("updated_at_column")
+        created_at_col = incremental_config.get("created_at_column")
+        # Backwards compatibility with old timestamp_column field
         timestamp_col = incremental_config.get("timestamp_column")
+
         last_sync = incremental_config.get("last_sync_timestamp")
 
-        if timestamp_col and last_sync:
-            print(f"   [Incremental] Filtering data: {timestamp_col} > '{last_sync}'")
-            df = df.filter(f"{timestamp_col} > '{last_sync}'")
+        # Priority: updated_at > created_at > timestamp_column (backwards compat)
+        filter_column = updated_at_col or created_at_col or timestamp_col
+
+        if filter_column and last_sync:
+            print(f"   [Incremental] Filtering data: {filter_column} > '{last_sync}'")
+            df = df.filter(f"{filter_column} > '{last_sync}'")
 
     return df
 
@@ -1402,6 +1410,7 @@ def write_s3_destination(
     job_name: str = "output",
     has_nosql_source: bool = False,
     source_types: list = None,
+    source_incremental_configs: list = None,
 ):
     """
     Write DataFrame to S3 as Delta Lake format
@@ -1412,6 +1421,7 @@ def write_s3_destination(
         job_name: Job name for table naming
         has_nosql_source: Whether source includes NoSQL (for VOID type handling)
         source_types: List of source types (e.g., ['rdb', 's3', 'mongodb'])
+        source_incremental_configs: List of source incremental configs
     """
     path = dest_config.get("path")
     if not path:
@@ -1456,13 +1466,38 @@ def write_s3_destination(
                     field.name, writer_df[field.name].cast(StringType())
                 )
 
-    # Use SCD Type 2 for incremental loads to track full history
-    # (S3 logs will use simple append inside write_scd2_merge)
-    if incremental_config.get("enabled"):
-        print(f"📊 Writing with incremental load (SCD Type 2 for RDB, append for S3)")
+    # Determine write mode based on source and destination incremental configs
+    dest_incremental_enabled = incremental_config.get("enabled", False)
 
-        # Get timestamp column for audit trail
-        timestamp_col = incremental_config.get("timestamp_column")
+    # Check if any source has incremental enabled
+    source_has_incremental = False
+    source_has_updated_at = False
+    source_has_created_at = False
+
+    if source_incremental_configs:
+        for src_config in source_incremental_configs:
+            if src_config.get("enabled"):
+                source_has_incremental = True
+                if src_config.get("updated_at_column"):
+                    source_has_updated_at = True
+                if src_config.get("created_at_column"):
+                    source_has_created_at = True
+
+    # Decision logic:
+    # 1. If both source and dest have incremental enabled AND source has updated_at → SCD Type 2
+    # 2. If both source and dest have incremental enabled AND source has only created_at → Append
+    # 3. Otherwise → Overwrite (Full Load)
+
+    if dest_incremental_enabled and source_has_incremental and source_has_updated_at:
+        # Use SCD Type 2 for tracking changes
+        print(f"📊 Writing with SCD Type 2 (updated_at detected)")
+
+        # Get timestamp column for audit trail (prefer updated_at)
+        timestamp_col = None
+        for src_config in source_incremental_configs:
+            if src_config.get("updated_at_column"):
+                timestamp_col = src_config.get("updated_at_column")
+                break
 
         # Use SCD2 MERGE (auto-detects primary keys, handles S3 vs RDB)
         spark = writer_df.sparkSession
@@ -1474,9 +1509,24 @@ def write_s3_destination(
             timestamp_col=timestamp_col,
             source_types=source_types,  # Pass source types for S3 detection
         )
+    elif dest_incremental_enabled and source_has_incremental and source_has_created_at and not source_has_updated_at:
+        # Use Append mode for new records only (created_at only)
+        print(f"📊 Writing with Append mode (created_at detected, new records only)")
+
+        writer = (
+            writer_df.write.format("delta")
+            .mode("append")
+            .option("compression", compression)
+        )
+
+        if partition_by:
+            writer = writer.partitionBy(*partition_by)
+
+        writer.save(path)
+        print(f"✅ Data appended to {path} (Delta Lake format)")
     else:
         # Full load: overwrite mode
-        print(f"📊 Writing with overwrite mode (full load)")
+        print(f"📊 Writing with Overwrite mode (full load)")
         mode = options.get("mode", "overwrite")
 
         writer = (
@@ -1489,7 +1539,7 @@ def write_s3_destination(
             writer = writer.partitionBy(*partition_by)
 
         writer.save(path)
-        print(f"✅ Data written to {path} (Delta Lake format)")
+        print(f"✅ Data written to {path} (Delta Lake format, overwrite)")
 
     # Note: Glue table registration is handled by Trino register_table() in Airflow DAG
     # This ensures proper Delta Lake metadata format for Trino compatibility
@@ -1783,9 +1833,11 @@ def run_etl(config: dict):
         dest_type = dest_config.get("type", "s3")
 
         # Extract source types for SCD Type 2 logic
-        source_types = [
-            s.get("type") or s.get("source_type") for s in config.get("sources", [])
-        ]
+        sources = config.get("sources", [])
+        source_types = [s.get("type") or s.get("source_type") for s in sources]
+
+        # Extract source incremental configs
+        source_incremental_configs = [s.get("incremental_config", {}) for s in sources]
 
         print(f"💾 Writing to destination: {dest_type}")
         if dest_type == "s3":
@@ -1795,6 +1847,7 @@ def run_etl(config: dict):
                 config.get("name", "output"),
                 has_nosql_source,
                 source_types,
+                source_incremental_configs,
             )
         else:
             raise ValueError(f"Unsupported destination type: {dest_type}")

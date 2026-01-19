@@ -390,44 +390,56 @@ export default function TargetWizard() {
           }
 
           // 자동으로 timestamp 컬럼 감지하여 증분 로드 설정
-          // 우선순위: updated_at > modified_at > last_modified > created_at > timestamp
-          const timestampColumnNames = [
-            "updated_at",
-            "modified_at",
-            "last_modified",
-            "date_modified",
-            "created_at",
-            "timestamp",
-          ];
-          let timestampColumn = null;
-          for (const preferredName of timestampColumnNames) {
-            timestampColumn = columns.find(
-              (col) =>
-                (col.name || col.field || "").toLowerCase() === preferredName
+          // updated_at과 created_at을 구분하여 처리
+          const updatedAtNames = ["updated_at", "modified_at", "last_modified", "date_modified"];
+          const createdAtNames = ["created_at", "date_created", "timestamp"];
+
+          let updatedAtColumn = null;
+          let createdAtColumn = null;
+
+          // updated_at 계열 컬럼 찾기
+          for (const name of updatedAtNames) {
+            updatedAtColumn = columns.find(
+              (col) => (col.name || col.field || "").toLowerCase() === name
             );
-            if (timestampColumn) {
-              console.log(
-                `[Incremental Load] Selected timestamp column by priority: ${timestampColumn.name || timestampColumn.field
-                }`
-              );
+            if (updatedAtColumn) {
+              console.log(`[Incremental Load] Found updated_at column: ${updatedAtColumn.name || updatedAtColumn.field}`);
               break;
             }
           }
 
-          if (timestampColumn) {
+          // created_at 계열 컬럼 찾기
+          for (const name of createdAtNames) {
+            createdAtColumn = columns.find(
+              (col) => (col.name || col.field || "").toLowerCase() === name
+            );
+            if (createdAtColumn) {
+              console.log(`[Incremental Load] Found created_at column: ${createdAtColumn.name || createdAtColumn.field}`);
+              break;
+            }
+          }
+
+          // Incremental config 설정
+          if (updatedAtColumn || createdAtColumn) {
             nodeData.incrementalConfig = {
               enabled: true,
-              timestamp_column: timestampColumn.name || timestampColumn.field,
+              updated_at_column: updatedAtColumn ? (updatedAtColumn.name || updatedAtColumn.field) : null,
+              created_at_column: createdAtColumn ? (createdAtColumn.name || createdAtColumn.field) : null,
             };
+
+            if (updatedAtColumn) {
+              console.log(`[Incremental Load] Will use SCD Type 2 with updated_at: ${updatedAtColumn.name || updatedAtColumn.field}`);
+            } else if (createdAtColumn) {
+              console.log(`[Incremental Load] Will use Append with created_at: ${createdAtColumn.name || createdAtColumn.field}`);
+            }
           } else {
-            // timestamp 컬럼이 없으면 증분 로드 비활성화
+            // timestamp 컬럼이 없으면 증분 로드 비활성화 (Full Load)
             nodeData.incrementalConfig = {
               enabled: false,
-              timestamp_column: null,
+              updated_at_column: null,
+              created_at_column: null,
             };
-            console.log(
-              `[Incremental Load] No timestamp column found for source ${source.name}, using full load`
-            );
+            console.log(`[Incremental Load] No timestamp column found for source ${source.name}, using full load`);
           }
 
           nodes.push({
