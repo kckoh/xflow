@@ -31,8 +31,9 @@ def should_use_snapshot_export(**context) -> str:
     3. Check if last_sync_timestamp is None (initial load)
 
     Returns:
-        "snapshot_export" - Use RDS Snapshot Export for initial load
-        "jdbc" - Use direct JDBC read (incremental or full)
+        task_id to branch to:
+        - "start_snapshot_export" for RDS Snapshot Export initial load
+        - "generate_spark_spec_jdbc" for direct JDBC read (incremental or full)
     """
     config_json = context["ti"].xcom_pull(task_ids="fetch_dataset_config")
     config = json.loads(config_json)
@@ -49,7 +50,7 @@ def should_use_snapshot_export(**context) -> str:
     if not has_rdb_source:
         # MongoDB, API, S3, Kafka sources → use existing logic
         print("[Mode Decision] No RDB source found, using JDBC path")
-        return "jdbc"
+        return "generate_spark_spec_jdbc"
 
     # Check initial_load_mode configuration
     initial_load_mode = incremental_config.get("initial_load_mode", "jdbc")
@@ -65,13 +66,13 @@ def should_use_snapshot_export(**context) -> str:
         snapshot_config = _get_snapshot_export_config(config)
         if snapshot_config:
             print("[Mode Decision] → Using SNAPSHOT_EXPORT for initial load")
-            return "snapshot_export"
+            return "start_snapshot_export"
         else:
             print("[Mode Decision] → snapshot_export_config not found, falling back to JDBC")
-            return "jdbc"
+            return "generate_spark_spec_jdbc"
 
     print("[Mode Decision] → Using JDBC (incremental or default)")
-    return "jdbc"
+    return "generate_spark_spec_jdbc"
 
 
 def _get_snapshot_export_config(config: dict) -> dict:
@@ -235,13 +236,20 @@ def wait_for_export_complete(**context) -> dict:
 
     # Step 1: Wait for snapshot to be available
     print(f"[Snapshot Export] Waiting for snapshot {snapshot_id} to become available...")
-    max_wait_minutes = 60
+    # Get configurable timeouts from Airflow Variables (with defaults)
+    try:
+        max_wait_minutes = int(Variable.get("RDS_SNAPSHOT_WAIT_MINUTES", default_var="60"))
+    except (ValueError, TypeError):
+        max_wait_minutes = 60
     poll_interval = 30
     start_time = time.time()
 
     while time.time() - start_time < max_wait_minutes * 60:
         response = rds_client.describe_db_snapshots(DBSnapshotIdentifier=snapshot_id)
-        status = response["DBSnapshots"][0]["Status"]
+        snapshots = response.get("DBSnapshots", [])
+        if not snapshots:
+            raise RuntimeError(f"Snapshot {snapshot_id} not found")
+        status = snapshots[0]["Status"]
         print(f"   Snapshot status: {status}")
 
         if status == "available":
@@ -254,7 +262,7 @@ def wait_for_export_complete(**context) -> dict:
         raise TimeoutError(f"Snapshot {snapshot_id} timed out after {max_wait_minutes} minutes")
 
     # Step 2: Start export task
-    snapshot_arn = response["DBSnapshots"][0]["DBSnapshotArn"]
+    snapshot_arn = snapshots[0]["DBSnapshotArn"]
     timestamp = datetime.utcnow().strftime("%Y%m%d%H%M%S")
     export_task_id = f"export-{snapshot_id}-{timestamp}"
 
@@ -282,12 +290,19 @@ def wait_for_export_complete(**context) -> dict:
 
     # Step 3: Wait for export to complete
     print(f"[Snapshot Export] Waiting for export task {export_task_id} to complete...")
-    max_export_wait_minutes = 180  # 3 hours for large datasets
+    # Get configurable timeout from Airflow Variables (default: 3 hours for large datasets)
+    try:
+        max_export_wait_minutes = int(Variable.get("RDS_EXPORT_WAIT_MINUTES", default_var="180"))
+    except (ValueError, TypeError):
+        max_export_wait_minutes = 180
     start_time = time.time()
 
     while time.time() - start_time < max_export_wait_minutes * 60:
         response = rds_client.describe_export_tasks(ExportTaskIdentifier=export_task_id)
-        task = response["ExportTasks"][0]
+        export_tasks = response.get("ExportTasks", [])
+        if not export_tasks:
+            raise RuntimeError(f"Export task {export_task_id} not found")
+        task = export_tasks[0]
         status = task["Status"]
         progress = task.get("PercentProgress", 0)
 

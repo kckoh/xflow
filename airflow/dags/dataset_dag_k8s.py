@@ -279,7 +279,7 @@ with DAG(
     submit_spark_job = SparkKubernetesOperator(
         task_id="submit_spark_job",
         namespace="spark-jobs",
-        application_file="{{ ti.xcom_pull(task_ids='generate_spark_spec_snapshot') or ti.xcom_pull(task_ids='generate_spark_spec_jdbc') }}",
+        application_file="{{ ti.xcom_pull(task_ids='generate_spark_spec_snapshot', default=None) or ti.xcom_pull(task_ids='generate_spark_spec_jdbc', default=None) }}",
         kubernetes_conn_id="kubernetes_default",
         do_xcom_push=True,
         watch=False,  # Don't watch - use sensor instead
@@ -289,7 +289,7 @@ with DAG(
     wait_for_spark = SparkKubernetesSensor(
         task_id="wait_for_spark",
         namespace="spark-jobs",
-        application_name="{{ ti.xcom_pull(task_ids='generate_spark_spec_snapshot', key='spark_app_name') or ti.xcom_pull(task_ids='generate_spark_spec_jdbc', key='spark_app_name') }}",
+        application_name="{{ ti.xcom_pull(task_ids='generate_spark_spec_snapshot', key='spark_app_name', default=None) or ti.xcom_pull(task_ids='generate_spark_spec_jdbc', key='spark_app_name', default=None) }}",
         kubernetes_conn_id="kubernetes_default",
         poke_interval=30,  # Check every 30 seconds
         timeout=3600,  # 1 hour timeout

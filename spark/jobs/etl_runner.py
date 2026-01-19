@@ -238,8 +238,9 @@ def read_snapshot_export_source(spark: SparkSession, source_config: dict) -> Dat
     # Read Parquet files from snapshot export
     df = spark.read.parquet(snapshot_path)
 
-    record_count = df.count()
-    print(f"   [Snapshot Export] Read {record_count} records from Parquet files")
+    # Note: Skipping count() to avoid triggering expensive action on large datasets
+    # Record count will be available after write operation
+    print(f"   [Snapshot Export] DataFrame loaded from Parquet files")
     print(f"   Schema:")
     df.printSchema()
 
