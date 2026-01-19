@@ -437,6 +437,12 @@ def fetch_dataset_config(as_base64=False, **context):
         "estimated_size_gb": estimated_size_gb,
     }
 
+    # Include snapshot_export_config if present (for RDS Snapshot Export mode)
+    snapshot_export_config = dataset.get("snapshot_export_config")
+    if snapshot_export_config:
+        config["snapshot_export_config"] = snapshot_export_config
+        print(f"[Snapshot Export] Config found: bucket={snapshot_export_config.get('s3_bucket')}")
+
     # Inject incremental config into sources and destination if present
     incremental_config = dataset.get("incremental_config")
     if incremental_config:
