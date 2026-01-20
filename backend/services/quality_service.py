@@ -156,10 +156,16 @@ class QualityService:
 
             if is_large_data:
                 # SAMPLING MODE: Use DuckDB TABLESAMPLE for row-level sampling
-                # This is more accurate than file-level sampling
-                # 1% sampling for large datasets (>100MB) to fit in DuckDB memory (~500MB)
-                sample_clause = " TABLESAMPLE 1%"
-                sampling_info = f"Sampling Mode: TABLESAMPLE 1% (Total size: {total_size / MB:.1f} MB)"
+                # Tiered sampling based on data size for optimal performance
+                GB = 1024 * MB
+                if total_size >= 10 * GB:
+                    # Very large (10GB+): 0.1% sampling for ~5 second target
+                    sample_clause = " TABLESAMPLE 0.1%"
+                    sampling_info = f"Sampling Mode: TABLESAMPLE 0.1% (Total size: {total_size / GB:.1f} GB)"
+                else:
+                    # Large (100MB-10GB): 1% sampling
+                    sample_clause = " TABLESAMPLE 1%"
+                    sampling_info = f"Sampling Mode: TABLESAMPLE 1% (Total size: {total_size / MB:.1f} MB)"
             
             # [OPTIMIZATION] Direct S3 Read (Streaming)
             # No download needed. DuckDB reads directly from S3.
@@ -257,6 +263,8 @@ class QualityService:
             row = conn.execute(query).fetchone()
             
             # 4. Get distinct count via separate query (DuckDB doesn't support COUNT(DISTINCT *))
+            # NOTE: from_clause already includes TABLESAMPLE for large datasets,
+            # so this query also benefits from sampling (10x faster for 500MB+ data)
             distinct_query = f"SELECT COUNT(*) FROM (SELECT DISTINCT * FROM {from_clause})"
             distinct_rows = conn.execute(distinct_query).fetchone()[0]
             
