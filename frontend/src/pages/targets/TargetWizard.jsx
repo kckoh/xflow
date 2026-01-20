@@ -1200,7 +1200,7 @@ export default function TargetWizard() {
                           Owner
                         </th>
                         <th className="px-3 py-2 text-left text-xs font-semibold text-gray-500 uppercase">
-                          Status
+                          Source Type
                         </th>
                         <th className="px-3 py-2 text-left text-xs font-semibold text-gray-500 uppercase">
                           Pattern
@@ -1276,14 +1276,23 @@ export default function TargetWizard() {
                               </td>
                               <td className="px-3 py-2">
                                 <span
-                                  className={`inline-flex items-center px-1.5 py-0.5 rounded text-xs font-medium ${dataset.status === "active" ||
-                                    dataset.is_active
-                                    ? "bg-green-100 text-green-700"
-                                    : "bg-gray-100 text-gray-600"
-                                    }`}
+                                  className={`inline-flex items-center px-1.5 py-0.5 rounded text-xs font-medium ${
+                                    dataset.source_type === "postgresql" || dataset.source_type === "postgres"
+                                      ? "bg-blue-100 text-blue-700"
+                                      : dataset.source_type === "mongodb"
+                                      ? "bg-green-100 text-green-700"
+                                      : dataset.source_type === "s3"
+                                      ? "bg-orange-100 text-orange-700"
+                                      : dataset.source_type === "api"
+                                      ? "bg-purple-100 text-purple-700"
+                                      : dataset.source_type === "kafka"
+                                      ? "bg-red-100 text-red-700"
+                                      : dataset.sourceType === "Catalog"
+                                      ? "bg-indigo-100 text-indigo-700"
+                                      : "bg-gray-100 text-gray-600"
+                                  }`}
                                 >
-                                  {dataset.status ||
-                                    (dataset.is_active ? "Active" : "-")}
+                                  {dataset.source_type || dataset.sourceType || "-"}
                                 </span>
                               </td>
                               <td className="px-3 py-2 text-xs text-gray-500 truncate max-w-[120px]">
