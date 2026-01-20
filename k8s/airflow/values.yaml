@@ -149,9 +149,11 @@ env:
     value: "mongodb://root:example@mongodb.mongodb.xflow:27017"
   - name: MONGODB_DATABASE
     value: "xflow"
-  # Backend API (cross-namespace: backend.default)
+  # Backend API (cross-namespace: backend.xflow)
   - name: BACKEND_API_URL
-    value: "http://backend.default:8000"
+    value: "http://backend.xflow:8000"
+  - name: BACKEND_API_BASE_URL
+    value: "http://backend.xflow/api"
   # Environment
   - name: ENVIRONMENT
     value: "production"
