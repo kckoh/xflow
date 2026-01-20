@@ -41,7 +41,9 @@ def _detect_join_info(sql: str) -> Optional[Dict[str, Any]]:
         Dict with join info if JOIN detected, None otherwise.
         Example: {
             'tables': {'t': 'yellow_taxi_trip_records', 'l': 'yellow_taxi_logs_target'},
-            'join_columns': [('t', 'id'), ('l', 'trip_id')]
+            'join_columns': [('t', 'id'), ('l', 'trip_id')],
+            'first_table': 'yellow_taxi_trip_records',
+            'second_table': 'yellow_taxi_logs_target'
         }
     """
     if not sql:
@@ -54,16 +56,18 @@ def _detect_join_info(sql: str) -> Optional[Dict[str, Any]]:
         return None
     
     try:
-        # Extract table aliases: "FROM table1 t JOIN table2 l" or "FROM table1 AS t JOIN table2 AS l"
+        # Extract table aliases in ORDER: first FROM, then JOIN
         # Pattern: FROM table_name [AS] alias ... JOIN table_name [AS] alias
         table_pattern = r'(?:FROM|JOIN)\s+([a-zA-Z_][a-zA-Z0-9_]*)\s+(?:AS\s+)?([a-zA-Z_][a-zA-Z0-9_]*)?'
         table_matches = re.findall(table_pattern, sql, re.IGNORECASE)
         
         tables = {}
+        table_order = []  # Track order of tables
         for match in table_matches:
             table_name = match[0]
             alias = match[1] if match[1] else table_name
             tables[alias] = table_name
+            table_order.append(table_name)
         
         if len(tables) < 2:
             return None
@@ -93,7 +97,9 @@ def _detect_join_info(sql: str) -> Optional[Dict[str, Any]]:
         
         return {
             'tables': tables,
-            'join_columns': join_columns
+            'join_columns': join_columns,
+            'first_table': table_order[0] if len(table_order) > 0 else None,
+            'second_table': table_order[1] if len(table_order) > 1 else None
         }
     except Exception as e:
         print(f"[Smart JOIN] Failed to parse JOIN: {e}")
@@ -312,35 +318,76 @@ async def _load_and_union_sources(
     
     # Detect JOIN and extract join info for smart sampling
     join_info = _detect_join_info(sql) if sql else None
+    
+    # Pre-fetch all source datasets to get their names for reordering
+    source_datasets_map = {}  # source_dataset_id -> (source_dataset, connection, source_info)
+    for source in sources_info:
+        source_dataset, connection = await _get_source_dataset_and_connection(
+            source.source_dataset_id,
+            db
+        )
+        source_datasets_map[source.source_dataset_id] = (source_dataset, connection, source)
+    
+    # Reorder sources to match SQL JOIN order if JOIN detected
     join_filter_values = None  # Will store values from first table's join column
     first_table_join_column = None
     second_table_join_column = None
+    first_table_name = None
+    second_table_name = None
+    first_table_is_casted = False
     
     if join_info:
         print(f"[Smart JOIN] Detected JOIN: {join_info}")
+        # Get table names from SQL
+        first_table_name = join_info.get('first_table')
+        second_table_name = join_info.get('second_table')
         # Get join column info
         join_columns = join_info.get('join_columns', [])
         if len(join_columns) >= 2:
             first_table_join_column = join_columns[0][1]  # (alias, column, is_casted) -> column
             first_table_is_casted = join_columns[0][2]
             second_table_join_column = join_columns[1][1]
+            print(f"[Smart JOIN] First table: {first_table_name}, Second table: {second_table_name}")
             print(f"[Smart JOIN] Join columns: {first_table_join_column} (casted={first_table_is_casted}) = {second_table_join_column}")
+        
+        # Sort sources: first table first, then second table, then others
+        def get_sort_key(source):
+            ds = source_datasets_map.get(source.source_dataset_id)
+            if ds:
+                name = ds[0].get('name', '')
+                if name == first_table_name:
+                    return 0  # First
+                elif name == second_table_name:
+                    return 1  # Second
+            return 2  # Others
+        
+        sources_info = sorted(sources_info, key=get_sort_key)
+        print(f"[Smart JOIN] Reordered sources: {[source_datasets_map.get(s.source_dataset_id, (None,))[0].get('name', 'unknown') if source_datasets_map.get(s.source_dataset_id) else 'unknown' for s in sources_info]}")
     
     for idx, source in enumerate(sources_info):
-        # Get source dataset and connection
-        source_dataset, connection = await _get_source_dataset_and_connection(
-            source.source_dataset_id,
-            db
-        )
+        # Get source dataset and connection from pre-fetched map
+        cached = source_datasets_map.get(source.source_dataset_id)
+        if cached:
+            source_dataset, connection, _ = cached
+        else:
+            source_dataset, connection = await _get_source_dataset_and_connection(
+                source.source_dataset_id,
+                db
+            )
         
-        # Smart JOIN sampling: for second+ sources, filter by first source's join column values
+        dataset_name = source_dataset.get('name', '')
+        
+        # Smart JOIN sampling: determine if this is the first or second table in JOIN
         filter_column = None
         filter_values = None
+        is_first_join_table = join_info and dataset_name == first_table_name
+        is_second_join_table = join_info and dataset_name == second_table_name
         
-        if join_info and idx > 0 and join_filter_values and second_table_join_column:
+        # For second table in JOIN, filter by first table's join column values
+        if is_second_join_table and join_filter_values and second_table_join_column:
             filter_column = second_table_join_column
             filter_values = join_filter_values
-            print(f"[Smart JOIN] Filtering {source_dataset.get('name')} where {filter_column} IN {filter_values[:5]}...")
+            print(f"[Smart JOIN] Filtering {dataset_name} where {filter_column} IN {filter_values[:5]}...")
         
         # Load sample data (with optional JOIN filtering)
         df = await _load_sample_data(
@@ -352,11 +399,11 @@ async def _load_and_union_sources(
         )
 
         if df is None or len(df) == 0:
-            print(f"[SQL Test Debug] Empty or None data for source: {source_dataset.get('name')}")
+            print(f"[SQL Test Debug] Empty or None data for source: {dataset_name}")
             continue
 
         # Debug: print loaded columns vs requested columns
-        print(f"[SQL Test Debug] Source: {source_dataset.get('name')}")
+        print(f"[SQL Test Debug] Source: {dataset_name}")
         print(f"[SQL Test Debug] Loaded columns: {list(df.columns)}")
         print(f"[SQL Test Debug] Requested columns: {source.columns}")
 
@@ -368,8 +415,8 @@ async def _load_and_union_sources(
             # If none of the requested columns exist, skip this source
             continue
         
-        # For first source with JOIN, extract join column values for filtering subsequent sources
-        if join_info and idx == 0 and first_table_join_column and first_table_join_column in df_original.columns:
+        # For first table in JOIN, extract join column values for filtering second table
+        if is_first_join_table and first_table_join_column and first_table_join_column in df_original.columns:
             join_filter_values = _get_join_column_values(
                 df_original, 
                 first_table_join_column, 
