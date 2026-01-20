@@ -65,13 +65,44 @@ export const catalogAPI = {
 
     /**
      * Fetch lineage data for a dataset
-     * @param {string} id 
+     * @param {string} id
      * @returns {Promise<Object>}
      */
     getLineage: async (id) => {
         const response = await fetch(`${API_URL}/${id}/lineage`);
         if (!response.ok) {
             throw new Error(`Failed to load lineage: ${response.statusText}`);
+        }
+        return await response.json();
+    },
+
+    /**
+     * Save lineage layout (node positions) for a dataset
+     * @param {string} id - Dataset ID
+     * @param {Object} layout - Layout data with node positions
+     * @returns {Promise<Object>}
+     */
+    saveLayout: async (id, layout) => {
+        const response = await fetch(`${API_URL}/${id}/layout`, {
+            method: 'PUT',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(layout)
+        });
+        if (!response.ok) {
+            throw new Error(`Failed to save layout: ${response.statusText}`);
+        }
+        return await response.json();
+    },
+
+    /**
+     * Get saved lineage layout for a dataset
+     * @param {string} id - Dataset ID
+     * @returns {Promise<Object>}
+     */
+    getLayout: async (id) => {
+        const response = await fetch(`${API_URL}/${id}/layout`);
+        if (!response.ok) {
+            throw new Error(`Failed to load layout: ${response.statusText}`);
         }
         return await response.json();
     },

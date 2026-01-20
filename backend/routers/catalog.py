@@ -277,6 +277,52 @@ async def delete_lineage(
     return result
 
 
+@router.put("/{id}/layout")
+async def save_lineage_layout(id: str, layout: Dict[str, Any] = Body(...)):
+    """
+    Save lineage layout (node positions) for a dataset.
+    Layout should be in format: {"nodes": [{"id": "node1", "position": {"x": 100, "y": 200}}]}
+    """
+    db = database.mongodb_client[database.DATABASE_NAME]
+
+    try:
+        obj_id = ObjectId(id)
+    except:
+        raise HTTPException(status_code=400, detail="Invalid ID format")
+
+    # Update lineage_layout field
+    result = await db.datasets.update_one(
+        {"_id": obj_id},
+        {"$set": {"lineage_layout": layout}}
+    )
+
+    if result.matched_count == 0:
+        raise HTTPException(status_code=404, detail="Dataset not found")
+
+    return {"success": True, "message": "Layout saved successfully"}
+
+
+@router.get("/{id}/layout")
+async def get_lineage_layout(id: str):
+    """
+    Get saved lineage layout for a dataset.
+    Returns null if no layout is saved.
+    """
+    db = database.mongodb_client[database.DATABASE_NAME]
+
+    try:
+        obj_id = ObjectId(id)
+    except:
+        raise HTTPException(status_code=400, detail="Invalid ID format")
+
+    doc = await db.datasets.find_one({"_id": obj_id}, {"lineage_layout": 1})
+
+    if not doc:
+        raise HTTPException(status_code=404, detail="Dataset not found")
+
+    return {"layout": doc.get("lineage_layout")}
+
+
 
 
 

@@ -156,6 +156,10 @@ class Dataset(Document):
     nodes: Optional[List[dict]] = None
     edges: Optional[List[dict]] = None
 
+    # Lineage layout (stores node positions for catalog detail page)
+    # Example: {"nodes": [{"id": "node1", "position": {"x": 100, "y": 200}}]}
+    lineage_layout: Optional[dict] = None
+
     created_at: datetime = Field(default_factory=datetime.utcnow)
     updated_at: datetime = Field(default_factory=datetime.utcnow)
 
