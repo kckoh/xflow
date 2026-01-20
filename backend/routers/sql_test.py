@@ -389,21 +389,14 @@ async def _load_and_union_sources(
             filter_values = join_filter_values
             print(f"[Smart JOIN] Filtering {dataset_name} where {filter_column} IN {filter_values[:5]}...")
         
-        # Determine order_by column for smart JOIN sampling (get smallest values first)
-        order_by = None
-        if is_first_join_table and first_table_join_column:
-            order_by = first_table_join_column
-        elif is_second_join_table and second_table_join_column:
-            order_by = second_table_join_column
-        
-        # Load sample data (with optional JOIN filtering and ordering)
+        # Load sample data (with optional JOIN filtering, no ordering for performance)
         df = await _load_sample_data(
             source_dataset, 
             connection, 
             limit=limit,
             filter_column=filter_column,
             filter_values=filter_values,
-            order_by_column=order_by
+            order_by_column=None  # Disabled: ORDER BY on large datasets causes timeout
         )
 
         if df is None or len(df) == 0:
