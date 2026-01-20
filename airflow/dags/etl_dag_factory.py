@@ -18,9 +18,9 @@ logger = logging.getLogger(__name__)
 IS_K8S = os.getenv("KUBERNETES_SERVICE_HOST") is not None
 
 if IS_K8S:
-    # Kubernetes environment - use full service DNS with xflow namespace
-    BACKEND_URL = os.getenv("BACKEND_URL", "http://backend.xflow.svc.cluster.local:8000/api/datasets")
-    BACKEND_API_BASE_URL = os.getenv("BACKEND_API_BASE_URL", "http://backend.xflow.svc.cluster.local:8000/api")
+    # Kubernetes environment - use full service DNS with xflow namespace (port 80)
+    BACKEND_URL = os.getenv("BACKEND_URL", "http://backend.xflow.svc.cluster.local/api/datasets")
+    BACKEND_API_BASE_URL = os.getenv("BACKEND_API_BASE_URL", "http://backend.xflow.svc.cluster.local/api")
 else:
     # Docker Compose environment - use simple service name
     BACKEND_URL = os.getenv("BACKEND_URL", "http://backend:8000/api/datasets")
