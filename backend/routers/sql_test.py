@@ -389,13 +389,21 @@ async def _load_and_union_sources(
             filter_values = join_filter_values
             print(f"[Smart JOIN] Filtering {dataset_name} where {filter_column} IN {filter_values[:5]}...")
         
-        # Load sample data (with optional JOIN filtering)
+        # Determine order_by column for smart JOIN sampling (get smallest values first)
+        order_by = None
+        if is_first_join_table and first_table_join_column:
+            order_by = first_table_join_column
+        elif is_second_join_table and second_table_join_column:
+            order_by = second_table_join_column
+        
+        # Load sample data (with optional JOIN filtering and ordering)
         df = await _load_sample_data(
             source_dataset, 
             connection, 
             limit=limit,
             filter_column=filter_column,
-            filter_values=filter_values
+            filter_values=filter_values,
+            order_by_column=order_by
         )
 
         if df is None or len(df) == 0:
@@ -470,7 +478,8 @@ async def _load_sample_data(
     connection: dict,
     limit: int = 1000,
     filter_column: str = None,
-    filter_values: List[Any] = None
+    filter_values: List[Any] = None,
+    order_by_column: str = None
 ) -> pd.DataFrame:
     """
     Load sample data from source (default 1000 rows)
@@ -482,6 +491,7 @@ async def _load_sample_data(
         limit: Max rows to load
         filter_column: Column to filter on (for smart JOIN sampling)
         filter_values: Values to filter by (for smart JOIN sampling)
+        order_by_column: Column to ORDER BY ASC (for smart JOIN sampling - get smallest values first)
     """
     source_type = source_dataset.get("source_type")
     config = connection.get("config", {}) if connection else {}
@@ -705,6 +715,12 @@ async def _load_sample_data(
             values_str = ", ".join([f"'{v}'" if isinstance(v, str) else str(v) for v in filter_values])
             filter_clause = f" WHERE {filter_column} IN ({values_str})"
             print(f"[Smart JOIN] S3 filter: {filter_clause[:100]}...")
+        
+        # Build ORDER BY clause for smart JOIN sampling (get smallest values first)
+        order_clause = ""
+        if order_by_column:
+            order_clause = f" ORDER BY {order_by_column} ASC"
+            print(f"[Smart JOIN] S3 order: {order_clause}")
 
         try:
             # Parse bucket and prefix from path
@@ -743,7 +759,7 @@ async def _load_sample_data(
             
             if parquet_files:
                 files_str = ", ".join([f"'{f}'" for f in parquet_files])
-                query = f"SELECT * FROM read_parquet([{files_str}]) {filter_clause} LIMIT {limit}"
+                query = f"SELECT * FROM read_parquet([{files_str}]) {filter_clause}{order_clause} LIMIT {limit}"
             else:
                  # Fallback - read parquet files directly, excluding _delta_log
                  debug_info = f"Boto3 found 0 parquet files (excluding _delta_log). Config: endpoint={endpoint}, bucket={bucket_name}, prefix={prefix}"
@@ -756,7 +772,7 @@ async def _load_sample_data(
                      # Delta Lake data files start with 'part-', checkpoint files are in _delta_log/
                      duck_path += 'part-*.parquet'
                      print(f"[DEBUG] Reading Delta data files with pattern: {duck_path}")
-                 query = f"SELECT * FROM read_parquet('{duck_path}') {filter_clause} LIMIT {limit}"
+                 query = f"SELECT * FROM read_parquet('{duck_path}') {filter_clause}{order_clause} LIMIT {limit}"
 
         except Exception as e:
             print(f"[DEBUG] Boto3 listing failed: {e}")
@@ -768,7 +784,7 @@ async def _load_sample_data(
                 # Delta Lake data files start with 'part-', checkpoint files are in _delta_log/
                 duck_path += 'part-*.parquet'
                 print(f"[DEBUG] Reading Delta data files with pattern: {duck_path}")
-            query = f"SELECT * FROM read_parquet('{duck_path}') {filter_clause} LIMIT {limit}"
+            query = f"SELECT * FROM read_parquet('{duck_path}') {filter_clause}{order_clause} LIMIT {limit}"
 
         try:
             # Execute query
