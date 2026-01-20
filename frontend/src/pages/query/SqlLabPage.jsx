@@ -7,6 +7,7 @@ import { useToast } from "../../components/common/Toast";
 import InlineAIInput from "../../components/ai/InlineAIInput";
 import TableColumnSidebar from "./components/TableColumnSidebar";
 import QueryExplorer from "./components/QueryExplorer";
+import Combobox from "../../components/common/Combobox";
 
 const QUERY_STORAGE_KEY = 'sqllab_current_query';
 const RESULTS_STORAGE_KEY = 'sqllab_last_results';
@@ -363,19 +364,27 @@ export default function SqlLabPage() {
                             {/* Left side - LIMIT selector */}
                             <div className="flex items-center gap-2 bg-white/80 px-2 py-1 rounded">
                                 <label className="text-xs font-medium text-gray-600">LIMIT:</label>
-                                <select
+                                <Combobox
+                                    options={[10, 30, 50, 100, 200, 500, 'All']}
                                     value={queryLimit}
-                                    onChange={(e) => setQueryLimit(e.target.value === 'All' ? 'All' : parseInt(e.target.value))}
-                                    className="px-2 py-1 text-xs border border-gray-300 rounded bg-white focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none"
-                                >
-                                    <option value={10}>10</option>
-                                    <option value={30}>30</option>
-                                    <option value={50}>50</option>
-                                    <option value={100}>100</option>
-                                    <option value={200}>200</option>
-                                    <option value={500}>500</option>
-                                    <option value="All">All</option>
-                                </select>
+                                    onChange={(option) => setQueryLimit(option === 'All' ? 'All' : option)}
+                                    getKey={(item) => item}
+                                    getLabel={(item) => String(item)}
+                                    placeholder="Select limit"
+                                    renderItem={(option, isSelected) => (
+                                        <span className={`text-xs ${isSelected ? 'font-semibold text-blue-600' : 'text-gray-900'}`}>
+                                            {String(option)}
+                                        </span>
+                                    )}
+                                    classNames={{
+                                        container: 'w-20',
+                                        button: 'px-2 py-1 text-xs min-h-0 h-auto',
+                                        label: 'text-xs',
+                                        icon: 'w-3 h-3',
+                                        panel: 'min-w-[80px]',
+                                        option: 'px-3 py-1.5'
+                                    }}
+                                />
                             </div>
 
                             {/* Right side - Execution Status and Run button */}
