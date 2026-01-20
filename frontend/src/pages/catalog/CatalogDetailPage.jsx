@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo, useCallback } from "react";
+import { useState, useEffect, useMemo, useCallback, useRef } from "react";
 import { useParams, useNavigate, useLocation } from "react-router-dom";
 import {
   ReactFlow,
@@ -12,7 +12,7 @@ import {
   useReactFlow,
 } from "@xyflow/react";
 import "@xyflow/react/dist/style.css";
-import { Database } from "lucide-react";
+import { Database, Save, Check, AlertCircle, Plus, Minus, Maximize2 } from "lucide-react";
 
 import { SchemaNode } from "../domain/components/schema-node/SchemaNode";
 import { catalogAPI } from "../../services/catalog";
@@ -198,8 +198,10 @@ const buildColumnEdges = (baseEdges = [], nodesById) => {
     });
 
     if (matched === 0) {
+      // Create edge without handles to connect nodes directly (not columns)
+      const { sourceHandle, targetHandle, ...edgeWithoutHandles } = edge;
       edges.push({
-        ...edge,
+        ...edgeWithoutHandles,
         id: baseId,
         type: edge.type || "default",
         animated: edge.animated ?? true,
@@ -254,7 +256,14 @@ function CatalogDetailContent() {
   const [selectedNode, setSelectedNode] = useState(null);
   const [nodes, setNodes, onNodesChange] = useNodesState([]);
   const [edges, setEdges, onEdgesChange] = useEdgesState([]);
-  const { fitView, getNode } = useReactFlow();
+  const { fitView, getNode, zoomIn, zoomOut } = useReactFlow();
+
+  // Layout save state
+  const [saveStatus, setSaveStatus] = useState("saved"); // "saving" | "saved" | "error"
+  const [savedLayout, setSavedLayout] = useState(null); // Store loaded layout
+  const saveTimeoutRef = useRef(null);
+  const hasLoadedLayoutRef = useRef(false);
+  const hasInitialFitViewRef = useRef(false);
 
   // Navigate to a specific node
   const handleNavigateToNode = useCallback(
@@ -327,10 +336,145 @@ function CatalogDetailContent() {
     [lineageData, catalogItem]
   );
 
+  // Load saved layout once
   useEffect(() => {
-    setNodes(graph.nodes);
+    const loadLayout = async () => {
+      if (!id || hasLoadedLayoutRef.current) return;
+
+      try {
+        const response = await catalogAPI.getLayout(id);
+        if (response.layout && response.layout.nodes) {
+          setSavedLayout(response.layout);
+        }
+        hasLoadedLayoutRef.current = true;
+      } catch (error) {
+        console.log("No saved layout found or error loading layout:", error);
+        hasLoadedLayoutRef.current = true;
+      }
+    };
+
+    loadLayout();
+  }, [id]);
+
+  // Reset fitView flag when dataset changes
+  useEffect(() => {
+    hasInitialFitViewRef.current = false;
+  }, [id]);
+
+  // Apply saved layout to graph nodes
+  useEffect(() => {
+    // Apply graph nodes with saved positions if available
+    if (savedLayout && savedLayout.nodes && savedLayout.nodes.length > 0) {
+      const nodesWithSavedPositions = graph.nodes.map((node) => {
+        const savedNode = savedLayout.nodes.find((n) => n.id === node.id);
+        if (savedNode && savedNode.position) {
+          return {
+            ...node,
+            position: savedNode.position,
+          };
+        }
+        return node;
+      });
+      setNodes(nodesWithSavedPositions);
+    } else {
+      // No saved layout, use default positions
+      setNodes(graph.nodes);
+    }
+
     setEdges(graph.edges);
-  }, [graph, setNodes, setEdges]);
+  }, [graph, savedLayout, setNodes, setEdges]);
+
+  // Initial fitView after nodes are loaded
+  useEffect(() => {
+    if (nodes.length > 0 && !hasInitialFitViewRef.current) {
+      // Wait a bit for nodes to render, then fit view
+      setTimeout(() => {
+        fitView({
+          padding: 0.2, // 20% padding around nodes
+          duration: 800, // Smooth animation
+          maxZoom: 1.0, // Don't zoom in too much
+        });
+        hasInitialFitViewRef.current = true;
+      }, 100);
+    }
+  }, [nodes, fitView]);
+
+  // Save layout with debounce
+  const saveLayout = useCallback(
+    async (nodesToSave) => {
+      if (!id) return;
+
+      // Clear existing timeout
+      if (saveTimeoutRef.current) {
+        clearTimeout(saveTimeoutRef.current);
+      }
+
+      setSaveStatus("saving");
+
+      // Debounce: wait 1 second after last change before saving
+      saveTimeoutRef.current = setTimeout(async () => {
+        try {
+          const layout = {
+            nodes: nodesToSave.map((node) => ({
+              id: node.id,
+              position: node.position,
+            })),
+          };
+
+          await catalogAPI.saveLayout(id, layout);
+          setSavedLayout(layout); // Update saved layout state
+          setSaveStatus("saved");
+
+          // Reset to "saved" after 2 seconds
+          setTimeout(() => {
+            setSaveStatus("saved");
+          }, 2000);
+        } catch (error) {
+          console.error("Failed to save layout:", error);
+          setSaveStatus("error");
+        }
+      }, 1000);
+    },
+    [id]
+  );
+
+  // Custom onNodesChange handler that triggers save
+  const handleNodesChange = useCallback(
+    (changes) => {
+      onNodesChange(changes);
+
+      // Check if any position changes occurred
+      const hasPositionChange = changes.some(
+        (change) => change.type === "position" && change.dragging === false
+      );
+
+      if (hasPositionChange && hasLoadedLayoutRef.current) {
+        // Get current nodes after change
+        setNodes((currentNodes) => {
+          saveLayout(currentNodes);
+          return currentNodes;
+        });
+      }
+    },
+    [onNodesChange, saveLayout, setNodes]
+  );
+
+  // Smooth zoom controls
+  const handleZoomIn = useCallback(() => {
+    zoomIn({ duration: 400 });
+  }, [zoomIn]);
+
+  const handleZoomOut = useCallback(() => {
+    zoomOut({ duration: 400 });
+  }, [zoomOut]);
+
+  const handleFitView = useCallback(() => {
+    fitView({
+      padding: 0.2,
+      duration: 600,
+      maxZoom: 1.0,
+    });
+  }, [fitView]);
 
   const handleColumnClick = useCallback((nodeId, columnName) => {
     setHighlightedColumn((prev) => {
@@ -520,7 +664,7 @@ function CatalogDetailContent() {
           <ReactFlow
             nodes={displayNodes}
             edges={displayEdges}
-            onNodesChange={onNodesChange}
+            onNodesChange={handleNodesChange}
             onEdgesChange={onEdgesChange}
             onNodeClick={(event, node) => {
               setSelectedNode(node);
@@ -531,14 +675,39 @@ function CatalogDetailContent() {
               setHighlightedColumn(null);
             }}
             nodeTypes={nodeTypes}
-            fitView
-            // view padding
-            fitViewOptions={{ padding: 1.5 }}
             minZoom={0.1}
             maxZoom={1.0}
+            zoomOnScroll={true}
+            zoomOnPinch={true}
+            zoomOnDoubleClick={false}
+            panOnScroll={false}
             className="bg-gray-50"
           >
-            <Controls position="bottom-left" />
+            {/* Custom Smooth Controls */}
+            <div className="absolute bottom-4 left-4 flex flex-col gap-2 z-10">
+              <button
+                onClick={handleZoomIn}
+                className="w-8 h-8 flex items-center justify-center bg-white border border-gray-300 rounded shadow-sm hover:bg-gray-50 transition-colors"
+                title="Zoom In"
+              >
+                <Plus className="w-4 h-4 text-gray-700" />
+              </button>
+              <button
+                onClick={handleZoomOut}
+                className="w-8 h-8 flex items-center justify-center bg-white border border-gray-300 rounded shadow-sm hover:bg-gray-50 transition-colors"
+                title="Zoom Out"
+              >
+                <Minus className="w-4 h-4 text-gray-700" />
+              </button>
+              <button
+                onClick={handleFitView}
+                className="w-8 h-8 flex items-center justify-center bg-white border border-gray-300 rounded shadow-sm hover:bg-gray-50 transition-colors"
+                title="Fit View"
+              >
+                <Maximize2 className="w-4 h-4 text-gray-700" />
+              </button>
+            </div>
+
             <MiniMap
               nodeColor={(node) => {
                 if (node.id.startsWith("source")) return "#3B82F6";
@@ -554,6 +723,28 @@ function CatalogDetailContent() {
               size={1}
               color="#d1d5db"
             />
+
+            {/* Save Status Indicator */}
+            <div className="absolute top-4 right-4 z-10">
+              {saveStatus === "saving" && (
+                <div className="flex items-center gap-2 px-3 py-2 bg-blue-50 border border-blue-200 rounded-lg shadow-sm">
+                  <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-blue-600"></div>
+                  <span className="text-sm text-blue-700 font-medium">Saving layout...</span>
+                </div>
+              )}
+              {saveStatus === "saved" && (
+                <div className="flex items-center gap-2 px-3 py-2 bg-green-50 border border-green-200 rounded-lg shadow-sm animate-fade-in">
+                  <Check className="w-4 h-4 text-green-600" />
+                  <span className="text-sm text-green-700 font-medium">Layout saved</span>
+                </div>
+              )}
+              {saveStatus === "error" && (
+                <div className="flex items-center gap-2 px-3 py-2 bg-red-50 border border-red-200 rounded-lg shadow-sm">
+                  <AlertCircle className="w-4 h-4 text-red-600" />
+                  <span className="text-sm text-red-700 font-medium">Failed to save</span>
+                </div>
+              )}
+            </div>
           </ReactFlow>
         </div>
 
