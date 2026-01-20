@@ -32,7 +32,7 @@ export default function ChartConfigPanel({
 
     const addMetric = () => {
         if (yAxes.length < 5) { // Max 5 metrics
-            setYAxes([...yAxes, { column: columns[0] || '', aggregation: 'SUM' }]);
+            setYAxes([...yAxes, { column: columns[0] || '', aggregation: 'COUNT' }]);
         }
     };
 
