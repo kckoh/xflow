@@ -15,7 +15,7 @@ const ENGINE_STORAGE_KEY = 'sqllab_query_engine';
 
 const ENGINE_PLACEHOLDERS = {
     duckdb: "Enter your SQL query here...\nExample: SELECT * FROM read_parquet('s3://bucket/path/*.parquet') LIMIT 10",
-    trino: "Enter your SQL query here...\nExample: SELECT * FROM lakehouse.default.my_table LIMIT 10"
+    trino: "Enter your SQL query here...\nExample: SELECT * FROM lakehouse.default.my_table "
 };
 
 export default function SqlLabPage() {
@@ -365,17 +365,12 @@ export default function SqlLabPage() {
                             <div className="flex items-center gap-2 bg-white/80 px-2 py-1 rounded">
                                 <label className="text-xs font-medium text-gray-600">LIMIT:</label>
                                 <Combobox
-                                    options={[10, 30, 50, 100, 200, 500, 'All']}
+                                    options={[30, 100, 200, 500, 'All']}
                                     value={queryLimit}
                                     onChange={(option) => setQueryLimit(option === 'All' ? 'All' : option)}
                                     getKey={(item) => item}
                                     getLabel={(item) => String(item)}
                                     placeholder="Select limit"
-                                    renderItem={(option, isSelected) => (
-                                        <span className={`text-xs ${isSelected ? 'font-semibold text-blue-600' : 'text-gray-900'}`}>
-                                            {String(option)}
-                                        </span>
-                                    )}
                                     classNames={{
                                         container: 'w-20',
                                         button: 'px-2 py-1 text-xs min-h-0 h-auto',
