@@ -1,13 +1,12 @@
 import { useState, useEffect } from "react";
 import { useNavigate, useLocation } from "react-router-dom";
-import { Play, Loader2, XCircle, Download, BarChart3, Database, Sparkles } from "lucide-react";
+import { Play, Loader2, XCircle, Download, BarChart3, Sparkles } from "lucide-react";
 import { executeQuery as runDuckDBQuery } from "../../services/apiDuckDB";
 import { executeQuery as runTrinoQuery, executeQueryPaginated as runTrinoQueryPaginated } from "../../services/apiTrino";
 import { useToast } from "../../components/common/Toast";
 import InlineAIInput from "../../components/ai/InlineAIInput";
 import TableColumnSidebar from "./components/TableColumnSidebar";
 import QueryExplorer from "./components/QueryExplorer";
-import Combobox from "../../components/common/Combobox";
 
 const QUERY_STORAGE_KEY = 'sqllab_current_query';
 const RESULTS_STORAGE_KEY = 'sqllab_last_results';
@@ -320,45 +319,18 @@ export default function SqlLabPage() {
                                 </p>
                             )}
                         </div>
-                        {/* AI Button and Engine Selector */}
-                        <div className="flex items-center gap-3">
-                            {/* AI Button */}
-                            <button
-                                onClick={() => setShowAI(!showAI)}
-                                className="flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs font-medium
-                                    bg-gradient-to-r from-indigo-50 to-purple-50 text-indigo-600 
-                                    hover:from-indigo-100 hover:to-purple-100 transition-all
-                                    border border-indigo-200/50"
-                                title="AI SQL Assistant"
-                            >
-                                <Sparkles size={14} />
-                                <span>AI</span>
-                            </button>
-
-                            {/* Engine Selector */}
-                            <div className="flex items-center gap-2">
-                                <Database className="w-4 h-4 text-gray-500" />
-                                <Combobox
-                                    options={[
-                                        { id: "trino", label: "Trino (Distributed)" }
-                                    ]}
-                                    value={engine}
-                                    onChange={(selectedEngine) => {
-                                        if (!selectedEngine) {
-                                            return;
-                                        }
-                                        setEngine(selectedEngine.id);
-                                    }}
-                                    getKey={(option) => option.id}
-                                    getLabel={(option) => option.label}
-                                    placeholder="Select engine..."
-                                    classNames={{
-                                        button: "text-sm",
-                                        label: "text-sm"
-                                    }}
-                                />
-                            </div>
-                        </div>
+                        {/* AI Button */}
+                        <button
+                            onClick={() => setShowAI(!showAI)}
+                            className="flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs font-medium
+                                bg-gradient-to-r from-indigo-50 to-purple-50 text-indigo-600
+                                hover:from-indigo-100 hover:to-purple-100 transition-all
+                                border border-indigo-200/50"
+                            title="AI SQL Assistant"
+                        >
+                            <Sparkles size={14} />
+                            <span>AI</span>
+                        </button>
                     </div>
                 </div>
 
