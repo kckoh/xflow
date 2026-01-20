@@ -156,16 +156,20 @@ class QualityService:
 
             if is_large_data:
                 # SAMPLING MODE: Use DuckDB TABLESAMPLE for row-level sampling
-                # Tiered sampling based on data size for optimal performance
-                GB = 1024 * MB
-                if total_size >= 10 * GB:
-                    # Very large (10GB+): 0.1% sampling for ~5 second target
-                    sample_clause = " TABLESAMPLE 0.1%"
-                    sampling_info = f"Sampling Mode: TABLESAMPLE 0.1% (Total size: {total_size / GB:.1f} GB)"
-                else:
-                    # Large (100MB-10GB): 1% sampling
-                    sample_clause = " TABLESAMPLE 1%"
-                    sampling_info = f"Sampling Mode: TABLESAMPLE 1% (Total size: {total_size / MB:.1f} MB)"
+                # Dynamic sampling rate to always target ~100MB sample size
+                # This gives consistent ~3-5 second performance regardless of data size
+                TARGET_SAMPLE_MB = 100
+                total_size_mb = total_size / MB
+                
+                # Calculate sample rate: target / total * 100 (percentage)
+                sample_rate = min(100.0, (TARGET_SAMPLE_MB / total_size_mb) * 100)
+                
+                # Round to reasonable precision (min 0.01%)
+                sample_rate = max(0.01, round(sample_rate, 2))
+                
+                sample_clause = f" TABLESAMPLE {sample_rate}%"
+                estimated_sample_mb = total_size_mb * (sample_rate / 100)
+                sampling_info = f"Sampling Mode: TABLESAMPLE {sample_rate}% (Total: {total_size_mb:.0f} MB → Sample: ~{estimated_sample_mb:.0f} MB)"
             
             # [OPTIMIZATION] Direct S3 Read (Streaming)
             # No download needed. DuckDB reads directly from S3.
