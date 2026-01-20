@@ -117,8 +117,8 @@ try:
             try:
                 job_id = job.get("id")
 
-                # Filter: active status AND schedule exists
-                if job.get("status") == "active" and job.get("schedule"):
+                # Filter: active or scheduled status AND schedule exists
+                if job.get("status") in ["active", "scheduled"] and job.get("schedule"):
                     job_name = job.get("name", f"job_{job_id}")
                     schedule_str = job.get("schedule")
                     ui_params = job.get("ui_params", {})
