@@ -381,8 +381,15 @@ export default function JobsPage() {
               return j;
             })
           );
+
+          // Show toast
+          showToast(
+            newActiveState ? "Job activated successfully!" : "Job deactivated successfully!",
+            "success"
+          );
         } else {
           console.error("Failed to toggle job status");
+          showToast("Failed to toggle schedule", "error");
         }
       } else {
         // Manual job: update Dataset's is_active field
@@ -412,8 +419,13 @@ export default function JobsPage() {
                   return j;
                 })
               );
+              showToast(
+                newActiveState ? "Job activated successfully!" : "Job deactivated successfully!",
+                "success"
+              );
             } else {
               console.error("Failed to update dataset status");
+              showToast("Failed to update job status", "error");
             }
           } else {
             // No dataset found, just update local state
@@ -425,11 +437,16 @@ export default function JobsPage() {
                 return j;
               })
             );
+            showToast(
+              newActiveState ? "Job activated successfully!" : "Job deactivated successfully!",
+              "success"
+            );
           }
         }
       }
     } catch (error) {
       console.error("Failed to toggle job:", error);
+      showToast("Network error: Failed to toggle schedule", "error");
     }
   };
 

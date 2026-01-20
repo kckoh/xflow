@@ -14,9 +14,18 @@ from airflow import DAG
 logger = logging.getLogger(__name__)
 
 # Config
-# Use the backend service name in Docker Compose usually, or host.docker.internal
-BACKEND_URL = os.getenv("BACKEND_URL", "http://backend:8000/api/datasets")
-BACKEND_API_BASE_URL = os.getenv("BACKEND_API_BASE_URL", "http://backend.default.svc.cluster.local/api")
+# Auto-detect environment: Kubernetes or Docker Compose
+IS_K8S = os.getenv("KUBERNETES_SERVICE_HOST") is not None
+
+if IS_K8S:
+    # Kubernetes environment - use full service DNS with xflow namespace
+    BACKEND_URL = os.getenv("BACKEND_URL", "http://backend.xflow.svc.cluster.local:8000/api/datasets")
+    BACKEND_API_BASE_URL = os.getenv("BACKEND_API_BASE_URL", "http://backend.xflow.svc.cluster.local:8000/api")
+else:
+    # Docker Compose environment - use simple service name
+    BACKEND_URL = os.getenv("BACKEND_URL", "http://backend:8000/api/datasets")
+    BACKEND_API_BASE_URL = os.getenv("BACKEND_API_BASE_URL", "http://backend:8000/api")
+
 GENERIC_DAG_ID = os.getenv("AIRFLOW_DAG_ID", "dataset_dag_k8s")
 
 
