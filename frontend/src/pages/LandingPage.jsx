@@ -300,7 +300,7 @@ function LandingPage() {
 
                     {/* Right: Sticky Visual Content */}
                     <div className="hidden lg:flex w-1/2 sticky top-0 h-screen items-center justify-center p-6 lg:p-12">
-                        <div className="relative w-full aspect-square md:aspect-[4/3] rounded-[48px] overflow-hidden shadow-2xl bg-white border border-gray-100">
+                        <div className="relative w-full aspect-square md:aspect-[4/3] rounded-[24px] overflow-hidden shadow-2xl bg-white border border-gray-100">
 
                             {/* Visual 1 */}
                             <div className={`absolute inset-0 transition-opacity duration-700 ease-in-out bg-[#F1F3F4] flex items-center justify-center overflow-hidden ${activeStickySection === 0 ? 'opacity-100' : 'opacity-0'}`}>
@@ -310,8 +310,8 @@ function LandingPage() {
                             {/* Visual 2 */}
                             <div className={`absolute inset-0 transition-opacity duration-700 ease-in-out bg-[#E8F0FE] flex items-center justify-center ${activeStickySection === 1 ? 'opacity-100' : 'opacity-0'}`}>
                                 <iframe
-                                    className="w-full h-full object-cover pointer-events-none"
-                                    src="https://www.youtube.com/embed/XgOV48YeqAI?autoplay=1&mute=1&loop=1&playlist=XgOV48YeqAI&controls=0&modestbranding=1&rel=0&iv_load_policy=3&fs=0&disablekb=1"
+                                    className="w-full h-full object-cover scale-[1.55] pointer-events-none"
+                                    src="https://www.youtube.com/embed/uD2o2EIMEHo?autoplay=1&mute=1&loop=1&playlist=uD2o2EIMEHo&controls=0&modestbranding=1&rel=0&iv_load_policy=3&fs=0&disablekb=1"
                                     title="Data Lake Architecture Video"
                                     allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
                                     allowFullScreen
@@ -321,8 +321,8 @@ function LandingPage() {
                             {/* Visual 3 */}
                             <div className={`absolute inset-0 transition-opacity duration-700 ease-in-out bg-[#F3E8FD] flex items-center justify-center ${activeStickySection === 2 ? 'opacity-100' : 'opacity-0'}`}>
                                 <iframe
-                                    className="w-full h-full object-cover pointer-events-none"
-                                    src="https://www.youtube.com/embed/qTa5OIDCllo?autoplay=1&mute=1&loop=1&playlist=qTa5OIDCllo&controls=0&modestbranding=1&rel=0&iv_load_policy=3&fs=0&disablekb=1"
+                                    className="w-full h-full object-cover scale-[1.55] pointer-events-none"
+                                    src="https://www.youtube.com/embed/KSE0o1voSAI?autoplay=1&mute=1&loop=1&playlist=KSE0o1voSAI&controls=0&modestbranding=1&rel=0&iv_load_policy=3&fs=0&disablekb=1"
                                     title="Catalog Interface Video"
                                     allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
                                     allowFullScreen
@@ -331,8 +331,8 @@ function LandingPage() {
                             {/* Visual 4 */}
                             <div className={`absolute inset-0 transition-opacity duration-700 ease-in-out bg-[#E6F4EA] flex items-center justify-center ${activeStickySection === 3 ? 'opacity-100' : 'opacity-0'}`}>
                                 <iframe
-                                    className="w-full h-full object-cover pointer-events-none"
-                                    src="https://www.youtube.com/embed/zE1il50QKpg?autoplay=1&mute=1&loop=1&playlist=zE1il50QKpg&controls=0&modestbranding=1&rel=0&iv_load_policy=3&fs=0&disablekb=1"
+                                    className="w-full h-full object-cover scale-[1.55] pointer-events-none"
+                                    src="https://www.youtube.com/embed/9-5MRr5aw4E?autoplay=1&mute=1&loop=1&playlist=9-5MRr5aw4E&controls=0&modestbranding=1&rel=0&iv_load_policy=3&fs=0&disablekb=1"
                                     title="Query Interface Video"
                                     allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
                                     allowFullScreen
