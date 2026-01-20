@@ -212,12 +212,13 @@ async def get_roles(session_id: str):
     Changed from admin-only to allow all authenticated users for permission assignment in wizards
     """
     # Check authentication (but not admin)
-    if session_id not in sessions:
+    user_session = await get_session_data(session_id)
+    if not user_session:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Not authenticated"
         )
-    
+
     roles = await Role.find_all().to_list()
 
     return [
