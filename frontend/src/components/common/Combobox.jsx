@@ -92,21 +92,21 @@ export default function Combobox({
                                         onMouseLeave={() => setHoveredKey(null)}
                                         className={`px-3 py-2 flex items-center justify-between cursor-pointer hover:bg-gray-50 transition-colors ${classNames.option ?? ''} ${isSelected ? classNames.optionSelected ?? '' : ''} ${hoveredKey === key ? classNames.optionHovered ?? '' : ''}`.trim()}
                                     >
-                                        <div className="flex items-center gap-2 flex-1 min-w-0">
-                                            {/* 선택 표시 */}
-                                            <div className="w-4 h-4 flex-shrink-0">
-                                                {isSelected && (
-                                                    <Check className="w-4 h-4 text-blue-600" />
-                                                )}
-                                            </div>
-
-                                            {/* 아이템 내용 */}
+                                        {/* 아이템 내용 */}
+                                        <div className="flex-1 min-w-0">
                                             {renderItem ? (
                                                 renderItem(option, isSelected)
                                             ) : (
                                                 <span className="text-sm text-gray-900 truncate">
                                                     {getLabel(option)}
                                                 </span>
+                                            )}
+                                        </div>
+
+                                        {/* 선택 표시 - 오른쪽 */}
+                                        <div className="w-4 h-4 flex-shrink-0 ml-2">
+                                            {isSelected && (
+                                                <Check className="w-4 h-4 text-blue-600" />
                                             )}
                                         </div>
 
