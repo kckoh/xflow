@@ -600,7 +600,8 @@ async def _load_sample_data(
                 detail="Kafka source requires bootstrap_servers and topic"
             )
 
-        kafka_result = get_kafka_schema(bootstrap_servers, topic, limit=limit)
+        custom_regex = source_dataset.get("customRegex")
+        kafka_result = get_kafka_schema(bootstrap_servers, topic, limit=limit, custom_regex=custom_regex)
         records = kafka_result.get("sample", [])
 
         if not records:

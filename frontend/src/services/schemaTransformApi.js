@@ -13,7 +13,7 @@ export const schemaTransformApi = {
      * @param {string} sql - SQL query to test
      * @returns {Promise} Test result with before/after samples
      */
-    async testSqlTransform(sources, sql, timeoutMs = 10000) {
+    async testSqlTransform(sources, sql, timeoutMs = 20000) {
         const controller = new AbortController();
         const timer = setTimeout(() => controller.abort(), timeoutMs);
 

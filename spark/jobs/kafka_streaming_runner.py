@@ -349,7 +349,37 @@ def run_streaming_job(config: dict):
     json_df = kafka_df.selectExpr("CAST(value AS STRING) as json_str")
 
     if source_format == "raw":
-        input_df = json_df.select(col("json_str").alias("raw_value"))
+        custom_regex = config.get("custom_regex")
+        if custom_regex:
+            # 1. Parse regex pattern to find group names
+            try:
+                pattern = re.compile(custom_regex)
+                group_map = pattern.groupindex  # {'ip': 1, 'date': 2}
+            except Exception as e:
+                logger.warning(f"Invalid regex pattern: {e}")
+                group_map = {}
+
+            if group_map:
+                # 2. Build select expressions using regexp_extract
+                from pyspark.sql.functions import regexp_extract
+                
+                # Convert Python regex (?P<name>...) to Java regex (?<name>...) due to Spark using Java regex
+                java_regex = custom_regex.replace("(?P<", "(?<")
+                
+                exprs = []
+                for name, idx in group_map.items():
+                    exprs.append(regexp_extract(col("json_str"), java_regex, idx).alias(name))
+                
+                input_df = json_df.select(*exprs)
+                
+                # Check if auto_schema should be enabled for regex
+                if not auto_schema: 
+                     # Using regex implies we want to inspect the fields like auto_schema
+                     pass 
+            else:
+                input_df = json_df.select(col("json_str").alias("raw_value"))
+        else:
+            input_df = json_df.select(col("json_str").alias("raw_value"))
     elif auto_schema:
         input_df = json_df
     elif source_schema:
