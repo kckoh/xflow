@@ -5,7 +5,8 @@ import logging
 import re
 
 import database
-from models import Dataset
+from models import Dataset, JobRun
+from datetime import datetime
 from services.kafka_streaming_service import KafkaStreamingService
 from utils.kafka import has_kafka_source
 from utils.trino_client import register_delta_table
@@ -154,11 +155,21 @@ async def start_streaming_job(dataset_id: str):
             logger.error(f"[Streaming] ❌ Trino registration error: {e}")
             # Don't fail the streaming job if Trino registration fails
 
+    # Create JobRun record for tracking
+    job_run = JobRun(
+        dataset_id=dataset_id,
+        status="running",
+        started_at=datetime.utcnow(),
+        error_message=None
+    )
+    await job_run.insert()
+
     return {
         "status": "started",
         "app_name": app_name,
         "group_id": group_id,
         "trino_table": glue_table_name if glue_table_name else None,
+        "run_id": str(job_run.id)
     }
 
 
@@ -168,6 +179,21 @@ async def stop_streaming_job(dataset_id: str):
     app_name = f"kafka-stream-{dataset_id}"
     group_id = f"xflow-stream-{dataset_id}"
     stopped = KafkaStreamingService.stop_job(app_name)
+
+    # Update JobRun status if stopped
+    if stopped:
+        # Find latest running job for this dataset
+        active_runs = await JobRun.find(
+            JobRun.dataset_id == dataset_id,
+            JobRun.status == "running"
+        ).sort("-started_at").limit(1).to_list()
+        
+        if active_runs:
+            run = active_runs[0]
+            run.status = "success"  # User manually stopped it (finished)
+            run.finished_at = datetime.utcnow()
+            await run.save()
+
     return {
         "status": "stopped" if stopped else "unknown",
         "app_name": app_name,
