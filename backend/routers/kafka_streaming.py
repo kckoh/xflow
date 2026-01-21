@@ -5,7 +5,8 @@ import logging
 import re
 
 import database
-from models import Dataset
+from models import Dataset, JobRun
+from datetime import datetime
 from services.kafka_streaming_service import KafkaStreamingService
 from utils.kafka import has_kafka_source
 from utils.trino_client import register_delta_table
@@ -155,9 +156,6 @@ async def start_streaming_job(dataset_id: str):
             # Don't fail the streaming job if Trino registration fails
 
     # Create JobRun record for tracking
-    from models import JobRun
-    from datetime import datetime
-    
     job_run = JobRun(
         dataset_id=dataset_id,
         status="running",
@@ -184,9 +182,6 @@ async def stop_streaming_job(dataset_id: str):
 
     # Update JobRun status if stopped
     if stopped:
-        from models import JobRun
-        from datetime import datetime
-        
         # Find latest running job for this dataset
         active_runs = await JobRun.find(
             JobRun.dataset_id == dataset_id,
