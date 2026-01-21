@@ -22,7 +22,7 @@ export default function TransformFunctionModal({ column, onApply, onClose }) {
         { name: 'CONCAT', desc: 'Concatenate strings', template: `CONCAT(${column.originalName}, '-', ${column.originalName})` },
         { name: 'CAST', desc: 'Convert type', template: `CAST(${column.originalName} AS STRING)` },
         { name: 'COALESCE', desc: 'Handle nulls', template: `COALESCE(${column.originalName}, 'default')` },
-        { name: 'DATE_FORMAT', desc: 'Format date', template: `DATE_FORMAT(${column.originalName}, 'yyyy-MM-dd')` },
+
         { name: 'ROUND', desc: 'Round number', template: `ROUND(${column.originalName}, 2)` },
         { name: 'ABS', desc: 'Absolute value', template: `ABS(${column.originalName})` },
     ];
