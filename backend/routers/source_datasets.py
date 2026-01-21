@@ -226,8 +226,7 @@ async def create_source_dataset(dataset: SourceDatasetCreate, session_id: Option
         dataset_data["format"] = "json"
     
     # Extract schema from S3 when creating S3 source dataset (one-time operation)
-    # Skip for S3 Logs - schema is determined by customRegex
-    if dataset.source_type == "s3" and dataset_data.get("format") != "logs" and not dataset_data.get("columns"):
+    if dataset.source_type == "s3" and not dataset_data.get("columns"):
         bucket = dataset_data.get("bucket")
         path = dataset_data.get("path")
         if bucket and path:
@@ -352,8 +351,8 @@ async def get_source_dataset(dataset_id: str):
     doc["id"] = str(doc["_id"])
     del doc["_id"]
 
-    # S3 타입인 경우 DuckDB로 스키마 조회 (S3 Logs는 제외 - customRegex로 결정)
-    if doc.get("source_type") == "s3" and doc.get("format") != "logs":
+    # S3 타입인 경우 DuckDB로 스키마 조회
+    if doc.get("source_type") == "s3":
         if not doc.get("columns"):
             bucket = doc.get("bucket")
             path = doc.get("path")
