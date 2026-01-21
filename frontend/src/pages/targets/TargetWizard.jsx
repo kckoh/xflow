@@ -967,9 +967,7 @@ export default function TargetWizard() {
                   {isEditMode ? "Edit Target Dataset" : "Create Target Dataset"}
                 </h1>
                 <p className="text-sm text-gray-500">
-                  {isEditMode
-                    ? "Modify your target dataset configuration"
-                    : "Import lineage from existing ETL jobs"}
+                  {isEditMode ? "Modify your target dataset configuration" : ""}
                 </p>
               </div>
             </div>
@@ -1682,10 +1680,9 @@ export default function TargetWizard() {
                   ) : (
                     <div className="flex items-center justify-center h-full">
                       <div className="max-w-md text-center text-gray-500">
-                        <p className="text-sm">API schema가 아직 없습니다.</p>
-                        <p className="text-xs text-gray-400 mt-2">
-                          Source Dataset 생성 시 "Test API Connection" 섹션에서
-                          Fetch Preview를 실행하여 스키마를 먼저 가져와주세요.
+                        <p className="text-sm">
+                          API schema가 아직 없습니다. Step 2에서
+                          Preview/Schema를 먼저 가져와주세요.
                         </p>
                       </div>
                     </div>
@@ -2147,7 +2144,7 @@ export default function TargetWizard() {
                         isLoadingPartitionAI || targetSchema.length === 0
                       }
                       className="flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs font-medium
-                          bg-gradient-to-r from-indigo-50 to-purple-50 text-indigo-600 
+                          bg-gradient-to-r from-indigo-50 to-purple-50 text-indigo-600
                           hover:from-indigo-100 hover:to-purple-100 transition-all
                           border border-indigo-200/50
                           disabled:opacity-50 disabled:cursor-not-allowed"

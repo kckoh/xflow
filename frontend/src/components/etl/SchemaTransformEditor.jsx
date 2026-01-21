@@ -292,6 +292,18 @@ export default function SchemaTransformEditor({
         setEditingColumn(null);
     };
 
+    // Spark SQL 타입 매핑
+    const TYPE_MAP = {
+        'string': 'STRING',
+        'integer': 'INT',
+        'long': 'BIGINT',
+        'double': 'DOUBLE',
+        'float': 'FLOAT',
+        'boolean': 'BOOLEAN',
+        'timestamp': 'TIMESTAMP',
+        'date': 'DATE'
+    };
+
     // Generate SQL from targetSchema (optionally filter by sourceId for testing)
     const generateSql = (filterBySourceId = null) => {
         // If SQL Transform tab and custom SQL is provided, use it
@@ -313,22 +325,63 @@ export default function SchemaTransformEditor({
             const source = allSources.find(s => s.id === col.sourceId);
             const isMongoDB = source?.sourceType === 'mongodb';
 
-            if (col.transform) {
-                // Quote the alias to handle reserved words
-                return `${col.transform} AS "${col.name}"`;
-            }
-
             // Use originalName for SELECT since that's what exists in the source data
             // For MongoDB, convert dot notation to underscore to match backend conversion
             const columnName = isMongoDB
                 ? col.originalName.replace(/\./g, '_')
                 : col.originalName;
 
+            if (col.transform) {
+                // Quote the alias to handle reserved words
+                return `${col.transform} AS "${col.name}"`;
+            }
+
+            let expr = `"${columnName}"`;
+
+            // 1. Type Cast 적용 (string이 아닌 타입으로 변경된 경우)
+            const sparkType = TYPE_MAP[col.type];
+            if (sparkType && sparkType !== 'STRING') {
+                expr = `CAST(${expr} AS ${sparkType})`;
+            }
+
+            // 2. Default Value 적용 (COALESCE)
+            if (col.defaultValue && col.defaultValue.trim() !== '') {
+                // 숫자 타입이면 따옴표 없이, 아니면 따옴표로 감싸기
+                const isNumericType = ['integer', 'long', 'double', 'float'].includes(col.type);
+                const defaultVal = isNumericType
+                    ? col.defaultValue
+                    : `'${col.defaultValue.replace(/'/g, "''")}'`;
+                expr = `COALESCE(${expr}, ${defaultVal})`;
+            }
+
+            // 3. AS alias 추가 (컬럼명 변경, CAST, 또는 COALESCE 적용된 경우)
+            const needsAlias = col.name !== columnName ||
+                              (col.defaultValue && col.defaultValue.trim() !== '') ||
+                              (sparkType && sparkType !== 'STRING');
+            if (needsAlias) {
+                return `${expr} AS "${col.name}"`;
+            }
+
             // Quote column names to handle SQL reserved words (e.g., 'cast', 'type', 'year')
-            return `"${columnName}"`;
+            return expr;
         });
 
-        return `SELECT ${selectClauses.join(', ')} FROM input`;
+        // NOT NULL 필터 적용
+        const notNullCols = columnsToUse.filter(c => c.notNull);
+        let whereClause = '';
+        if (notNullCols.length > 0) {
+            const conditions = notNullCols.map(col => {
+                const source = allSources.find(s => s.id === col.sourceId);
+                const isMongoDB = source?.sourceType === 'mongodb';
+                const columnName = isMongoDB
+                    ? col.originalName.replace(/\./g, '_')
+                    : col.originalName;
+                return `"${columnName}" IS NOT NULL`;
+            });
+            whereClause = ` WHERE ${conditions.join(' AND ')}`;
+        }
+
+        return `SELECT ${selectClauses.join(', ')} FROM input${whereClause}`;
     };
 
     // Test transform
@@ -808,8 +861,8 @@ export default function SchemaTransformEditor({
                             />
                             <div className="mt-3 p-3 bg-blue-50 border border-blue-200 rounded-lg">
                                 <p className="text-xs text-blue-800">
-                                    <strong>Advanced SQL Transform:</strong> Write complex queries with JOIN, GROUP BY, WHERE, and aggregations.
-                                    Reference sources by their dataset names (shown on the left) to perform multi-table operations.
+                                    <strong>Advanced SQL Transform:</strong> Write complex queries with JOIN, GROUP BY, and aggregations.
+                                    Note that previews run on <strong>DuckDB</strong> for fast feedback, while the actual ETL executes on <strong>Spark SQL</strong> for scale. Reference sources by their dataset names.
                                 </p>
                             </div>
                         </div>
