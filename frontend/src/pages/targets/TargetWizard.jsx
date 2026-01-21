@@ -25,7 +25,6 @@ import SchedulesPanel from "../../components/etl/SchedulesPanel";
 import SchemaTransformEditor from "../../components/etl/SchemaTransformEditor";
 import S3LogParsingConfig from "../../components/targets/S3LogParsingConfig";
 import S3LogProcessEditor from "../../components/targets/S3LogProcessEditor";
-import APIPreview from "../../components/targets/APIPreview";
 import TimestampColumnWarning from "../../components/targets/TimestampColumnWarning";
 import { aiApi } from "../../services/aiApi";
 import { API_BASE_URL } from "../../config/api";
@@ -1479,35 +1478,6 @@ export default function TargetWizard() {
                         ) : (
                           /* Non-S3 Source - Show Normal Schema Table */
                           <>
-                            {focusedDataset.source_type === "api" && (
-                              <div className="space-y-4 mb-4">
-                                <APIPreview
-                                  sourceDatasetId={focusedDataset.id}
-                                  onSchemaInferred={(inferredColumns) => {
-                                    setSourceDatasets((datasets) =>
-                                      datasets.map((ds) =>
-                                        ds.id === focusedDataset.id
-                                          ? { ...ds, columns: inferredColumns }
-                                          : ds
-                                      )
-                                    );
-                                    setFocusedDataset((prev) =>
-                                      prev?.id === focusedDataset.id
-                                        ? { ...prev, columns: inferredColumns }
-                                        : prev
-                                    );
-                                    // Also update sourceNodes so SQL Transform can access columns
-                                    setSourceNodes((nodes) =>
-                                      nodes.map((node) =>
-                                        node.data?.sourceDatasetId === focusedDataset.id
-                                          ? { ...node, data: { ...node.data, columns: inferredColumns } }
-                                          : node
-                                      )
-                                    );
-                                  }}
-                                />
-                              </div>
-                            )}
                             <div className="flex items-center justify-between mb-3">
                               <h4 className="text-xs font-semibold text-gray-500 uppercase">
                                 Columns
@@ -1671,8 +1641,10 @@ export default function TargetWizard() {
                       <div className="flex items-center justify-center h-full">
                         <div className="max-w-md text-center text-gray-500">
                           <p className="text-sm">
-                            API schema가 아직 없습니다. Step 2에서
-                            Preview/Schema를 먼저 가져와주세요.
+                            API schema가 아직 없습니다.
+                          </p>
+                          <p className="text-xs text-gray-400 mt-2">
+                            Source Dataset 생성 시 "Test API Connection" 섹션에서 Fetch Preview를 실행하여 스키마를 먼저 가져와주세요.
                           </p>
                         </div>
                       </div>

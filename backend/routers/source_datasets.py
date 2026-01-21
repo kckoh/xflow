@@ -612,3 +612,120 @@ async def preview_api_source(dataset_id: str, request_body: dict):
             )
 
     return {"data": extracted_data[:limit], "count": len(extracted_data[:limit])}
+
+
+@router.post("/api/test")
+async def test_api_connection(request_body: dict):
+    """
+    Test API connection without saving source dataset
+    Used for immediate testing during configuration
+    """
+    db = database.mongodb_client[database.DATABASE_NAME]
+
+    # Get connection
+    connection_id = request_body.get("connection_id")
+    if not connection_id:
+        raise HTTPException(status_code=400, detail="Connection ID is required")
+
+    try:
+        conn_obj_id = ObjectId(connection_id)
+    except:
+        raise HTTPException(status_code=400, detail="Invalid connection ID format")
+
+    connection = await db.connections.find_one({"_id": conn_obj_id})
+    if not connection:
+        raise HTTPException(status_code=404, detail="Connection not found")
+
+    # Get API config from request
+    endpoint = request_body.get("endpoint")
+    if not endpoint:
+        raise HTTPException(status_code=400, detail="API endpoint is required")
+
+    # Build request
+    import requests
+
+    base_url = connection["config"].get("base_url", "")
+    full_url = base_url.rstrip("/") + "/" + endpoint.lstrip("/")
+
+    # Auth headers
+    headers = connection["config"].get("headers", {}).copy() if connection["config"].get("headers") else {}
+    auth_type = connection["config"].get("auth_type", "none")
+    auth_config = connection["config"].get("auth_config", {})
+
+    if auth_type == "api_key":
+        header_name = auth_config.get("header_name")
+        api_key = auth_config.get("api_key")
+        if header_name and api_key:
+            headers[header_name] = api_key
+    elif auth_type == "bearer":
+        token = auth_config.get("token")
+        if token:
+            headers["Authorization"] = f"Bearer {token}"
+
+    auth = None
+    if auth_type == "basic":
+        username = auth_config.get("username")
+        password = auth_config.get("password")
+        if username and password:
+            from requests.auth import HTTPBasicAuth
+            auth = HTTPBasicAuth(username, password)
+
+    # Query params (limit for preview)
+    limit = request_body.get("limit", 10)
+    params = request_body.get("query_params", {}).copy() if request_body.get("query_params") else {}
+
+    # Add pagination for preview
+    pagination = request_body.get("pagination", {})
+    pagination_type = pagination.get("type", "none")
+    pagination_config = pagination.get("config", {})
+
+    if pagination_type == "offset_limit":
+        offset_param = pagination_config.get("offset_param", "offset")
+        limit_param = pagination_config.get("limit_param", "limit")
+        params[offset_param] = 0
+        params[limit_param] = limit
+    elif pagination_type == "page":
+        page_param = pagination_config.get("page_param", "page")
+        per_page_param = pagination_config.get("per_page_param", "per_page")
+        params[page_param] = 1
+        params[per_page_param] = limit
+
+    # Make request
+    try:
+        response = requests.get(full_url, headers=headers, auth=auth, params=params, timeout=30)
+        response.raise_for_status()
+    except requests.exceptions.RequestException as e:
+        raise HTTPException(status_code=500, detail=f"API request failed: {str(e)}")
+
+    # Parse response
+    try:
+        json_data = response.json()
+    except ValueError:
+        raise HTTPException(status_code=500, detail="API response is not valid JSON")
+
+    # Extract data using response_path
+    response_path = request_body.get("response_path", "")
+    if response_path:
+        # Simple JSONPath extraction
+        keys = response_path.replace("$.", "").split(".")
+        current = json_data
+        for key in keys:
+            if isinstance(current, dict):
+                current = current.get(key)
+            else:
+                break
+        extracted_data = current
+    else:
+        extracted_data = json_data
+
+    # Ensure it's a list
+    if not isinstance(extracted_data, list):
+        if isinstance(extracted_data, dict):
+            extracted_data = [extracted_data]
+        else:
+            raise HTTPException(
+                status_code=500,
+                detail="Extracted data is not an array or object. Check your response_path setting.",
+            )
+
+    return {"data": extracted_data[:limit], "count": len(extracted_data[:limit])}

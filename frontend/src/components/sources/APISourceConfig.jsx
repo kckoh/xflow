@@ -1,5 +1,6 @@
 import { useState } from 'react';
-import { Globe, ChevronDown, Check, Clock } from 'lucide-react';
+import { Globe, ChevronDown, Check, Clock, Eye, Loader2, CheckCircle, AlertCircle } from 'lucide-react';
+import { apiSourceApi } from '../../services/apiSourceApi';
 
 export default function APISourceConfig({
   connectionId,
@@ -12,15 +13,22 @@ export default function APISourceConfig({
   incrementalEnabled = false,
   timestampParam = '',
   startFromDate = '',
+  sourceDatasetId = null,
   onEndpointChange,
   onMethodChange,
   onQueryParamsChange,
   onPaginationChange,
   onResponsePathChange,
   onIncrementalChange,
+  onColumnsChange,
 }) {
   const [isMethodOpen, setIsMethodOpen] = useState(false);
   const [isPaginationOpen, setIsPaginationOpen] = useState(false);
+
+  // Preview state
+  const [previewLoading, setPreviewLoading] = useState(false);
+  const [previewData, setPreviewData] = useState(null);
+  const [previewError, setPreviewError] = useState(null);
 
   const methodOptions = [
     { value: 'GET', label: 'GET' },
@@ -79,6 +87,50 @@ export default function APISourceConfig({
         [key]: value,
       },
     });
+  };
+
+  const handleFetchPreview = async () => {
+    if (!connectionId) {
+      setPreviewError('Please select a connection first');
+      return;
+    }
+
+    if (!endpoint) {
+      setPreviewError('Please enter an API endpoint');
+      return;
+    }
+
+    setPreviewLoading(true);
+    setPreviewError(null);
+    setPreviewData(null);
+
+    try {
+      // Always use testConnection - only needs connection + endpoint
+      const result = await apiSourceApi.testConnection({
+        connectionId,
+        endpoint,
+        method,
+        queryParams,
+        pagination: {
+          type: paginationType,
+          config: paginationConfig,
+        },
+        responsePath,
+        limit: 10,
+      });
+
+      setPreviewData(result.data);
+
+      // Update columns with inferred schema
+      if (onColumnsChange) {
+        onColumnsChange(result.schema);
+      }
+    } catch (err) {
+      console.error('Failed to fetch preview:', err);
+      setPreviewError(err.message);
+    } finally {
+      setPreviewLoading(false);
+    }
   };
 
   if (!connectionId) {
@@ -443,6 +495,113 @@ export default function APISourceConfig({
             <p className="text-xs text-gray-600">
               <strong>Full load mode:</strong> Every run will fetch all data from the API. Enable incremental load to fetch only new/updated records.
             </p>
+          </div>
+        )}
+      </div>
+
+      {/* API Preview Section */}
+      <div className="border-t border-gray-200 pt-6">
+        <div className="flex items-center justify-between mb-4">
+          <div>
+            <h3 className="text-sm font-semibold text-gray-900">Test API Connection</h3>
+            <p className="text-xs text-gray-500 mt-1">
+              Test your API configuration immediately and automatically infer the schema
+            </p>
+          </div>
+          {!previewData && (
+            <button
+              onClick={handleFetchPreview}
+              disabled={previewLoading || !connectionId || !endpoint}
+              className="flex items-center gap-2 px-4 py-2 bg-emerald-600 text-white text-sm font-medium rounded-lg hover:bg-emerald-700 disabled:bg-gray-400 disabled:cursor-not-allowed transition-colors"
+              title={!connectionId ? 'Select a connection first' : !endpoint ? 'Enter an endpoint' : 'Test API connection'}
+            >
+              {previewLoading ? (
+                <>
+                  <Loader2 className="w-4 h-4 animate-spin" />
+                  Fetching...
+                </>
+              ) : (
+                <>
+                  <Eye className="w-4 h-4" />
+                  Fetch Preview
+                </>
+              )}
+            </button>
+          )}
+        </div>
+
+        {/* Error State */}
+        {previewError && (
+          <div className="p-4 bg-red-50 border border-red-200 rounded-lg">
+            <div className="flex items-start gap-3">
+              <AlertCircle className="w-5 h-5 text-red-600 flex-shrink-0 mt-0.5" />
+              <div className="flex-1">
+                <h4 className="text-sm font-semibold text-red-800">Failed to Fetch Preview</h4>
+                <p className="text-sm text-red-600 mt-1">{previewError}</p>
+                <button
+                  onClick={handleFetchPreview}
+                  disabled={previewLoading}
+                  className="mt-3 text-sm font-medium text-red-700 hover:text-red-800 underline"
+                >
+                  Try Again
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Success State */}
+        {previewData && (
+          <div className="space-y-4">
+            {/* Success Message */}
+            <div className="bg-green-50 border border-green-200 rounded-lg p-4 flex items-start gap-3">
+              <CheckCircle className="w-5 h-5 text-green-600 flex-shrink-0 mt-0.5" />
+              <div className="flex-1">
+                <h4 className="text-sm font-medium text-green-800">
+                  Preview Loaded Successfully!
+                </h4>
+                <p className="text-sm text-green-600 mt-1">
+                  Showing {previewData.length} sample records from your API. Schema has been inferred and saved.
+                </p>
+              </div>
+              <button
+                onClick={handleFetchPreview}
+                disabled={previewLoading}
+                className="text-sm font-medium text-green-700 hover:text-green-800 underline"
+              >
+                Refresh
+              </button>
+            </div>
+
+            {/* Data Preview */}
+            <div className="bg-white border border-gray-200 rounded-lg overflow-hidden max-h-96 overflow-y-auto">
+              <div className="p-4">
+                <pre className="text-xs text-gray-800 font-mono whitespace-pre-wrap break-words">
+                  {JSON.stringify(previewData, null, 2)}
+                </pre>
+              </div>
+            </div>
+
+            {/* Schema Info */}
+            <div className="text-sm text-gray-500">
+              <strong>{Object.keys(previewData[0] || {}).length}</strong> columns detected and saved
+            </div>
+          </div>
+        )}
+
+        {/* Initial State */}
+        {!previewData && !previewError && !previewLoading && (
+          <div className="flex items-center justify-center py-8">
+            <div className="text-center max-w-md">
+              <div className="w-12 h-12 bg-gray-100 rounded-full flex items-center justify-center mx-auto mb-3">
+                <Eye className="w-6 h-6 text-gray-400" />
+              </div>
+              <p className="text-sm text-gray-600">
+                {!connectionId || !endpoint
+                  ? 'Configure your API connection and endpoint above, then click "Fetch Preview" to test'
+                  : 'Click "Fetch Preview" to test your API configuration and infer schema'}
+              </p>
+            </div>
           </div>
         )}
       </div>

@@ -1203,6 +1203,7 @@ export default function SourceWizard() {
                     incrementalEnabled={config.incrementalEnabled}
                     timestampParam={config.timestampParam}
                     startFromDate={config.startFromDate}
+                    sourceDatasetId={config.id}
                     onEndpointChange={(endpoint) =>
                       setConfig({ ...config, endpoint })
                     }
@@ -1229,6 +1230,9 @@ export default function SourceWizard() {
                         timestampParam: timestampParam,
                         startFromDate: startFromDate,
                       })
+                    }
+                    onColumnsChange={(columns) =>
+                      setConfig({ ...config, columns })
                     }
                   />
                 )}
