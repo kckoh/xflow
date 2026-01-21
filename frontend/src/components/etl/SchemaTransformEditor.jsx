@@ -292,6 +292,18 @@ export default function SchemaTransformEditor({
         setEditingColumn(null);
     };
 
+    // Spark SQL 타입 매핑
+    const TYPE_MAP = {
+        'string': 'STRING',
+        'integer': 'INT',
+        'long': 'BIGINT',
+        'double': 'DOUBLE',
+        'float': 'FLOAT',
+        'boolean': 'BOOLEAN',
+        'timestamp': 'TIMESTAMP',
+        'date': 'DATE'
+    };
+
     // Generate SQL from targetSchema (optionally filter by sourceId for testing)
     const generateSql = (filterBySourceId = null) => {
         // If SQL Transform tab and custom SQL is provided, use it
@@ -326,7 +338,13 @@ export default function SchemaTransformEditor({
 
             let expr = `"${columnName}"`;
 
-            // Default Value 적용 (COALESCE)
+            // 1. Type Cast 적용 (string이 아닌 타입으로 변경된 경우)
+            const sparkType = TYPE_MAP[col.type];
+            if (sparkType && sparkType !== 'STRING') {
+                expr = `CAST(${expr} AS ${sparkType})`;
+            }
+
+            // 2. Default Value 적용 (COALESCE)
             if (col.defaultValue && col.defaultValue.trim() !== '') {
                 // 숫자 타입이면 따옴표 없이, 아니면 따옴표로 감싸기
                 const isNumericType = ['integer', 'long', 'double', 'float'].includes(col.type);
@@ -336,8 +354,11 @@ export default function SchemaTransformEditor({
                 expr = `COALESCE(${expr}, ${defaultVal})`;
             }
 
-            // 컬럼명이 변경되었거나 COALESCE 적용된 경우 AS 추가
-            if (col.name !== columnName || (col.defaultValue && col.defaultValue.trim() !== '')) {
+            // 3. AS alias 추가 (컬럼명 변경, CAST, 또는 COALESCE 적용된 경우)
+            const needsAlias = col.name !== columnName ||
+                              (col.defaultValue && col.defaultValue.trim() !== '') ||
+                              (sparkType && sparkType !== 'STRING');
+            if (needsAlias) {
                 return `${expr} AS "${col.name}"`;
             }
 
