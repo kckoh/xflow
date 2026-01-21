@@ -383,8 +383,14 @@ export default function TargetWizard() {
           };
 
           // S3 source인 경우에만 customRegex 추가
-          if (source.source_type === "s3" && s3RegexPatterns[source.id]) {
-            nodeData.customRegex = s3RegexPatterns[source.id];
+          if (source.source_type === "s3") {
+            const sourceCustomRegex =
+              source.custom_regex ||
+              source.customRegex ||
+              s3RegexPatterns[source.id];
+            if (sourceCustomRegex) {
+              nodeData.customRegex = sourceCustomRegex;
+            }
           }
 
           // 자동으로 timestamp 컬럼 감지하여 증분 로드 설정
