@@ -137,19 +137,15 @@ async def test_regex_pattern(request: RegexTestRequest):
             try:
                 file_obj = s3_client.get_object(Bucket=bucket, Key=key)
                 # Stream file and read only first 50 lines to avoid OOM with large files
+                body = file_obj['Body']
                 lines = []
-                buffer = b''
-                for chunk in file_obj['Body'].iter_chunks(chunk_size=8192):
-                    buffer += chunk
-                    while b'\n' in buffer:
-                        line, buffer = buffer.split(b'\n', 1)
-                        decoded = line.decode('utf-8', errors='ignore').strip()
-                        if decoded:
-                            lines.append(decoded)
-                        if len(lines) >= 50:
-                            break
-                    if len(lines) >= 50:
+                for _ in range(50):
+                    line = body.readline()
+                    if not line:  # EOF
                         break
+                    decoded = line.decode('utf-8', errors='ignore').strip()
+                    if decoded:
+                        lines.append(decoded)
 
                 if lines:
                     log_lines.extend(lines)
@@ -314,18 +310,14 @@ async def preview_s3_logs(request: S3LogPreviewRequest):
             try:
                 file_obj = s3_client.get_object(Bucket=bucket, Key=key)
                 # Stream file and read only first 100 lines to avoid OOM with large files
+                body = file_obj['Body']
                 lines = []
-                buffer = b''
-                for chunk in file_obj['Body'].iter_chunks(chunk_size=8192):
-                    buffer += chunk
-                    while b'\n' in buffer:
-                        line, buffer = buffer.split(b'\n', 1)
-                        decoded = line.decode('utf-8', errors='ignore').strip()
-                        lines.append(decoded)  # Include empty lines for preview
-                        if len(lines) >= 100:
-                            break
-                    if len(lines) >= 100:
+                for _ in range(50):
+                    line = body.readline()
+                    if not line:  # EOF
                         break
+                    decoded = line.decode('utf-8', errors='ignore').strip()
+                    lines.append(decoded)  # Include empty lines for preview
 
                 if lines:
                     log_lines.extend(lines)
