@@ -70,8 +70,7 @@ function LandingPage() {
                     </div>
                     <div className="hidden md:flex items-center gap-8 text-sm font-medium text-[#5F6368]">
                         <a href="#solutions" className="hover:text-[#202124] transition-colors">Solutions</a>
-                        <a href="#platform" className="hover:text-[#202124] transition-colors">Platform</a>
-                        <a href="#resources" className="hover:text-[#202124] transition-colors">Resources</a>
+                        <a href="#team" className="hover:text-[#202124] transition-colors">Team</a>
                     </div>
                     <button
                         onClick={() => navigate("/login")}
@@ -223,7 +222,7 @@ function LandingPage() {
                     <div className="aspect-[16/9] bg-[#F8F9FA] rounded-[32px] border border-gray-100 shadow-2xl flex items-center justify-center relative overflow-hidden group">
                         <iframe
                             className="w-full h-full object-cover"
-                            src="https://www.youtube.com/embed/H6QHSqAGwWY?autoplay=1&mute=1&loop=1&playlist=H6QHSqAGwWY&controls=1&rel=0"
+                            src="https://www.youtube.com/embed/WNXGnw_Wg8Q?autoplay=1&mute=1&loop=1&playlist=WNXGnw_Wg8Q&rel=0"
                             title="XFlow Landing Video"
                             allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
                             allowFullScreen
@@ -348,7 +347,7 @@ function LandingPage() {
 
 
             {/* Persona Carousel Section */}
-            <section className="py-20 md:py-32 px-6 max-w-[1440px] mx-auto overflow-hidden">
+            <section id="team" className="py-20 md:py-32 px-6 max-w-[1440px] mx-auto overflow-hidden">
                 <div className="mb-12 flex items-end justify-between px-2">
                     <div>
                         <h2 className="text-3xl md:text-4xl font-medium mb-4">Meet the Team</h2>
