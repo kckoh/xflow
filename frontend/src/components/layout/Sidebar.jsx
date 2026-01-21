@@ -65,7 +65,7 @@ export function Sidebar({ isCollapsed, onToggle }) {
         isCollapsed ? "w-20" : "w-64",
       )}
     >
-      {/* Brand & Toggle */}
+      {/* Brand */}
       <div className="h-16 flex items-center justify-between px-4 border-b border-gray-200">
         <div
           className={clsx(
@@ -84,33 +84,13 @@ export function Sidebar({ isCollapsed, onToggle }) {
             />
           </div>
           {!isCollapsed && (
-            <span className="text-xl font-bold text-gray-800">XFlow</span>
+            <span className="text-xl font-bold text-gray-800">xflow</span>
           )}
         </div>
-        {!isCollapsed && (
-          <button
-            onClick={onToggle}
-            className="p-1.5 rounded-lg hover:bg-gray-100 text-gray-500 transition-colors"
-          >
-            <ChevronLeft className="w-5 h-5" />
-          </button>
-        )}
       </div>
 
       {/* Navigation */}
       <nav className="flex-1 py-6 px-3 space-y-6 overflow-y-auto overflow-x-hidden">
-        {/* Collapsed State Header: Minimal toggle when collapsed */}
-        {isCollapsed && (
-          <div className="flex justify-center mb-6">
-            <button
-              onClick={onToggle}
-              className="p-1.5 rounded-lg hover:bg-gray-100 text-gray-500 transition-colors"
-            >
-              <ChevronRight className="w-5 h-5" />
-            </button>
-          </div>
-        )}
-
         <div className="space-y-1">
           {navItems.map((item) => {
             const isActive = location.pathname === item.path;
