@@ -31,6 +31,7 @@ import Combobox from "../../components/common/Combobox";
 import ConnectionCombobox from "../../components/sources/ConnectionCombobox";
 import MongoDBSourceConfig from "../../components/sources/MongoDBSourceConfig";
 import APISourceConfig from "../../components/sources/APISourceConfig";
+import S3LogParsingConfig from "../../components/targets/S3LogParsingConfig";
 
 const STEPS = [
   { id: 1, name: "Select Source", icon: Database },
@@ -180,6 +181,7 @@ export default function SourceWizard() {
           bucket: job.bucket || "",
           path: job.path || "",
           format: job.format || (sourceType === "kafka" ? "json" : "log"),
+          customRegex: job.custom_regex || "",
           columns: job.columns || [],
           topic: job.topic || "",
           // API-specific fields
@@ -568,6 +570,10 @@ export default function SourceWizard() {
         sourceData.bucket = config.bucket;
         sourceData.path = config.path;
         sourceData.format = config.format || "log";
+        // Include customRegex for log format
+        if ((config.format || "log") === "log" && config.customRegex) {
+          sourceData.custom_regex = config.customRegex;
+        }
       } else if (selectedSource.id === "kafka") {
         sourceData.topic = config.topic;
         sourceData.format = config.format || "json";
@@ -1032,8 +1038,7 @@ export default function SourceWizard() {
                       }}
                     />
                     <p className="mt-1 text-xs text-gray-500">
-                      Log는 정규식 파싱(타겟 위자드에서), Parquet는 파일
-                      스키마를 자동 추론합니다.
+                      Log는 정규식 파싱으로 스키마를 추론하고, Parquet는 파일 스키마를 자동 추론합니다.
                     </p>
 
                     <div className="mt-4" />
@@ -1057,6 +1062,25 @@ export default function SourceWizard() {
                       The folder path within the bucket (bucket is defined in
                       the connection)
                     </p>
+
+                    {/* S3 Log Parsing Config - Only for log format */}
+                    {(config.format || "log") === "log" && config.connectionId && config.bucket && config.path && (
+                      <div className="mt-6">
+                        <S3LogParsingConfig
+                          connectionId={config.connectionId}
+                          bucket={config.bucket}
+                          path={config.path}
+                          initialPattern={config.customRegex || ""}
+                          onPatternChange={(pattern, fields) => {
+                            setConfig((prev) => ({
+                              ...prev,
+                              customRegex: pattern,
+                              columns: fields,
+                            }));
+                          }}
+                        />
+                      </div>
+                    )}
                   </div>
                 )}
 
@@ -1203,6 +1227,7 @@ export default function SourceWizard() {
                     incrementalEnabled={config.incrementalEnabled}
                     timestampParam={config.timestampParam}
                     startFromDate={config.startFromDate}
+                    sourceDatasetId={config.id}
                     onEndpointChange={(endpoint) =>
                       setConfig({ ...config, endpoint })
                     }
@@ -1229,6 +1254,9 @@ export default function SourceWizard() {
                         timestampParam: timestampParam,
                         startFromDate: startFromDate,
                       })
+                    }
+                    onColumnsChange={(columns) =>
+                      setConfig({ ...config, columns })
                     }
                   />
                 )}

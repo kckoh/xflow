@@ -1,5 +1,13 @@
 import { useState, useEffect, useRef } from "react";
-import { Info, FileText, Check, X, AlertCircle, PlayCircle, Loader2 } from "lucide-react";
+import {
+  Info,
+  FileText,
+  Check,
+  X,
+  AlertCircle,
+  PlayCircle,
+  Loader2,
+} from "lucide-react";
 import { s3LogApi } from "../../services/s3LogApi";
 
 /**
@@ -12,8 +20,18 @@ import { s3LogApi } from "../../services/s3LogApi";
  * - initialPattern: Initial regex pattern (optional)
  * - onPatternChange: Callback when pattern changes (pattern, extractedFields)
  * - sourceDatasetId: Source dataset ID for testing regex with actual S3 files
+ * - connectionId: Connection ID (used when dataset not saved yet)
+ * - bucket: S3 bucket (used when dataset not saved yet)
+ * - path: S3 path (used when dataset not saved yet)
  */
-export default function S3LogParsingConfig({ initialPattern = "", onPatternChange, sourceDatasetId }) {
+export default function S3LogParsingConfig({
+  initialPattern = "",
+  onPatternChange,
+  sourceDatasetId,
+  connectionId,
+  bucket,
+  path,
+}) {
   const [regexPattern, setRegexPattern] = useState(initialPattern);
   const [extractedFields, setExtractedFields] = useState([]);
   const [isValidPattern, setIsValidPattern] = useState(true);
@@ -30,22 +48,27 @@ export default function S3LogParsingConfig({ initialPattern = "", onPatternChang
   const EXAMPLE_PATTERNS = [
     {
       name: "Apache Combined Log",
-      pattern: '^(?P<client_ip>\\S+) \\S+ \\S+ \\[(?P<timestamp>[^\\]]+)\\] "(?P<method>\\S+) (?P<path>\\S+) (?P<protocol>\\S+)" (?P<status_code>\\d+) (?P<bytes_sent>\\S+) "(?P<referrer>[^"]*)" "(?P<user_agent>[^"]*)"',
+      pattern:
+        '^(?P<client_ip>\\S+) \\S+ \\S+ \\[(?P<timestamp>[^\\]]+)\\] "(?P<method>\\S+) (?P<path>\\S+) (?P<protocol>\\S+)" (?P<status_code>\\d+) (?P<bytes_sent>\\S+) "(?P<referrer>[^"]*)" "(?P<user_agent>[^"]*)"',
       description: "Standard Apache combined log format",
-      sample: '192.168.1.1 - - [02/Jan/2026:10:56:00 +0900] "GET /api/users HTTP/1.1" 200 1234 "http://example.com" "Mozilla/5.0"'
+      sample:
+        '192.168.1.1 - - [02/Jan/2026:10:56:00 +0900] "GET /api/users HTTP/1.1" 200 1234 "http://example.com" "Mozilla/5.0"',
     },
     {
       name: "Nginx Access Log",
-      pattern: '^(?P<client_ip>\\S+) - \\S+ \\[(?P<timestamp>[^\\]]+)\\] "(?P<request>[^"]*)" (?P<status_code>\\d+) (?P<bytes_sent>\\S+)',
+      pattern:
+        '^(?P<client_ip>\\S+) - \\S+ \\[(?P<timestamp>[^\\]]+)\\] "(?P<request>[^"]*)" (?P<status_code>\\d+) (?P<bytes_sent>\\S+)',
       description: "Basic Nginx access log format",
-      sample: '10.0.0.1 - user [02/Jan/2026:10:56:00 +0900] "POST /api/login" 200 543'
+      sample:
+        '10.0.0.1 - user [02/Jan/2026:10:56:00 +0900] "POST /api/login" 200 543',
     },
     {
       name: "Custom Application Log",
-      pattern: '^(?P<timestamp>\\d{4}-\\d{2}-\\d{2} \\d{2}:\\d{2}:\\d{2}) \\[(?P<level>\\w+)\\] (?P<message>.*)',
+      pattern:
+        "^(?P<timestamp>\\d{4}-\\d{2}-\\d{2} \\d{2}:\\d{2}:\\d{2}) \\[(?P<level>\\w+)\\] (?P<message>.*)",
       description: "Simple application log with timestamp, level, and message",
-      sample: '2026-01-02 10:56:00 [INFO] Application started successfully'
-    }
+      sample: "2026-01-02 10:56:00 [INFO] Application started successfully",
+    },
   ];
 
   useEffect(() => {
@@ -68,12 +91,14 @@ export default function S3LogParsingConfig({ initialPattern = "", onPatternChang
 
       if (matches.length === 0) {
         setIsValidPattern(false);
-        setErrorMessage("Pattern must contain at least one named group. Use (?P<field_name>pattern) syntax.");
+        setErrorMessage(
+          "Pattern must contain at least one named group. Use (?P<field_name>pattern) syntax."
+        );
         setExtractedFields([]);
       } else {
-        const fields = matches.map(match => ({
+        const fields = matches.map((match) => ({
           name: match[1],
-          type: "string" // All regex extracted fields are strings
+          type: "string", // All regex extracted fields are strings
         }));
         setExtractedFields(fields);
         setIsValidPattern(true);
@@ -97,13 +122,14 @@ export default function S3LogParsingConfig({ initialPattern = "", onPatternChang
   };
 
   const handleTestPattern = async () => {
-    if (!sourceDatasetId) {
-      setTestError("No source dataset selected");
+    if (!regexPattern.trim() || !isValidPattern) {
+      setTestError("Please enter a valid regex pattern first");
       return;
     }
 
-    if (!regexPattern.trim() || !isValidPattern) {
-      setTestError("Please enter a valid regex pattern first");
+    // For SourceWizard: need connection + bucket + path
+    if (!connectionId || !bucket || !path) {
+      setTestError("Connection, bucket, and path are required");
       return;
     }
 
@@ -112,10 +138,12 @@ export default function S3LogParsingConfig({ initialPattern = "", onPatternChang
     setTestResult(null);
 
     try {
-      const result = await s3LogApi.testRegexPattern({
-        source_dataset_id: sourceDatasetId,
+      const result = await s3LogApi.testLogParsing({
+        connection_id: connectionId,
+        bucket: bucket,
+        path: path,
         custom_regex: regexPattern,
-        limit: 5
+        limit: 5,
       });
 
       if (result.valid) {
@@ -138,8 +166,11 @@ export default function S3LogParsingConfig({ initialPattern = "", onPatternChang
         <div className="text-xs text-blue-800">
           <p className="font-medium mb-1">S3 Log Parsing Configuration</p>
           <p className="text-blue-700">
-            Define a custom regex pattern with named groups to parse your S3 log files.
-            Use Python regex syntax with named groups: <code className="bg-blue-100 px-1 rounded">(?P&lt;field_name&gt;pattern)</code>
+            Define a custom regex pattern with named groups to parse your S3 log
+            files. Use Python regex syntax with named groups:{" "}
+            <code className="bg-blue-100 px-1 rounded">
+              (?P&lt;field_name&gt;pattern)
+            </code>
           </p>
         </div>
       </div>
@@ -161,12 +192,19 @@ export default function S3LogParsingConfig({ initialPattern = "", onPatternChang
       {/* Example Patterns */}
       {showExamples && (
         <div className="space-y-2 p-3 bg-gray-50 border border-gray-200 rounded-lg">
-          <p className="text-xs font-semibold text-gray-700 mb-2">Example Patterns:</p>
+          <p className="text-xs font-semibold text-gray-700 mb-2">
+            Example Patterns:
+          </p>
           {EXAMPLE_PATTERNS.map((example, idx) => (
-            <div key={idx} className="bg-white p-3 rounded border border-gray-200">
+            <div
+              key={idx}
+              className="bg-white p-3 rounded border border-gray-200"
+            >
               <div className="flex items-start justify-between mb-1">
                 <div>
-                  <p className="text-xs font-semibold text-gray-900">{example.name}</p>
+                  <p className="text-xs font-semibold text-gray-900">
+                    {example.name}
+                  </p>
                   <p className="text-xs text-gray-600">{example.description}</p>
                 </div>
                 <button
@@ -215,33 +253,39 @@ export default function S3LogParsingConfig({ initialPattern = "", onPatternChang
             ) : (
               <>
                 <X className="w-4 h-4 text-red-600" />
-                <span className="text-xs text-red-600 font-medium">{errorMessage}</span>
+                <span className="text-xs text-red-600 font-medium">
+                  {errorMessage}
+                </span>
               </>
             )}
           </div>
         )}
 
         {/* Test Pattern Button */}
-        {isValidPattern && extractedFields.length > 0 && sourceDatasetId && (
-          <button
-            type="button"
-            onClick={handleTestPattern}
-            disabled={isTestLoading}
-            className="mt-3 flex items-center gap-2 px-4 py-2 bg-blue-600 text-white text-sm font-medium rounded-lg hover:bg-blue-700 disabled:bg-gray-400 disabled:cursor-not-allowed transition-colors"
-          >
-            {isTestLoading ? (
-              <>
-                <Loader2 className="w-4 h-4 animate-spin" />
-                Testing Pattern...
-              </>
-            ) : (
-              <>
-                <PlayCircle className="w-4 h-4" />
-                Test Pattern with Real S3 Logs
-              </>
-            )}
-          </button>
-        )}
+        {isValidPattern &&
+          extractedFields.length > 0 &&
+          connectionId &&
+          bucket &&
+          path && (
+            <button
+              type="button"
+              onClick={handleTestPattern}
+              disabled={isTestLoading}
+              className="mt-3 flex items-center gap-2 px-4 py-2 bg-blue-600 text-white text-sm font-medium rounded-lg hover:bg-blue-700 disabled:bg-gray-400 disabled:cursor-not-allowed transition-colors"
+            >
+              {isTestLoading ? (
+                <>
+                  <Loader2 className="w-4 h-4 animate-spin" />
+                  Testing Pattern...
+                </>
+              ) : (
+                <>
+                  <PlayCircle className="w-4 h-4" />
+                  Test Pattern with Real S3 Logs
+                </>
+              )}
+            </button>
+          )}
       </div>
 
       {/* Test Results */}
@@ -267,7 +311,8 @@ export default function S3LogParsingConfig({ initialPattern = "", onPatternChang
                 ✅ Regex Pattern Works!
               </p>
               <p className="text-xs text-green-700 mt-1">
-                Parsed {testResult.parsed_lines} out of {testResult.total_lines} lines successfully
+                Parsed {testResult.parsed_lines} out of {testResult.total_lines}{" "}
+                lines successfully
               </p>
             </div>
           </div>
@@ -281,7 +326,10 @@ export default function S3LogParsingConfig({ initialPattern = "", onPatternChang
             </div>
             <div className="p-3 max-h-32 overflow-y-auto">
               {testResult.sample_logs?.map((log, idx) => (
-                <div key={idx} className="font-mono text-xs text-gray-700 mb-2 pb-2 border-b border-gray-100 last:border-0">
+                <div
+                  key={idx}
+                  className="font-mono text-xs text-gray-700 mb-2 pb-2 border-b border-gray-100 last:border-0"
+                >
                   {log}
                 </div>
               ))}
@@ -300,7 +348,10 @@ export default function S3LogParsingConfig({ initialPattern = "", onPatternChang
                 <thead className="bg-gray-50 border-b border-gray-200 sticky top-0">
                   <tr>
                     {testResult.fields_extracted?.map((field) => (
-                      <th key={field} className="px-3 py-2 text-left font-semibold text-gray-700">
+                      <th
+                        key={field}
+                        className="px-3 py-2 text-left font-semibold text-gray-700"
+                      >
                         {field}
                       </th>
                     ))}
@@ -310,7 +361,10 @@ export default function S3LogParsingConfig({ initialPattern = "", onPatternChang
                   {testResult.parsed_rows?.map((row, idx) => (
                     <tr key={idx} className="hover:bg-gray-50">
                       {testResult.fields_extracted?.map((field) => (
-                        <td key={field} className="px-3 py-2 text-gray-800 font-mono">
+                        <td
+                          key={field}
+                          className="px-3 py-2 text-gray-800 font-mono"
+                        >
                           {row[field] || "-"}
                         </td>
                       ))}
@@ -334,10 +388,17 @@ export default function S3LogParsingConfig({ initialPattern = "", onPatternChang
           </div>
           <div className="divide-y divide-gray-100 max-h-60 overflow-y-auto">
             {extractedFields.map((field, idx) => (
-              <div key={idx} className="px-3 py-2 flex items-center justify-between hover:bg-gray-50">
+              <div
+                key={idx}
+                className="px-3 py-2 flex items-center justify-between hover:bg-gray-50"
+              >
                 <div className="flex items-center gap-2">
-                  <span className="text-xs font-mono text-gray-400 w-4">{idx + 1}</span>
-                  <span className="text-sm font-medium text-gray-800">{field.name}</span>
+                  <span className="text-xs font-mono text-gray-400 w-4">
+                    {idx + 1}
+                  </span>
+                  <span className="text-sm font-medium text-gray-800">
+                    {field.name}
+                  </span>
                 </div>
                 <span className="text-xs font-mono px-2 py-0.5 bg-blue-100 text-blue-700 rounded border border-blue-200">
                   {field.type}
@@ -354,7 +415,10 @@ export default function S3LogParsingConfig({ initialPattern = "", onPatternChang
           <AlertCircle className="w-4 h-4 text-yellow-600 mt-0.5 flex-shrink-0" />
           <div className="text-xs text-yellow-800">
             <p className="font-medium mb-1">Getting Started</p>
-            <p>Click "Show Examples" above to see common log format patterns, or write your own custom regex pattern.</p>
+            <p>
+              Click "Show Examples" above to see common log format patterns, or
+              write your own custom regex pattern.
+            </p>
           </div>
         </div>
       )}

@@ -22,6 +22,7 @@ class SourceDatasetCreate(BaseModel):
     bucket: Optional[str] = None
     path: Optional[str] = None
     format: Optional[str] = None  # "log", "parquet", "csv", "json"
+    custom_regex: Optional[str] = None
 
     # Schema information
     columns: Optional[List[dict]] = None
@@ -50,6 +51,7 @@ class SourceDatasetUpdate(BaseModel):
     bucket: Optional[str] = None
     path: Optional[str] = None
     format: Optional[str] = None  # "log", "parquet", "csv", "json"
+    custom_regex: Optional[str] = None
 
     # Schema information
     columns: Optional[List[dict]] = None
@@ -75,6 +77,7 @@ class SourceDatasetResponse(BaseModel):
     bucket: Optional[str] = None
     path: Optional[str] = None
     format: Optional[str] = None  # "log", "parquet", "csv", "json"
+    custom_regex: Optional[str] = None
 
     # Schema information
     columns: Optional[List[dict]] = None
