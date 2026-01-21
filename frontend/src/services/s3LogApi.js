@@ -1,12 +1,13 @@
-const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8000';
+const API_BASE_URL =
+  import.meta.env.VITE_API_BASE_URL || "http://localhost:8000";
 
 export const s3LogApi = {
   // POST /api/logs/test-connection
   async testConnection({ bucket, path }) {
     const response = await fetch(`${API_BASE_URL}/api/logs/test-connection`, {
-      method: 'POST',
+      method: "POST",
       headers: {
-        'Content-Type': 'application/json',
+        "Content-Type": "application/json",
       },
       body: JSON.stringify({ bucket, path }),
     });
@@ -14,7 +15,7 @@ export const s3LogApi = {
     const data = await response.json();
 
     if (!response.ok) {
-      throw new Error(data.detail || 'Connection test failed');
+      throw new Error(data.detail || "Connection test failed");
     }
 
     return data;
@@ -23,9 +24,9 @@ export const s3LogApi = {
   // POST /api/logs/preview
   async previewLogs({ bucket, path, limit = 10 }) {
     const response = await fetch(`${API_BASE_URL}/api/logs/preview`, {
-      method: 'POST',
+      method: "POST",
       headers: {
-        'Content-Type': 'application/json',
+        "Content-Type": "application/json",
       },
       body: JSON.stringify({ bucket, path, limit }),
     });
@@ -33,18 +34,25 @@ export const s3LogApi = {
     const data = await response.json();
 
     if (!response.ok) {
-      throw new Error(data.detail || 'Preview failed');
+      throw new Error(data.detail || "Preview failed");
     }
 
     return data;
   },
 
   // POST /api/logs/transform
-  async transformLogs({ source_bucket, source_path, target_bucket, target_path, selected_fields, filters }) {
+  async transformLogs({
+    source_bucket,
+    source_path,
+    target_bucket,
+    target_path,
+    selected_fields,
+    filters,
+  }) {
     const response = await fetch(`${API_BASE_URL}/api/logs/transform`, {
-      method: 'POST',
+      method: "POST",
       headers: {
-        'Content-Type': 'application/json',
+        "Content-Type": "application/json",
       },
       body: JSON.stringify({
         source_bucket,
@@ -61,10 +69,12 @@ export const s3LogApi = {
     if (!response.ok) {
       // FastAPI validation error: detail is an array
       if (Array.isArray(data.detail)) {
-        const errorMsg = data.detail.map(err => err.msg || JSON.stringify(err)).join(', ');
+        const errorMsg = data.detail
+          .map((err) => err.msg || JSON.stringify(err))
+          .join(", ");
         throw new Error(errorMsg);
       }
-      throw new Error(data.detail || 'Transform failed');
+      throw new Error(data.detail || "Transform failed");
     }
 
     return data;
@@ -75,7 +85,7 @@ export const s3LogApi = {
     const response = await fetch(`${API_BASE_URL}/api/logs/schema`);
 
     if (!response.ok) {
-      throw new Error('Failed to fetch log schema');
+      throw new Error("Failed to fetch log schema");
     }
 
     return response.json();
@@ -86,18 +96,24 @@ export const s3LogApi = {
     const response = await fetch(`${API_BASE_URL}/api/logs/health`);
 
     if (!response.ok) {
-      throw new Error('Health check failed');
+      throw new Error("Health check failed");
     }
 
     return response.json();
   },
 
   // POST /api/s3-logs/preview - Preview S3 logs with field selection and filtering
-  async previewWithFilters({ source_dataset_id, custom_regex, selected_fields, filters, limit = 5 }) {
+  async previewWithFilters({
+    source_dataset_id,
+    custom_regex,
+    selected_fields,
+    filters,
+    limit = 5,
+  }) {
     const response = await fetch(`${API_BASE_URL}/api/s3-logs/preview`, {
-      method: 'POST',
+      method: "POST",
       headers: {
-        'Content-Type': 'application/json',
+        "Content-Type": "application/json",
       },
       body: JSON.stringify({
         source_dataset_id,
@@ -111,7 +127,7 @@ export const s3LogApi = {
     const data = await response.json();
 
     if (!response.ok) {
-      throw new Error(data.detail || 'Preview test failed');
+      throw new Error(data.detail || "Preview test failed");
     }
 
     return data;
@@ -120,9 +136,9 @@ export const s3LogApi = {
   // POST /api/s3-logs/test-regex - Test regex pattern with actual S3 log files
   async testRegexPattern({ source_dataset_id, custom_regex, limit = 5 }) {
     const response = await fetch(`${API_BASE_URL}/api/s3-logs/test-regex`, {
-      method: 'POST',
+      method: "POST",
       headers: {
-        'Content-Type': 'application/json',
+        "Content-Type": "application/json",
       },
       body: JSON.stringify({
         source_dataset_id,
@@ -134,7 +150,38 @@ export const s3LogApi = {
     const data = await response.json();
 
     if (!response.ok) {
-      throw new Error(data.detail || 'Regex test failed');
+      throw new Error(data.detail || "Regex test failed");
+    }
+
+    return data;
+  },
+
+  // POST /api/s3-logs/test - Test S3 log parsing without saving dataset
+  async testLogParsing({
+    connection_id,
+    bucket,
+    path,
+    custom_regex,
+    limit = 5,
+  }) {
+    const response = await fetch(`${API_BASE_URL}/api/s3-logs/test`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        connection_id,
+        bucket,
+        path,
+        custom_regex,
+        limit,
+      }),
+    });
+
+    const data = await response.json();
+
+    if (!response.ok) {
+      throw new Error(data.detail || "Log parsing test failed");
     }
 
     return data;

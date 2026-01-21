@@ -36,6 +36,15 @@ class RegexTestRequest(BaseModel):
     limit: Optional[int] = 5
 
 
+class S3LogTestRequest(BaseModel):
+    """Test S3 log parsing without saving source dataset"""
+    connection_id: str
+    bucket: str
+    path: str
+    custom_regex: str
+    limit: Optional[int] = 5
+
+
 class RegexTestResponse(BaseModel):
     valid: bool
     sample_logs: Optional[List[str]] = None
@@ -209,6 +218,160 @@ async def test_regex_pattern(request: RegexTestRequest):
         return RegexTestResponse(
             valid=False,
             error=f"Error: {str(e)}"
+        )
+
+
+@router.post("/test", response_model=RegexTestResponse)
+async def test_s3_log_parsing_direct(request: S3LogTestRequest):
+    """
+    Test S3 log parsing without saving source dataset
+    Only requires connection_id + bucket + path + regex
+
+    This is used in SourceWizard where dataset hasn't been saved yet.
+    """
+    import boto3
+    import os
+
+    try:
+        # Get MongoDB database
+        db = database.mongodb_client[database.DATABASE_NAME]
+
+        # 1. Get connection details
+        try:
+            connection = await db.connections.find_one({"_id": ObjectId(request.connection_id)})
+        except:
+            raise HTTPException(status_code=404, detail=f"Connection not found: {request.connection_id}")
+
+        if not connection:
+            raise HTTPException(status_code=404, detail=f"Connection not found: {request.connection_id}")
+
+        config = connection.get("config", {})
+
+        # 2. Use provided bucket and path
+        bucket = request.bucket
+        path = request.path
+
+        if not bucket or not path:
+            raise HTTPException(status_code=400, detail="S3 bucket and path are required")
+
+        # 3. Configure boto3 S3 client
+        access_key = config.get("access_key") or config.get("access_key_id") or config.get("aws_access_key_id")
+        secret_key = config.get("secret_key") or config.get("secret_access_key") or config.get("aws_secret_access_key")
+        endpoint = (
+            config.get("endpoint")
+            or config.get("endpoint_url")
+            or os.getenv("AWS_ENDPOINT")
+            or os.getenv("S3_ENDPOINT_URL")
+        )
+        region = config.get("region") or config.get("region_name") or os.getenv("AWS_DEFAULT_REGION") or "us-east-1"
+
+        boto3_kwargs = {
+            'region_name': region
+        }
+
+        # Only add credentials if they exist in config, otherwise boto3 will use env vars or IAM role
+        if access_key and secret_key:
+            boto3_kwargs['aws_access_key_id'] = access_key
+            boto3_kwargs['aws_secret_access_key'] = secret_key
+        elif endpoint:
+            # LocalStack requires dummy credentials
+            boto3_kwargs['aws_access_key_id'] = "test"
+            boto3_kwargs['aws_secret_access_key'] = "test"
+
+        if endpoint:
+            boto3_kwargs['endpoint_url'] = endpoint
+
+        s3_client = boto3.client('s3', **boto3_kwargs)
+
+        # 4. List and read log files
+        response = s3_client.list_objects_v2(Bucket=bucket, Prefix=path, MaxKeys=10)
+
+        if 'Contents' not in response or len(response['Contents']) == 0:
+            raise HTTPException(status_code=404, detail=f"No log files found in s3://{bucket}/{path}")
+
+        # Read first log file (up to 50 lines for testing)
+        log_lines = []
+        last_error = None
+        for obj in response['Contents']:
+            key = obj['Key']
+            if key.endswith('/'):  # Skip directories
+                continue
+
+            try:
+                file_obj = s3_client.get_object(Bucket=bucket, Key=key)
+                # Stream file and read only first 50 lines to avoid OOM with large files
+                body = file_obj['Body']
+                lines = []
+                for _ in range(50):
+                    line = body.readline()
+                    if not line:  # EOF
+                        break
+                    decoded = line.decode('utf-8', errors='ignore').strip()
+                    if decoded:
+                        lines.append(decoded)
+
+                if lines:
+                    log_lines.extend(lines)
+                    break
+            except Exception as e:
+                last_error = e
+                continue
+
+        if not log_lines:
+            if last_error:
+                print(f"Failed to read S3 log content from s3://{bucket}/{path}: {last_error}")
+            raise HTTPException(status_code=400, detail="Could not read log file content")
+
+        total_lines = len(log_lines)
+
+        # 5. Test regex pattern
+        try:
+            compiled_pattern = re.compile(request.custom_regex)
+            named_groups = list(compiled_pattern.groupindex.keys())
+            if not named_groups:
+                raise ValueError("Regex pattern must contain at least one named group (?P<field_name>pattern)")
+        except re.error as e:
+            raise HTTPException(status_code=400, detail=f"Invalid regex pattern: {str(e)}")
+
+        # Parse each line
+        parsed_rows = []
+        for line in log_lines:
+            match = compiled_pattern.match(line)
+            if match:
+                row = match.groupdict()
+                parsed_rows.append(row)
+
+        parsed_lines = len(parsed_rows)
+
+        if parsed_lines == 0:
+            return RegexTestResponse(
+                valid=False,
+                sample_logs=log_lines[:request.limit],
+                parsed_rows=[],
+                fields_extracted=named_groups,
+                total_lines=total_lines,
+                parsed_lines=0,
+                error="No log lines matched the regex pattern. Please check your regex."
+            )
+
+        # 6. Return results
+        return RegexTestResponse(
+            valid=True,
+            sample_logs=log_lines[:request.limit],
+            parsed_rows=parsed_rows[:request.limit],
+            fields_extracted=named_groups,
+            total_lines=total_lines,
+            parsed_lines=parsed_lines
+        )
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        import traceback
+        traceback.print_exc()
+        return RegexTestResponse(
+            valid=False,
+            error=f"Test failed: {str(e)}"
         )
 
 
