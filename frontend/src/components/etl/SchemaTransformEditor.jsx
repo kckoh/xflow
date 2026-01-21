@@ -84,6 +84,7 @@ export default function SchemaTransformEditor({
                 transform: col.transform || null,
                 transformDisplay: col.transformDisplay || (col.transform ? `${col.transform}` : null),
                 originalName: col.originalName || col.name,
+                originalType: col.originalType || col.type || 'string',  // 원본 타입 보존
                 sourceId: col.sourceId || sourceId,
                 sourceName: col.sourceName || sourceName,
             }));
@@ -93,12 +94,12 @@ export default function SchemaTransformEditor({
         // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [JSON.stringify(initialTargetSchema), isInitialized]);
 
-    // Notify parent when customSql changes
+    // Notify parent when customSql changes (SQL tab only)
     useEffect(() => {
-        if (onSqlChange) {
+        if (onSqlChange && activeTab === 'sql' && customSql.trim()) {
             onSqlChange(customSql);
         }
-    }, [customSql, onSqlChange]);
+    }, [customSql, activeTab]);
 
     // Initialize customSql from prop only once (edit mode)
     useEffect(() => {
@@ -172,6 +173,7 @@ export default function SchemaTransformEditor({
                 ...c,
                 name: getUniqueColumnName(convertedName),
                 originalName: convertedOriginalName,
+                originalType: c.type || 'string',  // 원본 타입 저장
                 notNull: false,
                 defaultValue: '',
                 transform: null,
@@ -206,6 +208,7 @@ export default function SchemaTransformEditor({
                 ...c,
                 name: getUniqueColumnName(convertedName),
                 originalName: convertedOriginalName,
+                originalType: c.type || 'string',  // 원본 타입 저장
                 notNull: false,
                 defaultValue: '',
                 transform: null,
@@ -338,9 +341,10 @@ export default function SchemaTransformEditor({
 
             let expr = `"${columnName}"`;
 
-            // 1. Type Cast 적용 (string이 아닌 타입으로 변경된 경우)
+            // 1. Type Cast 적용 (타입이 변경된 경우에만)
             const sparkType = TYPE_MAP[col.type];
-            if (sparkType && sparkType !== 'STRING') {
+            const originalType = col.originalType || 'string';
+            if (col.type !== originalType && sparkType) {
                 expr = `CAST(${expr} AS ${sparkType})`;
             }
 
@@ -355,9 +359,10 @@ export default function SchemaTransformEditor({
             }
 
             // 3. AS alias 추가 (컬럼명 변경, CAST, 또는 COALESCE 적용된 경우)
+            const typeChanged = col.type !== originalType;
             const needsAlias = col.name !== columnName ||
                               (col.defaultValue && col.defaultValue.trim() !== '') ||
-                              (sparkType && sparkType !== 'STRING');
+                              typeChanged;
             if (needsAlias) {
                 return `${expr} AS "${col.name}"`;
             }
@@ -383,6 +388,14 @@ export default function SchemaTransformEditor({
 
         return `SELECT ${selectClauses.join(', ')} FROM input${whereClause}`;
     };
+
+    // Notify parent when visual transform SQL changes
+    useEffect(() => {
+        if (onSqlChange && activeTab === 'columns' && targetSchema.length > 0) {
+            const sql = generateSql();
+            onSqlChange(sql);
+        }
+    }, [targetSchema, activeTab]);
 
     // Test transform
     const handleTestTransform = async () => {
