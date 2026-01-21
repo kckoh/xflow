@@ -313,22 +313,54 @@ export default function SchemaTransformEditor({
             const source = allSources.find(s => s.id === col.sourceId);
             const isMongoDB = source?.sourceType === 'mongodb';
 
-            if (col.transform) {
-                // Quote the alias to handle reserved words
-                return `${col.transform} AS "${col.name}"`;
-            }
-
             // Use originalName for SELECT since that's what exists in the source data
             // For MongoDB, convert dot notation to underscore to match backend conversion
             const columnName = isMongoDB
                 ? col.originalName.replace(/\./g, '_')
                 : col.originalName;
 
+            if (col.transform) {
+                // Quote the alias to handle reserved words
+                return `${col.transform} AS "${col.name}"`;
+            }
+
+            let expr = `"${columnName}"`;
+
+            // Default Value 적용 (COALESCE)
+            if (col.defaultValue && col.defaultValue.trim() !== '') {
+                // 숫자 타입이면 따옴표 없이, 아니면 따옴표로 감싸기
+                const isNumericType = ['integer', 'long', 'double', 'float'].includes(col.type);
+                const defaultVal = isNumericType
+                    ? col.defaultValue
+                    : `'${col.defaultValue.replace(/'/g, "''")}'`;
+                expr = `COALESCE(${expr}, ${defaultVal})`;
+            }
+
+            // 컬럼명이 변경되었거나 COALESCE 적용된 경우 AS 추가
+            if (col.name !== columnName || (col.defaultValue && col.defaultValue.trim() !== '')) {
+                return `${expr} AS "${col.name}"`;
+            }
+
             // Quote column names to handle SQL reserved words (e.g., 'cast', 'type', 'year')
-            return `"${columnName}"`;
+            return expr;
         });
 
-        return `SELECT ${selectClauses.join(', ')} FROM input`;
+        // NOT NULL 필터 적용
+        const notNullCols = columnsToUse.filter(c => c.notNull);
+        let whereClause = '';
+        if (notNullCols.length > 0) {
+            const conditions = notNullCols.map(col => {
+                const source = allSources.find(s => s.id === col.sourceId);
+                const isMongoDB = source?.sourceType === 'mongodb';
+                const columnName = isMongoDB
+                    ? col.originalName.replace(/\./g, '_')
+                    : col.originalName;
+                return `"${columnName}" IS NOT NULL`;
+            });
+            whereClause = ` WHERE ${conditions.join(' AND ')}`;
+        }
+
+        return `SELECT ${selectClauses.join(', ')} FROM input${whereClause}`;
     };
 
     // Test transform
