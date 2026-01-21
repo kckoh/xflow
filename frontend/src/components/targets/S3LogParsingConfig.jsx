@@ -258,7 +258,7 @@ export default function S3LogParsingConfig({ initialPattern = "", onPatternChang
       )}
 
       {testResult && (
-        <div className="space-y-3 p-4 bg-green-50 border border-green-200 rounded-lg">
+        <div className="space-y-3 p-4 bg-green-50 border border-green-200 rounded-lg max-h-96 overflow-y-auto">
           {/* Success Header */}
           <div className="flex items-start gap-2">
             <Check className="w-5 h-5 text-green-600 flex-shrink-0" />
@@ -279,7 +279,7 @@ export default function S3LogParsingConfig({ initialPattern = "", onPatternChang
                 Before: Raw Log Lines (First 5)
               </h5>
             </div>
-            <div className="p-3 max-h-40 overflow-y-auto">
+            <div className="p-3 max-h-32 overflow-y-auto">
               {testResult.sample_logs?.map((log, idx) => (
                 <div key={idx} className="font-mono text-xs text-gray-700 mb-2 pb-2 border-b border-gray-100 last:border-0">
                   {log}
@@ -295,9 +295,9 @@ export default function S3LogParsingConfig({ initialPattern = "", onPatternChang
                 After: Parsed Data (First 5)
               </h5>
             </div>
-            <div className="overflow-x-auto">
+            <div className="max-h-40 overflow-auto">
               <table className="w-full text-xs">
-                <thead className="bg-gray-50 border-b border-gray-200">
+                <thead className="bg-gray-50 border-b border-gray-200 sticky top-0">
                   <tr>
                     {testResult.fields_extracted?.map((field) => (
                       <th key={field} className="px-3 py-2 text-left font-semibold text-gray-700">
