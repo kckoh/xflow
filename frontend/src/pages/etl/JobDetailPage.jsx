@@ -213,7 +213,8 @@ export default function JobDetailPage() {
             if (updateResponse.ok) {
               setJob((prev) => ({ ...prev, is_active: newActiveState }));
               showToast(
-                `Job ${newActiveState ? "activated" : "deactivated"
+                `Job ${
+                  newActiveState ? "activated" : "deactivated"
                 } successfully!`,
                 "success"
               );
@@ -227,7 +228,8 @@ export default function JobDetailPage() {
             // Should ideally not happen if job exists
             setJob((prev) => ({ ...prev, is_active: newActiveState }));
             showToast(
-              `Job ${newActiveState ? "activated" : "deactivated"
+              `Job ${
+                newActiveState ? "activated" : "deactivated"
               } (Local state only)`,
               "warning"
             );
@@ -445,12 +447,14 @@ export default function JobDetailPage() {
                   job?.job_type === "streaming" && isStreamingActive
                     ? "text-orange-600 bg-orange-50 hover:bg-orange-100"
                     : job?.job_type === "streaming"
-                      ? "text-green-600 bg-green-50 hover:bg-green-100"
-                      : "text-purple-600 bg-purple-50 hover:bg-purple-100"
+                    ? "text-green-600 bg-green-50 hover:bg-green-100"
+                    : "text-purple-600 bg-purple-50 hover:bg-purple-100"
                 }`}
                 title={
                   job?.job_type === "streaming"
-                    ? (isStreamingActive ? "Pause" : "Start")
+                    ? isStreamingActive
+                      ? "Pause"
+                      : "Start"
                     : "Instant Run"
                 }
               >
@@ -495,10 +499,11 @@ export default function JobDetailPage() {
                 <button
                   key={tab.id}
                   onClick={() => setActiveTab(tab.id)}
-                  className={`flex items-center gap-2 px-1 py-4 border-b-2 font-medium text-sm transition-colors ${activeTab === tab.id
-                    ? "border-blue-500 text-blue-600"
-                    : "border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300"
-                    }`}
+                  className={`flex items-center gap-2 px-1 py-4 border-b-2 font-medium text-sm transition-colors ${
+                    activeTab === tab.id
+                      ? "border-blue-500 text-blue-600"
+                      : "border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300"
+                  }`}
                 >
                   <Icon className="w-4 h-4" />
                   {tab.label}
@@ -523,7 +528,9 @@ export default function JobDetailPage() {
               <div className="p-6">
                 <dl className="grid grid-cols-2 gap-6">
                   <div>
-                    <dt className="text-sm font-medium text-gray-500">Job ID</dt>
+                    <dt className="text-sm font-medium text-gray-500">
+                      Job ID
+                    </dt>
                     <dd className="mt-1 text-sm text-gray-900">
                       <div className="flex items-center gap-2">
                         <span>{job?.name || "-"}</span>
@@ -605,10 +612,11 @@ export default function JobDetailPage() {
                     </dt>
                     <dd className="mt-1">
                       <span
-                        className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${job?.is_active
-                          ? "bg-green-100 text-green-800"
-                          : "bg-gray-100 text-gray-500"
-                          }`}
+                        className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${
+                          job?.is_active
+                            ? "bg-green-100 text-green-800"
+                            : "bg-gray-100 text-gray-500"
+                        }`}
                       >
                         {job?.is_active ? "Active" : "Inactive"}
                       </span>
@@ -659,13 +667,15 @@ export default function JobDetailPage() {
                                       "-"}
                                   </span>
                                 </div>
-                                {(source.connection_id || source.connectionId) && (
+                                {(source.connection_id ||
+                                  source.connectionId) && (
                                   <div className="col-span-2">
                                     <span className="text-gray-500">
                                       Connection ID:
                                     </span>
                                     <span className="ml-2 font-mono text-xs text-gray-900">
-                                      {source.connection_id || source.connectionId}
+                                      {source.connection_id ||
+                                        source.connectionId}
                                     </span>
                                   </div>
                                 )}
@@ -940,7 +950,7 @@ export default function JobDetailPage() {
                               {run.status === "success"
                                 ? "Succeeded"
                                 : run.status.charAt(0).toUpperCase() +
-                                run.status.slice(1)}
+                                  run.status.slice(1)}
                             </span>
                           </td>
                           <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-600">
@@ -997,19 +1007,19 @@ export default function JobDetailPage() {
                     <p className="text-sm text-gray-600 mb-4">
                       Batch ETL Set and manage schedules for your work.
                     </p>
-                    <div className="border border-gray-200 rounded-lg">
+                    <div>
                       <SchedulesPanel
                         schedules={
                           job?.schedule
                             ? [
-                              {
-                                id: "schedule-1",
-                                name: `${job.schedule_frequency}-schedule`,
-                                cron: job.schedule,
-                                frequency: job.schedule_frequency,
-                                uiParams: job.ui_params,
-                              },
-                            ]
+                                {
+                                  id: "schedule-1",
+                                  name: `${job.schedule_frequency}-schedule`,
+                                  cron: job.schedule,
+                                  frequency: job.schedule_frequency,
+                                  uiParams: job.ui_params,
+                                },
+                              ]
                             : []
                         }
                         onUpdate={handleScheduleUpdate}
@@ -1073,23 +1083,25 @@ export default function JobDetailPage() {
                         <div>
                           <p className="text-sm text-gray-500">Overall Score</p>
                           <p
-                            className={`text-3xl font-bold ${qualityResult.overall_score >= 90
-                              ? "text-green-600"
-                              : qualityResult.overall_score >= 70
+                            className={`text-3xl font-bold ${
+                              qualityResult.overall_score >= 90
+                                ? "text-green-600"
+                                : qualityResult.overall_score >= 70
                                 ? "text-yellow-600"
                                 : "text-red-600"
-                              }`}
+                            }`}
                           >
                             {Math.round(qualityResult.overall_score)}
                           </p>
                         </div>
                         <div
-                          className={`p-3 rounded-xl ${qualityResult.overall_score >= 90
-                            ? "bg-green-100"
-                            : qualityResult.overall_score >= 70
+                          className={`p-3 rounded-xl ${
+                            qualityResult.overall_score >= 90
+                              ? "bg-green-100"
+                              : qualityResult.overall_score >= 70
                               ? "bg-yellow-100"
                               : "bg-red-100"
-                            }`}
+                          }`}
                         >
                           {qualityResult.overall_score >= 90 ? (
                             <CheckCircle className="w-6 h-6 text-green-500" />
@@ -1164,10 +1176,11 @@ export default function JobDetailPage() {
                                 </td>
                                 <td className="px-6 py-4">
                                   <span
-                                    className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium ${check.passed
-                                      ? "bg-green-100 text-green-700"
-                                      : "bg-red-100 text-red-700"
-                                      }`}
+                                    className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium ${
+                                      check.passed
+                                        ? "bg-green-100 text-green-700"
+                                        : "bg-red-100 text-red-700"
+                                    }`}
                                   >
                                     {check.passed ? (
                                       <CheckCircle className="w-3 h-3" />
@@ -1216,8 +1229,8 @@ export default function JobDetailPage() {
                           Last checked:{" "}
                           {qualityResult.run_at
                             ? new Date(qualityResult.run_at).toLocaleString(
-                              "ko-KR"
-                            )
+                                "ko-KR"
+                              )
                             : "-"}
                         </span>
                       </div>
