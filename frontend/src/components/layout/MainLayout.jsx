@@ -21,9 +21,12 @@ export default function MainLayout({ children, fullWidth = false }) {
                 <button
                     onClick={() => setIsCollapsed(!isCollapsed)}
                     className={clsx(
-                        "fixed top-8 z-[1001] w-6 h-6 rounded-full bg-white border border-gray-200 shadow-md hover:shadow-lg flex items-center justify-center text-gray-500 hover:text-gray-700 transition-all duration-300",
+                        "fixed top-8 z-[1001] w-6 h-6 rounded-full bg-white border border-gray-200 shadow-md hover:shadow-lg flex items-center justify-center text-gray-500 hover:text-gray-700 transition-all duration-300 ease-in-out",
                         isCollapsed ? "left-[68px]" : "left-[244px]"
                     )}
+                    style={{
+                        transform: 'translateX(0)',
+                    }}
                 >
                     {isCollapsed ? (
                         <ChevronRight className="w-4 h-4" />

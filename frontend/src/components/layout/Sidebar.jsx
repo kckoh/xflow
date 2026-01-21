@@ -66,26 +66,26 @@ export function Sidebar({ isCollapsed, onToggle }) {
       )}
     >
       {/* Brand */}
-      <div className="h-16 flex items-center justify-between px-4 border-b border-gray-200">
-        <div
-          className={clsx(
-            "flex items-center gap-2",
-            isCollapsed && "justify-center w-full",
-          )}
-        >
-          <div className={clsx("flex items-center justify-center", isCollapsed ? "w-full" : "")}>
+      <div className="h-16 flex items-center px-4 border-b border-gray-200 overflow-hidden">
+        <div className="flex items-center gap-2">
+          {/* Logo icon - fixed position */}
+          <div className="w-8 h-8 flex items-center justify-center shrink-0">
             <img
               src={logo}
               alt="XFlow"
-              className={clsx(
-                "transition-all duration-300 object-contain",
-                isCollapsed ? "h-8 w-auto" : "h-8 w-auto"
-              )}
+              className="h-8 w-auto object-contain"
             />
           </div>
-          {!isCollapsed && (
-            <span className="text-xl font-bold text-gray-800">xflow</span>
-          )}
+
+          {/* Text label - fades out when collapsed */}
+          <span
+            className={clsx(
+              "text-xl font-bold text-gray-800 transition-all duration-300 whitespace-nowrap",
+              isCollapsed ? "opacity-0 w-0" : "opacity-100"
+            )}
+          >
+            xflow
+          </span>
         </div>
       </div>
 
@@ -100,25 +100,33 @@ export function Sidebar({ isCollapsed, onToggle }) {
                 onClick={() => navigate(item.path)}
                 title={isCollapsed ? item.name : ""}
                 className={clsx(
-                  "w-full flex items-center p-2 text-sm font-medium rounded-md transition-all duration-200 group",
-                  isCollapsed ? "justify-center" : "px-3",
+                  "w-full flex items-center p-2 text-sm font-medium rounded-md transition-all duration-200 group relative overflow-hidden",
                   isActive
                     ? "bg-blue-50 text-blue-600"
                     : "text-gray-600 hover:bg-gray-50 hover:text-gray-900",
                 )}
               >
-                <item.icon
+                {/* Icon container - fixed width */}
+                <div className="w-5 h-5 flex items-center justify-center shrink-0">
+                  <item.icon
+                    className={clsx(
+                      "w-5 h-5 transition-colors",
+                      isActive
+                        ? "text-blue-600"
+                        : "text-gray-400 group-hover:text-gray-600",
+                    )}
+                  />
+                </div>
+
+                {/* Text label - fades out when collapsed */}
+                <span
                   className={clsx(
-                    "w-5 h-5 transition-colors shrink-0",
-                    !isCollapsed && "mr-3",
-                    isActive
-                      ? "text-blue-600"
-                      : "text-gray-400 group-hover:text-gray-600",
+                    "ml-3 truncate transition-all duration-300",
+                    isCollapsed ? "opacity-0 w-0" : "opacity-100"
                   )}
-                />
-                {!isCollapsed && (
-                  <span className="truncate">{item.name}</span>
-                )}
+                >
+                  {item.name}
+                </span>
               </button>
             );
           })}
@@ -131,15 +139,22 @@ export function Sidebar({ isCollapsed, onToggle }) {
         <button
           onClick={handleLogout}
           title={isCollapsed ? "Sign out" : ""}
-          className={clsx(
-            "flex items-center text-sm font-medium text-gray-500 hover:text-red-600 transition-colors w-full p-2 rounded-md hover:bg-red-50",
-            isCollapsed ? "justify-center" : "px-3",
-          )}
+          className="flex items-center text-sm font-medium text-gray-500 hover:text-red-600 transition-colors w-full p-2 rounded-md hover:bg-red-50 relative overflow-hidden"
         >
-          <LogOut
-            className={clsx("w-4 h-4 shrink-0", !isCollapsed && "mr-2")}
-          />
-          {!isCollapsed && "Sign out"}
+          {/* Icon container - fixed width */}
+          <div className="w-4 h-4 flex items-center justify-center shrink-0">
+            <LogOut className="w-4 h-4" />
+          </div>
+
+          {/* Text label - fades out when collapsed */}
+          <span
+            className={clsx(
+              "ml-2 transition-all duration-300",
+              isCollapsed ? "opacity-0 w-0" : "opacity-100"
+            )}
+          >
+            Sign out
+          </span>
         </button>
       </div>
     </div>
