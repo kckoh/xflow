@@ -69,7 +69,7 @@ export function Sidebar({ isCollapsed, onToggle }) {
       <div className="h-16 flex items-center justify-between px-4 border-b border-gray-200">
         <div
           className={clsx(
-            "flex items-center",
+            "flex items-center gap-2",
             isCollapsed && "justify-center w-full",
           )}
         >
@@ -83,6 +83,9 @@ export function Sidebar({ isCollapsed, onToggle }) {
               )}
             />
           </div>
+          {!isCollapsed && (
+            <span className="text-xl font-bold text-gray-800">XFlow</span>
+          )}
         </div>
         {!isCollapsed && (
           <button
