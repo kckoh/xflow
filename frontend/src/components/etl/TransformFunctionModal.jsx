@@ -14,17 +14,17 @@ export default function TransformFunctionModal({ column, onApply, onClose }) {
     const [showAI, setShowAI] = useState(false);
 
     const functions = [
-        { name: 'UPPER', desc: 'Convert to uppercase', template: `UPPER(${column.originalName})` },
-        { name: 'LOWER', desc: 'Convert to lowercase', template: `LOWER(${column.originalName})` },
-        { name: 'TRIM', desc: 'Remove whitespace', template: `TRIM(${column.originalName})` },
+        { name: 'UPPER', desc: 'Convert to uppercase', template: `UPPER(CAST(${column.originalName} AS STRING))` },
+        { name: 'LOWER', desc: 'Convert to lowercase', template: `LOWER(CAST(${column.originalName} AS STRING))` },
+        { name: 'TRIM', desc: 'Remove whitespace', template: `TRIM(CAST(${column.originalName} AS STRING))` },
         { name: 'REPLACE', desc: 'Replace characters', template: `REPLACE(CAST(${column.originalName} AS STRING), '', '')` },
-        { name: 'SUBSTR', desc: 'Extract substring', template: `SUBSTR(${column.originalName}, 1, 10)` },
-        { name: 'CONCAT', desc: 'Concatenate strings', template: `CONCAT(${column.originalName}, '-', ${column.originalName})` },
+        { name: 'SUBSTR', desc: 'Extract substring', template: `SUBSTR(CAST(${column.originalName} AS STRING), 1, 10)` },
+        { name: 'CONCAT', desc: 'Concatenate strings', template: `CONCAT(CAST(${column.originalName} AS STRING), '-', CAST(${column.originalName} AS STRING))` },
         { name: 'CAST', desc: 'Convert type', template: `CAST(${column.originalName} AS STRING)` },
         { name: 'COALESCE', desc: 'Handle nulls', template: `COALESCE(${column.originalName}, 'default')` },
-        { name: 'DATE_FORMAT', desc: 'Format date', template: `DATE_FORMAT(${column.originalName}, 'yyyy-MM-dd')` },
-        { name: 'ROUND', desc: 'Round number', template: `ROUND(${column.originalName}, 2)` },
-        { name: 'ABS', desc: 'Absolute value', template: `ABS(${column.originalName})` },
+
+        { name: 'ROUND', desc: 'Round number', template: `ROUND(CAST(${column.originalName} AS DOUBLE), 2)` },
+        { name: 'ABS', desc: 'Absolute value', template: `ABS(CAST(${column.originalName} AS DOUBLE))` },
     ];
 
     const applyFunction = (func) => {

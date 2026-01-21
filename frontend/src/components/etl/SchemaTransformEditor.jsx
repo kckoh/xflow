@@ -861,8 +861,8 @@ export default function SchemaTransformEditor({
                             />
                             <div className="mt-3 p-3 bg-blue-50 border border-blue-200 rounded-lg">
                                 <p className="text-xs text-blue-800">
-                                    <strong>Advanced SQL Transform:</strong> Write complex queries with JOIN, GROUP BY, WHERE, and aggregations.
-                                    Reference sources by their dataset names (shown on the left) to perform multi-table operations.
+                                    <strong>Advanced SQL Transform:</strong> Write complex queries with JOIN, GROUP BY, and aggregations.
+                                    Note that previews run on <strong>DuckDB</strong> for fast feedback, while the actual ETL executes on <strong>Spark SQL</strong> for scale. Reference sources by their dataset names.
                                 </p>
                             </div>
                         </div>
