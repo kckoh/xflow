@@ -335,11 +335,11 @@ export default function SchemaTransformEditor({
                 : col.originalName;
 
             if (col.transform) {
-                // Quote the alias to handle reserved words
-                return `${col.transform} AS "${col.name}"`;
+                // Use backticks for Spark SQL (not double quotes)
+                return `${col.transform} AS \`${col.name}\``;
             }
 
-            let expr = `"${columnName}"`;
+            let expr = `\`${columnName}\``;
 
             // 1. Type Cast 적용 (타입이 변경된 경우에만)
             const sparkType = TYPE_MAP[col.type];
@@ -364,7 +364,7 @@ export default function SchemaTransformEditor({
                               (col.defaultValue && col.defaultValue.trim() !== '') ||
                               typeChanged;
             if (needsAlias) {
-                return `${expr} AS "${col.name}"`;
+                return `${expr} AS \`${col.name}\``;
             }
 
             // Quote column names to handle SQL reserved words (e.g., 'cast', 'type', 'year')
@@ -381,7 +381,7 @@ export default function SchemaTransformEditor({
                 const columnName = isMongoDB
                     ? col.originalName.replace(/\./g, '_')
                     : col.originalName;
-                return `"${columnName}" IS NOT NULL`;
+                return `\`${columnName}\` IS NOT NULL`;
             });
             whereClause = ` WHERE ${conditions.join(' AND ')}`;
         }
