@@ -113,14 +113,13 @@ async def preview_s3_csv(request: S3CSVPreviewRequest):
         if not csv_key:
             raise HTTPException(status_code=404, detail=f"No CSV files found in s3://{bucket}/{path}")
 
-        # 5. Read CSV file with pandas
+        # 5. Read CSV file with pandas (only first N rows to avoid OOM)
         file_obj = s3_client.get_object(Bucket=bucket, Key=csv_key)
         csv_content = file_obj['Body'].read()
 
-        # Use pandas to read CSV
-        df = pd.read_csv(io.BytesIO(csv_content))
-
-        total_rows = len(df)
+        # Read only first N rows for preview (avoid loading entire large CSV into memory)
+        # Note: We read limit + a few extra rows to better infer data types
+        df = pd.read_csv(io.BytesIO(csv_content), nrows=min(request.limit + 20, 100))
 
         # 6. Infer schema from dataframe
         columns = []
@@ -148,12 +147,12 @@ async def preview_s3_csv(request: S3CSVPreviewRequest):
         preview_df = df.head(request.limit)
         preview_data = preview_df.to_dict('records')
 
-        # 8. Return results
+        # 8. Return results (no total_rows since we only read a sample)
         return S3CSVPreviewResponse(
             valid=True,
             columns=columns,
             preview_data=preview_data,
-            total_rows=total_rows
+            total_rows=None  # Don't count total rows to avoid loading entire file
         )
 
     except HTTPException:

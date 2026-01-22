@@ -1,7 +1,6 @@
 import { useState } from "react";
 import { FileText, Loader2, Check, X, Eye } from "lucide-react";
-
-const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || "http://localhost:8000";
+import { s3LogApi } from "../../services/s3LogApi";
 
 export default function S3CSVPreviewConfig({
   connectionId,
@@ -24,24 +23,12 @@ export default function S3CSVPreviewConfig({
     setPreviewData(null);
 
     try {
-      const response = await fetch(`${API_BASE_URL}/api/s3-csv/preview-csv`, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({
-          connection_id: connectionId,
-          bucket: bucket,
-          path: path,
-          limit: 10,
-        }),
+      const data = await s3LogApi.previewCSV({
+        connection_id: connectionId,
+        bucket: bucket,
+        path: path,
+        limit: 10,
       });
-
-      const data = await response.json();
-
-      if (!response.ok) {
-        throw new Error(data.detail || "Preview failed");
-      }
 
       if (data.valid) {
         setPreviewData(data);
@@ -117,8 +104,7 @@ export default function S3CSVPreviewConfig({
                 ✅ CSV Schema Extracted!
               </p>
               <p className="text-xs text-green-700 mt-1">
-                Found {previewData.columns?.length} columns from{" "}
-                {previewData.total_rows} total rows
+                Found {previewData.columns?.length} columns
               </p>
             </div>
           </div>
@@ -127,7 +113,7 @@ export default function S3CSVPreviewConfig({
           <div className="bg-white border border-green-200 rounded-lg overflow-hidden">
             <div className="px-3 py-2 bg-green-100 border-b border-green-200">
               <h5 className="text-xs font-semibold text-green-900">
-                Preview Data (First 10 rows)
+                Preview Data ({previewData.preview_data?.length || 0} rows)
               </h5>
             </div>
             <div className="max-h-60 overflow-auto">
