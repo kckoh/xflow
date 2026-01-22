@@ -107,6 +107,11 @@ class BedrockService:
                 columns=metadata.get('columns', []),
                 question=question
             )
+        elif prompt_type == 'regex_pattern':
+            prompt = self._get_regex_pattern_prompt(
+                sample_logs=metadata.get('sample_logs', []),
+                question=question
+            )
         
         # Validate input token count
         input_tokens = self._estimate_tokens(prompt)
@@ -352,6 +357,38 @@ The query must be compatible with both DuckDB (for preview) and Spark SQL (for e
             User Request: {question}
 
             Recommended partition columns:"""
+
+    def _get_regex_pattern_prompt(self, sample_logs: list, question: str) -> str:
+        """Regex pattern generation prompt - generates Python regex with named groups"""
+        logs_text = "\n".join(sample_logs) if sample_logs else "No sample logs provided"
+        
+        return f"""You are a regex expert helping to parse log files.
+            Generate a Python regex pattern with named groups to extract fields from these log lines.
+
+            Sample Log Lines:
+            {logs_text}
+
+            IMPORTANT Rules:
+            1. Use Python regex syntax with named groups: (?P<field_name>pattern)
+            2. Extract ALL meaningful fields from the logs
+            3. Use descriptive field names (e.g., client_ip, timestamp, http_method, request_path, status_code, bytes_sent, referrer, user_agent)
+            4. Make the pattern flexible to match variations in the log format
+            5. Return ONLY the regex pattern, no explanation or markdown
+            6. Do NOT wrap in quotes or code blocks
+            7. Common patterns:
+            - IP address: (?P<client_ip>\\S+)
+            - Timestamp in brackets: \\[(?P<timestamp>[^\\]]+)\\]
+            - HTTP request: "(?P<method>\\S+) (?P<path>\\S+) (?P<protocol>\\S+)"
+            - Status code: (?P<status_code>\\d+)
+            - Bytes: (?P<bytes_sent>\\S+)
+            - Quoted strings: "(?P<field_name>[^"]*)"
+
+            Example Apache Combined Log Pattern:
+            ^(?P<client_ip>\\S+) \\S+ \\S+ \\[(?P<timestamp>[^\\]]+)\\] "(?P<method>\\S+) (?P<path>\\S+) (?P<protocol>\\S+)" (?P<status_code>\\d+) (?P<bytes_sent>\\S+) "(?P<referrer>[^"]*)" "(?P<user_agent>[^"]*)"
+
+            User Request: {question}
+
+            Generate the regex pattern:"""
 
     def _estimate_tokens(self, text: str) -> int:
         """

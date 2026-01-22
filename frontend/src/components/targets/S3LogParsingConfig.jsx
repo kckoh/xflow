@@ -10,7 +10,6 @@ import {
   Sparkles,
 } from "lucide-react";
 import { s3LogApi } from "../../services/s3LogApi";
-import { aiApi } from "../../services/aiApi";
 import { useToast } from "../common/Toast";
 
 /**
@@ -198,34 +197,19 @@ export default function S3LogParsingConfig({
 
               setIsAILoading(true);
               try {
-                // First, get sample logs from S3
-                const sampleResult = await s3LogApi.testLogParsing({
+                // 백엔드가 S3에서 로그 가져오고 AI 호출까지 한 번에 처리
+                const result = await s3LogApi.generateRegex({
                   connection_id: connectionId,
                   bucket: bucket,
                   path: path,
-                  custom_regex: null, // No regex yet, just get raw logs
                   limit: 5,
                 });
 
-                if (!sampleResult.sample_logs || sampleResult.sample_logs.length === 0) {
-                  showToast("No sample logs found. Please check your S3 path.", "error");
-                  return;
-                }
-
-                // Call AI to generate regex pattern
-                const response = await aiApi.generateSQL(
-                  `Generate a Python regex pattern with named groups to parse these log lines:\n\n${sampleResult.sample_logs.join('\n')}`,
-                  {},
-                  "regex_pattern"
-                );
-
-                if (response.sql) {
-                  // Extract regex pattern from response
-                  // The AI might return it wrapped in quotes or code blocks
-                  let pattern = response.sql.trim();
-                  pattern = pattern.replace(/^```.*\n/, '').replace(/\n```$/, '');
-                  pattern = pattern.replace(/^["']|["']$/g, '');
-                  setRegexPattern(pattern);
+                if (result.success && result.regex_pattern) {
+                  setRegexPattern(result.regex_pattern);
+                  showToast("Regex pattern generated successfully!", "success");
+                } else {
+                  showToast(result.error || "Failed to generate regex pattern", "error");
                 }
               } catch (error) {
                 console.error("AI regex generation failed:", error);

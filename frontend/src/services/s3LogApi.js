@@ -186,4 +186,14 @@ export const s3LogApi = {
 
     return data;
   },
+
+  generateRegex: async (data) => {
+    const response = await fetch(`${API_BASE_URL}/api/s3-logs/generate-regex`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(data),
+    });
+    if (!response.ok) throw new Error('Failed to generate regex');
+    return response.json();
+  },
 };
