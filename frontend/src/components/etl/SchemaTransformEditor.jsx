@@ -384,7 +384,7 @@ export default function SchemaTransformEditor({
                     : `'${col.defaultValue.replace(/'/g, "''")}'`;
 
                 if (col.type === 'string') {
-                    expr = `COALESCE(NULLIF(${expr}, ''), ${defaultVal})`;
+                    expr = `COALESCE(${expr}, ${defaultVal})`;
                 } else {
                     expr = `COALESCE(${expr}, ${defaultVal})`;
                 }
