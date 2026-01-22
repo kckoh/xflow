@@ -33,6 +33,7 @@ import MongoDBSourceConfig from "../../components/sources/MongoDBSourceConfig";
 import APISourceConfig from "../../components/sources/APISourceConfig";
 import S3LogParsingConfig from "../../components/targets/S3LogParsingConfig";
 import S3CSVPreviewConfig from "../../components/sources/S3CSVPreviewConfig";
+import S3JSONPreviewConfig from "../../components/sources/S3JSONPreviewConfig";
 
 const STEPS = [
   { id: 1, name: "Select Source", icon: Database },
@@ -1017,6 +1018,7 @@ export default function SourceWizard() {
                       options={[
                         { id: "log", label: "Log" },
                         { id: "csv", label: "CSV" },
+                        { id: "json", label: "JSON" },
                         { id: "parquet", label: "Parquet" },
                       ]}
                       value={config.format || "log"}
@@ -1095,6 +1097,26 @@ export default function SourceWizard() {
                       config.path && (
                         <div className="mt-6">
                           <S3CSVPreviewConfig
+                            connectionId={config.connectionId}
+                            bucket={config.bucket}
+                            path={config.path}
+                            onColumnsChange={(columns) => {
+                              setConfig((prev) => ({
+                                ...prev,
+                                columns: columns,
+                              }));
+                            }}
+                          />
+                        </div>
+                      )}
+
+                    {/* S3 JSON Preview - Only for json format */}
+                    {config.format === "json" &&
+                      config.connectionId &&
+                      config.bucket &&
+                      config.path && (
+                        <div className="mt-6">
+                          <S3JSONPreviewConfig
                             connectionId={config.connectionId}
                             bucket={config.bucket}
                             path={config.path}

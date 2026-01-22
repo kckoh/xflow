@@ -220,4 +220,28 @@ export const s3LogApi = {
 
     return data;
   },
+
+  // POST /api/s3-json/preview-json - Preview JSON file from S3
+  async previewJSON({ connection_id, bucket, path, limit = 10 }) {
+    const response = await fetch(`${API_BASE_URL}/api/s3-json/preview-json`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        connection_id,
+        bucket,
+        path,
+        limit,
+      }),
+    });
+
+    const data = await response.json();
+
+    if (!response.ok) {
+      throw new Error(data.detail || "Preview failed");
+    }
+
+    return data;
+  },
 };

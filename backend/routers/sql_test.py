@@ -746,6 +746,10 @@ async def _load_sample_data(
                 file_extension = '.csv'
                 read_function = 'read_csv_auto'
                 pattern = '*.csv'
+            elif file_format == "json":
+                file_extension = '.json'
+                read_function = 'read_json_auto'
+                pattern = '*.json'
             else:  # Default to parquet
                 file_extension = '.parquet'
                 read_function = 'read_parquet'
@@ -787,6 +791,10 @@ async def _load_sample_data(
                 file_extension = '.csv'
                 read_function = 'read_csv_auto'
                 pattern = '*.csv'
+            elif file_format == "json":
+                file_extension = '.json'
+                read_function = 'read_json_auto'
+                pattern = '*.json'
             else:  # Default to parquet
                 file_extension = '.parquet'
                 read_function = 'read_parquet'
