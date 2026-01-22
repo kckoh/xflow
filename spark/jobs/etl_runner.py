@@ -150,6 +150,10 @@ def transform_sql(
     if not sql_query:
         raise ValueError("SQL query is required in transform config")
 
+    # Convert double quotes to backticks for Spark SQL compatibility
+    # (Frontend uses double quotes for DuckDB preview, Spark uses backticks)
+    sql_query = sql_query.replace('"', '`')
+
     # Get or create Spark session
     spark = SparkSession.builder.getOrCreate()
 
