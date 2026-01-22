@@ -123,7 +123,7 @@ async def start_streaming_job(dataset_id: str):
         "format": source_format,
         "auto_schema": auto_schema,
         "destination": destination,
-        "custom_regex": source_dataset.get("customRegex"),
+        "custom_regex": source_dataset.get("customRegex") or source_dataset.get("custom_regex"),
     }
 
     app_name = f"kafka-stream-{dataset_id}"
@@ -147,7 +147,6 @@ async def start_streaming_job(dataset_id: str):
             s3_path = s3_path.rstrip("/") + "/" + glue_table_name
         
         logger.info(f"[Streaming] Registering Trino table: {glue_table_name}")
-        try:
         try:
             if os.getenv("ENVIRONMENT") == "local":
                 # Skip Trino registration in local environment to avoid network crashes

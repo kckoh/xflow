@@ -225,6 +225,11 @@ def convert_spark_to_duckdb(sql: str) -> Tuple[str, List[str]]:
                 )
                 conversions.append(f"{spark_func} -> {duckdb_func}")
 
+    # Final step: Convert Spark backticks (`) to DuckDB double quotes (") for identifiers
+    if "`" in converted_sql:
+        converted_sql = converted_sql.replace("`", '"')
+        conversions.append("backticks -> double quotes")
+
     return converted_sql, conversions
 
 
@@ -279,6 +284,7 @@ def is_spark_sql(sql: str) -> bool:
         r"\bexplode\s*\(",
         r"\binline\s*\(",
         r"\bposexplode\s*\(",
+        r"`",  # Spark SQL identifiers/backticks
     ]
 
     for pattern in spark_patterns:

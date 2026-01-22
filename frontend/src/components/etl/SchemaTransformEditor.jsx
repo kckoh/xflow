@@ -339,7 +339,7 @@ export default function SchemaTransformEditor({
                 return `${col.transform} AS "${col.name}"`;
             }
 
-            let expr = `"${columnName}"`;
+            let expr = `\`${columnName}\``;
 
             // 1. Type Cast 적용 (타입이 변경된 경우에만)
             const sparkType = TYPE_MAP[col.type];
@@ -355,14 +355,19 @@ export default function SchemaTransformEditor({
                 const defaultVal = isNumericType
                     ? col.defaultValue
                     : `'${col.defaultValue.replace(/'/g, "''")}'`;
-                expr = `COALESCE(${expr}, ${defaultVal})`;
+
+                if (col.type === 'string') {
+                    expr = `COALESCE(NULLIF(${expr}, ''), ${defaultVal})`;
+                } else {
+                    expr = `COALESCE(${expr}, ${defaultVal})`;
+                }
             }
 
             // 3. AS alias 추가 (컬럼명 변경, CAST, 또는 COALESCE 적용된 경우)
             const typeChanged = col.type !== originalType;
             const needsAlias = col.name !== columnName ||
-                              (col.defaultValue && col.defaultValue.trim() !== '') ||
-                              typeChanged;
+                (col.defaultValue && col.defaultValue.trim() !== '') ||
+                typeChanged;
             if (needsAlias) {
                 return `${expr} AS "${col.name}"`;
             }

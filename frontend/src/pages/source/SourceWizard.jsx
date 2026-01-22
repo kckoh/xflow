@@ -182,10 +182,9 @@ export default function SourceWizard() {
           bucket: job.bucket || "",
           path: job.path || "",
           format: job.format || (sourceType === "kafka" ? "json" : "log"),
-          customRegex: job.custom_regex || "",
-          columns: job.columns || [],
           topic: job.topic || "",
           customRegex: job.custom_regex || "",
+          columns: job.columns || [],
           // API-specific fields
           endpoint: job.api?.endpoint || "",
           method: job.api?.method || "GET",
@@ -577,7 +576,7 @@ export default function SourceWizard() {
         sourceData.topic = config.topic;
         sourceData.format = config.format || "json";
         if (sourceData.format === "raw") {
-          sourceData.customRegex = config.customRegex;
+          sourceData.custom_regex = config.customRegex;
         }
       } else if (selectedSource.id === "api") {
         sourceData.api = {

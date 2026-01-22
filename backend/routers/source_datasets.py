@@ -11,6 +11,7 @@ from concurrent.futures import ThreadPoolExecutor, TimeoutError as FutureTimeout
 import pandas as pd
 from kafka import KafkaConsumer
 import hashlib
+import uuid
 from pydantic import BaseModel
 from schemas.source_dataset import (
     SourceDatasetCreate,
@@ -120,16 +121,18 @@ def _preview_group_id(prefix: str, key: str) -> str:
 
 
 def _consume_kafka_records(bootstrap_servers: str, topic: str, limit: int = 1, custom_regex: Optional[str] = None) -> List[dict]:
+    print(f"[Kafka Preview] Starting consumption for topic: {topic}, limit: {limit}, custom_regex: {custom_regex}")
     consumer = KafkaConsumer(
         topic,
         bootstrap_servers=bootstrap_servers,
-        group_id=_preview_group_id("xflow-preview", f"{bootstrap_servers}:{topic}"),
+        group_id=f"xflow-preview-{uuid.uuid4().hex[:8]}",
         auto_offset_reset="earliest",
         enable_auto_commit=False,
         consumer_timeout_ms=5000,
         value_deserializer=lambda v: v.decode("utf-8") if v else None,
     )
     records = []
+    total_consumed = 0
     
     try:
         if custom_regex:
@@ -139,6 +142,7 @@ def _consume_kafka_records(bootstrap_servers: str, topic: str, limit: int = 1, c
                 raise ValueError(f"Invalid regex pattern: {e}")
 
         for msg in consumer:
+            total_consumed += 1
             if not msg.value:
                 continue
             
@@ -161,6 +165,12 @@ def _consume_kafka_records(bootstrap_servers: str, topic: str, limit: int = 1, c
             
             if len(records) >= limit:
                 break
+        
+        print(f"[Kafka Preview] Consumption finished. Total consumed: {total_consumed}, Matched: {len(records)}")
+        
+        if custom_regex and total_consumed > 0 and len(records) == 0:
+            raise ValueError(f"Regex pattern mismatch: No records matched the pattern '{custom_regex}' among {total_consumed} consumed messages.")
+
     finally:
         consumer.close()
     return records[:limit]
@@ -182,9 +192,11 @@ def get_kafka_schema(bootstrap_servers: str, topic: str, limit: int = 1, custom_
         raise HTTPException(status_code=504, detail=str(exc)) from exc
     except Exception as exc:
         # Check for regex errors specifically
-        if "Regex pattern mismatch" in str(exc):
-            raise HTTPException(status_code=400, detail=str(exc))
-        raise HTTPException(status_code=500, detail=str(exc))
+        error_msg = str(exc)
+        print(f"[Kafka Preview] Error occurred: {error_msg}")
+        if "Regex pattern mismatch" in error_msg:
+            raise HTTPException(status_code=400, detail=error_msg)
+        raise HTTPException(status_code=500, detail=error_msg)
 
     return {
         "schema": _infer_json_schema(records),
