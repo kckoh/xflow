@@ -186,4 +186,86 @@ export const s3LogApi = {
 
     return data;
   },
+
+  generateRegex: async (data) => {
+    const response = await fetch(`${API_BASE_URL}/api/s3-logs/generate-regex`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(data),
+    });
+    if (!response.ok) throw new Error('Failed to generate regex');
+    return response.json();
+  },
+
+  // POST /api/s3-csv/preview-csv - Preview CSV file from S3
+  async previewCSV({ connection_id, bucket, path, limit = 10 }) {
+    const response = await fetch(`${API_BASE_URL}/api/s3-csv/preview-csv`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        connection_id,
+        bucket,
+        path,
+        limit,
+      }),
+    });
+
+    const data = await response.json();
+
+    if (!response.ok) {
+      throw new Error(data.detail || "Preview failed");
+    }
+
+    return data;
+  },
+
+  // POST /api/s3-json/preview-json - Preview JSON file from S3
+  async previewJSON({ connection_id, bucket, path, limit = 10 }) {
+    const response = await fetch(`${API_BASE_URL}/api/s3-json/preview-json`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        connection_id,
+        bucket,
+        path,
+        limit,
+      }),
+    });
+
+    const data = await response.json();
+
+    if (!response.ok) {
+      throw new Error(data.detail || "Preview failed");
+    }
+
+    return data;
+  },
+
+  // POST /api/s3-parquet/preview-parquet - Preview Parquet file from S3
+  async previewParquet({ connection_id, bucket, path, limit = 10 }) {
+    const response = await fetch(`${API_BASE_URL}/api/s3-parquet/preview-parquet`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        connection_id,
+        bucket,
+        path,
+        limit,
+      }),
+    });
+
+    const data = await response.json();
+
+    if (!response.ok) {
+      throw new Error(data.detail || "Preview failed");
+    }
+
+    return data;
+  },
 };

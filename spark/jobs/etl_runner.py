@@ -150,6 +150,10 @@ def transform_sql(
     if not sql_query:
         raise ValueError("SQL query is required in transform config")
 
+    # Convert double quotes to backticks for Spark SQL compatibility
+    # (Frontend uses double quotes for DuckDB preview, Spark uses backticks)
+    sql_query = sql_query.replace('"', '`')
+
     # Get or create Spark session
     spark = SparkSession.builder.getOrCreate()
 
@@ -907,7 +911,10 @@ def read_s3_file_source(spark: SparkSession, source_config: dict) -> DataFrame:
 
     # Read based on format
     if file_format.lower() == "parquet":
-        df = spark.read.parquet(path)
+        # Handle pandas nanosecond timestamps
+        df = spark.read \
+            .option("spark.sql.legacy.parquet.nanosAsLong", "true") \
+            .parquet(path)
     elif file_format.lower() == "csv":
         df = spark.read.option("header", "true").option("inferSchema", "true").csv(path)
     elif file_format.lower() == "json":

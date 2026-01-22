@@ -3,56 +3,65 @@ S3 Logs Preview API
 Test S3 log parsing with regex, field selection, and filtering
 """
 from fastapi import APIRouter, HTTPException
-from pydantic import BaseModel
 from typing import List, Dict, Any, Optional
 import re
 from bson import ObjectId
 
 import database
+from schemas.s3_logs import (
+    S3LogPreviewRequest,
+    S3LogPreviewResponse,
+    RegexTestRequest,
+    S3LogTestRequest,
+    RegexTestResponse,
+    GenerateRegexRequest,
+    GenerateRegexResponse,
+)
 
 router = APIRouter()
 
 
-class S3LogPreviewRequest(BaseModel):
-    source_dataset_id: str
-    custom_regex: str
-    selected_fields: List[str]
-    filters: Dict[str, Any]
-    limit: Optional[int] = 5
+def create_s3_client_from_config(config: dict):
+    """
+    Create boto3 S3 client from connection config.
+    Supports both user credentials and LocalStack.
+    
+    Args:
+        config: Connection config dict from MongoDB
+        
+    Returns:
+        Configured boto3 S3 client
+    """
+    import boto3
+    import os
+    
+    access_key = config.get("access_key") or config.get("access_key_id") or config.get("aws_access_key_id")
+    secret_key = config.get("secret_key") or config.get("secret_access_key") or config.get("aws_secret_access_key")
+    endpoint = (
+        config.get("endpoint")
+        or config.get("endpoint_url")
+        or os.getenv("AWS_ENDPOINT")
+        or os.getenv("S3_ENDPOINT_URL")
+    )
+    region = config.get("region") or config.get("region_name") or os.getenv("AWS_DEFAULT_REGION") or "us-east-1"
 
+    boto3_kwargs = {
+        'region_name': region
+    }
 
-class S3LogPreviewResponse(BaseModel):
-    valid: bool
-    before_rows: Optional[List[Dict[str, Any]]] = None
-    after_rows: Optional[List[Dict[str, Any]]] = None
-    total_records: Optional[int] = None
-    filtered_records: Optional[int] = None
-    error: Optional[str] = None
+    # Only add credentials if they exist in config, otherwise boto3 will use env vars or IAM role
+    if access_key and secret_key:
+        boto3_kwargs['aws_access_key_id'] = access_key
+        boto3_kwargs['aws_secret_access_key'] = secret_key
+    elif endpoint:
+        # LocalStack requires dummy credentials
+        boto3_kwargs['aws_access_key_id'] = "test"
+        boto3_kwargs['aws_secret_access_key'] = "test"
 
+    if endpoint:
+        boto3_kwargs['endpoint_url'] = endpoint
 
-class RegexTestRequest(BaseModel):
-    source_dataset_id: str
-    custom_regex: str
-    limit: Optional[int] = 5
-
-
-class S3LogTestRequest(BaseModel):
-    """Test S3 log parsing without saving source dataset"""
-    connection_id: str
-    bucket: str
-    path: str
-    custom_regex: str
-    limit: Optional[int] = 5
-
-
-class RegexTestResponse(BaseModel):
-    valid: bool
-    sample_logs: Optional[List[str]] = None
-    parsed_rows: Optional[List[Dict[str, Any]]] = None
-    fields_extracted: Optional[List[str]] = None
-    total_lines: Optional[int] = None
-    parsed_lines: Optional[int] = None
-    error: Optional[str] = None
+    return boto3.client('s3', **boto3_kwargs)
 
 
 @router.post("/test-regex", response_model=RegexTestResponse)
@@ -614,4 +623,106 @@ async def preview_s3_logs(request: S3LogPreviewRequest):
         return S3LogPreviewResponse(
             valid=False,
             error=f"Error: {str(e)}"
+        )
+
+
+@router.post("/generate-regex", response_model=GenerateRegexResponse)
+async def generate_regex_from_s3_logs(request: GenerateRegexRequest):
+    """
+    Generate regex pattern using AI from S3 log samples
+    
+    Steps:
+    1. Get connection details
+    2. Read sample log files from S3 (5-10 lines)
+    3. Call Bedrock AI to generate regex pattern
+    4. Return generated pattern + sample logs
+    """
+    from services.bedrock_service import get_bedrock_service
+    
+    try:
+        # Get MongoDB database
+        db = database.mongodb_client[database.DATABASE_NAME]
+
+        # 1. Get connection details
+        try:
+            connection = await db.connections.find_one({"_id": ObjectId(request.connection_id)})
+        except:
+            raise HTTPException(status_code=404, detail=f"Connection not found: {request.connection_id}")
+
+        if not connection:
+            raise HTTPException(status_code=404, detail=f"Connection not found: {request.connection_id}")
+
+        config = connection.get("config", {})
+
+        # 2. Use provided bucket and path
+        bucket = request.bucket
+        path = request.path
+
+        if not bucket or not path:
+            raise HTTPException(status_code=400, detail="S3 bucket and path are required")
+
+        # 3. Create S3 client from config
+        s3_client = create_s3_client_from_config(config)
+
+        # 4. List and read log files
+        response = s3_client.list_objects_v2(Bucket=bucket, Prefix=path, MaxKeys=10)
+
+        if 'Contents' not in response or len(response['Contents']) == 0:
+            raise HTTPException(status_code=404, detail=f"No log files found in s3://{bucket}/{path}")
+
+        # Read first log file (up to 10 lines for AI analysis)
+        log_lines = []
+        last_error = None
+        for obj in response['Contents']:
+            key = obj['Key']
+            if key.endswith('/'):  # Skip directories
+                continue
+
+            try:
+                file_obj = s3_client.get_object(Bucket=bucket, Key=key)
+                # Stream file and read only first 10 lines
+                body = file_obj['Body']
+                lines = []
+                for _ in range(10):
+                    line = body.readline()
+                    if not line:  # EOF
+                        break
+                    decoded = line.decode('utf-8', errors='ignore').strip()
+                    if decoded:
+                        lines.append(decoded)
+
+                if lines:
+                    log_lines.extend(lines)
+                    break
+            except Exception as e:
+                last_error = e
+                continue
+
+        if not log_lines:
+            if last_error:
+                print(f"Failed to read S3 log content from s3://{bucket}/{path}: {last_error}")
+            raise HTTPException(status_code=400, detail="Could not read log file content")
+
+        # 5. Call AI to generate regex
+        bedrock_service = get_bedrock_service()
+        regex_pattern = bedrock_service.generate_sql(
+            question="Generate a Python regex pattern with named groups to parse these log lines",
+            prompt_type="regex_pattern_log",
+            metadata={"sample_logs": log_lines[:request.limit]}
+        )
+
+        return GenerateRegexResponse(
+            success=True,
+            regex_pattern=regex_pattern,
+            sample_logs=log_lines[:request.limit]
+        )
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        import traceback
+        traceback.print_exc()
+        return GenerateRegexResponse(
+            success=False,
+            error=f"Failed to generate regex: {str(e)}"
         )

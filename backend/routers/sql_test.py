@@ -737,48 +737,77 @@ async def _load_sample_data(
                 use_ssl=False if endpoint and "http://" in endpoint else True,
                 config=s3_config
             )
-            
+
             # List objects
             print(f"[DEBUG] Listing objects in Bucket: {bucket_name}, Prefix: {prefix}")
             response = s3_client.list_objects_v2(Bucket=bucket_name, Prefix=prefix)
-            
-            parquet_files = []
+
+            # Determine file extension and read function based on format
+            if file_format == "csv":
+                file_extension = '.csv'
+                read_function = 'read_csv_auto'
+                pattern = '*.csv'
+            elif file_format == "json":
+                file_extension = '.json'
+                read_function = 'read_json_auto'
+                pattern = '*.json'
+            else:  # Default to parquet
+                file_extension = '.parquet'
+                read_function = 'read_parquet'
+                pattern = '*.parquet'
+
+            data_files = []
             if 'Contents' in response:
                 print(f"[DEBUG] Found {len(response['Contents'])} objects")
                 for obj in response['Contents']:
                     key = obj['Key']
-                    # Exclude _delta_log directory (Delta Lake metadata)
-                    if key.endswith('.parquet') and not key.endswith('/') and '_delta_log' not in key:
-                        parquet_files.append(f"s3://{bucket_name}/{key}")
-            
-            if parquet_files:
-                files_str = ", ".join([f"'{f}'" for f in parquet_files])
-                query = f"SELECT * FROM read_parquet([{files_str}]) {filter_clause}{order_clause} LIMIT {limit}"
+                    # Exclude _delta_log directory (Delta Lake metadata) for parquet
+                    if file_format == "csv":
+                        if key.endswith(file_extension) and not key.endswith('/'):
+                            data_files.append(f"s3://{bucket_name}/{key}")
+                    else:
+                        if key.endswith(file_extension) and not key.endswith('/') and '_delta_log' not in key:
+                            data_files.append(f"s3://{bucket_name}/{key}")
+
+            if data_files:
+                files_str = ", ".join([f"'{f}'" for f in data_files])
+                query = f"SELECT * FROM {read_function}([{files_str}]) {filter_clause}{order_clause} LIMIT {limit}"
             else:
-                 # Fallback - read parquet files directly, excluding _delta_log
-                 debug_info = f"Boto3 found 0 parquet files (excluding _delta_log). Config: endpoint={endpoint}, bucket={bucket_name}, prefix={prefix}"
+                 # Fallback - read files directly using pattern
+                 debug_info = f"Boto3 found 0 {file_format} files. Config: endpoint={endpoint}, bucket={bucket_name}, prefix={prefix}"
                  print(f"[DEBUG] {debug_info}")
 
-                 if not duck_path.endswith('.parquet'):
-                     # Use glob pattern to match only data files (part-*.parquet), exclude _delta_log
+                 if not duck_path.endswith(file_extension):
+                     # Use glob pattern to match files
                      if not duck_path.endswith('/'):
                          duck_path += '/'
-                     # Delta Lake data files start with 'part-', checkpoint files are in _delta_log/
-                     duck_path += 'part-*.parquet'
-                     print(f"[DEBUG] Reading Delta data files with pattern: {duck_path}")
-                 query = f"SELECT * FROM read_parquet('{duck_path}') {filter_clause}{order_clause} LIMIT {limit}"
+                     duck_path += pattern
+                     print(f"[DEBUG] Reading {file_format} files with pattern: {duck_path}")
+                 query = f"SELECT * FROM {read_function}('{duck_path}') {filter_clause}{order_clause} LIMIT {limit}"
 
         except Exception as e:
             print(f"[DEBUG] Boto3 listing failed: {e}")
-            # Fallback on error - read parquet files directly, excluding _delta_log
-            if not duck_path.endswith('.parquet'):
-                # Use glob pattern to match only data files (part-*.parquet), exclude _delta_log
+            # Fallback on error - read files directly using pattern
+            if file_format == "csv":
+                file_extension = '.csv'
+                read_function = 'read_csv_auto'
+                pattern = '*.csv'
+            elif file_format == "json":
+                file_extension = '.json'
+                read_function = 'read_json_auto'
+                pattern = '*.json'
+            else:  # Default to parquet
+                file_extension = '.parquet'
+                read_function = 'read_parquet'
+                pattern = '*.parquet'
+
+            if not duck_path.endswith(file_extension):
+                # Use glob pattern to match files
                 if not duck_path.endswith('/'):
                     duck_path += '/'
-                # Delta Lake data files start with 'part-', checkpoint files are in _delta_log/
-                duck_path += 'part-*.parquet'
-                print(f"[DEBUG] Reading Delta data files with pattern: {duck_path}")
-            query = f"SELECT * FROM read_parquet('{duck_path}') {filter_clause}{order_clause} LIMIT {limit}"
+                duck_path += pattern
+                print(f"[DEBUG] Reading {file_format} files with pattern: {duck_path}")
+            query = f"SELECT * FROM {read_function}('{duck_path}') {filter_clause}{order_clause} LIMIT {limit}"
 
         try:
             # Execute query
