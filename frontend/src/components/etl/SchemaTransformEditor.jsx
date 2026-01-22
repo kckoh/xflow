@@ -7,7 +7,7 @@ import InlineAIInput from '../ai/InlineAIInput';
 
 /**
  * SchemaTransformEditor - Dual List Box style schema transformation UI
- * 
+ *
  * Props:
  * - sourceSchema: Array of { name, type } - columns from current source
  * - sourceName: string - name of current source (for prefix when duplicates)
@@ -19,6 +19,25 @@ import InlineAIInput from '../ai/InlineAIInput';
  * - onTestStatusChange: (boolean) => void - callback for test status
  * - sourceTabs: ReactNode - tabs for switching between sources
  */
+
+// Normalize type names from various backend formats to frontend format
+const normalizeType = (type) => {
+    if (!type) return 'string';
+    const lowerType = type.toLowerCase();
+    const typeMap = {
+        'int': 'integer',
+        'int32': 'integer',
+        'int64': 'long',
+        'bigint': 'long',
+        'float32': 'float',
+        'float64': 'double',
+        'bool': 'boolean',
+        'str': 'string',
+        'datetime': 'timestamp',
+        'text': 'string',
+    };
+    return typeMap[lowerType] || lowerType;
+};
 export default function SchemaTransformEditor({
     sourceSchema = [],
     sourceName = 'Source',
@@ -64,7 +83,7 @@ export default function SchemaTransformEditor({
         if (sourceSchema && sourceSchema.length > 0) {
             const columns = sourceSchema.map(col => ({
                 name: col.name || col.field,
-                type: col.type || 'string',
+                type: normalizeType(col.type),
                 originalName: col.name || col.field,
             }));
             setBeforeColumns(columns);
@@ -77,17 +96,21 @@ export default function SchemaTransformEditor({
     // Initialize targetSchema from initialTargetSchema only once
     useEffect(() => {
         if (!isInitialized && initialTargetSchema && initialTargetSchema.length > 0) {
-            const initialAfter = initialTargetSchema.map(col => ({
-                ...col,
-                notNull: col.notNull || false,
-                defaultValue: col.defaultValue || '',
-                transform: col.transform || null,
-                transformDisplay: col.transformDisplay || (col.transform ? `${col.transform}` : null),
-                originalName: col.originalName || col.name,
-                originalType: col.originalType || col.type || 'string',  // 원본 타입 보존
-                sourceId: col.sourceId || sourceId,
-                sourceName: col.sourceName || sourceName,
-            }));
+            const initialAfter = initialTargetSchema.map(col => {
+                const normalizedType = normalizeType(col.type);
+                return {
+                    ...col,
+                    type: normalizedType,  // 타입 정규화
+                    notNull: col.notNull || false,
+                    defaultValue: col.defaultValue || '',
+                    transform: col.transform || null,
+                    transformDisplay: col.transformDisplay || (col.transform ? `${col.transform}` : null),
+                    originalName: col.originalName || col.name,
+                    originalType: normalizeType(col.originalType) || normalizedType,  // 원본 타입 보존
+                    sourceId: col.sourceId || sourceId,
+                    sourceName: col.sourceName || sourceName,
+                };
+            });
             onSchemaChange(initialAfter);
             setIsInitialized(true);
         }
@@ -168,12 +191,14 @@ export default function SchemaTransformEditor({
             // Convert dot notation to underscore for MongoDB fields
             const convertedName = c.name.replace(/\./g, '_');
             const convertedOriginalName = c.originalName.replace(/\./g, '_');
+            const normalizedType = normalizeType(c.type);
 
             return {
                 ...c,
                 name: getUniqueColumnName(convertedName),
                 originalName: convertedOriginalName,
-                originalType: c.type || 'string',  // 원본 타입 저장
+                type: normalizedType,  // 타입 명시적 설정
+                originalType: normalizedType,  // 원본 타입 저장
                 notNull: false,
                 defaultValue: '',
                 transform: null,
@@ -203,12 +228,14 @@ export default function SchemaTransformEditor({
             // Convert dot notation to underscore for MongoDB fields
             const convertedName = c.name.replace(/\./g, '_');
             const convertedOriginalName = c.originalName.replace(/\./g, '_');
+            const normalizedType = normalizeType(c.type);
 
             return {
                 ...c,
                 name: getUniqueColumnName(convertedName),
                 originalName: convertedOriginalName,
-                originalType: c.type || 'string',  // 원본 타입 저장
+                type: normalizedType,  // 타입 명시적 설정
+                originalType: normalizedType,  // 원본 타입 저장
                 notNull: false,
                 defaultValue: '',
                 transform: null,
