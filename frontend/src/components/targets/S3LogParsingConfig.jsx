@@ -7,8 +7,11 @@ import {
   AlertCircle,
   PlayCircle,
   Loader2,
+  Sparkles,
 } from "lucide-react";
 import { s3LogApi } from "../../services/s3LogApi";
+import { aiApi } from "../../services/aiApi";
+import { useToast } from "../common/Toast";
 
 /**
  * S3LogParsingConfig Component
@@ -32,6 +35,7 @@ export default function S3LogParsingConfig({
   bucket,
   path,
 }) {
+  const { showToast } = useToast();
   const [regexPattern, setRegexPattern] = useState(initialPattern);
   const [extractedFields, setExtractedFields] = useState([]);
   const [isValidPattern, setIsValidPattern] = useState(true);
@@ -43,6 +47,9 @@ export default function S3LogParsingConfig({
   const [isTestLoading, setIsTestLoading] = useState(false);
   const [testResult, setTestResult] = useState(null);
   const [testError, setTestError] = useState("");
+
+  // AI Pattern Generation state
+  const [isAILoading, setIsAILoading] = useState(false);
 
   // Common log format examples
   const EXAMPLE_PATTERNS = [
@@ -180,13 +187,81 @@ export default function S3LogParsingConfig({
         <label className="block text-sm font-medium text-gray-700">
           Regex Pattern
         </label>
-        <button
-          type="button"
-          onClick={() => setShowExamples(!showExamples)}
-          className="text-xs text-blue-600 hover:text-blue-700 font-medium"
-        >
-          {showExamples ? "Hide Examples" : "Show Examples"}
-        </button>
+        <div className="flex items-center gap-2">
+          <button
+            type="button"
+            onClick={async () => {
+              if (!connectionId || !bucket || !path) {
+                showToast("Connection, bucket, and path are required for AI generation", "error");
+                return;
+              }
+
+              setIsAILoading(true);
+              try {
+                // First, get sample logs from S3
+                const sampleResult = await s3LogApi.testLogParsing({
+                  connection_id: connectionId,
+                  bucket: bucket,
+                  path: path,
+                  custom_regex: null, // No regex yet, just get raw logs
+                  limit: 5,
+                });
+
+                if (!sampleResult.sample_logs || sampleResult.sample_logs.length === 0) {
+                  showToast("No sample logs found. Please check your S3 path.", "error");
+                  return;
+                }
+
+                // Call AI to generate regex pattern
+                const response = await aiApi.generateSQL(
+                  `Generate a Python regex pattern with named groups to parse these log lines:\n\n${sampleResult.sample_logs.join('\n')}`,
+                  {},
+                  "regex_pattern"
+                );
+
+                if (response.sql) {
+                  // Extract regex pattern from response
+                  // The AI might return it wrapped in quotes or code blocks
+                  let pattern = response.sql.trim();
+                  pattern = pattern.replace(/^```.*\n/, '').replace(/\n```$/, '');
+                  pattern = pattern.replace(/^["']|["']$/g, '');
+                  setRegexPattern(pattern);
+                }
+              } catch (error) {
+                console.error("AI regex generation failed:", error);
+                showToast("Failed to generate regex pattern: " + error.message, "error");
+              } finally {
+                setIsAILoading(false);
+              }
+            }}
+            disabled={isAILoading || !connectionId || !bucket || !path}
+            className="flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs font-medium
+                bg-gradient-to-r from-indigo-50 to-purple-50 text-indigo-600
+                hover:from-indigo-100 hover:to-purple-100 transition-all
+                border border-indigo-200/50
+                disabled:opacity-50 disabled:cursor-not-allowed"
+            title="AI Generate Regex Pattern"
+          >
+            {isAILoading ? (
+              <>
+                <div className="animate-spin rounded-full h-3.5 w-3.5 border-b-2 border-indigo-600"></div>
+                <span>Generating...</span>
+              </>
+            ) : (
+              <>
+                <Sparkles size={14} />
+                <span>AI</span>
+              </>
+            )}
+          </button>
+          <button
+            type="button"
+            onClick={() => setShowExamples(!showExamples)}
+            className="text-xs text-blue-600 hover:text-blue-700 font-medium"
+          >
+            {showExamples ? "Hide Examples" : "Show Examples"}
+          </button>
+        </div>
       </div>
 
       {/* Example Patterns */}
@@ -233,11 +308,10 @@ export default function S3LogParsingConfig({
           onChange={(e) => setRegexPattern(e.target.value)}
           placeholder="Enter regex pattern with named groups, e.g., ^(?P<client_ip>\S+) .* \[(?P<timestamp>.*?)\] (?P<status>\d+)"
           rows={4}
-          className={`w-full px-3 py-2 border rounded-lg font-mono text-xs focus:outline-none focus:ring-2 ${
-            isValidPattern
-              ? "border-gray-300 focus:ring-blue-500"
-              : "border-red-500 focus:ring-red-500"
-          }`}
+          className={`w-full px-3 py-2 border rounded-lg font-mono text-xs focus:outline-none focus:ring-2 ${isValidPattern
+            ? "border-gray-300 focus:ring-blue-500"
+            : "border-red-500 focus:ring-red-500"
+            }`}
         />
 
         {/* Validation Status */}
