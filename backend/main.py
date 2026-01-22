@@ -36,6 +36,7 @@ from routers import (
     metadata,
     opensearch,
     s3_logs_preview,
+    s3_csv_preview,
     source_datasets,
     sql_test,
     users,
@@ -129,6 +130,9 @@ app.include_router(source_datasets.router, tags=["source-datasets"])
 
 # S3 Logs Preview (S3 log parsing test)
 app.include_router(s3_logs_preview.router, prefix="/api/s3-logs", tags=["s3-logs"])
+
+# S3 CSV Preview (S3 CSV schema extraction)
+app.include_router(s3_csv_preview.router, prefix="/api/s3-csv", tags=["s3-csv"])
 
 # DuckDB Query Engine
 app.include_router(duckdb.router, prefix="/api/duckdb", tags=["duckdb"])

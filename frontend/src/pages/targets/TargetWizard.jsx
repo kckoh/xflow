@@ -382,8 +382,14 @@ export default function TargetWizard() {
             sourceDatasetId: source.id,
           };
 
-          // S3 source인 경우에만 customRegex 추가
+          // S3 source인 경우 format, customRegex, bucket, path, connection_id 추가
           if (source.source_type === "s3") {
+            nodeData.format = source.format || "log";
+            nodeData.bucket = source.bucket;
+            nodeData.path = source.path;
+            nodeData.connection_id = source.connection_id;
+            nodeData.source_type = source.source_type;
+
             const sourceCustomRegex =
               source.custom_regex ||
               source.customRegex ||
