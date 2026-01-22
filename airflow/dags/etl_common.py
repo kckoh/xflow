@@ -580,6 +580,12 @@ def calculate_and_update_dataset_size(db, dataset_id, s3_client):
         parts = path.split('/', 1)
         bucket = parts[0]
         prefix = parts[1] if len(parts) > 1 else ''
+
+        # If prefix is empty or just "/", append dataset name
+        if not prefix or prefix == '/' or prefix.strip() == '':
+            prefix = f"{dataset_name}/"
+            print(f"   [Auto-fix] Using dataset name as prefix: {prefix}")
+
         # Ensure trailing slash to match exact directory (prevents matching similar prefixes)
         if prefix and not prefix.endswith('/'):
             prefix = prefix + '/'
@@ -708,6 +714,12 @@ def finalize_import(**context):
                 parts = path.split('/', 1)
                 bucket = parts[0]
                 prefix = parts[1] if len(parts) > 1 else ''
+
+                # If prefix is empty or just "/", append dataset name
+                if not prefix or prefix == '/' or prefix.strip() == '':
+                    prefix = f"{dataset_name}/"
+                    # print(f"   [Auto-fix] Using dataset name as prefix: {prefix}")
+
                 # Ensure trailing slash to match exact directory (prevents matching similar prefixes)
                 if prefix and not prefix.endswith('/'):
                     prefix = prefix + '/'
