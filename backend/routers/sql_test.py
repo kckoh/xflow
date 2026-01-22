@@ -753,7 +753,7 @@ async def _load_sample_data(
             else:  # Default to parquet
                 file_extension = '.parquet'
                 read_function = 'read_parquet'
-                pattern = 'part-*.parquet'
+                pattern = '*.parquet'
 
             data_files = []
             if 'Contents' in response:
@@ -798,7 +798,7 @@ async def _load_sample_data(
             else:  # Default to parquet
                 file_extension = '.parquet'
                 read_function = 'read_parquet'
-                pattern = 'part-*.parquet'
+                pattern = '*.parquet'
 
             if not duck_path.endswith(file_extension):
                 # Use glob pattern to match files

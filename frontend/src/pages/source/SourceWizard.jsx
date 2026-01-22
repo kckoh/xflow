@@ -34,6 +34,7 @@ import APISourceConfig from "../../components/sources/APISourceConfig";
 import S3LogParsingConfig from "../../components/targets/S3LogParsingConfig";
 import S3CSVPreviewConfig from "../../components/sources/S3CSVPreviewConfig";
 import S3JSONPreviewConfig from "../../components/sources/S3JSONPreviewConfig";
+import S3ParquetPreviewConfig from "../../components/sources/S3ParquetPreviewConfig";
 
 const STEPS = [
   { id: 1, name: "Select Source", icon: Database },
@@ -1042,8 +1043,7 @@ export default function SourceWizard() {
                       }}
                     />
                     <p className="mt-1 text-xs text-gray-500">
-                      Log는 정규식 파싱으로 스키마를 추론하고, Parquet는 파일
-                      스키마를 자동 추론합니다.
+                      S3 supports Log, CSV, JSON, and Parquet Formats
                     </p>
 
                     <div className="mt-4" />
@@ -1117,6 +1117,26 @@ export default function SourceWizard() {
                       config.path && (
                         <div className="mt-6">
                           <S3JSONPreviewConfig
+                            connectionId={config.connectionId}
+                            bucket={config.bucket}
+                            path={config.path}
+                            onColumnsChange={(columns) => {
+                              setConfig((prev) => ({
+                                ...prev,
+                                columns: columns,
+                              }));
+                            }}
+                          />
+                        </div>
+                      )}
+
+                    {/* S3 Parquet Preview - Only for parquet format */}
+                    {config.format === "parquet" &&
+                      config.connectionId &&
+                      config.bucket &&
+                      config.path && (
+                        <div className="mt-6">
+                          <S3ParquetPreviewConfig
                             connectionId={config.connectionId}
                             bucket={config.bucket}
                             path={config.path}
