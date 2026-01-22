@@ -1043,8 +1043,7 @@ export default function SourceWizard() {
                       }}
                     />
                     <p className="mt-1 text-xs text-gray-500">
-                      Log는 정규식 파싱으로 스키마를 추론하고, Parquet는 파일
-                      스키마를 자동 추론합니다.
+                      S3 supports Log, CSV, JSON, and Parquet Formats
                     </p>
 
                     <div className="mt-4" />
