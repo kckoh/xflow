@@ -580,8 +580,9 @@ def calculate_and_update_dataset_size(db, dataset_id, s3_client):
         parts = path.split('/', 1)
         bucket = parts[0]
         prefix = parts[1] if len(parts) > 1 else ''
-        # Remove trailing slash for consistency (matches Backend approach)
-        prefix = prefix.rstrip('/')
+        # Ensure trailing slash to match exact directory (prevents matching similar prefixes)
+        if prefix and not prefix.endswith('/'):
+            prefix = prefix + '/'
 
         # Calculate total size with pagination and retry logic
         total_size = 0
@@ -707,8 +708,9 @@ def finalize_import(**context):
                 parts = path.split('/', 1)
                 bucket = parts[0]
                 prefix = parts[1] if len(parts) > 1 else ''
-                # Remove trailing slash for consistency (matches Backend approach)
-                prefix = prefix.rstrip('/')
+                # Ensure trailing slash to match exact directory (prevents matching similar prefixes)
+                if prefix and not prefix.endswith('/'):
+                    prefix = prefix + '/'
 
                 # Calculate total size with pagination and retry logic
                 total_size = 0
