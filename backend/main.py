@@ -38,6 +38,7 @@ from routers import (
     s3_logs_preview,
     s3_csv_preview,
     s3_json_preview,
+    s3_parquet_preview,
     source_datasets,
     sql_test,
     users,
@@ -137,6 +138,9 @@ app.include_router(s3_csv_preview.router, prefix="/api/s3-csv", tags=["s3-csv"])
 
 # S3 JSON Preview (S3 JSON schema extraction)
 app.include_router(s3_json_preview.router, prefix="/api/s3-json", tags=["s3-json"])
+
+# S3 Parquet Preview (S3 Parquet schema extraction)
+app.include_router(s3_parquet_preview.router, prefix="/api/s3-parquet", tags=["s3-parquet"])
 
 # DuckDB Query Engine
 app.include_router(duckdb.router, prefix="/api/duckdb", tags=["duckdb"])
