@@ -707,7 +707,7 @@ async def generate_regex_from_s3_logs(request: GenerateRegexRequest):
         bedrock_service = get_bedrock_service()
         regex_pattern = bedrock_service.generate_sql(
             question="Generate a Python regex pattern with named groups to parse these log lines",
-            prompt_type="regex_pattern",
+            prompt_type="regex_pattern_log",
             metadata={"sample_logs": log_lines[:request.limit]}
         )
 

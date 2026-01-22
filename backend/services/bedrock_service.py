@@ -107,7 +107,7 @@ class BedrockService:
                 columns=metadata.get('columns', []),
                 question=question
             )
-        elif prompt_type == 'regex_pattern':
+        elif prompt_type == 'regex_pattern_log':
             prompt = self._get_regex_pattern_prompt(
                 sample_logs=metadata.get('sample_logs', []),
                 question=question
