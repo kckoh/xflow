@@ -911,10 +911,9 @@ def read_s3_file_source(spark: SparkSession, source_config: dict) -> DataFrame:
 
     # Read based on format
     if file_format.lower() == "parquet":
-        # Handle various timestamp formats (pandas nanosecond, legacy formats, etc.)
+        # Handle pandas nanosecond timestamps
         df = spark.read \
-            .option("spark.sql.parquet.datetimeRebaseModeInRead", "CORRECTED") \
-            .option("spark.sql.parquet.int96RebaseModeInRead", "CORRECTED") \
+            .option("spark.sql.legacy.parquet.nanosAsLong", "true") \
             .parquet(path)
     elif file_format.lower() == "csv":
         df = spark.read.option("header", "true").option("inferSchema", "true").csv(path)
