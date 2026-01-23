@@ -352,13 +352,19 @@ function LandingPage() {
                     <div>
                         <h2 className="text-3xl md:text-4xl font-medium mb-4">Meet the Team</h2>
                         <p className="text-[#5F6368] text-lg max-w-xl">
-                            XFlow is built by a team of data enthusiasts and engineers who are passionate about making data accessible and easy to use.
+                            XFlow is built by a team who are passionate about making data accessible and easy to use.
                         </p>
                     </div>
                     {/* Navigation Buttons */}
                     <div className="hidden md:flex gap-4">
                         <button
-                            onClick={() => document.getElementById('persona-scroll').scrollTo({ left: 0, behavior: 'smooth' })}
+                            onClick={() => {
+                                const el = document.getElementById('persona-scroll');
+                                const cardWidth = el.querySelector('a').offsetWidth;
+                                const gap = 24; // gap-6 = 24px
+                                const scrollAmount = (cardWidth + gap) * 2; // 2 cards
+                                el.scrollBy({ left: -scrollAmount, behavior: 'smooth' });
+                            }}
                             className="w-12 h-12 rounded-full bg-gray-100 hover:bg-gray-200 flex items-center justify-center transition-colors"
                         >
                             <ChevronLeft size={24} />
@@ -366,7 +372,10 @@ function LandingPage() {
                         <button
                             onClick={() => {
                                 const el = document.getElementById('persona-scroll');
-                                el.scrollTo({ left: el.scrollWidth, behavior: 'smooth' });
+                                const cardWidth = el.querySelector('a').offsetWidth;
+                                const gap = 24; // gap-6 = 24px
+                                const scrollAmount = (cardWidth + gap) * 2; // 2 cards
+                                el.scrollBy({ left: scrollAmount, behavior: 'smooth' });
                             }}
                             className="w-12 h-12 rounded-full bg-gray-100 hover:bg-gray-200 flex items-center justify-center transition-colors"
                         >
@@ -382,7 +391,12 @@ function LandingPage() {
                     style={{ scrollbarWidth: 'none', msOverflowStyle: 'none' }}
                 >
                     {/* Card 1: PM & Fullstack Developer*/}
-                    <div className="min-w-[85vw] md:min-w-[500px] snap-center">
+                    <a
+                        href="https://www.linkedin.com/in/kyungcheol-koh/"
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="min-w-[85vw] md:min-w-[500px] snap-center block cursor-pointer"
+                    >
                         <div className="aspect-[16/10] bg-[#F1F3F4] rounded-[32px] relative overflow-hidden group mb-6">
                             <img
                                 src={kc}
@@ -398,13 +412,15 @@ function LandingPage() {
                             </div>
                         </div>
                         <h4 className="text-xl font-medium mb-2">Ko Gyung Chul</h4>
-                        <p className="text-[#5F6368]">
-                            linkedin.com/in/ko-gyung-chul
-                        </p>
-                    </div>
+                    </a>
 
                     {/* Card 2:Fullstack Developer */}
-                    <div className="min-w-[85vw] md:min-w-[500px] snap-center">
+                    <a
+                        href="https://www.linkedin.com/in/민호-김-9a9280396/"
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="min-w-[85vw] md:min-w-[500px] snap-center block cursor-pointer"
+                    >
                         <div className="aspect-[16/10] bg-[#E8F0FE] rounded-[32px] relative overflow-hidden group mb-6">
                             <img
                                 src={mh}
@@ -419,14 +435,16 @@ function LandingPage() {
                                 <ArrowRight size={16} />
                             </div>
                         </div>
-                        <h4 className="text-xl font-medium mb-2">Kim Min ho</h4>
-                        <p className="text-[#5F6368]">
-                            linkedin.com/in/minho-kim
-                        </p>
-                    </div>
+                        <h4 className="text-xl font-medium mb-2">Kim Min Ho</h4>
+                    </a>
 
                     {/* Card 3: Fullstack Developer */}
-                    <div className="min-w-[85vw] md:min-w-[500px] snap-center">
+                    <a
+                        href="https://www.linkedin.com/in/상천-이-a04621397/"
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="min-w-[85vw] md:min-w-[500px] snap-center block cursor-pointer"
+                    >
                         <div className="aspect-[16/10] bg-[#F3E8FD] rounded-[32px] relative overflow-hidden group mb-6">
                             <img
                                 src={sc}
@@ -442,12 +460,14 @@ function LandingPage() {
                             </div>
                         </div>
                         <h4 className="text-xl font-medium mb-2">Lee Sang Chan</h4>
-                        <p className="text-[#5F6368]">
-                            linkedin.com/in/lee-sang-chan
-                        </p>
-                    </div>
+                    </a>
                     {/* Card 4: Fullstack Developer */}
-                    <div className="min-w-[85vw] md:min-w-[500px] snap-center">
+                    <a
+                        href="https://www.linkedin.com/in/junyeop-song-b7b6b2283/"
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="min-w-[85vw] md:min-w-[500px] snap-center block cursor-pointer"
+                    >
                         <div className="aspect-[16/10] bg-[#E6F4EA] rounded-[32px] relative overflow-hidden group mb-6">
                             <img
                                 src={jy}
@@ -456,19 +476,21 @@ function LandingPage() {
                             />
                             <div className="absolute inset-0 bg-black/20 group-hover:bg-black/10 transition-colors duration-500" />
                             <div className="absolute inset-0 flex items-center justify-center">
-                                <h3 className="text-2xl md:text-3xl font-medium text-white drop-shadow-lg">Fullstack Developer</h3>
+                                <h3 className="text-3xl md:text-4xl font-medium text-white drop-shadow-lg">Fullstack Developer</h3>
                             </div>
                             <div className="absolute bottom-6 right-6 w-10 h-10 bg-white/30 backdrop-blur rounded-full flex items-center justify-center text-white">
                                 <ArrowRight size={16} />
                             </div>
                         </div>
                         <h4 className="text-xl font-medium mb-2">Song Jun Yeop</h4>
-                        <p className="text-[#5F6368]">
-                            linkedin.com/in/song-jun-yeop
-                        </p>
-                    </div>
+                    </a>
                     {/* Card 5:Fullstack Developer */}
-                    <div className="min-w-[85vw] md:min-w-[500px] snap-center">
+                    <a
+                        href="https://www.linkedin.com/in/sunkyu-hong-3b23b1381/"
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="min-w-[85vw] md:min-w-[500px] snap-center block cursor-pointer"
+                    >
                         <div className="aspect-[16/10] bg-[#FEF7E0] rounded-[32px] relative overflow-hidden group mb-6">
                             <img
                                 src={sk}
@@ -483,11 +505,8 @@ function LandingPage() {
                                 <ArrowRight size={16} />
                             </div>
                         </div>
-                        <h4 className="text-xl font-medium mb-2">Hong Soon kyu</h4>
-                        <p className="text-[#5F6368]">
-                            linkedin.com/in/hong-soon-kyu
-                        </p>
-                    </div>
+                        <h4 className="text-xl font-medium mb-2">Hong Soon Kyu</h4>
+                    </a>
                 </div>
             </section>
 
@@ -517,7 +536,7 @@ function LandingPage() {
                 <div className="flex gap-8 text-sm text-[#5F6368]">
                     <button className="hover:text-[#202124]">Privacy</button>
                     <button className="hover:text-[#202124]">Terms</button>
-                    <button className="hover:text-[#202124]">Tel: 999-9999-9999</button>
+                    <button className="hover:text-[#202124]">Tel: 010-4819-4258</button>
                 </div>
                 <div className="text-sm text-[#9AA0A6]">
                     © 2026 XFlow
