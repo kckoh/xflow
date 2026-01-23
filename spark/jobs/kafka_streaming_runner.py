@@ -117,6 +117,38 @@ def _write_batch(batch_df, batch_id: int, output_path: str) -> None:
     batch_df.write.format("delta").mode("append").option("mergeSchema", "true").save(output_path)
 
 
+def _write_batch_with_query(batch_df, batch_id: int, output_path: str, query: str) -> None:
+    """Write batch with SQL query applied"""
+    if batch_df.rdd.isEmpty():
+        logger.info("Batch %s empty; no records to write", batch_id)
+        return
+
+    spark = batch_df.sparkSession
+    
+    # Create temp view for SQL query
+    batch_df.createOrReplaceTempView("input")
+    
+    # Apply SQL query
+    result_df = spark.sql(query)
+    
+    if result_df.rdd.isEmpty():
+        logger.info("Batch %s empty after query; no records to write", batch_id)
+        return
+
+    if "_corrupt_record" in result_df.columns:
+        corrupt_count = result_df.filter(col("_corrupt_record").isNotNull()).count()
+        if corrupt_count:
+            logger.warning("Batch %s has %s corrupt records", batch_id, corrupt_count)
+        result_df = result_df.filter(col("_corrupt_record").isNull()).drop("_corrupt_record")
+        if result_df.rdd.isEmpty():
+            logger.info("Batch %s had only corrupt records", batch_id)
+            return
+
+    result_df = _normalize_for_delta(result_df, output_path)
+    result_df.write.format("delta").mode("append").option("mergeSchema", "true").save(output_path)
+    logger.info("Batch %s written with query applied: %s records", batch_id, result_df.count())
+
+
 def _load_existing_schema(spark, output_path: str):
     try:
         return spark.read.format("delta").load(output_path).schema
@@ -179,9 +211,25 @@ def _process_batch(batch_df, batch_id: int, output_path: str, base_query: str) -
     _write_batch(result_df, batch_id, output_path)
 
 
-def _escape_at_identifiers(query: str) -> str:
-    if not query or "@" not in query:
+def _normalize_identifiers(query: str) -> str:
+    """Replace double quotes with backticks for identifiers outside strings."""
+    if not query or '"' not in query:
         return query
+
+    # Split by single quotes to avoid touching string literals
+    parts = query.split("'")
+    for i in range(0, len(parts), 2):
+        # In non-string segments, replace " with `
+        parts[i] = parts[i].replace('"', '`')
+    return "'".join(parts)
+
+
+def _escape_at_identifiers(query: str) -> str:
+    if not query or ("@" not in query and '"' not in query):
+        return query
+
+    # Normalize double quotes to backticks first
+    query = _normalize_identifiers(query)
 
     parts = query.split("'")
     for i in range(0, len(parts), 2):
@@ -349,7 +397,42 @@ def run_streaming_job(config: dict):
     json_df = kafka_df.selectExpr("CAST(value AS STRING) as json_str")
 
     if source_format == "raw":
-        input_df = json_df.select(col("json_str").alias("raw_value"))
+        custom_regex = config.get("custom_regex")
+        custom_regex = config.get("custom_regex")
+        if custom_regex:
+            # 1. Parse regex pattern to find group names
+            try:
+                pattern = re.compile(custom_regex)
+                group_map = pattern.groupindex  # {'ip': 1, 'date': 2}
+                pattern = re.compile(custom_regex)
+                group_map = pattern.groupindex  # {'ip': 1, 'date': 2}
+            except Exception as e:
+                logger.warning(f"Invalid regex pattern: {e}")
+                group_map = {}
+
+            if group_map:
+                # 2. Build select expressions using regexp_extract
+                from pyspark.sql.functions import regexp_extract
+                
+                # Convert Python regex (?P<name>...) to plain groups (...) for Spark
+                # Spark's regexp_extract only supports numbered groups, not named groups
+                spark_regex = re.sub(r'\(\?P<[^>]+>', '(', custom_regex)
+                
+                # Add json_str to see actual Kafka messages
+                exprs = [col("json_str")]
+                for name, idx in group_map.items():
+                    exprs.append(regexp_extract(col("json_str"), spark_regex, idx).alias(name))
+                
+                input_df = json_df.select(*exprs)
+                
+                # Check if auto_schema should be enabled for regex
+                if not auto_schema: 
+                     # Using regex implies we want to inspect the fields like auto_schema
+                     pass 
+            else:
+                input_df = json_df.select(col("json_str").alias("raw_value"))
+        else:
+            input_df = json_df.select(col("json_str").alias("raw_value"))
     elif auto_schema:
         input_df = json_df
     elif source_schema:
@@ -369,10 +452,8 @@ def run_streaming_job(config: dict):
     schema_columns = [c.get("name") for c in (config.get("source_schema") or []) if c.get("name")]
     query = _escape_at_identifiers(query)
     if schema_columns and not auto_schema:
-        query = _adjust_query_for_schema(query, schema_columns)
-
-    if not (auto_schema and source_format == "json"):
-        result_df = spark.sql(query)
+        # Disable automatic schema adjustment as it strips custom transformations (COALESCE, etc.)
+        pass
 
     output_path = _build_output_path(destination, dataset_name)
     checkpoint_path = destination.get("checkpoint_path") or f"s3a://xflows-output/checkpoints/{dataset_id}/"
@@ -384,10 +465,11 @@ def run_streaming_job(config: dict):
             .foreachBatch(lambda df, batch_id: _process_batch(df, batch_id, output_path, query)) \
             .start()
     else:
-        query_handle = result_df.writeStream \
+        # For raw format, also apply query in foreachBatch
+        query_handle = input_df.writeStream \
             .outputMode("append") \
             .option("checkpointLocation", checkpoint_path) \
-            .foreachBatch(lambda df, batch_id: _write_batch(df, batch_id, output_path)) \
+            .foreachBatch(lambda df, batch_id: _write_batch_with_query(df, batch_id, output_path, query)) \
             .start()
 
     logger.info("Streaming query started")

@@ -32,7 +32,7 @@ class SourceDatasetCreate(BaseModel):
 
     # Kafka specific
     topic: Optional[str] = None
-
+    customRegex: Optional[str] = None
 
 class SourceDatasetUpdate(BaseModel):
     name: Optional[str] = None
@@ -61,6 +61,7 @@ class SourceDatasetUpdate(BaseModel):
 
     # Kafka specific
     topic: Optional[str] = None
+    customRegex: Optional[str] = None
 
 
 class SourceDatasetResponse(BaseModel):
@@ -87,6 +88,7 @@ class SourceDatasetResponse(BaseModel):
 
     # Kafka specific
     topic: Optional[str] = None
+    customRegex: Optional[str] = None
 
     created_at: datetime
     updated_at: datetime

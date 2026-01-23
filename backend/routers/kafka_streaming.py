@@ -3,6 +3,7 @@ from beanie import PydanticObjectId
 from bson import ObjectId
 import logging
 import re
+import os
 
 import database
 from models import Dataset, JobRun
@@ -122,6 +123,7 @@ async def start_streaming_job(dataset_id: str):
         "format": source_format,
         "auto_schema": auto_schema,
         "destination": destination,
+        "custom_regex": source_dataset.get("customRegex") or source_dataset.get("custom_regex"),
     }
 
     app_name = f"kafka-stream-{dataset_id}"
@@ -146,7 +148,13 @@ async def start_streaming_job(dataset_id: str):
         
         logger.info(f"[Streaming] Registering Trino table: {glue_table_name}")
         try:
-            success = register_delta_table(glue_table_name, s3_path)
+            if os.getenv("ENVIRONMENT") == "local":
+                # Skip Trino registration in local environment to avoid network crashes
+                success = True
+                logger.info(f"[Streaming] Trino registration SKIPPED (local environment)")
+            else:
+                success = register_delta_table(glue_table_name, s3_path)
+            
             if success:
                 logger.info(f"[Streaming] ✅ Trino table registered: {glue_table_name}")
             else:
@@ -154,6 +162,10 @@ async def start_streaming_job(dataset_id: str):
         except Exception as e:
             logger.error(f"[Streaming] ❌ Trino registration error: {e}")
             # Don't fail the streaming job if Trino registration fails
+
+    # Mark dataset as active and import_ready so it shows up in Catalog
+    dataset.import_ready = True
+    await dataset.save()
 
     # Create JobRun record for tracking
     job_run = JobRun(
