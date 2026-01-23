@@ -401,6 +401,24 @@ def read_nosql_source(spark: SparkSession, source_config: dict) -> DataFrame:
     else:
         raise ValueError(f"Unsupported NoSQL database type: {db_type}")
 
+    # Incremental Load: Filter by timestamp column
+    incremental_config = source_config.get("incremental_config", {})
+    if incremental_config.get("enabled"):
+        # Check for updated_at first (for SCD Type 2)
+        updated_at_col = incremental_config.get("updated_at_column")
+        created_at_col = incremental_config.get("created_at_column")
+        # Backwards compatibility with old timestamp_column field
+        timestamp_col = incremental_config.get("timestamp_column")
+
+        last_sync = incremental_config.get("last_sync_timestamp")
+
+        # Priority: updated_at > created_at > timestamp_column (backwards compat)
+        filter_column = updated_at_col or created_at_col or timestamp_col
+
+        if filter_column and last_sync:
+            print(f"   [Incremental] Filtering data: {filter_column} > '{last_sync}'")
+            df = df.filter(f"{filter_column} > '{last_sync}'")
+
     return df
 
 
@@ -909,25 +927,125 @@ def read_s3_file_source(spark: SparkSession, source_config: dict) -> DataFrame:
         # No credentials - use Spark's global credentials (IRSA)
         print("   Using Spark's global S3 credentials (IRSA)")
 
-    # Read based on format
-    if file_format.lower() == "parquet":
-        # Handle pandas nanosecond timestamps
-        df = spark.read \
-            .option("spark.sql.legacy.parquet.nanosAsLong", "true") \
-            .parquet(path)
-    elif file_format.lower() == "csv":
-        df = spark.read.option("header", "true").option("inferSchema", "true").csv(path)
-    elif file_format.lower() == "json":
-        df = spark.read.json(path)
-    elif file_format.lower() == "log":
-        # Parse log files with regex
-        custom_regex = source_config.get("customRegex")
-        if not custom_regex:
-            raise ValueError("customRegex is required for log file format")
+    # Check for incremental load (CSV/JSON only - Hybrid file + record filtering)
+    incremental_config = source_config.get("incremental_config", {})
 
-        df = parse_log_files_with_regex(spark, path, custom_regex)
+    if (incremental_config.get("enabled") and
+        incremental_config.get("last_sync_timestamp") and
+        file_format.lower() in ["csv", "json"]):
+
+        from datetime import datetime, timedelta
+        import boto3
+        from urllib.parse import urlparse
+
+        last_sync_str = incremental_config.get("last_sync_timestamp")
+        last_sync = datetime.fromisoformat(last_sync_str.replace("Z", "+00:00"))
+
+        # Grace period: files that might still be updated
+        grace_period = timedelta(hours=1)
+        grace_cutoff = last_sync - grace_period
+
+        print(f"   [Incremental] Hybrid filtering: file-level + record-level")
+        print(f"      last_sync: {last_sync}")
+        print(f"      grace_period: {grace_period}")
+
+        # Parse bucket from path
+        parsed = urlparse(path)
+        bucket_name = parsed.netloc
+        prefix = parsed.path.lstrip('/')
+
+        # Initialize S3 client
+        boto3_kwargs = {}
+        if access_key and secret_key:
+            boto3_kwargs["aws_access_key_id"] = access_key
+            boto3_kwargs["aws_secret_access_key"] = secret_key
+            if endpoint and endpoint.startswith("http://"):
+                boto3_kwargs["endpoint_url"] = endpoint
+
+        s3_client = boto3.client("s3", **boto3_kwargs)
+
+        # List all files in the path
+        response = s3_client.list_objects_v2(Bucket=bucket_name, Prefix=prefix)
+
+        new_files = []  # Files created after last_sync (read all records)
+        recent_files = []  # Files within grace period (read with timestamp filter)
+
+        if "Contents" in response:
+            for obj in response["Contents"]:
+                # Skip directories
+                if obj["Key"].endswith("/"):
+                    continue
+
+                file_modified = obj["LastModified"].replace(tzinfo=None)
+                file_path = f"s3a://{bucket_name}/{obj['Key']}"
+
+                if file_modified > last_sync:
+                    new_files.append(file_path)
+                    print(f"      [New file] {obj['Key']} (modified: {file_modified})")
+                elif file_modified > grace_cutoff:
+                    recent_files.append(file_path)
+                    print(f"      [Recent file] {obj['Key']} (modified: {file_modified})")
+                # Older files are skipped
+
+        # Read files based on format
+        dfs = []
+
+        # Read new files (all records)
+        if new_files:
+            print(f"   [Incremental] Reading {len(new_files)} new files (all records)")
+            for file_path in new_files:
+                if file_format.lower() == "csv":
+                    file_df = spark.read.option("header", "true").option("inferSchema", "true").csv(file_path)
+                else:  # json
+                    file_df = spark.read.json(file_path)
+                dfs.append(file_df)
+
+        # Read recent files (with timestamp filter)
+        if recent_files:
+            timestamp_field = incremental_config.get("updated_at_column") or incremental_config.get("created_at_column") or "timestamp"
+            print(f"   [Incremental] Reading {len(recent_files)} recent files (filter: {timestamp_field} > '{last_sync}')")
+            for file_path in recent_files:
+                if file_format.lower() == "csv":
+                    file_df = spark.read.option("header", "true").option("inferSchema", "true").csv(file_path)
+                else:  # json
+                    file_df = spark.read.json(file_path)
+                # Filter by timestamp
+                file_df = file_df.filter(f"{timestamp_field} > '{last_sync}'")
+                dfs.append(file_df)
+
+        if dfs:
+            # Union all DataFrames
+            df = dfs[0]
+            for other_df in dfs[1:]:
+                df = df.union(other_df)
+        else:
+            # No files to process - create empty DataFrame with schema from first file
+            print(f"   [Incremental] No new or recent files to process")
+            if file_format.lower() == "csv":
+                df = spark.read.option("header", "true").option("inferSchema", "true").csv(path).limit(0)
+            else:  # json
+                df = spark.read.json(path).limit(0)
+
     else:
-        raise ValueError(f"Unsupported file format: {file_format}")
+        # No incremental load - read all files normally
+        if file_format.lower() == "parquet":
+            # Handle pandas nanosecond timestamps
+            df = spark.read \
+                .option("spark.sql.legacy.parquet.nanosAsLong", "true") \
+                .parquet(path)
+        elif file_format.lower() == "csv":
+            df = spark.read.option("header", "true").option("inferSchema", "true").csv(path)
+        elif file_format.lower() == "json":
+            df = spark.read.json(path)
+        elif file_format.lower() == "log":
+            # Parse log files with regex
+            custom_regex = source_config.get("customRegex")
+            if not custom_regex:
+                raise ValueError("customRegex is required for log file format")
+
+            df = parse_log_files_with_regex(spark, path, custom_regex)
+        else:
+            raise ValueError(f"Unsupported file format: {file_format}")
 
     record_count = df.count()
     print(f"   ✅ Read {record_count} records from {file_format.upper()} files")
