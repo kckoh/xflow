@@ -63,10 +63,10 @@ function LandingPage() {
 
             {/* Navigation (Minimalist) */}
             <nav className="fixed top-0 left-0 right-0 z-50 bg-white/80 backdrop-blur-md transition-all duration-300">
-                <div className="max-w-[1440px] mx-auto px-6 h-16 flex items-center justify-between">
-                    <div className="flex items-center gap-2">
-                        <img src={icon} alt="XFlow" className="h-10" />
-                        <h1 className="text-2xl font-bold">XFlow</h1>
+                <div className="max-w-[1440px] mx-auto px-4 sm:px-6 h-14 sm:h-16 flex items-center justify-between">
+                    <div className="flex items-center gap-1.5 sm:gap-2">
+                        <img src={icon} alt="XFlow" className="h-8 sm:h-10" />
+                        <h1 className="text-xl sm:text-2xl font-bold">XFlow</h1>
                     </div>
                     <div className="hidden md:flex items-center gap-8 text-sm font-medium text-[#5F6368]">
                         <a href="#solutions" className="hover:text-[#202124] transition-colors">Solutions</a>
@@ -74,7 +74,7 @@ function LandingPage() {
                     </div>
                     <button
                         onClick={() => navigate("/login")}
-                        className="bg-[#202124] text-white px-6 py-2.5 rounded-full text-sm font-medium hover:bg-gray-800 transition-colors"
+                        className="bg-[#202124] text-white px-4 sm:px-6 py-2 sm:py-2.5 rounded-full text-xs sm:text-sm font-medium hover:bg-gray-800 transition-colors"
                     >
                         Start XFlow
                     </button>
@@ -82,14 +82,14 @@ function LandingPage() {
             </nav>
 
             {/* Hero Section */}
-            <section className="relative pt-32 pb-24 px-6 flex flex-col items-center justify-center text-center overflow-hidden">
+            <section className="relative pt-20 sm:pt-32 pb-12 sm:pb-24 px-4 sm:px-6 flex flex-col items-center justify-center text-center overflow-hidden">
                 {/* Subtle Background Particles */}
                 <div className="absolute inset-0 z-0 pointer-events-none">
-                    <div className="absolute top-20 left-[20%] w-72 h-72 bg-blue-100/50 rounded-full blur-3xl mix-blend-multiply animate-pulse" />
-                    <div className="absolute bottom-20 right-[20%] w-96 h-96 bg-purple-100/50 rounded-full blur-3xl mix-blend-multiply animate-pulse delay-1000" />
+                    <div className="absolute top-20 left-[10%] sm:left-[20%] w-48 sm:w-72 h-48 sm:h-72 bg-blue-100/50 rounded-full blur-3xl mix-blend-multiply animate-pulse" />
+                    <div className="absolute bottom-20 right-[10%] sm:right-[20%] w-64 sm:w-96 h-64 sm:h-96 bg-purple-100/50 rounded-full blur-3xl mix-blend-multiply animate-pulse delay-1000" />
                 </div>
 
-                <div className="relative z-10 max-w-5xl mx-auto flex flex-col items-center justify-center min-h-[calc(100vh-100px)]">
+                <div className="relative z-10 max-w-5xl mx-auto flex flex-col items-center justify-center min-h-[calc(100vh-80px)] sm:min-h-[calc(100vh-100px)]">
                     <style>{`
                         @keyframes shimmer-rain {
                             0% { transform: translateY(-50px); opacity: 0; }
@@ -124,10 +124,10 @@ function LandingPage() {
                             border-radius: 50%;
                         }
                     `}</style>
-                    <br /><br /><br />
+                    <br className="hidden sm:block" /><br className="hidden sm:block" /><br />
                     <div className="relative mb-4 group w-full flex justify-center">
                         {/* Base Logo (Black) - Acts as the container shape */}
-                        <div className="relative h-48 md:h-48 w-auto aspect-[7/2]">
+                        <div className="relative h-24 sm:h-36 md:h-48 w-auto aspect-[7/2]">
                             {/* 1. The Mask Container: Everything inside here is clipped to the logo shape */}
                             <div
                                 className="absolute inset-0 z-10"
@@ -190,36 +190,36 @@ function LandingPage() {
                             <img src={logo} alt="XFlow" className="h-full w-auto object-contain opacity-0 pointer-events-none" />
                         </div>
                     </div>
-                    <br />
-                    <h1 className="text-5xl md:text-7xl font-[500] tracking-tight leading-[1.1] mb-6 text-[#202124]">
+                    <br className="hidden sm:block" />
+                    <h1 className="text-3xl sm:text-4xl md:text-5xl lg:text-7xl font-[500] tracking-tight leading-[1.1] mb-4 sm:mb-6 text-[#202124] px-2">
                         Experience detailed<br />
                         <span className="text-[#5F6368]">data orchestration.</span>
                     </h1>
-                    <br />
-                    <p className="text-xl md:text-2xl text-[#5F6368] mb-12 max-w-3xl mx-auto leading-relaxed font-light">
-                        From collection to catalog, all in one service.<br />
-                        The complete solution for your data journey.
+                    <br className="hidden sm:block" />
+                    <p className="text-base sm:text-lg md:text-xl lg:text-2xl text-[#5F6368] mb-8 sm:mb-12 max-w-3xl mx-auto leading-relaxed font-light px-4">
+                        From collection to catalog, all in one service.<br className="hidden sm:block" />
+                        <span className="sm:hidden"> </span>The complete solution for your data journey.
                     </p>
-                    <br />
-                    <div className="flex flex-wrap justify-center gap-4">
+                    <br className="hidden sm:block" />
+                    <div className="flex flex-col sm:flex-row flex-wrap justify-center gap-3 sm:gap-4 w-full px-4">
                         <button
                             onClick={() => navigate("/login")}
-                            className="bg-[#202124] text-white px-8 py-4 rounded-full text-lg font-medium hover:bg-gray-800 transition-all hover:scale-105"
+                            className="bg-[#202124] text-white px-6 sm:px-8 py-3 sm:py-4 rounded-full text-base sm:text-lg font-medium hover:bg-gray-800 transition-all hover:scale-105 w-full sm:w-auto"
                         >
                             Get Started
                         </button>
                         <button
                             onClick={() => document.getElementById('hero-video').scrollIntoView({ behavior: 'smooth' })}
-                            className="bg-[#F1F3F4] text-[#202124] px-8 py-4 rounded-full text-lg font-medium hover:bg-gray-200 transition-all hover:scale-105"
+                            className="bg-[#F1F3F4] text-[#202124] px-6 sm:px-8 py-3 sm:py-4 rounded-full text-base sm:text-lg font-medium hover:bg-gray-200 transition-all hover:scale-105 w-full sm:w-auto"
                         >
                             Watch Video
                         </button>
                     </div>
                 </div>
-                <br /><br /><br /><br /><br />
+                <br className="hidden sm:block" /><br className="hidden sm:block" /><br /><br className="hidden sm:block" /><br className="hidden sm:block" />
                 {/* Hero Visual Placeholder */}
-                <div id="hero-video" className="mt-0 w-full max-w-6xl mx-auto px-6 py-20">
-                    <div className="aspect-[16/9] bg-[#F8F9FA] rounded-[32px] border border-gray-100 shadow-2xl flex items-center justify-center relative overflow-hidden group">
+                <div id="hero-video" className="mt-0 w-full max-w-6xl mx-auto px-4 sm:px-6 py-8 sm:py-20">
+                    <div className="aspect-[16/9] bg-[#F8F9FA] rounded-2xl sm:rounded-[32px] border border-gray-100 shadow-2xl flex items-center justify-center relative overflow-hidden group">
                         <iframe
                             className="w-full h-full object-cover"
                             src="https://www.youtube.com/embed/WNXGnw_Wg8Q?autoplay=1&mute=1&loop=1&playlist=WNXGnw_Wg8Q&rel=0"
@@ -236,68 +236,106 @@ function LandingPage() {
                 <div className="max-w-[1440px] mx-auto flex flex-col lg:flex-row items-start"> {/* Added items-start to fix sticky */}
 
                     {/* Left: Scrolling Text Content */}
-                    <div className="w-full lg:w-1/2 relative z-10 p-6 lg:p-0">
+                    <div className="w-full lg:w-1/2 relative z-10 p-4 sm:p-6 lg:p-0">
                         {/* Step 1: Challenge */}
-                        <div className="sticky-section-trigger min-h-[80vh] flex flex-col justify-center lg:pl-12 lg:pr-6" data-index="0">
-                            <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-red-50 text-red-600 text-sm font-medium mb-6 w-fit">
-                                <Zap size={16} /> The Challenge
+                        <div className="sticky-section-trigger min-h-[60vh] sm:min-h-[80vh] flex flex-col justify-center lg:pl-12 lg:pr-6" data-index="0">
+                            <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-red-50 text-red-600 text-xs sm:text-sm font-medium mb-4 sm:mb-6 w-fit">
+                                <Zap size={14} className="sm:w-4 sm:h-4" /> The Challenge
                             </div>
-                            <h2 className="text-4xl md:text-5xl font-medium mb-6 leading-tight">
+                            <h2 className="text-2xl sm:text-3xl md:text-4xl lg:text-5xl font-medium mb-4 sm:mb-6 leading-tight">
                                 Scattered data,<br />
                                 <span className="text-[#5F6368]">scattered focus.</span>
                             </h2>
-                            <p className="text-xl text-[#5F6368] leading-relaxed max-w-md">
+                            <p className="text-base sm:text-lg md:text-xl text-[#5F6368] leading-relaxed max-w-md">
                                 Companies want AI, but data is fragmented across DBs, APIs, and logs.
                                 Integrating these silos is the first major hurdle.
                             </p>
+
+                            {/* Mobile Visual 1 */}
+                            <div className="lg:hidden mt-8 w-full aspect-[16/9] rounded-2xl overflow-hidden shadow-xl bg-[#F1F3F4] border border-gray-100">
+                                <img src={visual1} alt="Problem Visualization" className="w-full h-full object-cover" />
+                            </div>
                         </div>
 
                         {/* Step 2: Data Lake */}
-                        <div className="sticky-section-trigger min-h-[80vh] flex flex-col justify-center lg:pl-12 lg:pr-6" data-index="1">
-                            <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-blue-50 text-blue-600 text-sm font-medium mb-6 w-fit">
-                                <Database size={16} /> Data Lake house
+                        <div className="sticky-section-trigger min-h-[60vh] sm:min-h-[80vh] flex flex-col justify-center lg:pl-12 lg:pr-6" data-index="1">
+                            <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-blue-50 text-blue-600 text-xs sm:text-sm font-medium mb-4 sm:mb-6 w-fit">
+                                <Database size={14} className="sm:w-4 sm:h-4" /> Data Lake house
                             </div>
-                            <h2 className="text-4xl md:text-5xl font-medium mb-6 leading-tight">
+                            <h2 className="text-2xl sm:text-3xl md:text-4xl lg:text-5xl font-medium mb-4 sm:mb-6 leading-tight">
                                 Unified storage,<br />
                                 <span className="text-[#5F6368]">limitless scale.</span>
                             </h2>
-                            <p className="text-xl text-[#5F6368] leading-relaxed max-w-md">
+                            <p className="text-base sm:text-lg md:text-xl text-[#5F6368] leading-relaxed max-w-md">
                                 XFlow gathers scattered big data into a single storage.
                                 Experience flexibility and infinite scalability.
                             </p>
+
+                            {/* Mobile Visual 2 */}
+                            <div className="lg:hidden mt-8 w-full aspect-[16/9] rounded-2xl overflow-hidden shadow-xl bg-[#E8F0FE] border border-gray-100">
+                                <iframe
+                                    className="w-full h-full object-cover scale-[1.55] pointer-events-none"
+                                    src="https://www.youtube.com/embed/uD2o2EIMEHo?autoplay=1&mute=1&loop=1&playlist=uD2o2EIMEHo&controls=0&modestbranding=1&rel=0&iv_load_policy=3&fs=0&disablekb=1"
+                                    title="Data Lake Architecture Video"
+                                    allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+                                    allowFullScreen
+                                />
+                            </div>
                         </div>
 
                         {/* Step 3: Catalog */}
-                        <div className="sticky-section-trigger min-h-[80vh] flex flex-col justify-center lg:pl-12 lg:pr-6" data-index="2">
-                            <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-purple-50 text-purple-600 text-sm font-medium mb-6 w-fit">
-                                <Search size={16} /> Catalog
+                        <div className="sticky-section-trigger min-h-[60vh] sm:min-h-[80vh] flex flex-col justify-center lg:pl-12 lg:pr-6" data-index="2">
+                            <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-purple-50 text-purple-600 text-xs sm:text-sm font-medium mb-4 sm:mb-6 w-fit">
+                                <Search size={14} className="sm:w-4 sm:h-4" /> Catalog
                             </div>
-                            <h2 className="text-4xl md:text-5xl font-medium mb-6 leading-tight">
+                            <h2 className="text-2xl sm:text-3xl md:text-4xl lg:text-5xl font-medium mb-4 sm:mb-6 leading-tight">
                                 Find what matters,<br />
                                 <span className="text-[#5F6368]">instantly.</span>
                             </h2>
-                            <p className="text-xl text-[#5F6368] leading-relaxed max-w-md">
+                            <p className="text-base sm:text-lg md:text-xl text-[#5F6368] leading-relaxed max-w-md">
                                 Collecting isn't enough. Our catalog automates classification and access control,
                                 making discovery effortless.
                             </p>
+
+                            {/* Mobile Visual 3 */}
+                            <div className="lg:hidden mt-8 w-full aspect-[16/9] rounded-2xl overflow-hidden shadow-xl bg-[#F3E8FD] border border-gray-100">
+                                <iframe
+                                    className="w-full h-full object-cover scale-[1.55] pointer-events-none"
+                                    src="https://www.youtube.com/embed/KSE0o1voSAI?autoplay=1&mute=1&loop=1&playlist=KSE0o1voSAI&controls=0&modestbranding=1&rel=0&iv_load_policy=3&fs=0&disablekb=1"
+                                    title="Catalog Interface Video"
+                                    allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+                                    allowFullScreen
+                                />
+                            </div>
                         </div>
 
                         {/* Step 4: Query */}
-                        <div className="sticky-section-trigger min-h-[80vh] flex flex-col justify-center lg:pl-12 lg:pr-6" data-index="3">
-                            <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-purple-50 text-green-600 text-sm font-medium mb-6 w-fit">
-                                <Search size={16} /> Query
+                        <div className="sticky-section-trigger min-h-[60vh] sm:min-h-[80vh] flex flex-col justify-center lg:pl-12 lg:pr-6" data-index="3">
+                            <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-purple-50 text-green-600 text-xs sm:text-sm font-medium mb-4 sm:mb-6 w-fit">
+                                <Search size={14} className="sm:w-4 sm:h-4" /> Query
                             </div>
-                            <h2 className="text-4xl md:text-5xl font-medium mb-6 leading-tight">
+                            <h2 className="text-2xl sm:text-3xl md:text-4xl lg:text-5xl font-medium mb-4 sm:mb-6 leading-tight">
                                 Query your data,<br />
                                 <span className="text-[#5F6368]">instantly.</span>
                             </h2>
-                            <p className="text-xl text-[#5F6368] leading-relaxed max-w-md">
+                            <p className="text-base sm:text-lg md:text-xl text-[#5F6368] leading-relaxed max-w-md">
                                 Query your data with ease. Our AI-powered query engine helps you find answers fast.
                             </p>
+
+                            {/* Mobile Visual 4 */}
+                            <div className="lg:hidden mt-8 w-full aspect-[16/9] rounded-2xl overflow-hidden shadow-xl bg-[#E6F4EA] border border-gray-100">
+                                <iframe
+                                    className="w-full h-full object-cover scale-[1.55] pointer-events-none"
+                                    src="https://www.youtube.com/embed/9-5MRr5aw4E?autoplay=1&mute=1&loop=1&playlist=9-5MRr5aw4E&controls=0&modestbranding=1&rel=0&iv_load_policy=3&fs=0&disablekb=1"
+                                    title="Query Interface Video"
+                                    allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+                                    allowFullScreen
+                                />
+                            </div>
                         </div>
                     </div>
 
-                    {/* Right: Sticky Visual Content */}
+                    {/* Right: Sticky Visual Content - Desktop only */}
                     <div className="hidden lg:flex w-1/2 sticky top-0 h-screen items-center justify-center p-6 lg:p-12">
                         <div className="relative w-full aspect-square md:aspect-[4/3] rounded-[24px] overflow-hidden shadow-2xl bg-white border border-gray-100">
 
@@ -347,11 +385,11 @@ function LandingPage() {
 
 
             {/* Persona Carousel Section */}
-            <section id="team" className="py-20 md:py-32 px-6 max-w-[1440px] mx-auto overflow-hidden">
-                <div className="mb-12 flex items-end justify-between px-2">
+            <section id="team" className="py-12 sm:py-20 md:py-32 px-4 sm:px-6 max-w-[1440px] mx-auto overflow-hidden">
+                <div className="mb-8 sm:mb-12 flex flex-col sm:flex-row items-start sm:items-end justify-between px-2 gap-4">
                     <div>
-                        <h2 className="text-3xl md:text-4xl font-medium mb-4">Meet the Team</h2>
-                        <p className="text-[#5F6368] text-lg max-w-xl">
+                        <h2 className="text-2xl sm:text-3xl md:text-4xl font-medium mb-2 sm:mb-4">Meet the Team</h2>
+                        <p className="text-[#5F6368] text-sm sm:text-base md:text-lg max-w-xl">
                             XFlow is built by a team who are passionate about making data accessible and easy to use.
                         </p>
                     </div>
@@ -395,9 +433,9 @@ function LandingPage() {
                         href="https://www.linkedin.com/in/kyungcheol-koh/"
                         target="_blank"
                         rel="noopener noreferrer"
-                        className="min-w-[85vw] md:min-w-[500px] snap-center block cursor-pointer"
+                        className="min-w-[85vw] sm:min-w-[400px] md:min-w-[500px] snap-center block cursor-pointer"
                     >
-                        <div className="aspect-[16/10] bg-[#F1F3F4] rounded-[32px] relative overflow-hidden group mb-6">
+                        <div className="aspect-[16/10] bg-[#F1F3F4] rounded-2xl sm:rounded-[32px] relative overflow-hidden group mb-4 sm:mb-6">
                             <img
                                 src={kc}
                                 alt="PM & Fullstack Developer"
@@ -405,13 +443,13 @@ function LandingPage() {
                             />
                             <div className="absolute inset-0 bg-black/20 group-hover:bg-black/10 transition-colors duration-500" />
                             <div className="absolute inset-0 flex items-center justify-center">
-                                <h3 className="text-3xl md:text-4xl font-medium text-white drop-shadow-lg text-center px-1">PM & Fullstack Developer</h3>
+                                <h3 className="text-xl sm:text-2xl md:text-3xl lg:text-4xl font-medium text-white drop-shadow-lg text-center px-2 sm:px-1">PM & Fullstack Developer</h3>
                             </div>
-                            <div className="absolute bottom-6 right-6 w-10 h-10 bg-white/30 backdrop-blur rounded-full flex items-center justify-center text-white">
-                                <ArrowRight size={16} />
+                            <div className="absolute bottom-4 sm:bottom-6 right-4 sm:right-6 w-8 h-8 sm:w-10 sm:h-10 bg-white/30 backdrop-blur rounded-full flex items-center justify-center text-white">
+                                <ArrowRight size={14} className="sm:w-4 sm:h-4" />
                             </div>
                         </div>
-                        <h4 className="text-xl font-medium mb-2">Ko Gyung Chul</h4>
+                        <h4 className="text-lg sm:text-xl font-medium mb-2">Ko Gyung Chul</h4>
                     </a>
 
                     {/* Card 2:Fullstack Developer */}
@@ -511,14 +549,14 @@ function LandingPage() {
             </section>
 
             {/* CTA Footer Section */}
-            <section className="py-32 px-6 text-center">
+            <section className="py-16 sm:py-24 md:py-32 px-4 sm:px-6 text-center">
                 {/* <h2 className="text-6xl md:text-8xl font-bold mb-12 tracking-tight">
                     XFlow
                 </h2> */}
                 <div className="flex flex-col sm:flex-row items-center justify-center gap-4">
                     <button
                         onClick={() => navigate("/login")}
-                        className="bg-[#202124] text-white px-10 py-5 rounded-full text-xl font-medium hover:bg-gray-800 transition-all hover:scale-105"
+                        className="bg-[#202124] text-white px-8 sm:px-10 py-4 sm:py-5 rounded-full text-lg sm:text-xl font-medium hover:bg-gray-800 transition-all hover:scale-105 w-full sm:w-auto max-w-xs sm:max-w-none"
                     >
                         Start XFlow Now
                     </button>
@@ -526,19 +564,19 @@ function LandingPage() {
             </section>
 
             {/* Footer (Minimal) */}
-            <footer className="py-12 px-6 border-t border-gray-100 max-w-[1440px] mx-auto flex flex-col md:flex-row justify-between items-center gap-6">
-                <div className="text-[100px] leading-none font-bold text-gray-100 select-none pointer-events-none absolute left-0 bottom-0 -z-10 opacity-50">
+            <footer className="py-8 sm:py-12 px-4 sm:px-6 border-t border-gray-100 max-w-[1440px] mx-auto flex flex-col md:flex-row justify-between items-center gap-4 sm:gap-6">
+                <div className="text-[60px] sm:text-[80px] md:text-[100px] leading-none font-bold text-gray-100 select-none pointer-events-none absolute left-0 bottom-0 -z-10 opacity-50">
                     XFlow
                 </div>
                 <div className="flex items-center gap-2">
-                    <img src={logo} alt="XFlow" className="h-6" />
+                    <img src={logo} alt="XFlow" className="h-5 sm:h-6" />
                 </div>
-                <div className="flex gap-8 text-sm text-[#5F6368]">
+                <div className="flex flex-wrap justify-center gap-4 sm:gap-8 text-xs sm:text-sm text-[#5F6368]">
                     <button className="hover:text-[#202124]">Privacy</button>
                     <button className="hover:text-[#202124]">Terms</button>
-                    <button className="hover:text-[#202124]">Tel: 010-4819-4258</button>
+                    <button className="hover:text-[#202124] whitespace-nowrap">Tel: 010-4819-4258</button>
                 </div>
-                <div className="text-sm text-[#9AA0A6]">
+                <div className="text-xs sm:text-sm text-[#9AA0A6]">
                     © 2026 XFlow
                 </div>
             </footer>
