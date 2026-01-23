@@ -1020,7 +1020,6 @@ export default function SourceWizard() {
                         { id: "log", label: "Log" },
                         { id: "csv", label: "CSV" },
                         { id: "json", label: "JSON" },
-                        { id: "parquet", label: "Parquet" },
                       ]}
                       value={config.format || "log"}
                       onChange={(format) => {
