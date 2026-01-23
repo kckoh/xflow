@@ -163,6 +163,10 @@ async def start_streaming_job(dataset_id: str):
             logger.error(f"[Streaming] ❌ Trino registration error: {e}")
             # Don't fail the streaming job if Trino registration fails
 
+    # Mark dataset as active and import_ready so it shows up in Catalog
+    dataset.import_ready = True
+    await dataset.save()
+
     # Create JobRun record for tracking
     job_run = JobRun(
         dataset_id=dataset_id,
