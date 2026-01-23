@@ -120,26 +120,27 @@ async def preview_s3_json(request: S3JSONPreviewRequest):
         # Try to read as JSON lines (newline-delimited JSON) or array of objects
         try:
             # First try newline-delimited JSON (more common for big data)
-            df = pd.read_json(io.BytesIO(json_content), lines=True, nrows=min(request.limit + 20, 100))
+            # Parse dates automatically for timestamp column detection
+            df = pd.read_json(io.BytesIO(json_content), lines=True, nrows=min(request.limit + 20, 100), convert_dates=True)
         except:
             # Fallback to regular JSON array
-            df = pd.read_json(io.BytesIO(json_content))
+            df = pd.read_json(io.BytesIO(json_content), convert_dates=True)
             # Limit rows after reading
             df = df.head(min(request.limit + 20, 100))
 
         # 6. Infer schema from dataframe
         columns = []
         for col_name in df.columns:
-            dtype = df[col_name].dtype
+            dtype = str(df[col_name].dtype)
 
             # Map pandas dtype to our type system
-            if dtype == 'int64':
+            if 'int' in dtype:
                 col_type = 'integer'
-            elif dtype == 'float64':
+            elif 'float' in dtype:
                 col_type = 'float'
             elif dtype == 'bool':
                 col_type = 'boolean'
-            elif dtype == 'datetime64[ns]':
+            elif 'datetime' in dtype:
                 col_type = 'timestamp'
             elif dtype == 'object':
                 # Check if it's nested JSON (dict/list)

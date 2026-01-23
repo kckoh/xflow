@@ -337,6 +337,12 @@ def read_rdb_source(spark: SparkSession, source_config: dict) -> DataFrame:
         filter_column = updated_at_col or created_at_col or timestamp_col
 
         if filter_column and last_sync:
+            from pyspark.sql.functions import col, to_timestamp
+
+            # Cast filter column to timestamp if it's string (for CSV/JSON compatibility)
+            if filter_column in df.columns:
+                df = df.withColumn(filter_column, to_timestamp(col(filter_column)))
+
             print(f"   [Incremental] Filtering data: {filter_column} > '{last_sync}'")
             df = df.filter(f"{filter_column} > '{last_sync}'")
 
@@ -416,6 +422,12 @@ def read_nosql_source(spark: SparkSession, source_config: dict) -> DataFrame:
         filter_column = updated_at_col or created_at_col or timestamp_col
 
         if filter_column and last_sync:
+            from pyspark.sql.functions import col, to_timestamp
+
+            # Cast filter column to timestamp if it's string (for CSV/JSON compatibility)
+            if filter_column in df.columns:
+                df = df.withColumn(filter_column, to_timestamp(col(filter_column)))
+
             print(f"   [Incremental] Filtering data: {filter_column} > '{last_sync}'")
             df = df.filter(f"{filter_column} > '{last_sync}'")
 
@@ -1002,6 +1014,8 @@ def read_s3_file_source(spark: SparkSession, source_config: dict) -> DataFrame:
 
         # Read recent files (with timestamp filter)
         if recent_files:
+            from pyspark.sql.functions import col, to_timestamp
+
             timestamp_field = incremental_config.get("updated_at_column") or incremental_config.get("created_at_column") or "timestamp"
             print(f"   [Incremental] Reading {len(recent_files)} recent files (filter: {timestamp_field} > '{last_sync}')")
             for file_path in recent_files:
@@ -1009,6 +1023,11 @@ def read_s3_file_source(spark: SparkSession, source_config: dict) -> DataFrame:
                     file_df = spark.read.option("header", "true").option("inferSchema", "true").csv(file_path)
                 else:  # json
                     file_df = spark.read.json(file_path)
+
+                # Cast timestamp field to timestamp type (for CSV/JSON string dates)
+                if timestamp_field in file_df.columns:
+                    file_df = file_df.withColumn(timestamp_field, to_timestamp(col(timestamp_field)))
+
                 # Filter by timestamp
                 file_df = file_df.filter(f"{timestamp_field} > '{last_sync}'")
                 dfs.append(file_df)
