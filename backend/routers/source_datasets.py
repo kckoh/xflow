@@ -120,8 +120,8 @@ def _preview_group_id(prefix: str, key: str) -> str:
     return f"{prefix}-{digest}"
 
 
-def _consume_kafka_records(bootstrap_servers: str, topic: str, limit: int = 1, custom_regex: Optional[str] = None) -> List[dict]:
-    print(f"[Kafka Preview] Starting consumption for topic: {topic}, limit: {limit}, custom_regex: {custom_regex}")
+def _consume_kafka_records(bootstrap_servers: str, topic: str, limit: int = 1, custom_regex: Optional[str] = None, raw_only: bool = False) -> List[dict]:
+    print(f"[Kafka Preview] Starting consumption for topic: {topic}, limit: {limit}, custom_regex: {custom_regex}, raw_only: {raw_only}")
     consumer = KafkaConsumer(
         topic,
         bootstrap_servers=bootstrap_servers,
@@ -135,7 +135,8 @@ def _consume_kafka_records(bootstrap_servers: str, topic: str, limit: int = 1, c
     total_consumed = 0
     
     try:
-        if custom_regex:
+        pattern = None
+        if custom_regex and not raw_only:
             try:
                 pattern = re.compile(custom_regex)
             except re.error as e:
@@ -146,7 +147,10 @@ def _consume_kafka_records(bootstrap_servers: str, topic: str, limit: int = 1, c
             if not msg.value:
                 continue
             
-            if custom_regex:
+            if raw_only:
+                # Return raw value wrapper
+                records.append({"raw_value": msg.value})
+            elif custom_regex:
                 match = pattern.match(msg.value)
                 if match:
                     try:
@@ -168,7 +172,7 @@ def _consume_kafka_records(bootstrap_servers: str, topic: str, limit: int = 1, c
         
         print(f"[Kafka Preview] Consumption finished. Total consumed: {total_consumed}, Matched: {len(records)}")
         
-        if custom_regex and total_consumed > 0 and len(records) == 0:
+        if custom_regex and not raw_only and total_consumed > 0 and len(records) == 0:
             raise ValueError(f"Regex pattern mismatch: No records matched the pattern '{custom_regex}' among {total_consumed} consumed messages.")
 
     finally:
@@ -185,9 +189,9 @@ def _run_with_timeout(fn, timeout_s: int, *args, **kwargs):
             raise TimeoutError("Kafka request timed out") from exc
 
 
-def get_kafka_schema(bootstrap_servers: str, topic: str, limit: int = 1, custom_regex: Optional[str] = None) -> dict:
+def get_kafka_schema(bootstrap_servers: str, topic: str, limit: int = 1, custom_regex: Optional[str] = None, raw_only: bool = False) -> dict:
     try:
-        records = _run_with_timeout(_consume_kafka_records, 15, bootstrap_servers, topic, limit, custom_regex)
+        records = _run_with_timeout(_consume_kafka_records, 15, bootstrap_servers, topic, limit, custom_regex, raw_only)
     except TimeoutError as exc:
         raise HTTPException(status_code=504, detail=str(exc)) from exc
     except Exception as exc:
@@ -209,6 +213,7 @@ class KafkaSchemaRequest(BaseModel):
     topic: str
     sample_size: int = 1
     custom_regex: Optional[str] = None
+    raw_only: bool = False  # New flag
 
 
 class KafkaTopicsRequest(BaseModel):
@@ -431,7 +436,7 @@ async def fetch_kafka_schema(request: KafkaSchemaRequest):
     if not request.topic:
         raise HTTPException(status_code=400, detail="Topic is required")
 
-    result = get_kafka_schema(bootstrap_servers, request.topic, limit=request.sample_size, custom_regex=request.custom_regex)
+    result = get_kafka_schema(bootstrap_servers, request.topic, limit=request.sample_size, custom_regex=request.custom_regex, raw_only=request.raw_only)
     if not result.get("schema"):
         raise HTTPException(status_code=400, detail="Failed to infer schema from topic")
 
