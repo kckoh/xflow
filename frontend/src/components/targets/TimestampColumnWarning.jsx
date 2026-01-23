@@ -17,7 +17,8 @@ export default function TimestampColumnWarning({ sourceDatasets, schedules, s3Pr
   const sourceType = firstSource?.source_type || firstSource?.type;
 
   // For S3 sources with field selection, check selected_fields instead of full schema
-  let fieldsToCheck = firstSource?.schema || [];
+  // Check both 'schema' and 'columns' fields (backend may use either)
+  let fieldsToCheck = firstSource?.schema || firstSource?.columns || [];
   if (sourceType === 's3' && s3ProcessConfig?.selected_fields?.length > 0) {
     // User has selected specific fields in Process step
     fieldsToCheck = s3ProcessConfig.selected_fields.map(fieldName => ({
