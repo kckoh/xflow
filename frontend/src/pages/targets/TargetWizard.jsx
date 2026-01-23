@@ -108,6 +108,12 @@ export default function TargetWizard() {
   const steps =
     jobType === "streaming" ? STEPS.filter((step) => step.id !== 4) : STEPS;
   const activeStepId = steps[currentStep - 1]?.id;
+  const scheduleSourceDatasets =
+    sourceNodes.length > 0
+      ? sourceNodes.map((node) => node.data || {})
+      : (sourceTab === "source" ? selectedJobIds : selectedTargetIds)
+          .map((id) => sourceDatasets.find((ds) => ds.id === id))
+          .filter(Boolean);
   // Fetch roles for Permission step
   useEffect(() => {
     const fetchRoles = async () => {
@@ -1770,7 +1776,7 @@ export default function TargetWizard() {
               </h2>
 
               <TimestampColumnWarning
-                sourceDatasets={sourceDatasets}
+                sourceDatasets={scheduleSourceDatasets}
                 schedules={schedules}
                 s3ProcessConfig={s3ProcessConfig}
               />

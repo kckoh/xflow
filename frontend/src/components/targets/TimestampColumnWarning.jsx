@@ -14,7 +14,8 @@ export default function TimestampColumnWarning({ sourceDatasets, schedules, s3Pr
   }
 
   const firstSource = sourceDatasets[0];
-  const sourceType = firstSource?.source_type || firstSource?.type;
+  const sourceType =
+    firstSource?.source_type || firstSource?.sourceType || firstSource?.type;
 
   // For S3 sources with field selection, check selected_fields instead of full schema
   // Check both 'schema' and 'columns' fields (backend may use either)
@@ -71,7 +72,8 @@ export default function TimestampColumnWarning({ sourceDatasets, schedules, s3Pr
   // Case 2: Only created_at → For RDB, this is a warning. For S3, this is OK.
   if (!hasUpdatedAt && hasCreatedAt) {
     const firstSource = sourceDatasets[0];
-    const sourceType = firstSource?.source_type || firstSource?.type;
+    const sourceType =
+      firstSource?.source_type || firstSource?.sourceType || firstSource?.type;
 
     // S3 files are immutable, so timestamp-only is sufficient (no warning needed)
     if (sourceType === 's3') {
