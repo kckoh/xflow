@@ -154,6 +154,14 @@ export default function S3LogParsingConfig({
 
       if (result.valid) {
         setTestResult(result);
+        // Update extracted fields with type information from backend
+        if (result.columns && result.columns.length > 0) {
+          setExtractedFields(result.columns);
+          // Notify parent component with updated type information
+          if (onPatternChangeRef.current) {
+            onPatternChangeRef.current(regexPattern, result.columns);
+          }
+        }
       } else {
         setTestError(result.error || "Test failed");
       }
@@ -405,27 +413,39 @@ export default function S3LogParsingConfig({
               <table className="w-full text-xs">
                 <thead className="bg-gray-50 border-b border-gray-200 sticky top-0">
                   <tr>
-                    {testResult.fields_extracted?.map((field) => (
-                      <th
-                        key={field}
-                        className="px-3 py-2 text-left font-semibold text-gray-700"
-                      >
-                        {field}
-                      </th>
-                    ))}
+                    {(testResult.columns || testResult.fields_extracted)?.map((field) => {
+                      const fieldName = typeof field === 'string' ? field : field.name;
+                      const fieldType = typeof field === 'object' ? field.type : 'string';
+                      return (
+                        <th
+                          key={fieldName}
+                          className="px-3 py-2 text-left font-semibold text-gray-700"
+                        >
+                          {fieldName}
+                          {fieldType && (
+                            <span className="ml-2 text-xs font-mono px-1.5 py-0.5 bg-blue-100 text-blue-700 rounded">
+                              {fieldType}
+                            </span>
+                          )}
+                        </th>
+                      );
+                    })}
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-gray-100">
                   {testResult.parsed_rows?.map((row, idx) => (
                     <tr key={idx} className="hover:bg-gray-50">
-                      {testResult.fields_extracted?.map((field) => (
-                        <td
-                          key={field}
-                          className="px-3 py-2 text-gray-800 font-mono"
-                        >
-                          {row[field] || "-"}
-                        </td>
-                      ))}
+                      {(testResult.columns || testResult.fields_extracted)?.map((field) => {
+                        const fieldName = typeof field === 'string' ? field : field.name;
+                        return (
+                          <td
+                            key={fieldName}
+                            className="px-3 py-2 text-gray-800 font-mono"
+                          >
+                            {row[fieldName] || "-"}
+                          </td>
+                        );
+                      })}
                     </tr>
                   ))}
                 </tbody>

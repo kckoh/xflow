@@ -21,6 +21,139 @@ from schemas.s3_logs import (
 router = APIRouter()
 
 
+def infer_column_types(parsed_rows: List[Dict[str, Any]], field_names: List[str]) -> List[Dict[str, str]]:
+    """
+    Infer column types from parsed log data
+
+    Detects: timestamp, integer, float, boolean, string
+
+    Args:
+        parsed_rows: List of parsed log records
+        field_names: List of field names from regex groups
+
+    Returns:
+        List of column definitions with name and type
+    """
+    from datetime import datetime
+
+    columns = []
+
+    for field_name in field_names:
+        # Collect non-empty sample values for this field
+        sample_values = []
+        for row in parsed_rows[:20]:  # Check first 20 rows
+            value = row.get(field_name, "")
+            if value and str(value).strip():
+                sample_values.append(str(value).strip())
+
+        if not sample_values:
+            columns.append({"name": field_name, "type": "string"})
+            continue
+
+        # Try to infer type from sample values
+        col_type = "string"  # default
+
+        # Check if all values are timestamps
+        timestamp_count = 0
+        for value in sample_values:
+            if _is_timestamp(value):
+                timestamp_count += 1
+
+        if timestamp_count >= len(sample_values) * 0.8:  # 80% are timestamps
+            col_type = "timestamp"
+        else:
+            # Check if all values are integers
+            integer_count = 0
+            for value in sample_values:
+                try:
+                    int(value)
+                    integer_count += 1
+                except ValueError:
+                    break
+
+            if integer_count == len(sample_values):
+                col_type = "integer"
+            else:
+                # Check if all values are floats
+                float_count = 0
+                for value in sample_values:
+                    try:
+                        float(value)
+                        float_count += 1
+                    except ValueError:
+                        break
+
+                if float_count == len(sample_values):
+                    col_type = "float"
+                else:
+                    # Check if all values are booleans
+                    boolean_values = {'true', 'false', 'yes', 'no', '1', '0', 't', 'f', 'y', 'n'}
+                    if all(value.lower() in boolean_values for value in sample_values):
+                        col_type = "boolean"
+
+        columns.append({"name": field_name, "type": col_type})
+
+    return columns
+
+
+def _is_timestamp(value: str) -> bool:
+    """
+    Check if a string value is a timestamp
+
+    Supports common log timestamp formats:
+    - ISO format: 2024-01-15T10:30:00Z, 2024-01-15T10:30:00.123Z
+    - Common log format: 15/Jan/2024:10:30:00 +0000
+    - Simple formats: 2024-01-15 10:30:00, 2024-01-15
+    - Unix timestamp: 1705315800
+    """
+    from datetime import datetime
+
+    if not value:
+        return False
+
+    # Try ISO format
+    try:
+        datetime.fromisoformat(value.replace('Z', '+00:00'))
+        return True
+    except ValueError:
+        pass
+
+    # Try common log format: 15/Jan/2024:10:30:00 +0000
+    try:
+        datetime.strptime(value, "%d/%b/%Y:%H:%M:%S %z")
+        return True
+    except ValueError:
+        pass
+
+    # Try simple datetime formats
+    for fmt in [
+        "%Y-%m-%d %H:%M:%S",
+        "%Y-%m-%d %H:%M:%S.%f",
+        "%Y-%m-%d",
+        "%Y/%m/%d %H:%M:%S",
+        "%Y/%m/%d",
+        "%d-%m-%Y %H:%M:%S",
+        "%d/%m/%Y %H:%M:%S",
+    ]:
+        try:
+            datetime.strptime(value, fmt)
+            return True
+        except ValueError:
+            continue
+
+    # Try Unix timestamp (10 or 13 digits)
+    if value.isdigit() and len(value) in [10, 13]:
+        try:
+            timestamp = int(value)
+            # Check if it's a reasonable timestamp (between 2000 and 2100)
+            if 946684800 <= timestamp <= 4102444800 or 946684800000 <= timestamp <= 4102444800000:
+                return True
+        except ValueError:
+            pass
+
+    return False
+
+
 def create_s3_client_from_config(config: dict):
     """
     Create boto3 S3 client from connection config.
@@ -204,17 +337,22 @@ async def test_regex_pattern(request: RegexTestRequest):
                 sample_logs=log_lines[:request.limit],
                 parsed_rows=[],
                 fields_extracted=named_groups,
+                columns=[],
                 total_lines=total_lines,
                 parsed_lines=0,
                 error="No log lines matched the regex pattern. Please check your regex."
             )
 
-        # 7. Return results
+        # 7. Infer column types from parsed data
+        columns = infer_column_types(parsed_rows, named_groups)
+
+        # 8. Return results
         return RegexTestResponse(
             valid=True,
             sample_logs=log_lines[:request.limit],
             parsed_rows=parsed_rows[:request.limit],
             fields_extracted=named_groups,
+            columns=columns,
             total_lines=total_lines,
             parsed_lines=parsed_lines
         )
@@ -358,17 +496,22 @@ async def test_s3_log_parsing_direct(request: S3LogTestRequest):
                 sample_logs=log_lines[:request.limit],
                 parsed_rows=[],
                 fields_extracted=named_groups,
+                columns=[],
                 total_lines=total_lines,
                 parsed_lines=0,
                 error="No log lines matched the regex pattern. Please check your regex."
             )
 
-        # 6. Return results
+        # 6. Infer column types from parsed data
+        columns = infer_column_types(parsed_rows, named_groups)
+
+        # 7. Return results
         return RegexTestResponse(
             valid=True,
             sample_logs=log_lines[:request.limit],
             parsed_rows=parsed_rows[:request.limit],
             fields_extracted=named_groups,
+            columns=columns,
             total_lines=total_lines,
             parsed_lines=parsed_lines
         )
