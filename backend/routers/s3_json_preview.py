@@ -113,20 +113,67 @@ async def preview_s3_json(request: S3JSONPreviewRequest):
         if not json_key:
             raise HTTPException(status_code=404, detail=f"No JSON files found in s3://{bucket}/{path}")
 
-        # 5. Read JSON file with pandas (only first N rows to avoid OOM)
+        # 5. Read JSON file with streaming sample to avoid loading large files
         file_obj = s3_client.get_object(Bucket=bucket, Key=json_key)
-        json_content = file_obj['Body'].read()
+        body = file_obj['Body']
+        max_rows = min(request.limit + 20, 100)
+        max_bytes = 5 * 1024 * 1024
+        chunk_size = 64 * 1024
 
-        # Try to read as JSON lines (newline-delimited JSON) or array of objects
-        try:
-            # First try newline-delimited JSON (more common for big data)
-            # Parse dates automatically for timestamp column detection
-            df = pd.read_json(io.BytesIO(json_content), lines=True, nrows=min(request.limit + 20, 100), convert_dates=True)
-        except:
-            # Fallback to regular JSON array
-            df = pd.read_json(io.BytesIO(json_content), convert_dates=True)
-            # Limit rows after reading
-            df = df.head(min(request.limit + 20, 100))
+        sample_chunks = []
+        sample_len = 0
+        lines = []
+        buffer = b""
+        reached_eof = False
+
+        while len(lines) < max_rows and sample_len < max_bytes:
+            chunk = body.read(chunk_size)
+            if not chunk:
+                reached_eof = True
+                break
+            if sample_len < max_bytes:
+                remaining = max_bytes - sample_len
+                sample_chunks.append(chunk[:remaining])
+                sample_len += min(len(chunk), remaining)
+            buffer += chunk
+            parts = buffer.splitlines()
+            if not buffer.endswith(b"\n"):
+                buffer = parts.pop() if parts else buffer
+            else:
+                buffer = b""
+            for part in parts:
+                if part.strip():
+                    lines.append(part)
+                    if len(lines) >= max_rows:
+                        break
+
+        sample_bytes = b"".join(sample_chunks)
+
+        df = None
+        if lines:
+            try:
+                # First try newline-delimited JSON (more common for big data)
+                # Parse dates automatically for timestamp column detection
+                df = pd.read_json(
+                    io.BytesIO(b"\n".join(lines)),
+                    lines=True,
+                    nrows=max_rows,
+                    convert_dates=True,
+                )
+            except Exception:
+                df = None
+
+        if df is None:
+            try:
+                df = pd.read_json(io.BytesIO(sample_bytes), convert_dates=True)
+                df = df.head(max_rows)
+            except Exception:
+                if not reached_eof:
+                    raise HTTPException(
+                        status_code=413,
+                        detail="JSON file too large to preview. Use JSON Lines (.jsonl) or reduce size."
+                    )
+                raise
 
         # 6. Infer schema from dataframe
         columns = []

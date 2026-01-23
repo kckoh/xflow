@@ -113,14 +113,44 @@ async def preview_s3_csv(request: S3CSVPreviewRequest):
         if not csv_key:
             raise HTTPException(status_code=404, detail=f"No CSV files found in s3://{bucket}/{path}")
 
-        # 5. Read CSV file with pandas (only first N rows to avoid OOM)
+        # 5. Read CSV file with streaming sample to avoid loading large files
         file_obj = s3_client.get_object(Bucket=bucket, Key=csv_key)
-        csv_content = file_obj['Body'].read()
+        body = file_obj['Body']
+        max_rows = min(request.limit + 20, 100)
+        max_bytes = 5 * 1024 * 1024
+        chunk_size = 64 * 1024
 
-        # Read only first N rows for preview (avoid loading entire large CSV into memory)
-        # Note: We read limit + a few extra rows to better infer data types
-        # Parse dates automatically for timestamp column detection
-        df = pd.read_csv(io.BytesIO(csv_content), nrows=min(request.limit + 20, 100), parse_dates=True, infer_datetime_format=True)
+        sample_chunks = []
+        sample_len = 0
+        reached_eof = False
+
+        while sample_len < max_bytes:
+            chunk = body.read(chunk_size)
+            if not chunk:
+                reached_eof = True
+                break
+            remaining = max_bytes - sample_len
+            sample_chunks.append(chunk[:remaining])
+            sample_len += min(len(chunk), remaining)
+            if len(chunk) > remaining:
+                break
+
+        sample_bytes = b"".join(sample_chunks)
+        df = None
+        try:
+            df = pd.read_csv(
+                io.BytesIO(sample_bytes),
+                nrows=max_rows,
+                parse_dates=True,
+                infer_datetime_format=True,
+            )
+        except Exception:
+            if not reached_eof:
+                raise HTTPException(
+                    status_code=413,
+                    detail="CSV file too large to preview. Reduce size or provide a smaller sample."
+                )
+            raise
 
         # 6. Infer schema from dataframe
         columns = []
