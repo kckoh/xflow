@@ -103,7 +103,12 @@ export default function SourceWizard() {
   const [kafkaSchemaError, setKafkaSchemaError] = useState("");
   const [kafkaTopics, setKafkaTopics] = useState([]);
   const [kafkaTopicsLoading, setKafkaTopicsLoading] = useState(false);
+
   const [kafkaTopicsError, setKafkaTopicsError] = useState("");
+  const [rawSamples, setRawSamples] = useState([]);
+  const [rawSamplesLoading, setRawSamplesLoading] = useState(false);
+  const [parsedPreview, setParsedPreview] = useState([]);
+  const [showPreviewTable, setShowPreviewTable] = useState(false);
   const [config, setConfig] = useState({
     id: `src-${Date.now()}`,
     name: "",
@@ -336,10 +341,47 @@ export default function SourceWizard() {
       setKafkaTopics([]);
       setKafkaTopicsError("");
       setKafkaTopicsLoading(false);
+      setRawSamples([]);
+      setParsedPreview([]);
+      setShowPreviewTable(false);
       return;
     }
     setKafkaSchemaError("");
-  }, [selectedSource, config.connectionId, config.topic]);
+    setRawSamples([]);
+    setParsedPreview([]);
+    setShowPreviewTable(false);
+
+    // If format is raw and topic is selected, fetch raw samples immediately
+    if (config.format === "raw" && config.topic && config.connectionId) {
+      const fetchRawSamples = async () => {
+        setRawSamplesLoading(true);
+        try {
+          const response = await fetch(
+            `${API_BASE_URL}/api/source-datasets/kafka/schema`,
+            {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({
+                connection_id: config.connectionId,
+                topic: config.topic,
+                sample_size: 5,
+                raw_only: true, // Fetch raw strings
+              }),
+            }
+          );
+          const data = await response.json();
+          // Extract raw values from response.sample (which are {raw_value: "..."})
+          const samples = (data.sample || []).map(s => s.raw_value).filter(Boolean);
+          setRawSamples(samples);
+        } catch (err) {
+          console.error("Failed to fetch raw samples:", err);
+        } finally {
+          setRawSamplesLoading(false);
+        }
+      };
+      fetchRawSamples();
+    }
+  }, [selectedSource, config.connectionId, config.topic, config.format]);
 
   const handleKafkaSchemaFetch = async () => {
     if (!config.connectionId || !config.topic) {
@@ -358,7 +400,7 @@ export default function SourceWizard() {
           body: JSON.stringify({
             connection_id: config.connectionId,
             topic: config.topic,
-            sample_size: 1,
+            sample_size: 5, // Fetch 5 samples for better preview
             custom_regex:
               config.format === "raw" ? config.customRegex : undefined,
           }),
@@ -367,6 +409,11 @@ export default function SourceWizard() {
 
       const data = await response.json();
       setConfig((prev) => ({ ...prev, columns: data.schema || [] }));
+
+      if (config.format === "raw") {
+        setParsedPreview(data.sample || []);
+        setShowPreviewTable(true);
+      }
     } catch (err) {
       setKafkaSchemaError(err.message || "Failed to fetch Kafka schema");
     } finally {
@@ -1230,26 +1277,53 @@ export default function SourceWizard() {
                     </p>
 
                     {config.format === "raw" && (
-                      <div className="mt-4">
-                        <label className="block text-sm font-medium text-gray-700 mb-2">
-                          Regex Pattern
-                        </label>
-                        <input
-                          type="text"
-                          value={config.customRegex}
-                          onChange={(e) =>
-                            setConfig({
-                              ...config,
-                              customRegex: e.target.value,
-                            })
-                          }
-                          placeholder="e.g. (?P<ip>\d+\.\d+\.\d+\.\d+) - (?P<user>\w+) \[(?P<ts>.*?)\]"
-                          className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-emerald-500 font-mono text-sm"
-                        />
-                        <p className="mt-1 text-xs text-gray-500">
-                          Use Python-style named groups (?P&lt;name&gt;pattern)
-                          to extract fields.
-                        </p>
+                      <div className="mt-4 space-y-4">
+                        {/* Raw Samples Preview */}
+                        <div>
+                          <label className="block text-sm font-medium text-gray-700 mb-2">
+                            Recent Raw Messages (5 samples)
+                          </label>
+                          <div className="bg-gray-900 text-gray-100 rounded-lg p-3 text-xs font-mono overflow-auto max-h-40">
+                            {rawSamplesLoading ? (
+                              <div className="flex items-center gap-2 text-gray-400">
+                                <div className="w-3 h-3 border-2 border-gray-400 border-t-transparent rounded-full animate-spin" />
+                                Loading samples...
+                              </div>
+                            ) : rawSamples.length > 0 ? (
+                              <div className="space-y-1">
+                                {rawSamples.map((sample, idx) => (
+                                  <div key={idx} className="whitespace-pre-wrap break-all border-b border-gray-700 last:border-0 pb-1 mb-1 last:pb-0 last:mb-0">
+                                    {sample}
+                                  </div>
+                                ))}
+                              </div>
+                            ) : (
+                              <span className="text-gray-500 italic">No samples available or topic is empty.</span>
+                            )}
+                          </div>
+                        </div>
+
+                        <div>
+                          <label className="block text-sm font-medium text-gray-700 mb-2">
+                            Regex Pattern
+                          </label>
+                          <textarea
+                            value={config.customRegex}
+                            onChange={(e) =>
+                              setConfig({
+                                ...config,
+                                customRegex: e.target.value,
+                              })
+                            }
+                            placeholder="e.g. (?P<ip>\d+\.\d+\.\d+\.\d+) - (?P<user>\w+) \[(?P<ts>.*?)\]"
+                            rows={3}
+                            className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-emerald-500 font-mono text-sm resize-y"
+                          />
+                          <p className="mt-1 text-xs text-gray-500">
+                            Use Python-style named groups (?P&lt;name&gt;pattern)
+                            to extract fields.
+                          </p>
+                        </div>
                       </div>
                     )}
 
@@ -1312,8 +1386,42 @@ export default function SourceWizard() {
                       !kafkaSchemaLoading &&
                       !kafkaSchemaError && (
                         <p className="mt-2 text-xs text-gray-500">
-                          Test regex to preview fields.
+                          Test results below.
                         </p>
+                      )}
+                    {config.topic &&
+                      config.format === "raw" &&
+                      showPreviewTable &&
+                      parsedPreview.length > 0 && (
+                        <div className="mt-4 border border-gray-200 rounded-lg overflow-hidden">
+                          <div className="bg-gray-50 px-4 py-2 border-b border-gray-200 text-sm font-medium text-gray-700">
+                            Parsed Preview
+                          </div>
+                          <div className="overflow-x-auto">
+                            <table className="min-w-full divide-y divide-gray-200">
+                              <thead className="bg-gray-50">
+                                <tr>
+                                  {Object.keys(parsedPreview[0]).map(key => (
+                                    <th key={key} className="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                                      {key}
+                                    </th>
+                                  ))}
+                                </tr>
+                              </thead>
+                              <tbody className="bg-white divide-y divide-gray-200">
+                                {parsedPreview.map((row, idx) => (
+                                  <tr key={idx}>
+                                    {Object.values(row).map((val, vIdx) => (
+                                      <td key={vIdx} className="px-3 py-2 whitespace-nowrap text-sm text-gray-900">
+                                        {String(val)}
+                                      </td>
+                                    ))}
+                                  </tr>
+                                ))}
+                              </tbody>
+                            </table>
+                          </div>
+                        </div>
                       )}
                     {config.topic &&
                       config.format !== "raw" &&
