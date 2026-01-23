@@ -1,18 +1,27 @@
-import { useState } from 'react';
-import { Globe, ChevronDown, Check, Clock, Eye, Loader2, CheckCircle, AlertCircle } from 'lucide-react';
-import { apiSourceApi } from '../../services/apiSourceApi';
+import { useState } from "react";
+import {
+  Globe,
+  ChevronDown,
+  Check,
+  Clock,
+  Eye,
+  Loader2,
+  CheckCircle,
+  AlertCircle,
+} from "lucide-react";
+import { apiSourceApi } from "../../services/apiSourceApi";
 
 export default function APISourceConfig({
   connectionId,
-  endpoint = '',
-  method = 'GET',
+  endpoint = "",
+  method = "GET",
   queryParams = {},
-  paginationType = 'none',
+  paginationType = "none",
   paginationConfig = {},
-  responsePath = '',
+  responsePath = "",
   incrementalEnabled = false,
-  timestampParam = '',
-  startFromDate = '',
+  timestampParam = "",
+  startFromDate = "",
   sourceDatasetId = null,
   onEndpointChange,
   onMethodChange,
@@ -30,20 +39,32 @@ export default function APISourceConfig({
   const [previewData, setPreviewData] = useState(null);
   const [previewError, setPreviewError] = useState(null);
 
-  const methodOptions = [
-    { value: 'GET', label: 'GET' },
-    { value: 'POST', label: 'POST (Coming Soon)', disabled: true },
-  ];
+  const methodOptions = [{ value: "GET", label: "GET" }];
 
   const paginationTypes = [
-    { value: 'none', label: 'No Pagination', description: 'Single request, no pagination' },
-    { value: 'offset_limit', label: 'Offset/Limit', description: 'offset=0&limit=100' },
-    { value: 'page', label: 'Page Number', description: 'page=1&per_page=100' },
-    { value: 'cursor', label: 'Cursor-based', description: 'cursor=next_token' },
+    {
+      value: "none",
+      label: "No Pagination",
+      description: "Single request, no pagination",
+    },
+    {
+      value: "offset_limit",
+      label: "Offset/Limit",
+      description: "offset=0&limit=100",
+    },
+    { value: "page", label: "Page Number", description: "page=1&per_page=100" },
+    {
+      value: "cursor",
+      label: "Cursor-based",
+      description: "cursor=next_token",
+    },
   ];
 
-  const selectedMethod = methodOptions.find(m => m.value === method) || methodOptions[0];
-  const selectedPagination = paginationTypes.find(p => p.value === paginationType) || paginationTypes[0];
+  const selectedMethod =
+    methodOptions.find((m) => m.value === method) || methodOptions[0];
+  const selectedPagination =
+    paginationTypes.find((p) => p.value === paginationType) ||
+    paginationTypes[0];
 
   const handlePaginationTypeChange = (newType) => {
     onPaginationChange({
@@ -54,25 +75,25 @@ export default function APISourceConfig({
 
   const getDefaultPaginationConfig = (type) => {
     switch (type) {
-      case 'offset_limit':
+      case "offset_limit":
         return {
-          offset_param: 'offset',
-          limit_param: 'limit',
+          offset_param: "offset",
+          limit_param: "limit",
           page_size: 100,
           start_offset: 0,
         };
-      case 'page':
+      case "page":
         return {
-          page_param: 'page',
-          per_page_param: 'per_page',
+          page_param: "page",
+          per_page_param: "per_page",
           page_size: 100,
           start_page: 1,
         };
-      case 'cursor':
+      case "cursor":
         return {
-          cursor_param: 'cursor',
-          next_cursor_path: '',
-          start_cursor: '',
+          cursor_param: "cursor",
+          next_cursor_path: "",
+          start_cursor: "",
         };
       default:
         return {};
@@ -91,12 +112,12 @@ export default function APISourceConfig({
 
   const handleFetchPreview = async () => {
     if (!connectionId) {
-      setPreviewError('Please select a connection first');
+      setPreviewError("Please select a connection first");
       return;
     }
 
     if (!endpoint) {
-      setPreviewError('Please enter an API endpoint');
+      setPreviewError("Please enter an API endpoint");
       return;
     }
 
@@ -126,7 +147,7 @@ export default function APISourceConfig({
         onColumnsChange(result.schema);
       }
     } catch (err) {
-      console.error('Failed to fetch preview:', err);
+      console.error("Failed to fetch preview:", err);
       setPreviewError(err.message);
     } finally {
       setPreviewLoading(false);
@@ -174,7 +195,11 @@ export default function APISourceConfig({
             className="w-full px-4 py-2.5 bg-white border border-gray-300 rounded-lg flex items-center justify-between hover:border-emerald-500 focus:outline-none focus:ring-2 focus:ring-emerald-100 transition-all text-left"
           >
             <span className="text-gray-900">{selectedMethod.label}</span>
-            <ChevronDown className={`w-4 h-4 text-gray-500 transition-transform duration-200 ${isMethodOpen ? 'transform rotate-180' : ''}`} />
+            <ChevronDown
+              className={`w-4 h-4 text-gray-500 transition-transform duration-200 ${
+                isMethodOpen ? "transform rotate-180" : ""
+              }`}
+            />
           </button>
 
           {isMethodOpen && (
@@ -190,12 +215,18 @@ export default function APISourceConfig({
                   }}
                   className={`px-4 py-2.5 cursor-pointer flex items-center justify-between ${
                     option.disabled
-                      ? 'opacity-50 cursor-not-allowed'
-                      : 'hover:bg-emerald-50 transition-colors'
-                  } ${method === option.value ? 'bg-emerald-50 text-emerald-700 font-medium' : 'text-gray-700'}`}
+                      ? "opacity-50 cursor-not-allowed"
+                      : "hover:bg-emerald-50 transition-colors"
+                  } ${
+                    method === option.value
+                      ? "bg-emerald-50 text-emerald-700 font-medium"
+                      : "text-gray-700"
+                  }`}
                 >
                   <span>{option.label}</span>
-                  {method === option.value && <Check className="w-4 h-4 text-emerald-600" />}
+                  {method === option.value && (
+                    <Check className="w-4 h-4 text-emerald-600" />
+                  )}
                 </div>
               ))}
             </div>
@@ -216,7 +247,8 @@ export default function APISourceConfig({
           className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-emerald-500"
         />
         <p className="mt-1 text-xs text-gray-500">
-          JSONPath to extract data from response (leave empty if response is already an array)
+          JSONPath to extract data from response (leave empty if response is
+          already an array)
         </p>
       </div>
 
@@ -231,10 +263,18 @@ export default function APISourceConfig({
             className="w-full px-4 py-2.5 bg-white border border-gray-300 rounded-lg flex items-center justify-between hover:border-emerald-500 focus:outline-none focus:ring-2 focus:ring-emerald-100 transition-all text-left"
           >
             <div>
-              <div className="text-gray-900 font-medium">{selectedPagination.label}</div>
-              <div className="text-xs text-gray-500">{selectedPagination.description}</div>
+              <div className="text-gray-900 font-medium">
+                {selectedPagination.label}
+              </div>
+              <div className="text-xs text-gray-500">
+                {selectedPagination.description}
+              </div>
             </div>
-            <ChevronDown className={`w-4 h-4 text-gray-500 transition-transform duration-200 ${isPaginationOpen ? 'transform rotate-180' : ''}`} />
+            <ChevronDown
+              className={`w-4 h-4 text-gray-500 transition-transform duration-200 ${
+                isPaginationOpen ? "transform rotate-180" : ""
+              }`}
+            />
           </button>
 
           {isPaginationOpen && (
@@ -247,11 +287,15 @@ export default function APISourceConfig({
                     setIsPaginationOpen(false);
                   }}
                   className={`px-4 py-2.5 cursor-pointer hover:bg-emerald-50 transition-colors ${
-                    paginationType === option.value ? 'bg-emerald-50 text-emerald-700' : 'text-gray-700'
+                    paginationType === option.value
+                      ? "bg-emerald-50 text-emerald-700"
+                      : "text-gray-700"
                   }`}
                 >
                   <div className="font-medium">{option.label}</div>
-                  <div className="text-xs text-gray-500 mt-0.5">{option.description}</div>
+                  <div className="text-xs text-gray-500 mt-0.5">
+                    {option.description}
+                  </div>
                 </div>
               ))}
             </div>
@@ -260,9 +304,11 @@ export default function APISourceConfig({
       </div>
 
       {/* Pagination Config Fields */}
-      {paginationType === 'offset_limit' && (
+      {paginationType === "offset_limit" && (
         <div className="bg-gray-50 border border-gray-200 rounded-lg p-4 space-y-4">
-          <h4 className="text-sm font-medium text-gray-700">Offset/Limit Configuration</h4>
+          <h4 className="text-sm font-medium text-gray-700">
+            Offset/Limit Configuration
+          </h4>
 
           <div className="grid grid-cols-2 gap-4">
             <div>
@@ -271,8 +317,10 @@ export default function APISourceConfig({
               </label>
               <input
                 type="text"
-                value={paginationConfig.offset_param || 'offset'}
-                onChange={(e) => updatePaginationConfig('offset_param', e.target.value)}
+                value={paginationConfig.offset_param || "offset"}
+                onChange={(e) =>
+                  updatePaginationConfig("offset_param", e.target.value)
+                }
                 placeholder="offset"
                 className="w-full px-3 py-2 text-sm border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-emerald-500"
               />
@@ -283,8 +331,10 @@ export default function APISourceConfig({
               </label>
               <input
                 type="text"
-                value={paginationConfig.limit_param || 'limit'}
-                onChange={(e) => updatePaginationConfig('limit_param', e.target.value)}
+                value={paginationConfig.limit_param || "limit"}
+                onChange={(e) =>
+                  updatePaginationConfig("limit_param", e.target.value)
+                }
                 placeholder="limit"
                 className="w-full px-3 py-2 text-sm border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-emerald-500"
               />
@@ -296,7 +346,12 @@ export default function APISourceConfig({
               <input
                 type="number"
                 value={paginationConfig.page_size || 100}
-                onChange={(e) => updatePaginationConfig('page_size', parseInt(e.target.value) || 100)}
+                onChange={(e) =>
+                  updatePaginationConfig(
+                    "page_size",
+                    parseInt(e.target.value) || 100
+                  )
+                }
                 min="1"
                 max="1000"
                 className="w-full px-3 py-2 text-sm border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-emerald-500"
@@ -309,7 +364,12 @@ export default function APISourceConfig({
               <input
                 type="number"
                 value={paginationConfig.start_offset || 0}
-                onChange={(e) => updatePaginationConfig('start_offset', parseInt(e.target.value) || 0)}
+                onChange={(e) =>
+                  updatePaginationConfig(
+                    "start_offset",
+                    parseInt(e.target.value) || 0
+                  )
+                }
                 min="0"
                 className="w-full px-3 py-2 text-sm border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-emerald-500"
               />
@@ -318,9 +378,11 @@ export default function APISourceConfig({
         </div>
       )}
 
-      {paginationType === 'page' && (
+      {paginationType === "page" && (
         <div className="bg-gray-50 border border-gray-200 rounded-lg p-4 space-y-4">
-          <h4 className="text-sm font-medium text-gray-700">Page Number Configuration</h4>
+          <h4 className="text-sm font-medium text-gray-700">
+            Page Number Configuration
+          </h4>
 
           <div className="grid grid-cols-2 gap-4">
             <div>
@@ -329,8 +391,10 @@ export default function APISourceConfig({
               </label>
               <input
                 type="text"
-                value={paginationConfig.page_param || 'page'}
-                onChange={(e) => updatePaginationConfig('page_param', e.target.value)}
+                value={paginationConfig.page_param || "page"}
+                onChange={(e) =>
+                  updatePaginationConfig("page_param", e.target.value)
+                }
                 placeholder="page"
                 className="w-full px-3 py-2 text-sm border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-emerald-500"
               />
@@ -341,8 +405,10 @@ export default function APISourceConfig({
               </label>
               <input
                 type="text"
-                value={paginationConfig.per_page_param || 'per_page'}
-                onChange={(e) => updatePaginationConfig('per_page_param', e.target.value)}
+                value={paginationConfig.per_page_param || "per_page"}
+                onChange={(e) =>
+                  updatePaginationConfig("per_page_param", e.target.value)
+                }
                 placeholder="per_page"
                 className="w-full px-3 py-2 text-sm border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-emerald-500"
               />
@@ -354,7 +420,12 @@ export default function APISourceConfig({
               <input
                 type="number"
                 value={paginationConfig.page_size || 100}
-                onChange={(e) => updatePaginationConfig('page_size', parseInt(e.target.value) || 100)}
+                onChange={(e) =>
+                  updatePaginationConfig(
+                    "page_size",
+                    parseInt(e.target.value) || 100
+                  )
+                }
                 min="1"
                 max="1000"
                 className="w-full px-3 py-2 text-sm border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-emerald-500"
@@ -367,7 +438,12 @@ export default function APISourceConfig({
               <input
                 type="number"
                 value={paginationConfig.start_page || 1}
-                onChange={(e) => updatePaginationConfig('start_page', parseInt(e.target.value) || 1)}
+                onChange={(e) =>
+                  updatePaginationConfig(
+                    "start_page",
+                    parseInt(e.target.value) || 1
+                  )
+                }
                 min="1"
                 className="w-full px-3 py-2 text-sm border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-emerald-500"
               />
@@ -376,9 +452,11 @@ export default function APISourceConfig({
         </div>
       )}
 
-      {paginationType === 'cursor' && (
+      {paginationType === "cursor" && (
         <div className="bg-gray-50 border border-gray-200 rounded-lg p-4 space-y-4">
-          <h4 className="text-sm font-medium text-gray-700">Cursor-based Configuration</h4>
+          <h4 className="text-sm font-medium text-gray-700">
+            Cursor-based Configuration
+          </h4>
 
           <div className="space-y-4">
             <div>
@@ -387,8 +465,10 @@ export default function APISourceConfig({
               </label>
               <input
                 type="text"
-                value={paginationConfig.cursor_param || 'cursor'}
-                onChange={(e) => updatePaginationConfig('cursor_param', e.target.value)}
+                value={paginationConfig.cursor_param || "cursor"}
+                onChange={(e) =>
+                  updatePaginationConfig("cursor_param", e.target.value)
+                }
                 placeholder="cursor"
                 className="w-full px-3 py-2 text-sm border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-emerald-500"
               />
@@ -399,8 +479,10 @@ export default function APISourceConfig({
               </label>
               <input
                 type="text"
-                value={paginationConfig.next_cursor_path || ''}
-                onChange={(e) => updatePaginationConfig('next_cursor_path', e.target.value)}
+                value={paginationConfig.next_cursor_path || ""}
+                onChange={(e) =>
+                  updatePaginationConfig("next_cursor_path", e.target.value)
+                }
                 placeholder="metadata.next_cursor or $.pagination.next"
                 className="w-full px-3 py-2 text-sm border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-emerald-500"
               />
@@ -414,8 +496,10 @@ export default function APISourceConfig({
               </label>
               <input
                 type="text"
-                value={paginationConfig.start_cursor || ''}
-                onChange={(e) => updatePaginationConfig('start_cursor', e.target.value)}
+                value={paginationConfig.start_cursor || ""}
+                onChange={(e) =>
+                  updatePaginationConfig("start_cursor", e.target.value)
+                }
                 placeholder="Leave empty to start from beginning"
                 className="w-full px-3 py-2 text-sm border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-emerald-500"
               />
@@ -429,13 +513,20 @@ export default function APISourceConfig({
         <div className="flex items-center justify-between mb-4">
           <div className="flex items-center gap-2">
             <Clock className="w-5 h-5 text-gray-600" />
-            <h3 className="text-sm font-semibold text-gray-900">Incremental Load</h3>
+            <h3 className="text-sm font-semibold text-gray-900">
+              Incremental Load
+            </h3>
           </div>
           <label className="relative inline-flex items-center cursor-pointer">
             <input
               type="checkbox"
               checked={incrementalEnabled}
-              onChange={(e) => onIncrementalChange({ enabled: e.target.checked, timestampParam })}
+              onChange={(e) =>
+                onIncrementalChange({
+                  enabled: e.target.checked,
+                  timestampParam,
+                })
+              }
               className="sr-only peer"
             />
             <div className="w-11 h-6 bg-gray-200 peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-emerald-100 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-emerald-600"></div>
@@ -443,7 +534,8 @@ export default function APISourceConfig({
         </div>
 
         <p className="text-sm text-gray-600 mb-4">
-          Fetch only new or updated records by using a timestamp query parameter. This reduces API calls and improves performance.
+          Fetch only new or updated records by using a timestamp query
+          parameter. This reduces API calls and improves performance.
         </p>
 
         {incrementalEnabled && (
@@ -455,12 +547,26 @@ export default function APISourceConfig({
               <input
                 type="text"
                 value={timestampParam}
-                onChange={(e) => onIncrementalChange({ enabled: incrementalEnabled, timestampParam: e.target.value, startFromDate })}
+                onChange={(e) =>
+                  onIncrementalChange({
+                    enabled: incrementalEnabled,
+                    timestampParam: e.target.value,
+                    startFromDate,
+                  })
+                }
                 placeholder="since, updated_after, from_date, etc."
                 className="w-full px-3 py-2 text-sm border border-emerald-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-emerald-500 bg-white"
               />
               <p className="mt-2 text-xs text-emerald-700">
-                The parameter name used by the API to filter by timestamp (e.g., <code className="px-1 py-0.5 bg-emerald-100 rounded">since</code> for GitHub, <code className="px-1 py-0.5 bg-emerald-100 rounded">updated_after</code> for other APIs)
+                The parameter name used by the API to filter by timestamp (e.g.,{" "}
+                <code className="px-1 py-0.5 bg-emerald-100 rounded">
+                  since
+                </code>{" "}
+                for GitHub,{" "}
+                <code className="px-1 py-0.5 bg-emerald-100 rounded">
+                  updated_after
+                </code>{" "}
+                for other APIs)
               </p>
             </div>
 
@@ -471,20 +577,47 @@ export default function APISourceConfig({
               <input
                 type="datetime-local"
                 value={startFromDate}
-                onChange={(e) => onIncrementalChange({ enabled: incrementalEnabled, timestampParam, startFromDate: e.target.value })}
+                onChange={(e) =>
+                  onIncrementalChange({
+                    enabled: incrementalEnabled,
+                    timestampParam,
+                    startFromDate: e.target.value,
+                  })
+                }
                 className="w-full px-3 py-2 text-sm border border-emerald-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-emerald-500 bg-white"
               />
               <p className="mt-2 text-xs text-emerald-700">
-                First run will start from this date instead of fetching all historical data. Leave empty to fetch everything.
+                First run will start from this date instead of fetching all
+                historical data. Leave empty to fetch everything.
               </p>
             </div>
 
             <div className="bg-white border border-emerald-200 rounded-lg p-3">
-              <p className="text-xs font-medium text-emerald-900 mb-1">How it works:</p>
+              <p className="text-xs font-medium text-emerald-900 mb-1">
+                How it works:
+              </p>
               <ul className="text-xs text-emerald-700 space-y-1 list-disc list-inside">
-                <li>First run: {startFromDate ? `Fetches data from ${new Date(startFromDate).toLocaleDateString()}` : 'Fetches all historical data'}</li>
-                <li>Subsequent runs: Only fetches data after the last sync timestamp</li>
-                <li>Example: <code className="px-1 py-0.5 bg-emerald-100 rounded">?{timestampParam || 'since'}={startFromDate ? new Date(startFromDate).toISOString() : '2026-01-10T12:00:00'}</code></li>
+                <li>
+                  First run:{" "}
+                  {startFromDate
+                    ? `Fetches data from ${new Date(
+                        startFromDate
+                      ).toLocaleDateString()}`
+                    : "Fetches all historical data"}
+                </li>
+                <li>
+                  Subsequent runs: Only fetches data after the last sync
+                  timestamp
+                </li>
+                <li>
+                  Example:{" "}
+                  <code className="px-1 py-0.5 bg-emerald-100 rounded">
+                    ?{timestampParam || "since"}=
+                    {startFromDate
+                      ? new Date(startFromDate).toISOString()
+                      : "2026-01-10T12:00:00"}
+                  </code>
+                </li>
               </ul>
             </div>
           </div>
@@ -493,7 +626,9 @@ export default function APISourceConfig({
         {!incrementalEnabled && (
           <div className="bg-gray-50 border border-gray-200 rounded-lg p-3">
             <p className="text-xs text-gray-600">
-              <strong>Full load mode:</strong> Every run will fetch all data from the API. Enable incremental load to fetch only new/updated records.
+              <strong>Full load mode:</strong> Every run will fetch all data
+              from the API. Enable incremental load to fetch only new/updated
+              records.
             </p>
           </div>
         )}
@@ -503,9 +638,12 @@ export default function APISourceConfig({
       <div className="border-t border-gray-200 pt-6">
         <div className="flex items-center justify-between mb-4">
           <div>
-            <h3 className="text-sm font-semibold text-gray-900">Test API Connection</h3>
+            <h3 className="text-sm font-semibold text-gray-900">
+              Test API Connection
+            </h3>
             <p className="text-xs text-gray-500 mt-1">
-              Test your API configuration immediately and automatically infer the schema
+              Test your API configuration immediately and automatically infer
+              the schema
             </p>
           </div>
           {!previewData && (
@@ -513,7 +651,13 @@ export default function APISourceConfig({
               onClick={handleFetchPreview}
               disabled={previewLoading || !connectionId || !endpoint}
               className="flex items-center gap-2 px-4 py-2 bg-emerald-600 text-white text-sm font-medium rounded-lg hover:bg-emerald-700 disabled:bg-gray-400 disabled:cursor-not-allowed transition-colors"
-              title={!connectionId ? 'Select a connection first' : !endpoint ? 'Enter an endpoint' : 'Test API connection'}
+              title={
+                !connectionId
+                  ? "Select a connection first"
+                  : !endpoint
+                  ? "Enter an endpoint"
+                  : "Test API connection"
+              }
             >
               {previewLoading ? (
                 <>
@@ -536,7 +680,9 @@ export default function APISourceConfig({
             <div className="flex items-start gap-3">
               <AlertCircle className="w-5 h-5 text-red-600 flex-shrink-0 mt-0.5" />
               <div className="flex-1">
-                <h4 className="text-sm font-semibold text-red-800">Failed to Fetch Preview</h4>
+                <h4 className="text-sm font-semibold text-red-800">
+                  Failed to Fetch Preview
+                </h4>
                 <p className="text-sm text-red-600 mt-1">{previewError}</p>
                 <button
                   onClick={handleFetchPreview}
@@ -561,7 +707,8 @@ export default function APISourceConfig({
                   Preview Loaded Successfully!
                 </h4>
                 <p className="text-sm text-green-600 mt-1">
-                  Showing {previewData.length} sample records from your API. Schema has been inferred and saved.
+                  Showing {previewData.length} sample records from your API.
+                  Schema has been inferred and saved.
                 </p>
               </div>
               <button
@@ -584,7 +731,8 @@ export default function APISourceConfig({
 
             {/* Schema Info */}
             <div className="text-sm text-gray-500">
-              <strong>{Object.keys(previewData[0] || {}).length}</strong> columns detected and saved
+              <strong>{Object.keys(previewData[0] || {}).length}</strong>{" "}
+              columns detected and saved
             </div>
           </div>
         )}
