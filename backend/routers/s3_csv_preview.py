@@ -119,21 +119,22 @@ async def preview_s3_csv(request: S3CSVPreviewRequest):
 
         # Read only first N rows for preview (avoid loading entire large CSV into memory)
         # Note: We read limit + a few extra rows to better infer data types
-        df = pd.read_csv(io.BytesIO(csv_content), nrows=min(request.limit + 20, 100))
+        # Parse dates automatically for timestamp column detection
+        df = pd.read_csv(io.BytesIO(csv_content), nrows=min(request.limit + 20, 100), parse_dates=True, infer_datetime_format=True)
 
         # 6. Infer schema from dataframe
         columns = []
         for col_name in df.columns:
-            dtype = df[col_name].dtype
+            dtype = str(df[col_name].dtype)
 
             # Map pandas dtype to our type system
-            if dtype == 'int64':
+            if 'int' in dtype:
                 col_type = 'integer'
-            elif dtype == 'float64':
+            elif 'float' in dtype:
                 col_type = 'float'
             elif dtype == 'bool':
                 col_type = 'boolean'
-            elif dtype == 'datetime64[ns]':
+            elif 'datetime' in dtype:
                 col_type = 'timestamp'
             else:
                 col_type = 'string'

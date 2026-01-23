@@ -43,6 +43,7 @@ class RegexTestResponse(BaseModel):
     sample_logs: Optional[List[str]] = None
     parsed_rows: Optional[List[Dict[str, Any]]] = None
     fields_extracted: Optional[List[str]] = None
+    columns: Optional[List[Dict[str, str]]] = None  # [{"name": "field", "type": "timestamp"}]
     total_lines: Optional[int] = None
     parsed_lines: Optional[int] = None
     error: Optional[str] = None
