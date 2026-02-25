@@ -14,6 +14,13 @@
 
 </div>
 
+## 시연 영상
+<div align="center">
+  <a href="https://www.youtube.com/watch?v=WNXGnw_Wg8Q">
+    <img src="https://img.youtube.com/vi/WNXGnw_Wg8Q/0.jpg" alt="XFlow Video" />
+  </a>
+</div>
+
 ---
 
 ## 주요 기능
